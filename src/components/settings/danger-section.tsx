@@ -5,15 +5,25 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { readResponseError } from "./settings-utils";
+import { useWorkspaceSession } from "@/components/providers/workspace-lifecycle-provider";
+import { resetWorkspaceClientState } from "@/lib/notes/workspace-lifecycle";
+import { publishWorkspaceInvalidation } from "@/lib/notes/workspace-invalidation";
+import useNoteTreeStore from "@/lib/notes/state/tree";
 
 const DELETE_ACCOUNT_PHRASE = "delete my account";
 
 const VAULT_CONFIRM_PHRASE =
   "I solemnly swear on my academic career that I, a person of sound mind and questionable study habits, do hereby voluntarily and irrevocably consent to the total and utter annihilation of every single note, file, and folder in my vault, fully understanding that they are gone forever and that this is entirely my own fault";
 
+function isCurrentWorkspace(ownerUserId: string | null, generation: number) {
+  const tree = useNoteTreeStore.getState();
+  return tree.ownerUserId === ownerUserId && tree.generation === generation;
+}
+
 export default function DangerSection() {
   const { t } = useI18n();
   const router = useRouter();
+  const { userId } = useWorkspaceSession();
 
   const [clearVaultConfirm, setClearVaultConfirm] = useState(false);
   const [clearVaultInput, setClearVaultInput] = useState("");
@@ -23,6 +33,9 @@ export default function DangerSection() {
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   const handleClearVault = async () => {
+    const mutationOwner = userId;
+    const mutationGeneration = useNoteTreeStore.getState().generation;
+    let continuationGeneration = mutationGeneration;
     setIsClearingVault(true);
     try {
       const res = await fetch("/api/vault", { method: "DELETE" });
@@ -30,6 +43,16 @@ export default function DangerSection() {
         toast.error(await readResponseError(res, t("Failed to clear vault")));
         return;
       }
+      if (!isCurrentWorkspace(mutationOwner, mutationGeneration)) {
+        if (mutationOwner) publishWorkspaceInvalidation(mutationOwner, "vault");
+        return;
+      }
+      const clearing = resetWorkspaceClientState(mutationOwner);
+      const resetGeneration = useNoteTreeStore.getState().generation;
+      continuationGeneration = resetGeneration;
+      if (mutationOwner) publishWorkspaceInvalidation(mutationOwner, "vault");
+      await clearing;
+      if (!isCurrentWorkspace(mutationOwner, resetGeneration)) return;
       const data = await res.json();
       const { summary } = data;
       toast.success(
@@ -37,13 +60,19 @@ export default function DangerSection() {
       );
       setClearVaultConfirm(false);
     } catch {
-      toast.error(t("Failed to clear vault"));
+      if (isCurrentWorkspace(mutationOwner, continuationGeneration)) {
+        toast.error(t("Failed to clear vault"));
+      }
     } finally {
       setIsClearingVault(false);
     }
   };
 
   const handleDeleteAccount = async () => {
+    const mutationOwner = userId;
+    const mutationGeneration = useNoteTreeStore.getState().generation;
+    let continuationOwner = mutationOwner;
+    let continuationGeneration = mutationGeneration;
     setIsDeletingAccount(true);
     try {
       const res = await fetch("/api/auth/delete-account", {
@@ -57,9 +86,26 @@ export default function DangerSection() {
         );
         return;
       }
+      if (!isCurrentWorkspace(mutationOwner, mutationGeneration)) {
+        if (mutationOwner) {
+          publishWorkspaceInvalidation(mutationOwner, "session");
+        }
+        return;
+      }
+      const clearing = resetWorkspaceClientState(null);
+      const resetGeneration = useNoteTreeStore.getState().generation;
+      continuationOwner = null;
+      continuationGeneration = resetGeneration;
+      if (mutationOwner) {
+        publishWorkspaceInvalidation(mutationOwner, "session");
+      }
+      await clearing;
+      if (!isCurrentWorkspace(null, resetGeneration)) return;
       router.push("/login");
     } catch {
-      toast.error(t("Failed to delete account"));
+      if (isCurrentWorkspace(continuationOwner, continuationGeneration)) {
+        toast.error(t("Failed to delete account"));
+      }
     } finally {
       setIsDeletingAccount(false);
     }

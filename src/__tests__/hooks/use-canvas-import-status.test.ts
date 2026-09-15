@@ -7,6 +7,11 @@ const mocks = vi.hoisted(() => ({
   markCanvasNew: vi.fn(),
   refreshTreePaths: vi.fn().mockResolvedValue(undefined),
   refreshTree: vi.fn(),
+  fetchNote: vi.fn().mockResolvedValue(undefined),
+}));
+const layoutState = vi.hoisted(() => ({
+  paneA: null as { fileId: string; fileType: "note" } | null,
+  paneB: null as { fileId: string; fileType: "note" } | null,
 }));
 
 vi.mock("@/lib/canvas/status-poll", () => ({
@@ -27,6 +32,18 @@ vi.mock("@/lib/notes/state/tree", () => ({
       refreshTreePaths: mocks.refreshTreePaths,
       refreshTree: mocks.refreshTree,
     }),
+  },
+}));
+
+vi.mock("@/lib/notes/state/note", () => ({
+  default: {
+    getState: () => ({ fetchNote: mocks.fetchNote }),
+  },
+}));
+
+vi.mock("@/lib/notes/state/layout.zustand", () => ({
+  default: {
+    getState: () => layoutState,
   },
 }));
 
@@ -55,11 +72,14 @@ function canvasStatus(overrides: Record<string, unknown> = {}) {
 describe("useCanvasImportStatus", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    layoutState.paneA = null;
+    layoutState.paneB = null;
   });
 
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
     localStorage.clear();
   });
 
@@ -134,7 +154,11 @@ describe("useCanvasImportStatus", () => {
       finishSync({ queued: true, jobId: "replacement-job" });
     });
     await waitFor(() => expect(result.current.isImporting).toBe(true));
-    expect(result.current.progress).toBeNull();
+    expect(result.current.progress).toMatchObject({
+      jobType: "sync",
+      completed: 0,
+      total: 0,
+    });
     expect(result.current.showToast).toBe(true);
   });
 
@@ -199,9 +223,57 @@ describe("useCanvasImportStatus", () => {
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         "/api/canvas/sync?automatic=true",
-        { method: "POST" },
+        expect.objectContaining({
+          method: "POST",
+          signal: expect.any(AbortSignal),
+        }),
       );
     });
+    unmount();
+  });
+
+  it("does not start automatic sync after the owner resets", async () => {
+    let resolveSyncCheck: ((response: object) => void) | undefined;
+    const syncCheck = new Promise<object>((resolve) => {
+      resolveSyncCheck = resolve;
+    });
+    const fetchMock = vi.fn((url: string) => {
+      if (url === "/api/canvas/status") {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ success: true, activeJob: null, latestJob: null }),
+        });
+      }
+      if (url === "/api/canvas/sync") return syncCheck;
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ queued: true, jobId: "stale-job" }),
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { result, unmount } = renderHook(() => useCanvasImportStatus());
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/canvas/sync",
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      );
+    });
+    act(() => result.current.resetStatus());
+    resolveSyncCheck?.({
+      ok: true,
+      json: async () => ({ available: true, activeJob: null }),
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      "/api/canvas/sync?automatic=true",
+      expect.anything(),
+    );
+    expect(result.current.isImporting).toBe(false);
     unmount();
   });
 
@@ -535,6 +607,298 @@ describe("useCanvasImportStatus", () => {
       await vi.advanceTimersByTimeAsync(4_000);
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
+    unmount();
+  });
+
+  it("uses the server poll interval for the next status request", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () =>
+        canvasStatus({
+          pollIntervalMs: 7_000,
+          activeJob: {
+            jobId: "job-1",
+            status: "processing",
+            jobType: "import",
+          },
+        }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { result, unmount } = renderHook(() =>
+      useCanvasImportStatus({ autoCheckOnMount: false }),
+    );
+
+    await act(async () => {
+      await result.current.checkStatus();
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(6_999);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    unmount();
+  });
+
+  it("keeps terminal paths and its token until a rejected refresh succeeds", async () => {
+    localStorage.setItem(
+      "canvas_active_job",
+      JSON.stringify({ jobId: "job-1" }),
+    );
+    const refreshError = new Error("tree is not ready");
+    mocks.refreshTreePaths
+      .mockRejectedValueOnce(refreshError)
+      .mockResolvedValueOnce(undefined);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () =>
+          canvasStatus({
+            activeJob: null,
+            latestJob: {
+              jobId: "job-1",
+              status: "complete",
+              jobType: "import",
+            },
+            progress: { total: 1, completed: 1, percent: 100 },
+            recentLogs: [],
+            publishedJobId: "job-1",
+            publishedTreePaths: [["course-1", "note-1"]],
+          }),
+      }),
+    );
+    const { result, unmount } = renderHook(() =>
+      useCanvasImportStatus({ autoCheckOnMount: false }),
+    );
+
+    await act(async () => {
+      await result.current.checkStatus();
+    });
+    expect(mocks.refreshTreePaths).toHaveBeenCalledWith([
+      ["course-1", "note-1"],
+    ]);
+    expect(localStorage.getItem("canvas_active_job")).not.toBeNull();
+
+    await act(async () => {
+      await result.current.checkStatus();
+    });
+    expect(mocks.refreshTreePaths).toHaveBeenCalledTimes(2);
+    expect(mocks.refreshTreePaths).toHaveBeenLastCalledWith([
+      ["course-1", "note-1"],
+    ]);
+    expect(localStorage.getItem("canvas_active_job")).toBeNull();
+    unmount();
+  });
+
+  it("waits for unresolved publication paths without refreshing resolved paths again", async () => {
+    localStorage.setItem(
+      "canvas_active_job",
+      JSON.stringify({ jobId: "job-1" }),
+    );
+    const terminalStatus = (publishedTreePaths: string[][]) =>
+      canvasStatus({
+        activeJob: null,
+        latestJob: {
+          jobId: "job-1",
+          status: "complete",
+          jobType: "import",
+        },
+        progress: { total: 2, completed: 2, percent: 100 },
+        recentLogs: [],
+        publishedJobId: "job-1",
+        publishedNoteCount: 2,
+        publishedTreePaths,
+      });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => terminalStatus([["course-1", "note-1"]]),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => terminalStatus([["course-1", "note-1"]]),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () =>
+          terminalStatus([
+            ["course-1", "note-1"],
+            ["course-1", "note-2"],
+          ]),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+    const { result, unmount } = renderHook(() =>
+      useCanvasImportStatus({ autoCheckOnMount: false }),
+    );
+
+    await act(async () => {
+      await result.current.checkStatus();
+    });
+    expect(mocks.refreshTreePaths).toHaveBeenCalledWith([
+      ["course-1", "note-1"],
+    ]);
+    expect(localStorage.getItem("canvas_active_job")).not.toBeNull();
+
+    await act(async () => {
+      await result.current.checkStatus();
+    });
+    expect(mocks.refreshTreePaths).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem("canvas_active_job")).not.toBeNull();
+
+    await act(async () => {
+      await result.current.checkStatus();
+    });
+    expect(mocks.refreshTreePaths).toHaveBeenCalledTimes(2);
+    expect(mocks.refreshTreePaths).toHaveBeenLastCalledWith([
+      ["course-1", "note-2"],
+    ]);
+    expect(localStorage.getItem("canvas_active_job")).toBeNull();
+    unmount();
+  });
+
+  it("acknowledges a zero-note cancelled publication", async () => {
+    localStorage.setItem(
+      "canvas_active_job",
+      JSON.stringify({ jobId: "job-1" }),
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () =>
+          canvasStatus({
+            activeJob: null,
+            latestJob: {
+              jobId: "job-1",
+              status: "cancelled",
+              jobType: "import",
+            },
+            progress: { total: 0, completed: 0, percent: 0 },
+            publishedJobId: "job-1",
+            publishedNoteCount: 0,
+            publishedTreePaths: [],
+          }),
+      }),
+    );
+    const { result, unmount } = renderHook(() =>
+      useCanvasImportStatus({ autoCheckOnMount: false }),
+    );
+
+    await act(async () => {
+      await result.current.checkStatus();
+    });
+    expect(mocks.refreshTreePaths).not.toHaveBeenCalled();
+    expect(localStorage.getItem("canvas_active_job")).toBeNull();
+    unmount();
+  });
+
+  it("acknowledges a terminal job only after open notes refresh fresh", async () => {
+    const noteId = "00000000-0000-4000-8000-000000000001";
+    layoutState.paneA = { fileId: noteId, fileType: "note" };
+    localStorage.setItem(
+      "canvas_active_job",
+      JSON.stringify({ jobId: "job-1" }),
+    );
+    let finishNoteRefresh: (() => void) | undefined;
+    mocks.fetchNote.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finishNoteRefresh = resolve;
+      }),
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () =>
+          canvasStatus({
+            activeJob: null,
+            latestJob: {
+              jobId: "job-1",
+              status: "complete",
+              jobType: "import",
+            },
+            progress: { total: 1, completed: 1, percent: 100 },
+            publishedJobId: "job-1",
+            publishedTreePaths: [["course-1", noteId]],
+          }),
+      }),
+    );
+    const { result, unmount } = renderHook(() =>
+      useCanvasImportStatus({ autoCheckOnMount: false }),
+    );
+
+    let statusPromise: Promise<void> | undefined;
+    act(() => {
+      statusPromise = result.current.checkStatus();
+    });
+    await waitFor(() => {
+      expect(mocks.fetchNote).toHaveBeenCalledWith(noteId, {
+        forceFresh: true,
+      });
+    });
+    expect(localStorage.getItem("canvas_active_job")).not.toBeNull();
+
+    finishNoteRefresh?.();
+    await act(async () => {
+      await statusPromise;
+    });
+    expect(localStorage.getItem("canvas_active_job")).toBeNull();
+    unmount();
+  });
+
+  it("does not revive a reset owner when a terminal refresh settles", async () => {
+    localStorage.setItem(
+      "canvas_active_job",
+      JSON.stringify({ jobId: "job-1" }),
+    );
+    let finishTreeRefresh: (() => void) | undefined;
+    mocks.refreshTreePaths.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finishTreeRefresh = resolve;
+      }),
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () =>
+          canvasStatus({
+            activeJob: null,
+            latestJob: {
+              jobId: "job-1",
+              status: "complete",
+              jobType: "import",
+            },
+            progress: { total: 1, completed: 1, percent: 100 },
+            publishedJobId: "job-1",
+            publishedTreePaths: [["course-1", "note-1"]],
+          }),
+      }),
+    );
+    const { result, unmount } = renderHook(() =>
+      useCanvasImportStatus({ autoCheckOnMount: false }),
+    );
+
+    let statusPromise: Promise<void> | undefined;
+    act(() => {
+      statusPromise = result.current.checkStatus();
+    });
+    await waitFor(() => expect(mocks.refreshTreePaths).toHaveBeenCalledOnce());
+    act(() => result.current.resetStatus());
+    finishTreeRefresh?.();
+    await act(async () => {
+      await statusPromise;
+    });
+
+    expect(result.current.isImporting).toBe(false);
+    expect(result.current.progress).toBeNull();
     unmount();
   });
 });

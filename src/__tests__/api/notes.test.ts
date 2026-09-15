@@ -209,6 +209,23 @@ describe("PATCH /api/notes/[id]", () => {
     const body = await res.json();
     expect(body.content).toBe("# Updated");
   });
+
+  it("persists pin changes and returns the stored pin state", async () => {
+    const pinnedRow = { ...NOTE_ROW, pinned: 1 };
+    sql.mockResolvedValueOnce([NOTE_ROW]).mockResolvedValueOnce([pinnedRow]);
+
+    const req = makeRequest("PATCH", "http://localhost/api/notes/note-uuid-1", {
+      pinned: 1,
+    });
+    const res = await notePATCH(req, {
+      params: Promise.resolve({ id: "note-uuid-1" }),
+    });
+
+    expect(res.status).toBe(200);
+    expect((await res.json()).pinned).toBe(1);
+    expect(sql.mock.calls[1][0].join(" ")).toContain("pinned =");
+    expect(sql.mock.calls[1].slice(1)).toContain(1);
+  });
 });
 
 // ─── DELETE /api/notes/[id] ───────────────────────────────────────────────

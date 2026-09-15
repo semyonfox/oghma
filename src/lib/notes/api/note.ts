@@ -26,7 +26,11 @@ export interface NoteUpdateRequest {
 /** The small portion of the hook injected into the singleton note store. */
 export interface NoteApi {
     error?: string;
-    find: (id: string) => Promise<NoteModel | undefined>;
+    abort?: () => void;
+    find: (
+        id: string,
+        options?: { deduplicate?: boolean },
+    ) => Promise<NoteModel | undefined>;
     create: (body: NoteCreateRequest) => Promise<NoteModel | undefined>;
     mutate: (
         id: string,
@@ -39,10 +43,13 @@ export default function useNoteAPI() {
     const { loading, request, abort, error } = useFetcher();
 
     const find = useCallback(
-        async (id: string) => {
+        async (id: string, options?: { deduplicate?: boolean }) => {
             return request<null, NoteModel>({
                 method: 'GET',
                 url: `/api/notes/${id}`,
+                ...(options?.deduplicate === false
+                    ? { deduplicate: false }
+                    : {}),
             });
         },
         [request]

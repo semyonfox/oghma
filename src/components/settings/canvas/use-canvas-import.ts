@@ -1,4 +1,3 @@
-import { DEFAULT_CANVAS_POLL_MS, canvasPollInterval, fetchCanvasStatus } from "@/lib/canvas/status-poll";
 import {
   useState,
   useRef,
@@ -7,16 +6,10 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import {
-  LS_ACTIVE_JOB,
-  LS_ERRORS,
-  LS_FORBIDDEN,
-  LS_SYNCED,
-} from "./canvas-helpers";
+import { useCanvasImportOwner } from "@/components/canvas/canvas-import-notifications";
+import { LS_ACTIVE_JOB, LS_ERRORS, LS_FORBIDDEN, LS_SYNCED } from "./canvas-helpers";
 import { toFriendlyCanvasError } from "@/lib/friendly-errors";
 import useNoteTreeStore from "@/lib/notes/state/tree";
-import useNoteStore from "@/lib/notes/state/note";
-import useLayoutStore from "@/lib/notes/state/layout.zustand";
 
 interface UseCanvasImportParams {
   selectedCourseIds: string[];
@@ -37,62 +30,42 @@ interface UseCanvasImportParams {
   t: (key: string) => string;
 }
 
-interface CanvasProgress {
-  percent: number;
-  completed: number;
-  total: number;
-  downloading: number;
-  processing: number;
+interface TrashFolder {
+  rootId: string;
+  title: string;
+  deletedAt: string;
 }
 
-interface CanvasLog {
-  status?: string;
-  courseId?: string | number;
-  treePath?: string[];
+interface PendingTrash {
+  url: string;
+  body?: Record<string, unknown>;
+  folders: TrashFolder[];
 }
 
-interface TrashFolder { rootId: string; title: string; deletedAt: string }
-interface PendingTrash { url: string; body?: Record<string, unknown>; folders: TrashFolder[] }
+interface PendingReplacement {
+  url: string;
+  body?: Record<string, unknown>;
+  jobId: string;
+  status: string;
+}
 
-interface PendingReplacement { url: string; body?: Record<string, unknown>; jobId: string; status: string }
-
-interface CanvasStatusResponse {
-  pollIntervalMs?: number;
-  activeJob?: {
-    jobId?: string;
-    phase?: string;
-    status?: string;
-    jobType?: string;
-  } | null;
-  latestJob?: {
-    jobId?: string;
-    status?: string;
-    jobType?: string;
-    errorMessage?: string | null;
-  } | null;
-  progress?: CanvasProgress | null;
-  discovery?: { completedCourses: number; totalCourses: number; stage: string; filesFound: number; skippedCourses?: string[]; skippedFolders?: string[] } | null;
-  retryableFiles?: number;
-  markerColdStarting?: boolean;
-  estimatedSecsRemaining?: number | null;
-  recentLogs?: CanvasLog[];
-  publishedJobId?: string | null;
-  publishedTreePaths?: string[][];
-  issues?: { forbidden?: number; error?: number; stopped?: number };
+interface ActionFence {
+  controller: AbortController;
+  treeGeneration: number;
 }
 
 function getStoredActiveJobId(): string | null {
   try {
-    const storedJob: unknown = JSON.parse(
+    const stored: unknown = JSON.parse(
       localStorage.getItem(LS_ACTIVE_JOB) ?? "null",
     );
     if (
-      typeof storedJob === "object" &&
-      storedJob !== null &&
-      "jobId" in storedJob &&
-      typeof storedJob.jobId === "string"
+      stored &&
+      typeof stored === "object" &&
+      "jobId" in stored &&
+      typeof stored.jobId === "string"
     ) {
-      return storedJob.jobId;
+      return stored.jobId;
     }
   } catch {
     localStorage.removeItem(LS_ACTIVE_JOB);
@@ -100,32 +73,9 @@ function getStoredActiveJobId(): string | null {
   return null;
 }
 
-function transitionStoredActiveJob(
-  expectedJobId: string,
-  nextJobId: string | null,
-): string | null {
-  const currentJobId = getStoredActiveJobId();
-  if (currentJobId !== expectedJobId) return currentJobId;
-
-  if (nextJobId) {
-    localStorage.setItem(LS_ACTIVE_JOB, JSON.stringify({ jobId: nextJobId }));
-  } else {
-    localStorage.removeItem(LS_ACTIVE_JOB);
-  }
-  return nextJobId;
-}
-
-async function refreshOpenNotes(): Promise<void> {
-  const noteStore = useNoteStore.getState();
-  const layoutStore = useLayoutStore.getState();
-  const refreshPromises = [];
-  if (layoutStore.paneA?.fileId && layoutStore.paneA.fileType === "note") {
-    refreshPromises.push(noteStore.fetchNote(layoutStore.paneA.fileId));
-  }
-  if (layoutStore.paneB?.fileId && layoutStore.paneB.fileType === "note") {
-    refreshPromises.push(noteStore.fetchNote(layoutStore.paneB.fileId));
-  }
-  await Promise.allSettled(refreshPromises);
+function jobIdFrom(value: unknown): string | null {
+  if (!value || typeof value !== "object" || !("jobId" in value)) return null;
+  return typeof value.jobId === "string" ? value.jobId : null;
 }
 
 export default function useCanvasImport({
@@ -140,37 +90,16 @@ export default function useCanvasImport({
   setConnectionError,
   t,
 }: UseCanvasImportParams) {
-  const pollIntervalRef = useRef(DEFAULT_CANVAS_POLL_MS);
-  const [isImporting, setIsImporting] = useState(false);
-  const [pendingReplacement, setPendingReplacement] = useState<PendingReplacement | null>(null);
+  const owner = useCanvasImportOwner();
+  const [isStartingSync, setIsStartingSync] = useState(false);
+  const [pendingReplacement, setPendingReplacement] =
+    useState<PendingReplacement | null>(null);
   const [pendingTrash, setPendingTrash] = useState<PendingTrash | null>(null);
   const [isRestoring, setIsRestoring] = useState(false);
   const [isReplacing, setIsReplacing] = useState(false);
-  const [discovery, setDiscovery] = useState<CanvasStatusResponse["discovery"]>(null);
-  const [terminalStatus, setTerminalStatus] = useState<string | null>(null);
-  const [retrySourceJobId, setRetrySourceJobId] = useState<string | null>(null);
-  const [isDiscovering, setIsDiscovering] = useState(false);
-  const [importSummary, setImportSummary] = useState<{
-    imported: number;
-    forbidden: number;
-    failed: number;
-    skipped: number;
-  } | null>(null);
-  const [progress, setProgress] = useState<{
-    percent: number;
-    completed: number;
-    total: number;
-    downloading: number;
-    processing: number;
-  } | null>(null);
-  const [recentLogs, setRecentLogs] = useState<CanvasLog[]>([]);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [markerColdStarting, setMarkerColdStarting] = useState(false);
-  const [estimatedSecsRemaining, setEstimatedSecsRemaining] = useState<number | null>(null);
-  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pollRequestRef = useRef<AbortController | null>(null);
-  const pollingRef = useRef(false);
-  const trackedJobIdRef = useRef<string | null>(null);
+  const mountedRef = useRef(false);
+  const actionControllersRef = useRef(new Set<AbortController>());
+  const handledTerminalJobIdsRef = useRef(new Set<string>());
   const latestStateRef = useRef({
     courses,
     forbiddenCourses,
@@ -187,314 +116,390 @@ export default function useCanvasImport({
     };
   }, [courses, forbiddenCourses, selectedCourseIds, syncedCourses]);
 
-  const stopPolling = useCallback(() => {
-    if (pollRef.current) {
-      clearTimeout(pollRef.current);
-      pollRef.current = null;
-    }
-    pollingRef.current = false;
-    pollRequestRef.current?.abort();
-    pollRequestRef.current = null;
+  useEffect(() => {
+    mountedRef.current = true;
+    const actionControllers = actionControllersRef.current;
+    return () => {
+      mountedRef.current = false;
+      actionControllers.clear();
+    };
   }, []);
 
-  const startPolling = useCallback((jobId?: string) => {
-    const nextJobId = jobId ?? getStoredActiveJobId();
-    if (nextJobId) trackedJobIdRef.current = nextJobId;
-    if (pollingRef.current) return;
-    pollingRef.current = true;
-    setIsImporting(true);
+  const beginAction = useCallback((): ActionFence => {
+    const controller = new AbortController();
+    actionControllersRef.current.add(controller);
+    return {
+      controller,
+      treeGeneration: useNoteTreeStore.getState().generation,
+    };
+  }, []);
 
-    const poll = async (): Promise<void> => {
-      if (!pollingRef.current) return;
-      const controller = new AbortController();
-      pollRequestRef.current = controller;
-      try {
-        const requestedPublishJobId = trackedJobIdRef.current;
-        const statusUrl = requestedPublishJobId
-          ? `/api/canvas/status?publishJobId=${encodeURIComponent(requestedPublishJobId)}`
-          : "/api/canvas/status";
-        const res = await fetchCanvasStatus(statusUrl, controller.signal);
-        if (!res.ok || controller.signal.aborted) return;
-        const data = (await res.json()) as CanvasStatusResponse;
-        pollIntervalRef.current = canvasPollInterval(data.pollIntervalMs);
-        if (controller.signal.aborted || !pollingRef.current) return;
+  const actionIsCurrent = useCallback((action: ActionFence): boolean => {
+    return (
+      mountedRef.current &&
+      !action.controller.signal.aborted &&
+      useNoteTreeStore.getState().generation === action.treeGeneration
+    );
+  }, []);
 
-        setDiscovery(data.discovery ?? null);
-        setTerminalStatus(data.activeJob ? null : data.latestJob?.status ?? null);
-        setRetrySourceJobId(!data.activeJob && (data.retryableFiles ?? 0) > 0 ? data.latestJob?.jobId ?? null : null);
-        const logs = data.recentLogs ?? [];
-        const activeJobId = data.activeJob?.jobId ?? null;
-        const isTrackedTerminal =
-          requestedPublishJobId !== null &&
-          data.publishedJobId === requestedPublishJobId;
-        const publicationIsLatest =
-          isTrackedTerminal &&
-          data.latestJob?.jobId === requestedPublishJobId;
+  const requireCurrentAction = useCallback(
+    (action: ActionFence): void => {
+      if (!actionIsCurrent(action)) {
+        throw new DOMException("Canvas action is stale", "AbortError");
+      }
+    },
+    [actionIsCurrent],
+  );
 
-        if (isTrackedTerminal) {
-          const publishedTreePaths = Array.isArray(data.publishedTreePaths)
-            ? data.publishedTreePaths
-            : [];
-          const terminalTreePaths = (
-            publishedTreePaths.length > 0
-              ? publishedTreePaths
-              : publicationIsLatest
-                ? logs.map((log) => log.treePath ?? [])
-                : []
-          ).filter((path) => path.length > 0);
+  const finishAction = useCallback((action: ActionFence): void => {
+    actionControllersRef.current.delete(action.controller);
+  }, []);
 
-          // A terminal job is acknowledged only after its durable branches
-          // and any open note have consumed the completed import.
-          if (terminalTreePaths.length > 0) {
-            await useNoteTreeStore
-              .getState()
-              .refreshTreePaths(terminalTreePaths);
-          }
-          await refreshOpenNotes();
+  const recoverAfterNavigation = useCallback(
+    (action: ActionFence): void => {
+      if (useNoteTreeStore.getState().generation === action.treeGeneration) {
+        void owner.checkStatus();
+      }
+    },
+    [owner],
+  );
 
-          const successorJobId =
-            activeJobId && activeJobId !== requestedPublishJobId
-              ? activeJobId
-              : data.latestJob?.jobId &&
-                  data.latestJob.jobId !== requestedPublishJobId
-                ? data.latestJob.jobId
-                : null;
-          const storedJobAfterPublication = transitionStoredActiveJob(
-            requestedPublishJobId,
-            successorJobId,
-          );
-          if (trackedJobIdRef.current === requestedPublishJobId) {
-            trackedJobIdRef.current =
-              storedJobAfterPublication ?? successorJobId;
-          }
-        }
+  useEffect(() => {
+    const snapshot = owner.statusSnapshot;
+    if (!snapshot) return;
 
+    const nextForbidden = { ...latestStateRef.current.forbiddenCourses };
+    let forbiddenChanged = false;
+    for (const log of snapshot.recentLogs ?? []) {
+      if (log.status !== "forbidden" || log.courseId == null) continue;
+      const courseId = String(log.courseId);
+      if (nextForbidden[courseId]) continue;
+      nextForbidden[courseId] = true;
+      forbiddenChanged = true;
+    }
+    if (forbiddenChanged) {
+      latestStateRef.current.forbiddenCourses = nextForbidden;
+      setForbiddenCourses(nextForbidden);
+      localStorage.setItem(LS_FORBIDDEN, JSON.stringify(nextForbidden));
+    }
+
+    const latestJob = snapshot.latestJob;
+    if (!latestJob?.jobId || snapshot.activeJob) return;
+    if (handledTerminalJobIdsRef.current.has(latestJob.jobId)) return;
+    handledTerminalJobIdsRef.current.add(latestJob.jobId);
+
+    if (latestJob.status === "complete" && snapshot.progress) {
+      const nextSynced = { ...latestStateRef.current.syncedCourses };
+      for (const course of latestStateRef.current.courses) {
         if (
-          activeJobId &&
-          (trackedJobIdRef.current === null ||
-            trackedJobIdRef.current === activeJobId)
+          course.canvasStatus !== "inaccessible" &&
+          course.canvasStatus !== "unavailable" &&
+          latestStateRef.current.selectedCourseIds.includes(String(course.id))
         ) {
-          trackedJobIdRef.current = activeJobId;
-        }
-
-        setIsDiscovering(data.activeJob?.phase === "discovering");
-        setProgress(data.progress ?? null);
-        setMarkerColdStarting(Boolean(data.markerColdStarting));
-        setEstimatedSecsRemaining(data.estimatedSecsRemaining ?? null);
-        setRecentLogs(logs);
-
-        // track which courses have forbidden files — persist permanently
-        const newForbidden = { ...latestStateRef.current.forbiddenCourses };
-        let forbiddenChanged = false;
-        for (const log of logs) {
-          if (log.status === "forbidden" && log.courseId) {
-            const key = String(log.courseId);
-            if (!newForbidden[key]) {
-              newForbidden[key] = true;
-              forbiddenChanged = true;
-            }
-          }
-        }
-        if (forbiddenChanged) {
-          latestStateRef.current.forbiddenCourses = newForbidden;
-          setForbiddenCourses(newForbidden);
-          localStorage.setItem(LS_FORBIDDEN, JSON.stringify(newForbidden));
-        }
-
-        if (!data.activeJob) {
-          if (!publicationIsLatest) {
-            const latestTreePaths = logs
-              .map((log) => log.treePath ?? [])
-              .filter((path) => path.length > 0);
-            if (latestTreePaths.length > 0) {
-              await useNoteTreeStore
-                .getState()
-                .refreshTreePaths(latestTreePaths);
-            }
-            if (data.latestJob && !isTrackedTerminal) {
-              await refreshOpenNotes();
-            }
-          }
-
-          const awaitingNextPublication =
-            trackedJobIdRef.current !== null &&
-            trackedJobIdRef.current !== requestedPublishJobId;
-          if (awaitingNextPublication) {
-            setIsImporting(true);
-          } else {
-            stopPolling();
-            setIsImporting(false);
-          }
-          setIsDiscovering(false);
-          setMarkerColdStarting(false);
-          setEstimatedSecsRemaining(null);
-          if (data.latestJob?.status === "complete" && data.progress) {
-            setImportSummary({
-              imported: data.progress.completed,
-              forbidden: data.issues?.forbidden ?? 0,
-              failed: data.issues?.error ?? 0,
-              skipped: 0,
-            });
-            // mark selected courses as synced
-            const newSynced = { ...latestStateRef.current.syncedCourses };
-            for (const course of latestStateRef.current.courses) {
-              if (
-                course.canvasStatus !== "inaccessible" &&
-                course.canvasStatus !== "unavailable" &&
-                latestStateRef.current.selectedCourseIds.includes(String(course.id))
-              ) {
-                newSynced[String(course.id)] = true;
-              }
-            }
-            latestStateRef.current.syncedCourses = newSynced;
-            setSyncedCourses(newSynced);
-            localStorage.setItem(LS_SYNCED, JSON.stringify(newSynced));
-          } else {
-            setImportSummary(data.progress ? {
-              imported: data.progress.completed, forbidden: data.issues?.forbidden ?? 0,
-              failed: data.issues?.error ?? 0, skipped: data.issues?.stopped ?? 0,
-            } : null);
-            if (data.latestJob?.status === "failed") {
-              setConnectionError(
-                data.latestJob.errorMessage ?? t("Import failed"),
-              );
-            } else if (data.latestJob?.status === "cancelled") {
-              setConnectionError(t("Import stopped"));
-            }
-          }
-        }
-      } catch {
-        // Keep polling after transient errors. A cancellation is expected
-        // when changing jobs or leaving settings.
-      } finally {
-        if (pollRequestRef.current === controller) {
-          pollRequestRef.current = null;
-        }
-        // Poll only after this snapshot has settled: a slow Marker/OCR status
-        // response must never overtake a later request.
-        if (pollingRef.current && !controller.signal.aborted) {
-          pollRef.current = setTimeout(() => {
-            void poll();
-          }, pollIntervalRef.current);
+          nextSynced[String(course.id)] = true;
         }
       }
-    };
-
-    void poll();
+      latestStateRef.current.syncedCourses = nextSynced;
+      setSyncedCourses(nextSynced);
+      localStorage.setItem(LS_SYNCED, JSON.stringify(nextSynced));
+    } else if (latestJob.status === "failed") {
+      setConnectionError(latestJob.errorMessage ?? t("Import failed"));
+    } else if (latestJob.status === "cancelled") {
+      setConnectionError(t("Import stopped"));
+    }
   }, [
+    owner.statusSnapshot,
+    setConnectionError,
     setForbiddenCourses,
     setSyncedCourses,
-    setConnectionError,
     t,
-    stopPolling,
   ]);
 
-  // cleanup polling on unmount
-  useEffect(() => stopPolling, [stopPolling]);
+  const beginJob = useCallback(
+    (jobId: string, jobType: string, action: ActionFence) => {
+      requireCurrentAction(action);
+      localStorage.setItem(
+        LS_ACTIVE_JOB,
+        JSON.stringify({ jobId, startedAt: new Date().toISOString() }),
+      );
+      owner.trackJob(jobId, jobType);
+    },
+    [owner, requireCurrentAction],
+  );
 
-  const requestStart = useCallback(async (url: string, body?: Record<string, unknown>, expectedJobId?: string) => {
-    const target = expectedJobId && url === "/api/canvas/sync"
-      ? `${url}?expectedActiveJobId=${encodeURIComponent(expectedJobId)}` : url;
-    const payload = expectedJobId && url !== "/api/canvas/sync"
-      ? { ...body, expectedActiveJobId: expectedJobId } : body;
-    const response = await fetch(target, { method: "POST",
-      ...(payload ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) } : {}) });
-    if (response.status === 409) {
+  const requestStart = useCallback(
+    async (
+      action: ActionFence,
+      url: string,
+      body?: Record<string, unknown>,
+      expectedJobId?: string,
+    ) => {
+      const target =
+        expectedJobId && url === "/api/canvas/sync"
+          ? `${url}?expectedActiveJobId=${encodeURIComponent(expectedJobId)}`
+          : url;
+      const payload =
+        expectedJobId && url !== "/api/canvas/sync"
+          ? { ...body, expectedActiveJobId: expectedJobId }
+          : body;
+      const response = await fetch(target, {
+        method: "POST",
+        signal: action.controller.signal,
+        ...(payload
+          ? {
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            }
+          : {}),
+      });
+      requireCurrentAction(action);
+
+      if (response.status !== 409) return response;
       const conflict: unknown = await response.clone().json();
-      if (typeof conflict === "object" && conflict !== null && "code" in conflict &&
-          conflict.code === "canvas_folders_in_trash" && "folders" in conflict && Array.isArray(conflict.folders)) {
-        const folders = conflict.folders.filter((folder): folder is TrashFolder =>
-          typeof folder === "object" && folder !== null &&
-          typeof folder.rootId === "string" && typeof folder.title === "string" && typeof folder.deletedAt === "string");
-        if (!folders.length || folders.length !== conflict.folders.length) throw new Error("Invalid Trash response");
+      requireCurrentAction(action);
+      if (
+        conflict &&
+        typeof conflict === "object" &&
+        "code" in conflict &&
+        conflict.code === "canvas_folders_in_trash" &&
+        "folders" in conflict &&
+        Array.isArray(conflict.folders)
+      ) {
+        const folders = conflict.folders.filter(
+          (folder): folder is TrashFolder =>
+            Boolean(
+              folder &&
+                typeof folder === "object" &&
+                "rootId" in folder &&
+                typeof folder.rootId === "string" &&
+                "title" in folder &&
+                typeof folder.title === "string" &&
+                "deletedAt" in folder &&
+                typeof folder.deletedAt === "string",
+            ),
+        );
+        if (folders.length === 0 || folders.length !== conflict.folders.length) {
+          throw new Error("Invalid Trash response");
+        }
         setPendingTrash({ url: target, body: payload, folders });
         setPendingReplacement(null);
-        if (!pollingRef.current) { setIsImporting(false); setIsDiscovering(false); setProgress(null); }
-      } else if (typeof conflict === "object" && conflict !== null && "activeJob" in conflict) {
+      } else if (
+        conflict &&
+        typeof conflict === "object" &&
+        "activeJob" in conflict
+      ) {
         const active = conflict.activeJob;
-        if (typeof active === "object" && active !== null && "jobId" in active && typeof active.jobId === "string" &&
-            "status" in active && typeof active.status === "string") {
-          setPendingReplacement({ url, body, jobId: active.jobId, status: active.status });
-          startPolling(active.jobId);
+        if (
+          active &&
+          typeof active === "object" &&
+          "jobId" in active &&
+          typeof active.jobId === "string" &&
+          "status" in active &&
+          typeof active.status === "string"
+        ) {
+          setPendingReplacement({
+            url,
+            body,
+            jobId: active.jobId,
+            status: active.status,
+          });
+          owner.trackJob(
+            active.jobId,
+            url === "/api/canvas/sync" ? "sync" : "import",
+          );
         } else {
           setPendingReplacement(null);
           setConnectionError(t("The active import changed. Please try again."));
         }
       }
-    }
-    return response;
-  }, [startPolling, setConnectionError, t]);
+      return response;
+    },
+    [owner, requireCurrentAction, setConnectionError, t],
+  );
 
-  const handleTrashChoice = useCallback(async (restore: boolean) => {
-    if (!pendingTrash || isRestoring) return;
-    setIsRestoring(true);
-    try {
-      if (restore) {
-        for (const folder of pendingTrash.folders) {
-          const response = await fetch("/api/trash", { method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "restore", id: folder.rootId, expectedDeletedAt: folder.deletedAt }) });
-          // Recheck the import rather than restoring a newer deletion silently.
-          if (response.status === 404 || response.status === 409) break;
-          if (!response.ok) throw new Error("Restore failed");
-          setPendingTrash((current) => current ? { ...current,
-            folders: current.folders.filter((item) => item.rootId !== folder.rootId) } : null);
-          await useNoteTreeStore.getState().refreshTreePaths([[folder.rootId]]);
+  const handleTrashChoice = useCallback(
+    async (restore: boolean) => {
+      if (!pendingTrash || isRestoring) return;
+      const action = beginAction();
+      setIsRestoring(true);
+      try {
+        if (restore) {
+          for (const folder of pendingTrash.folders) {
+            const response = await fetch("/api/trash", {
+              method: "POST",
+              signal: action.controller.signal,
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                action: "restore",
+                id: folder.rootId,
+                expectedDeletedAt: folder.deletedAt,
+              }),
+            });
+            requireCurrentAction(action);
+            if (response.status === 404 || response.status === 409) break;
+            if (!response.ok) throw new Error("Restore failed");
+            setPendingTrash((current) =>
+              current
+                ? {
+                    ...current,
+                    folders: current.folders.filter(
+                      (item) => item.rootId !== folder.rootId,
+                    ),
+                  }
+                : null,
+            );
+            await useNoteTreeStore
+              .getState()
+              .refreshTreePaths([[folder.rootId]]);
+            requireCurrentAction(action);
+          }
         }
+
+        const response = await requestStart(
+          action,
+          pendingTrash.url,
+          {
+            ...pendingTrash.body,
+            keepTrashedFolders: !restore,
+          },
+        );
+        if (response.status === 409) {
+          const conflict: unknown = await response.clone().json();
+          if (
+            !conflict ||
+            typeof conflict !== "object" ||
+            !("code" in conflict) ||
+            conflict.code !== "canvas_folders_in_trash"
+          ) {
+            setPendingTrash(null);
+          }
+          return;
+        }
+        const result: unknown = await response.json();
+        requireCurrentAction(action);
+        const jobId = jobIdFrom(result);
+        if (!response.ok || !jobId) throw new Error("Import failed");
+        setPendingTrash(null);
+        setConnectionError(null);
+        beginJob(jobId, "import", action);
+      } catch {
+        if (actionIsCurrent(action)) {
+          setConnectionError(
+            t("Could not restore the folders and start the import. Please try again."),
+          );
+        } else {
+          recoverAfterNavigation(action);
+        }
+      } finally {
+        if (actionIsCurrent(action)) setIsRestoring(false);
+        finishAction(action);
       }
-      const response = await requestStart(pendingTrash.url,
-        { ...pendingTrash.body, keepTrashedFolders: !restore });
-      if (response.status === 409) {
-        const conflict = await response.clone().json();
-        if (conflict.code !== "canvas_folders_in_trash") setPendingTrash(null);
-        return;
-      }
-      const result: unknown = await response.json();
-      if (!response.ok || typeof result !== "object" || result === null || !("jobId" in result) || typeof result.jobId !== "string") {
-        throw new Error("Import failed");
-      }
-      setPendingTrash(null);
-      setConnectionError(null);
-      localStorage.setItem(LS_ACTIVE_JOB, JSON.stringify({ jobId: result.jobId }));
-      startPolling(result.jobId);
-    } catch {
-      setConnectionError(t("Could not restore the folders and start the import. Please try again."));
-    } finally { setIsRestoring(false); }
-  }, [pendingTrash, isRestoring, requestStart, setConnectionError, startPolling, t]);
+    },
+    [
+      beginJob,
+      beginAction,
+      actionIsCurrent,
+      finishAction,
+      isRestoring,
+      pendingTrash,
+      requestStart,
+      requireCurrentAction,
+      recoverAfterNavigation,
+      setConnectionError,
+      t,
+    ],
+  );
 
   const confirmReplacement = useCallback(async () => {
     if (!pendingReplacement || isReplacing) return;
+    const action = beginAction();
     setIsReplacing(true);
     try {
-      const response = await requestStart(pendingReplacement.url, pendingReplacement.body, pendingReplacement.jobId);
+      const response = await requestStart(
+        action,
+        pendingReplacement.url,
+        pendingReplacement.body,
+        pendingReplacement.jobId,
+      );
       const result: unknown = await response.json();
-      if (response.ok && typeof result === "object" && result !== null && "jobId" in result && typeof result.jobId === "string") {
+      requireCurrentAction(action);
+      const jobId = jobIdFrom(result);
+      if (response.ok && jobId) {
         setPendingReplacement(null);
         setConnectionError(null);
-        localStorage.setItem(LS_ACTIVE_JOB, JSON.stringify({ jobId: result.jobId }));
-        startPolling(result.jobId);
-      } else if (response.status !== 409) setConnectionError(t("Could not start the import. Please try again."));
-    } catch { setConnectionError(toFriendlyCanvasError("network")); }
-    finally { setIsReplacing(false); }
-  }, [pendingReplacement, isReplacing, requestStart, setConnectionError, startPolling, t]);
+        beginJob(
+          jobId,
+          pendingReplacement.url === "/api/canvas/sync" ? "sync" : "import",
+          action,
+        );
+      } else if (response.status !== 409) {
+        setConnectionError(t("Could not start the import. Please try again."));
+      }
+    } catch {
+      if (actionIsCurrent(action)) {
+        setConnectionError(toFriendlyCanvasError("network"));
+      } else {
+        recoverAfterNavigation(action);
+      }
+    } finally {
+      if (actionIsCurrent(action)) setIsReplacing(false);
+      finishAction(action);
+    }
+  }, [
+    actionIsCurrent,
+    beginJob,
+    beginAction,
+    finishAction,
+    isReplacing,
+    pendingReplacement,
+    requestStart,
+    requireCurrentAction,
+    recoverAfterNavigation,
+    setConnectionError,
+    t,
+  ]);
 
   const handleRetry = useCallback(async () => {
-    if (!retrySourceJobId) return;
+    if (!owner.retrySourceJobId) return;
+    const action = beginAction();
     try {
-      const response = await requestStart("/api/canvas/retry", { sourceJobId: retrySourceJobId });
+      const response = await requestStart(
+        action,
+        "/api/canvas/retry",
+        { sourceJobId: owner.retrySourceJobId },
+      );
       const result: unknown = await response.json();
-      if (response.ok && typeof result === "object" && result !== null && "jobId" in result && typeof result.jobId === "string") {
-        localStorage.setItem(LS_ACTIVE_JOB, JSON.stringify({ jobId: result.jobId }));
-        startPolling(result.jobId);
-      } else if (response.status !== 409) setConnectionError(t("Could not start the import. Please try again."));
-    } catch { setConnectionError(toFriendlyCanvasError("network")); }
-  }, [retrySourceJobId, requestStart, startPolling, setConnectionError, t]);
+      requireCurrentAction(action);
+      const jobId = jobIdFrom(result);
+      if (response.ok && jobId) {
+        beginJob(jobId, "retry", action);
+      } else if (response.status !== 409) {
+        setConnectionError(t("Could not start the import. Please try again."));
+      }
+    } catch {
+      if (actionIsCurrent(action)) {
+        setConnectionError(toFriendlyCanvasError("network"));
+      } else {
+        recoverAfterNavigation(action);
+      }
+    } finally {
+      finishAction(action);
+    }
+  }, [
+    actionIsCurrent,
+    beginAction,
+    beginJob,
+    finishAction,
+    owner.retrySourceJobId,
+    recoverAfterNavigation,
+    requestStart,
+    requireCurrentAction,
+    setConnectionError,
+    t,
+  ]);
 
   const handleImport = useCallback(async () => {
     if (selectedCourseIds.length === 0) return;
-
-    // Treat Canvas availability as an upstream constraint, independent from
-    // local sync/error badges or stale browser selection state.
     const selectedCourses = courses
       .filter(
         (course) =>
@@ -510,34 +515,26 @@ export default function useCanvasImport({
       }));
     if (selectedCourses.length === 0) return;
 
-    setIsImporting(true);
-    setIsDiscovering(true);
-    setImportSummary(null);
-    setProgress({
-      percent: 0,
-      completed: 0,
-      total: 0,
-      downloading: 0,
-      processing: 0,
-    });
-    setRecentLogs([]);
-
+    const action = beginAction();
     try {
-      // send full course objects so the worker can use name/course_code/term for folder titles
-      const res = await requestStart("/api/canvas/import", { courseIds: selectedCourses });
-      if (res.status === 409) return;
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        if (res.status === 401) {
-          setConnectionError(
-            t("Your session has expired. Please log in again."),
-          );
-          setIsImporting(false);
+      const response = await requestStart(
+        action,
+        "/api/canvas/import",
+        { courseIds: selectedCourses },
+      );
+      if (response.status === 409) return;
+      const data = (await response.json()) as {
+        jobId?: string;
+        courseId?: string;
+        error?: string;
+      };
+      requireCurrentAction(action);
+      if (!response.ok || typeof data.jobId !== "string") {
+        if (response.status === 401) {
+          setConnectionError(t("Your session has expired. Please log in again."));
           return;
         }
-        if (res.status === 403 && data.courseId) {
+        if (response.status === 403 && data.courseId) {
           const updated = {
             ...courseErrors,
             [data.courseId]: toFriendlyCanvasError(data.error ?? "forbidden"),
@@ -545,115 +542,146 @@ export default function useCanvasImport({
           setCourseErrors(updated);
           localStorage.setItem(LS_ERRORS, JSON.stringify(updated));
         }
-        setConnectionError(
-          toFriendlyCanvasError(data.error ?? "import failed"),
-        );
-        setIsImporting(false);
+        setConnectionError(toFriendlyCanvasError(data.error ?? "import failed"));
         return;
       }
-
-      // persist the jobId so progress survives a page reload
-      localStorage.setItem(
-        LS_ACTIVE_JOB,
-        JSON.stringify({
-          jobId: data.jobId,
-          startedAt: new Date().toISOString(),
-        }),
-      );
-
-      startPolling(data.jobId);
+      beginJob(data.jobId, "import", action);
     } catch {
-      setConnectionError(toFriendlyCanvasError("network"));
-      setIsImporting(false);
+      if (actionIsCurrent(action)) {
+        setConnectionError(toFriendlyCanvasError("network"));
+      } else {
+        recoverAfterNavigation(action);
+      }
+    } finally {
+      finishAction(action);
     }
   }, [
-    selectedCourseIds,
-    courses,
+    actionIsCurrent,
+    beginAction,
+    beginJob,
     courseErrors,
-    setCourseErrors,
+    courses,
+    finishAction,
+    recoverAfterNavigation,
+    requestStart,
+    requireCurrentAction,
+    selectedCourseIds,
     setConnectionError,
+    setCourseErrors,
     t,
-    startPolling, requestStart,
   ]);
 
   const handleSync = useCallback(async () => {
-    setIsSyncing(true);
-    setImportSummary(null);
-    setRecentLogs([]);
+    const action = beginAction();
+    setIsStartingSync(true);
     try {
-      const res = await requestStart("/api/canvas/sync");
-      if (res.status === 409) return;
-      const data = await res.json();
-      if (res.status === 401) {
-        setConnectionError(
-          t("Your session has expired. Please log in again."),
-        );
+      const response = await requestStart(
+        action,
+        "/api/canvas/sync",
+      );
+      if (response.status === 409) return;
+      const data = (await response.json()) as {
+        queued?: boolean;
+        jobId?: string;
+        error?: string;
+        reason?: string;
+      };
+      requireCurrentAction(action);
+      if (response.status === 401) {
+        setConnectionError(t("Your session has expired. Please log in again."));
         return;
       }
-      if (!res.ok || !data.queued) {
+      if (!response.ok || !data.queued || typeof data.jobId !== "string") {
         setConnectionError(
           toFriendlyCanvasError(data.error ?? data.reason ?? "sync failed"),
         );
         return;
       }
-      localStorage.setItem(
-        LS_ACTIVE_JOB,
-        JSON.stringify({
-          jobId: data.jobId,
-          startedAt: new Date().toISOString(),
-        }),
-      );
-      setIsImporting(true);
-      setIsDiscovering(true);
-      setProgress({
-        percent: 0,
-        completed: 0,
-        total: 0,
-        downloading: 0,
-        processing: 0,
-      });
-      startPolling(data.jobId);
+      beginJob(data.jobId, "sync", action);
     } catch {
-      setConnectionError(toFriendlyCanvasError("network"));
+      if (actionIsCurrent(action)) {
+        setConnectionError(toFriendlyCanvasError("network"));
+      } else {
+        recoverAfterNavigation(action);
+      }
     } finally {
-      setIsSyncing(false);
+      if (actionIsCurrent(action)) setIsStartingSync(false);
+      finishAction(action);
     }
-  }, [setConnectionError, t, startPolling, requestStart]);
+  }, [
+    actionIsCurrent,
+    beginAction,
+    beginJob,
+    finishAction,
+    recoverAfterNavigation,
+    requestStart,
+    requireCurrentAction,
+    setConnectionError,
+    t,
+  ]);
 
   const handleCancel = useCallback(async () => {
-    const jobId = trackedJobIdRef.current;
+    const jobId =
+      owner.statusSnapshot?.activeJob?.jobId ?? getStoredActiveJobId();
     if (!jobId) return;
+    const action = beginAction();
     try {
-      const res = await fetch(`/api/canvas/import?jobId=${encodeURIComponent(jobId)}`, { method: "DELETE" });
-      if (res.status === 409) setConnectionError(t("The active import changed. Please try again."));
-      // Keep polling until the terminal snapshot publishes completed files.
-      if (res.ok) startPolling(jobId);
-    } catch { setConnectionError(toFriendlyCanvasError("network")); }
-  }, [setConnectionError, startPolling, t]);
+      const response = await fetch(
+        `/api/canvas/import?jobId=${encodeURIComponent(jobId)}`,
+        { method: "DELETE", signal: action.controller.signal },
+      );
+      requireCurrentAction(action);
+      if (response.status === 409) {
+        setConnectionError(t("The active import changed. Please try again."));
+      } else if (response.ok) {
+        await owner.checkStatus();
+      }
+    } catch {
+      if (actionIsCurrent(action)) {
+        setConnectionError(toFriendlyCanvasError("network"));
+      } else {
+        recoverAfterNavigation(action);
+      }
+    } finally {
+      finishAction(action);
+    }
+  }, [
+    actionIsCurrent,
+    beginAction,
+    finishAction,
+    owner,
+    recoverAfterNavigation,
+    requireCurrentAction,
+    setConnectionError,
+    t,
+  ]);
 
   return {
-    pendingReplacement, setPendingReplacement, confirmReplacement, isReplacing,
-    pendingTrash, setPendingTrash, handleTrashChoice, isRestoring,
-    discovery, terminalStatus, retrySourceJobId, handleRetry,
-    isImporting,
-    setIsImporting,
-    isDiscovering,
-    setIsDiscovering,
-    importSummary,
-    setImportSummary,
-    progress,
-    setProgress,
-    recentLogs,
-    setRecentLogs,
-    isSyncing,
-    markerColdStarting,
-    setMarkerColdStarting,
-    estimatedSecsRemaining,
-    setEstimatedSecsRemaining,
+    pendingReplacement,
+    setPendingReplacement,
+    confirmReplacement,
+    isReplacing,
+    pendingTrash,
+    setPendingTrash,
+    handleTrashChoice,
+    isRestoring,
+    discovery: owner.discovery,
+    terminalStatus: owner.terminalStatus,
+    retrySourceJobId: owner.retrySourceJobId,
+    handleRetry,
+    isImporting: owner.isImporting,
+    isDiscovering: owner.isDiscovering,
+    importSummary: owner.importSummary,
+    progress: owner.progress,
+    recentLogs: owner.recentLogs,
+    isSyncing:
+      isStartingSync ||
+      (owner.isImporting && owner.progress?.jobType === "sync"),
+    markerColdStarting: owner.markerColdStarting,
+    estimatedSecsRemaining: owner.estimatedSecsRemaining,
     handleImport,
     handleSync,
     handleCancel,
-    startPolling,
-    stopPolling,
+    resetStatus: owner.resetStatus,
   };
 }

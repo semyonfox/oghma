@@ -83,21 +83,15 @@ export default function CanvasIntegrationSettings() {
     isImporting,
     isDiscovering,
     importSummary,
-    setImportSummary,
     progress,
-    setProgress,
     recentLogs,
-    setRecentLogs,
     isSyncing,
     markerColdStarting,
-    setMarkerColdStarting,
     estimatedSecsRemaining,
-    setEstimatedSecsRemaining,
     handleImport,
     handleSync,
     handleCancel,
-    startPolling,
-    stopPolling,
+    resetStatus,
   } = useCanvasImport({
     selectedCourseIds,
     courses,
@@ -180,13 +174,6 @@ export default function CanvasIntegrationSettings() {
             .catch(() => {})
             .finally(() => setSyncChecked(true));
 
-          // resume any in-flight import that was started before page reload
-          const savedJob = JSON.parse(
-            localStorage.getItem(LS_ACTIVE_JOB) ?? "null",
-          );
-          if (savedJob?.jobId) {
-            startPolling(savedJob.jobId);
-          }
         } else if (res.ok && !data.connected) {
           setConnectionWarning(
             t("Your Canvas token is invalid or expired. Please reconnect."),
@@ -200,7 +187,7 @@ export default function CanvasIntegrationSettings() {
     };
 
     checkConnection();
-    // one-time connection check on mount; startPolling and t are stable
+    // one-time connection check on mount; t is stable
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -294,17 +281,12 @@ export default function CanvasIntegrationSettings() {
     try {
       await fetch("/api/canvas/connect", { method: "DELETE" });
     } finally {
-      stopPolling();
+      resetStatus();
       setIsConnected(false);
       setConnectedDomain("");
       setCourses([]);
       setCourseDiscoveryDegraded(false);
       setSelectedCourseIds([]);
-      setImportSummary(null);
-      setProgress(null);
-      setRecentLogs([]);
-      setMarkerColdStarting(false);
-      setEstimatedSecsRemaining(null);
       setDomain("");
       if (tokenInputRef.current) {
         tokenInputRef.current.value = "";

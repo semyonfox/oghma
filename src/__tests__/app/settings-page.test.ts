@@ -34,6 +34,15 @@ const mocks = vi.hoisted(() => {
     fetchSettings,
     archiveCourse,
     unarchiveCourse,
+    logout: vi.fn(),
+    resetWorkspaceClientState: vi.fn(async (_userId: string | null) => {}),
+    publishWorkspaceInvalidation: vi.fn(),
+    postNativeOfflineAccount: vi.fn(),
+    treeState: {
+      ownerUserId: "user-1" as string | null,
+      generation: 1,
+    },
+    toastError: vi.fn(),
     lastManagerProps: null as CourseVisibilityManagerProps | null,
   };
 });
@@ -76,8 +85,30 @@ vi.mock("@/lib/notes/state/courses.zustand", () => ({
 
 vi.mock("sonner", () => ({
   toast: {
-    error: vi.fn(),
+    error: mocks.toastError,
   },
+}));
+
+vi.mock("@/components/providers/workspace-lifecycle-provider", () => ({
+  useWorkspaceSession: () => ({ userId: "user-1", ready: true }),
+}));
+
+vi.mock("@/lib/notes/workspace-lifecycle", () => ({
+  resetWorkspaceClientState: mocks.resetWorkspaceClientState,
+}));
+
+vi.mock("@/lib/notes/workspace-invalidation", () => ({
+  publishWorkspaceInvalidation: mocks.publishWorkspaceInvalidation,
+}));
+
+vi.mock("@/lib/notes/state/tree", () => ({
+  default: { getState: () => mocks.treeState },
+}));
+
+vi.mock("@/lib/native-app", () => ({
+  postNativeUpdates: vi.fn(),
+  postNativeOfflineAccount: mocks.postNativeOfflineAccount,
+  useNativeAppBridge: () => null,
 }));
 
 vi.mock("@/components/settings/account-section", () => ({
@@ -157,6 +188,13 @@ describe("SettingsPage", () => {
     document.body.innerHTML = "";
     vi.clearAllMocks();
     mocks.lastManagerProps = null;
+    mocks.treeState.ownerUserId = "user-1";
+    mocks.treeState.generation = 1;
+    mocks.logout.mockResolvedValue(okJson({}));
+    mocks.resetWorkspaceClientState.mockImplementation(async (userId) => {
+      mocks.treeState.ownerUserId = userId;
+      mocks.treeState.generation += 1;
+    });
     vi.stubGlobal(
       "fetch",
       vi.fn((input: RequestInfo | URL) => {
@@ -192,6 +230,8 @@ describe("SettingsPage", () => {
             }),
           );
         }
+
+        if (url === "/api/auth/logout") return mocks.logout();
 
         throw new Error(`Unhandled fetch: ${url}`);
       }),
@@ -233,5 +273,109 @@ describe("SettingsPage", () => {
         hasDueItems: true,
       },
     ]);
+  });
+
+  it("publishes a server-confirmed logout when local cleanup fails", async () => {
+    mocks.resetWorkspaceClientState.mockImplementationOnce(async (userId) => {
+      mocks.treeState.ownerUserId = userId;
+      mocks.treeState.generation += 1;
+      throw new Error("IndexedDB unavailable");
+    });
+    const { container } = await renderSettingsPage();
+    await vi.waitFor(() => expect(mocks.fetchSettings).toHaveBeenCalledOnce());
+    const signOut = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "Sign out",
+    );
+    expect(signOut).toBeDefined();
+
+    await act(async () => signOut?.click());
+
+    await vi.waitFor(() => expect(mocks.toastError).toHaveBeenCalledOnce());
+    expect(mocks.resetWorkspaceClientState).toHaveBeenCalledWith(null);
+    expect(mocks.publishWorkspaceInvalidation).toHaveBeenCalledWith(
+      "user-1",
+      "session",
+    );
+  });
+
+  it("does not publish when the server rejects logout", async () => {
+    mocks.logout.mockResolvedValueOnce({ ok: false, status: 500 });
+    const { container } = await renderSettingsPage();
+    await vi.waitFor(() => expect(mocks.fetchSettings).toHaveBeenCalledOnce());
+    const signOut = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "Sign out",
+    );
+
+    await act(async () => signOut?.click());
+
+    await vi.waitFor(() => expect(mocks.toastError).toHaveBeenCalledOnce());
+    expect(mocks.resetWorkspaceClientState).not.toHaveBeenCalled();
+    expect(mocks.publishWorkspaceInvalidation).not.toHaveBeenCalled();
+  });
+
+  it("publishes a late logout for its original owner without resetting or redirecting the new workspace", async () => {
+    let resolveLogout!: (response: { ok: true }) => void;
+    mocks.logout.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveLogout = resolve;
+        }),
+    );
+    const removeItem = vi.spyOn(Storage.prototype, "removeItem");
+    const originalLocation = window.location.href;
+    const { container } = await renderSettingsPage();
+    await vi.waitFor(() => expect(mocks.fetchSettings).toHaveBeenCalledOnce());
+    const signOut = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "Sign out",
+    );
+
+    await act(async () => signOut?.click());
+    await vi.waitFor(() => expect(mocks.logout).toHaveBeenCalledOnce());
+    mocks.treeState.ownerUserId = "user-2";
+    mocks.treeState.generation = 2;
+    resolveLogout({ ok: true });
+
+    await vi.waitFor(() =>
+      expect(mocks.publishWorkspaceInvalidation).toHaveBeenCalledWith(
+        "user-1",
+        "session",
+      ),
+    );
+    expect(mocks.resetWorkspaceClientState).not.toHaveBeenCalled();
+    expect(removeItem).not.toHaveBeenCalledWith("ogma-theme");
+    expect(window.location.href).toBe(originalLocation);
+  });
+
+  it("does not finish an old logout after another workspace takes over during cleanup", async () => {
+    let finishCleanup!: () => void;
+    mocks.resetWorkspaceClientState.mockImplementationOnce(async () => {
+      mocks.treeState.ownerUserId = null;
+      mocks.treeState.generation = 2;
+      await new Promise<void>((resolve) => {
+        finishCleanup = resolve;
+      });
+    });
+    const removeItem = vi.spyOn(Storage.prototype, "removeItem");
+    const originalLocation = window.location.href;
+    const { container } = await renderSettingsPage();
+    await vi.waitFor(() => expect(mocks.fetchSettings).toHaveBeenCalledOnce());
+    const signOut = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "Sign out",
+    );
+
+    await act(async () => signOut?.click());
+    await vi.waitFor(() =>
+      expect(mocks.publishWorkspaceInvalidation).toHaveBeenCalledWith(
+        "user-1",
+        "session",
+      ),
+    );
+    mocks.treeState.ownerUserId = "user-2";
+    mocks.treeState.generation = 3;
+    finishCleanup();
+
+    await act(async () => Promise.resolve());
+    expect(removeItem).not.toHaveBeenCalledWith("ogma-theme");
+    expect(window.location.href).toBe(originalLocation);
   });
 });
