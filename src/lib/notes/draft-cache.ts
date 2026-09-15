@@ -8,21 +8,40 @@ const LEGACY_DRAFT_PREFIX = "legacy-unowned-draft:";
 let generation = 0;
 let writable = true;
 const pendingWrites = new Set<Promise<void>>();
+// Drafts written or already recovered in this workspace session are expected
+// when navigating back to a note. A fresh page load can announce recovery again.
+const knownDrafts = new Set<string>();
+
+export function acknowledgeDraftRecovery(noteId: string): boolean {
+  if (knownDrafts.has(noteId)) return false;
+  knownDrafts.add(noteId);
+  return true;
+}
 
 export interface NoteDraft {
   content: string;
   draftAt: number; // epoch ms — compare against note.updatedAt to decide winner
 }
 
+const pendingByNote = new Map<string, Promise<void>>();
+
+function queueDraftChange(noteId: string, change: () => Promise<unknown>): Promise<void> {
+  const previous = pendingByNote.get(noteId) ?? Promise.resolve();
+  const operation = previous.catch(() => {}).then(async () => { await change(); });
+  pendingByNote.set(noteId, operation);
+  pendingWrites.add(operation);
+  void operation.finally(() => {
+    pendingWrites.delete(operation);
+    if (pendingByNote.get(noteId) === operation) pendingByNote.delete(noteId);
+  }).catch(() => {});
+  return operation;
+}
+
 export async function writeDraft(noteId: string, content: string): Promise<void> {
   if (!writable) return;
-  const write = uiCache.setItem<NoteDraft>(key(noteId), { content, draftAt: Date.now() });
-  pendingWrites.add(write);
-  try {
-    await write;
-  } finally {
-    pendingWrites.delete(write);
-  }
+  knownDrafts.add(noteId);
+  const draft = { content, draftAt: Date.now() };
+  await queueDraftChange(noteId, () => uiCache.setItem<NoteDraft>(key(noteId), draft));
 }
 
 // Reset blocks new writers, then drains writes already opening an IDB connection.
@@ -33,16 +52,21 @@ export async function waitForDraftWrites(): Promise<void> {
 
 export async function readDraft(noteId: string): Promise<NoteDraft | null> {
   if (!writable) return null;
+  const readGeneration = generation;
+  await pendingByNote.get(noteId)?.catch(() => {});
+  if (!writable || generation !== readGeneration) return null;
   return (await uiCache.getItem<NoteDraft>(key(noteId))) ?? null;
 }
 
 export async function clearDraft(noteId: string): Promise<void> {
-  await uiCache.removeItem(key(noteId));
+  if (!writable) return;
+  await queueDraftChange(noteId, () => uiCache.removeItem(key(noteId)));
 }
 
 export function beginDraftCacheReset(): number {
   generation += 1;
   writable = false;
+  knownDrafts.clear();
   return generation;
 }
 
