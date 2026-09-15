@@ -112,9 +112,9 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => {
   }
 
   // A snapshot batch is assembled off-screen and committed once. If note CRUD
-  // changes local state while it is read, start again after that committed write.
+  // changes local state while it is read, retry without blocking the queue forever.
   async function reconcile(operation: Operation, groups: string[][], allLoaded = false) {
-    for (;;) {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
       operation.check();
       const version = localChanges;
       let draft = get().tree;
@@ -155,6 +155,7 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => {
       set({ error: null });
       return;
     }
+    throw new Error("Tree kept changing during refresh. Please try again.");
   }
 
   function freshTree() {

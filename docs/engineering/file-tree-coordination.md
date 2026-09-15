@@ -37,7 +37,8 @@ title ordering; manual ordering is not persisted or offered.
 - A reconciliation builds its result off-screen, fetching at most six independent
   folders together, then updates the graph and view state once. If committed
   note CRUD changes the local tree during the read, the operation rereads before
-  applying its result.
+  applying its result. After three conflicting batches it fails, preserves the
+  newer local writes, and releases the queue for subsequent work.
 - Normal refresh reads root and previously loaded or expanded folders. Valid
   descendants survive. Failed reads retain the previous display and report an
   error. Reset is a separate operation and constructs fresh empty-tree objects.
@@ -77,7 +78,9 @@ so a service outage is not treated as a confirmed logout.
 Other tabs receive user-scoped invalidation messages through BroadcastChannel
 and a storage-event fallback. Messages contain IDs and invalidation metadata,
 not note titles or content. A receiving tab reads its own current server state.
-Focus and visibility restoration also revalidate, covering missed messages.
+A tab acknowledges an invalidation only after its handler succeeds; failed
+deliveries can retry on focus. Focus and visibility restoration also revalidate,
+covering missed messages.
 This is same-browser coordination, not a server push protocol across devices.
 
 ## Canvas publication
@@ -119,7 +122,7 @@ rapid expansion changes, malformed HTTP responses, publication retries, and
 session/cache ownership.
 
 Final local checks passed: `npm run lint:all`, including ESLint, the 12-locale
-audit, both typechecks, 1,547 app tests, and 186 Canvas MCP tests. The production
+audit, both typechecks, 1,572 app tests, and 186 Canvas MCP tests. The production
 build passed with the CI placeholder configuration. `git diff --check` passed.
 
 No live import, production cache load benchmark, or controlled worker

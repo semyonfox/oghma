@@ -47,12 +47,14 @@ export default function NotesWorkspace({ view = "notes" }: NotesWorkspaceProps) 
   const treeGeneration = useNoteTreeStore((s) => s.generation);
   const treeGenerationRef = useRef(treeGeneration);
   treeGenerationRef.current = treeGeneration;
+  const routeRequestRef = useRef(0);
   const treeWidthRef = useRef(treeWidth);
   const rightPanelWidthRef = useRef(rightPanelWidth);
   const isTrashView = view === "trash";
   const showMobileLibrary = !isTrashView && pathname === "/notes";
 
   useEffect(() => {
+    const requestId = ++routeRequestRef.current;
     if (!noteDependenciesReady) return;
     const route = resolveNoteRoute(pathname);
     if (route.type === "ignore") return;
@@ -70,27 +72,25 @@ export default function NotesWorkspace({ view = "notes" }: NotesWorkspaceProps) 
 
     const controller = new AbortController();
     const requestGeneration = treeGeneration;
+    const requestIsCurrent = () =>
+      !controller.signal.aborted &&
+      routeRequestRef.current === requestId &&
+      treeGenerationRef.current === requestGeneration;
     void fetch(`/api/notes/${fileId}`, { signal: controller.signal })
       .then(async (response) => {
         if (response.status === 404) {
-          if (treeGenerationRef.current === requestGeneration) {
-            router.replace("/notes");
-          }
+          if (requestIsCurrent()) router.replace("/notes");
           return null;
         }
         if (!response.ok)
           throw new Error(`note fetch failed: ${response.status}`);
         const note = await response.json();
-        if (
-          treeGenerationRef.current === requestGeneration &&
-          note
-        ) {
+        if (requestIsCurrent() && note) {
           setPaneA(buildFileSpec(note));
         }
       })
       .catch((error) => {
-        if (controller.signal.aborted) return;
-        if (treeGenerationRef.current !== requestGeneration) return;
+        if (!requestIsCurrent()) return;
         console.error("Failed to resolve note route metadata:", error);
         setPaneA({ fileId, fileType: "note", title: fileId });
       });

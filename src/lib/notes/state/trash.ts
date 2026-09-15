@@ -25,10 +25,22 @@ interface TrashAPI {
 
 interface TrashTreeStore {
   getState: () => {
-    ownerUserId?: string | null;
+    ownerUserId: string | null;
+    generation: number;
     refreshTree: () => Promise<void>;
     deleteItem: (id: string) => Promise<void>;
   };
+}
+
+function isMutationCurrent(
+  treeStore: TrashTreeStore,
+  ownerUserId: string | null,
+  generation: number,
+): boolean {
+  const state = treeStore.getState();
+  return (
+    state.generation === generation && state.ownerUserId === ownerUserId
+  );
 }
 
 export interface TrashStoreState {
@@ -82,12 +94,16 @@ const useTrashStore = create<TrashStoreState>((set, get) => ({
       console.warn("trashAPI or treeStore not initialized yet");
       return note;
     }
+    const mutationTree = treeStore.getState();
+    const mutationOwner = mutationTree.ownerUserId;
+    const mutationGeneration = mutationTree.generation;
 
     const result = await trashAPI.mutate({
       action: "restore",
       data: { id: note.id },
     });
     if (!result?.success) return note;
+    if (mutationOwner) publishWorkspaceInvalidation(mutationOwner, "tree");
 
     const parentId = result.parentId ?? undefined;
     const restoredNote = {
@@ -95,10 +111,14 @@ const useTrashStore = create<TrashStoreState>((set, get) => ({
       pid: parentId,
       deleted: NOTE_DELETED.NORMAL,
     };
+    if (!isMutationCurrent(treeStore, mutationOwner, mutationGeneration)) {
+      return restoredNote;
+    }
     await noteCache.removeItem(note.id);
+    if (!isMutationCurrent(treeStore, mutationOwner, mutationGeneration)) {
+      return restoredNote;
+    }
     await treeStore.getState().refreshTree();
-    const userId = treeStore.getState().ownerUserId;
-    if (userId) publishWorkspaceInvalidation(userId, "tree");
 
     return restoredNote;
   },
@@ -109,17 +129,23 @@ const useTrashStore = create<TrashStoreState>((set, get) => ({
       console.warn("trashAPI or treeStore not initialized yet");
       return;
     }
+    const mutationTree = treeStore.getState();
+    const mutationOwner = mutationTree.ownerUserId;
+    const mutationGeneration = mutationTree.generation;
 
     const result = await trashAPI.mutate({
       action: "delete",
       data: { id },
     });
     if (!result?.success) return;
+    if (mutationOwner) publishWorkspaceInvalidation(mutationOwner, "tree");
 
+    if (!isMutationCurrent(treeStore, mutationOwner, mutationGeneration)) {
+      return;
+    }
     await noteCache.removeItem(id);
+    if (!isMutationCurrent(treeStore, mutationOwner, mutationGeneration)) return;
     await treeStore.getState().deleteItem(id);
-    const userId = treeStore.getState().ownerUserId;
-    if (userId) publishWorkspaceInvalidation(userId, "tree");
   },
 }));
 

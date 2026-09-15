@@ -135,4 +135,124 @@ describe("workspace invalidation", () => {
     ]);
     unsubscribe();
   });
+
+  it("retries a failed delivery when focus reads the stored event again", async () => {
+    const listener = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("cache clear failed"))
+      .mockResolvedValueOnce(undefined);
+    const unsubscribe = subscribeToWorkspaceInvalidations("user-1", listener);
+    localStorage.setItem(
+      "oghmaNotes-workspace-invalidation:user-1:vault",
+      JSON.stringify({
+        version: 1,
+        userId: "user-1",
+        scope: "vault",
+        revision: 12,
+        sourceId: "other-tab",
+      }),
+    );
+
+    window.dispatchEvent(new Event("focus"));
+    expect(listener).toHaveBeenCalledOnce();
+    await Promise.resolve();
+    window.dispatchEvent(new Event("focus"));
+
+    expect(listener).toHaveBeenCalledTimes(2);
+    unsubscribe();
+  });
+
+  it("coalesces duplicate delivery while an event is in flight", async () => {
+    let finishDelivery!: () => void;
+    const listener = vi.fn(
+      () => new Promise<void>((resolve) => (finishDelivery = resolve)),
+    );
+    const unsubscribe = subscribeToWorkspaceInvalidations("user-1", listener);
+    localStorage.setItem(
+      "oghmaNotes-workspace-invalidation:user-1:vault",
+      JSON.stringify({
+        version: 1,
+        userId: "user-1",
+        scope: "vault",
+        revision: 13,
+        sourceId: "other-tab",
+      }),
+    );
+
+    window.dispatchEvent(new Event("focus"));
+    window.dispatchEvent(new Event("focus"));
+    expect(listener).toHaveBeenCalledOnce();
+
+    finishDelivery();
+    await Promise.resolve();
+    unsubscribe();
+  });
+
+  it("ignores a successful event when storage presents it again", async () => {
+    const listener = vi.fn(async () => {});
+    const unsubscribe = subscribeToWorkspaceInvalidations("user-1", listener);
+    localStorage.setItem(
+      "oghmaNotes-workspace-invalidation:user-1:tree",
+      JSON.stringify({
+        version: 1,
+        userId: "user-1",
+        scope: "tree",
+        revision: 14,
+        sourceId: "other-tab",
+      }),
+    );
+
+    window.dispatchEvent(new Event("focus"));
+    expect(listener).toHaveBeenCalledOnce();
+    await Promise.resolve();
+    window.dispatchEvent(new Event("focus"));
+
+    expect(listener).toHaveBeenCalledOnce();
+    unsubscribe();
+  });
+
+  it("does not let an older completion forget a newer acknowledged event", async () => {
+    let finishOlder!: () => void;
+    const listener = vi
+      .fn()
+      .mockImplementationOnce(
+        () => new Promise<void>((resolve) => (finishOlder = resolve)),
+      )
+      .mockResolvedValueOnce(undefined);
+    const unsubscribe = subscribeToWorkspaceInvalidations("user-1", listener);
+    const key = "oghmaNotes-workspace-invalidation:user-1:vault";
+
+    localStorage.setItem(
+      key,
+      JSON.stringify({
+        version: 1,
+        userId: "user-1",
+        scope: "vault",
+        revision: 15,
+        sourceId: "older-tab",
+      }),
+    );
+    window.dispatchEvent(new Event("focus"));
+
+    localStorage.setItem(
+      key,
+      JSON.stringify({
+        version: 1,
+        userId: "user-1",
+        scope: "vault",
+        revision: 16,
+        sourceId: "newer-tab",
+      }),
+    );
+    window.dispatchEvent(new Event("focus"));
+    expect(listener).toHaveBeenCalledTimes(2);
+    await Promise.resolve();
+
+    finishOlder();
+    await Promise.resolve();
+    window.dispatchEvent(new Event("focus"));
+
+    expect(listener).toHaveBeenCalledTimes(2);
+    unsubscribe();
+  });
 });

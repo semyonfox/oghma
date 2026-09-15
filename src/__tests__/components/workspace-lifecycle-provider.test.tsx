@@ -17,7 +17,9 @@ const mocks = vi.hoisted(() => {
     reconcile: vi.fn(async () => false),
     reset: vi.fn(async () => {}),
     refreshTree: vi.fn(async () => {}),
-    invalidationListener: null as ((event: Invalidation) => void) | null,
+    invalidationListener: null as
+      | ((event: Invalidation) => void | Promise<void>)
+      | null,
     treeState: {
       ownerUserId: "user-1" as string | null,
       treeAPI: {} as object | null,
@@ -69,6 +71,8 @@ describe("WorkspaceLifecycleProvider", () => {
     mocks.treeState.ownerUserId = "user-1";
     mocks.treeState.treeAPI = {};
     mocks.invalidationListener = null;
+    mocks.reset.mockResolvedValue(undefined);
+    mocks.refreshTree.mockResolvedValue(undefined);
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
   });
 
@@ -179,7 +183,7 @@ describe("WorkspaceLifecycleProvider", () => {
     await waitFor(() => expect(mocks.invalidationListener).not.toBeNull());
 
     await act(async () => {
-      mocks.invalidationListener?.({
+      await mocks.invalidationListener?.({
         scope: "vault",
         userId: "user-1",
         revision: Date.now(),
@@ -191,7 +195,9 @@ describe("WorkspaceLifecycleProvider", () => {
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 
-  it("does not refresh the tree for an invalidation when identity verification fails", async () => {
+  it.each(["tree", "session"] as const)(
+    "reports a %s invalidation as failed when identity verification fails",
+    async (scope) => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(authResponse("user-1"))
@@ -206,15 +212,60 @@ describe("WorkspaceLifecycleProvider", () => {
     await waitFor(() => expect(mocks.invalidationListener).not.toBeNull());
 
     await act(async () => {
+      await expect(
+        mocks.invalidationListener?.({
+          scope,
+          userId: "user-1",
+          revision: Date.now(),
+          sourceId: "other-tab",
+        }),
+      ).rejects.toThrow("Workspace identity refresh did not complete");
+    });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(mocks.refreshTree).not.toHaveBeenCalled();
+    },
+  );
+
+  it("propagates a failed vault reset to the invalidation subscriber", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => authResponse("user-1")));
+    mocks.reset.mockRejectedValueOnce(new Error("cache clear failed"));
+    render(
+      <WorkspaceLifecycleProvider>
+        <div>private workspace</div>
+      </WorkspaceLifecycleProvider>,
+    );
+    await screen.findByText("private workspace");
+    await waitFor(() => expect(mocks.invalidationListener).not.toBeNull());
+
+    await expect(
+      mocks.invalidationListener?.({
+        scope: "vault",
+        userId: "user-1",
+        revision: Date.now(),
+        sourceId: "other-tab",
+      }),
+    ).rejects.toThrow("cache clear failed");
+  });
+
+  it("propagates a failed tree refresh to the invalidation subscriber", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => authResponse("user-1")));
+    mocks.refreshTree.mockRejectedValueOnce(new Error("tree refresh failed"));
+    render(
+      <WorkspaceLifecycleProvider>
+        <div>private workspace</div>
+      </WorkspaceLifecycleProvider>,
+    );
+    await screen.findByText("private workspace");
+    await waitFor(() => expect(mocks.invalidationListener).not.toBeNull());
+
+    await expect(
       mocks.invalidationListener?.({
         scope: "tree",
         userId: "user-1",
         revision: Date.now(),
         sourceId: "other-tab",
-      });
-    });
-
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    expect(mocks.refreshTree).not.toHaveBeenCalled();
+      }),
+    ).rejects.toThrow("tree refresh failed");
   });
 });

@@ -156,7 +156,10 @@ export default function WorkspaceLifecycleProvider({
 
     const handleInvalidation = async (event: WorkspaceInvalidation) => {
       if (event.scope === "session") {
-        await refreshIdentity();
+        const identityVerified = await refreshIdentity();
+        if (!identityVerified) {
+          throw new Error("Workspace identity refresh did not complete");
+        }
         return;
       }
 
@@ -169,21 +172,24 @@ export default function WorkspaceLifecycleProvider({
       }
 
       const identityVerified = await refreshIdentity();
-      if (!identityVerified) return;
+      if (!identityVerified) {
+        throw new Error("Workspace identity refresh did not complete");
+      }
       const treeState = useNoteTreeStore.getState();
       if (treeState.ownerUserId !== event.userId) return;
-
-      try {
-        if (treeState.treeAPI) await treeState.refreshTree();
-      } catch (error) {
-        console.warn("Failed to refresh notes after a tab update:", error);
+      if (!treeState.treeAPI) {
+        throw new Error("Workspace tree is not ready");
       }
+      await treeState.refreshTree();
     };
 
-    return subscribeToWorkspaceInvalidations(userId, (event) => {
-      void handleInvalidation(event).catch((error) => {
+    return subscribeToWorkspaceInvalidations(userId, async (event) => {
+      try {
+        await handleInvalidation(event);
+      } catch (error) {
         console.warn("Failed to apply a workspace update from another tab:", error);
-      });
+        throw error;
+      }
     });
   }, [refreshIdentity, userId]);
 

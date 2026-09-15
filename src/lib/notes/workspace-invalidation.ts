@@ -96,19 +96,35 @@ export function publishWorkspaceInvalidation(
 
 export function subscribeToWorkspaceInvalidations(
   userId: string,
-  listener: (event: WorkspaceInvalidation) => void,
+  listener: (event: WorkspaceInvalidation) => void | Promise<void>,
 ): () => void {
   if (typeof window === "undefined" || !userId) return () => {};
 
-  const lastEventByScope = new Map<WorkspaceInvalidationScope, string>();
+  const acknowledgedEvents = new Set<string>();
+  const inFlightEvents = new Set<string>();
   const deliver = (value: unknown) => {
     const event = parseInvalidation(value);
     if (!event || event.userId !== userId || event.sourceId === sourceId()) return;
 
     const eventKey = invalidationKey(event);
-    if (eventKey === lastEventByScope.get(event.scope)) return;
-    lastEventByScope.set(event.scope, eventKey);
-    listener(event);
+    if (acknowledgedEvents.has(eventKey) || inFlightEvents.has(eventKey)) return;
+
+    inFlightEvents.add(eventKey);
+    let delivery: Promise<void>;
+    try {
+      delivery = Promise.resolve(listener(event));
+    } catch (error) {
+      delivery = Promise.reject(error);
+    }
+    void delivery.then(
+      () => {
+        acknowledgedEvents.add(eventKey);
+        inFlightEvents.delete(eventKey);
+      },
+      () => {
+        inFlightEvents.delete(eventKey);
+      },
+    );
   };
 
   const handleStorage = (event: StorageEvent) => {
@@ -150,7 +166,7 @@ export function subscribeToWorkspaceInvalidations(
       );
       if (!current) continue;
       if (current.revision <= documentStartRevision) {
-        lastEventByScope.set(scope, invalidationKey(current));
+        acknowledgedEvents.add(invalidationKey(current));
       } else {
         deliver(current);
       }

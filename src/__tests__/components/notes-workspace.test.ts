@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -150,6 +150,79 @@ describe("NotesWorkspace note route synchronization", () => {
       "/api/notes/550e8400-e29b-41d4-a716-446655440000",
       { signal: expect.any(AbortSignal) },
     );
+  });
+
+  it("ignores a previous route response after navigating to another note", async () => {
+    let resolveOldJson: ((note: unknown) => void) | undefined;
+    const oldJson = new Promise<unknown>((resolve) => {
+      resolveOldJson = resolve;
+    });
+    const oldResponse = Response.json(null);
+    vi.spyOn(oldResponse, "json").mockReturnValue(oldJson);
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(oldResponse)
+      .mockResolvedValueOnce(
+        Response.json({
+          id: "67e55044-10b1-426f-9247-bb680e5fe0c8",
+          title: "New route",
+          content: "",
+        }),
+      );
+
+    const { rerender } = render(React.createElement(NotesWorkspace));
+    await waitFor(() => expect(oldResponse.json).toHaveBeenCalledOnce());
+
+    mocks.pathname = "/notes/67e55044-10b1-426f-9247-bb680e5fe0c8";
+    rerender(React.createElement(NotesWorkspace));
+    await waitFor(() =>
+      expect(mocks.setPaneA).toHaveBeenCalledWith({
+        fileId: "67e55044-10b1-426f-9247-bb680e5fe0c8",
+        fileType: "note",
+        title: "New route",
+      }),
+    );
+
+    await act(async () => {
+      resolveOldJson?.({
+        id: "550e8400-e29b-41d4-a716-446655440000",
+        title: "Old route",
+        content: "",
+      });
+      await oldJson;
+    });
+
+    expect(mocks.setPaneA).toHaveBeenCalledOnce();
+  });
+
+  it("ignores a previous route 404 after navigating to another note", async () => {
+    let resolveOldResponse: ((response: Response) => void) | undefined;
+    const oldResponse = new Promise<Response>((resolve) => {
+      resolveOldResponse = resolve;
+    });
+    vi.mocked(fetch)
+      .mockImplementationOnce(() => oldResponse)
+      .mockResolvedValueOnce(
+        Response.json({
+          id: "67e55044-10b1-426f-9247-bb680e5fe0c8",
+          title: "New route",
+          content: "",
+        }),
+      );
+
+    const { rerender } = render(React.createElement(NotesWorkspace));
+    await waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+
+    mocks.pathname = "/notes/67e55044-10b1-426f-9247-bb680e5fe0c8";
+    rerender(React.createElement(NotesWorkspace));
+    await waitFor(() => expect(mocks.setPaneA).toHaveBeenCalledOnce());
+
+    await act(async () => {
+      resolveOldResponse?.(new Response(null, { status: 404 }));
+      await oldResponse;
+    });
+
+    expect(mocks.replace).not.toHaveBeenCalled();
+    expect(mocks.setPaneA).toHaveBeenCalledOnce();
   });
 
   it("renders resize handles for both desktop side panels", () => {

@@ -144,6 +144,52 @@ describe("tree operation coordination", () => {
     expect(state().tree.items.root.children).toEqual(["created"]);
   });
 
+  it.each(["refresh", "load", "publication", "move"] as const)(
+    "settles %s after repeated concurrent writes without applying stale snapshots",
+    async (action) => {
+      state().addItem({ deleted: 0, shared: 0, pinned: 0, id: "folder", title: "folder", isFolder: true });
+      state().addItem({ deleted: 0, shared: 0, pinned: 0, id: "moved", title: "moved" });
+      const rootItems = [folder("folder"), note("moved")];
+      const committedIds: string[] = [];
+      const snapshotWithConcurrentWrite = (items: TreeItemSummary[]) => {
+        const id = `created-${committedIds.length}`;
+        committedIds.push(id);
+        state().addItem({ deleted: 0, shared: 0, pinned: 0, id, title: id });
+        return Promise.resolve({ items });
+      };
+      const fetch = vi.fn(() => snapshotWithConcurrentWrite(rootItems));
+      const fetchChildren = vi.fn((parentId: string | null) =>
+        snapshotWithConcurrentWrite(parentId === null ? rootItems : []));
+      const mutate = vi.fn().mockResolvedValue({
+        success: true, noteId: "moved", oldParentId: null, newParentId: "folder",
+      });
+      state().setDependencies({ fetch, fetchChildren, mutate }, vi.fn());
+
+      const operation = action === "refresh" ? state().refreshTree()
+        : action === "load" ? state().loadChildren("folder")
+          : action === "publication" ? state().refreshTreePaths([["folder"]])
+            : state().moveItem({ noteId: "moved", expectedParentId: null, parentId: "folder" });
+      const settled = action === "refresh" || action === "publication"
+        ? expect(operation).rejects.toThrow("Tree kept changing")
+        : operation;
+      // A failed reconciliation must release later queued writes too.
+      const expansion = state().mutateItem("folder", { isExpanded: true });
+      await Promise.all([settled, expansion]);
+
+      const branchRead = action === "refresh" || action === "move" ? fetch : fetchChildren;
+      expect(branchRead).toHaveBeenCalledTimes(3);
+      for (const id of committedIds) expect(state().tree.items[id]).toBeDefined();
+      expect(state().tree.items.moved.data?.pid).toBeUndefined();
+      expect(state().loading).toBe(false);
+      expect(state().loadingChildren.size).toBe(0);
+      expect(state().movingIds.size).toBe(0);
+      expect(mutate).toHaveBeenCalledWith(
+        { action: "mutate", data: { id: "folder", isExpanded: true } },
+        expect.any(AbortSignal),
+      );
+    },
+  );
+
   it("preserves loaded descendants and expansion, prunes detached view state", async () => {
     const fetch = vi.fn().mockResolvedValue({ items: [folder("course")] });
     const fetchChildren = vi.fn().mockResolvedValue({ items: [note("keep")] });
