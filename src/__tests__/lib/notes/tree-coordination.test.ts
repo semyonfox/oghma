@@ -177,7 +177,12 @@ describe("tree operation coordination", () => {
       await Promise.all([settled, expansion]);
 
       const branchRead = action === "refresh" || action === "move" ? fetch : fetchChildren;
-      expect(branchRead).toHaveBeenCalledTimes(3);
+      if (action === "publication") {
+        expect(fetchChildren.mock.calls.filter(([parentId]) => parentId === null)).toHaveLength(3);
+        expect(fetchChildren.mock.calls.filter(([parentId]) => parentId === "folder")).toHaveLength(3);
+      } else {
+        expect(branchRead).toHaveBeenCalledTimes(3);
+      }
       for (const id of committedIds) expect(state().tree.items[id]).toBeDefined();
       expect(state().tree.items.moved.data?.pid).toBeUndefined();
       expect(state().loading).toBe(false);
