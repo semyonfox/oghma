@@ -32,17 +32,17 @@ interface PDFViewerProps {
   pane: "A" | "B";
 }
 
-// A4 at 96 DPI used by PDF.js as its reference width.
-const A4_WIDTH_PX = 794;
+// Fallback dimensions until the first PDF page loads, in PDF points.
+const A4_WIDTH_POINTS = 595.28;
 const A4_ASPECT_RATIO = Math.SQRT2;
 const PAGE_OVERSCAN = "100% 0px";
 export const MAX_PDF_DEVICE_PIXEL_RATIO = 2;
 
 interface LazyPdfPageProps {
   pageNumber: number;
-  fitMode: boolean;
-  scale: number;
-  containerWidth: number | null;
+  pageWidth: number;
+  referenceSize: { width: number; height: number } | null;
+  onFirstPageLoad: (size: { width: number; height: number }) => void;
   scrollRoot: HTMLDivElement | null;
   devicePixelRatio: number;
   onRenderError: (error: Error) => void;
@@ -50,9 +50,9 @@ interface LazyPdfPageProps {
 
 const LazyPdfPage: FC<LazyPdfPageProps> = ({
   pageNumber,
-  fitMode,
-  scale,
-  containerWidth,
+  pageWidth,
+  referenceSize,
+  onFirstPageLoad,
   scrollRoot,
   devicePixelRatio,
   onRenderError,
@@ -82,13 +82,8 @@ const LazyPdfPage: FC<LazyPdfPageProps> = ({
     return () => observer.disconnect();
   }, [scrollRoot]);
 
-  const pageWidth =
-    fitMode && containerWidth
-      ? containerWidth
-      : (originalSize?.width ?? A4_WIDTH_PX) * scale;
-  const aspectRatio = originalSize
-    ? originalSize.height / originalSize.width
-    : A4_ASPECT_RATIO;
+  const size = originalSize ?? referenceSize;
+  const aspectRatio = size ? size.height / size.width : A4_ASPECT_RATIO;
 
   return (
     <div
@@ -100,17 +95,15 @@ const LazyPdfPage: FC<LazyPdfPageProps> = ({
       {isNearViewport ? (
         <Page
           pageNumber={pageNumber}
-          scale={fitMode ? undefined : scale}
-          width={fitMode && containerWidth ? containerWidth : undefined}
+          width={pageWidth}
           devicePixelRatio={devicePixelRatio}
           renderTextLayer
           renderAnnotationLayer
           onLoadSuccess={(page) => {
             if (page.originalWidth > 0 && page.originalHeight > 0) {
-              setOriginalSize({
-                width: page.originalWidth,
-                height: page.originalHeight,
-              });
+              const size = { width: page.originalWidth, height: page.originalHeight };
+              setOriginalSize(size);
+              if (pageNumber === 1) onFirstPageLoad(size);
             }
           }}
           onRenderError={onRenderError}
@@ -127,6 +120,15 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane: _pane }) => {
   const [fitMode, setFitMode] = useState(true);
   const [containerWidth, setContainerWidth] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [referenceSize, setReferenceSize] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
+  const handleFirstPageLoad = useCallback((size: { width: number; height: number }) => {
+    setReferenceSize((current) =>
+      current?.width === size.width && current.height === size.height ? current : size,
+    );
+  }, []);
   const {
     data: pdfData,
     loading,
@@ -149,9 +151,13 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane: _pane }) => {
     return () => observer.disconnect();
   }, []);
 
-  const fitScale = containerWidth
-    ? Math.max(0.3, containerWidth / A4_WIDTH_PX)
-    : 1;
+  const referenceWidth = referenceSize?.width ?? A4_WIDTH_POINTS;
+  const fitScale = containerWidth ? containerWidth / referenceWidth : 1;
+  // Keep lazy slots and rendered pages equally wide so loading pages cannot
+  // change the document's horizontal extent or recenter the visible page.
+  const pageWidth = fitMode
+    ? containerWidth ?? referenceWidth
+    : referenceWidth * scale;
 
   const onDocumentLoadSuccess = useCallback(
     ({ numPages }: { numPages: number }) => {
@@ -200,7 +206,7 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane: _pane }) => {
   );
 
   return (
-    <div className="h-full flex flex-col bg-surface">
+    <div className="h-full min-h-0 w-full min-w-0 overflow-hidden flex flex-col bg-surface">
       {/* Controls */}
       <div className="flex flex-shrink-0 items-center justify-between border-b border-border-subtle bg-background px-2 py-1 md:px-4 md:py-2">
         <div className="text-xs text-text-tertiary">
@@ -257,7 +263,7 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane: _pane }) => {
       {/* PDF canvas — scrollable */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-auto bg-surface p-4"
+        className="min-h-0 min-w-0 flex-1 overflow-auto bg-surface p-4"
       >
         {loading ? (
           <div className="flex flex-col items-center gap-3 mt-16">
@@ -317,9 +323,9 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane: _pane }) => {
                     <LazyPdfPage
                       key={pageNum}
                       pageNumber={pageNum}
-                      fitMode={fitMode}
-                      scale={scale}
-                      containerWidth={containerWidth}
+                      pageWidth={pageWidth}
+                      referenceSize={referenceSize}
+                      onFirstPageLoad={handleFirstPageLoad}
                       scrollRoot={scrollRef.current}
                       devicePixelRatio={devicePixelRatio}
                       onRenderError={handlePageRenderError}

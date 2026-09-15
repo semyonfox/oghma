@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -44,10 +44,12 @@ vi.mock("react-pdf", async () => {
     Page: ({
       pageNumber,
       devicePixelRatio,
+      width,
       onLoadSuccess,
     }: {
       pageNumber: number;
       devicePixelRatio: number;
+      width: number;
       onLoadSuccess?: (page: {
         originalWidth: number;
         originalHeight: number;
@@ -61,6 +63,7 @@ vi.mock("react-pdf", async () => {
       return React.createElement("div", {
         "data-testid": `rendered-pdf-page-${pageNumber}`,
         "data-device-pixel-ratio": devicePixelRatio,
+        "data-width": width,
       });
     },
   };
@@ -96,6 +99,8 @@ class IntersectionObserverStub {
   }
 }
 
+const resizeObservers = new Map<Element, ResizeObserverCallback>();
+
 class ResizeObserverStub {
   private readonly callback: ResizeObserverCallback;
 
@@ -104,6 +109,7 @@ class ResizeObserverStub {
   }
 
   observe(target: Element) {
+    resizeObservers.set(target, this.callback);
     this.callback(
       [{ target, contentRect: { width: 320 } } as ResizeObserverEntry],
       this as unknown as ResizeObserver,
@@ -118,6 +124,7 @@ import PDFViewer from "@/components/editor/pdf-viewer";
 describe("PDFViewer page rendering", () => {
   beforeEach(() => {
     observers.clear();
+    resizeObservers.clear();
     vi.stubGlobal("IntersectionObserver", IntersectionObserverStub);
     vi.stubGlobal("ResizeObserver", ResizeObserverStub);
     Object.defineProperty(window, "devicePixelRatio", {
@@ -188,4 +195,51 @@ describe("PDFViewer page rendering", () => {
     });
     expect(screen.queryByTestId("rendered-pdf-page-1")).toBeNull();
   });
+
+  it("keeps zoomed lazy slots aligned as pages load and fits after resizing the pane", async () => {
+    const { container } = render(
+      <PDFViewer pane="A" file={{ fileId: "note-1", fileType: "pdf", sourcePath: "notes/lecture.pdf" }} />,
+    );
+    await waitFor(() => expect(screen.getByText("52%")).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    const firstSlot = container.querySelector<HTMLElement>('[data-pdf-page-number="1"]')!;
+    const thirdSlot = container.querySelector<HTMLElement>('[data-pdf-page-number="3"]')!;
+    const zoomedWidth = 320 + 612 * 0.2;
+    expect(parseFloat(firstSlot.style.width)).toBeCloseTo(zoomedWidth);
+    expect(thirdSlot.style.width).toBe(firstSlot.style.width);
+    expect(Number(screen.getByTestId("rendered-pdf-page-1").dataset.width)).toBeCloseTo(zoomedWidth);
+
+    act(() => {
+      observers.get(thirdSlot)?.callback(
+        [{
+          isIntersecting: true,
+          target: thirdSlot,
+          boundingClientRect: thirdSlot.getBoundingClientRect(),
+          intersectionRatio: 1,
+          intersectionRect: thirdSlot.getBoundingClientRect(),
+          rootBounds: null,
+          time: 0,
+        }],
+        {} as IntersectionObserver,
+      );
+    });
+    expect(thirdSlot.style.width).toBe(firstSlot.style.width);
+    expect(Number(screen.getByTestId("rendered-pdf-page-3").dataset.width)).toBeCloseTo(zoomedWidth);
+
+    act(() => {
+      for (const [target, callback] of resizeObservers) {
+        callback(
+          [{ target, contentRect: { width: 240 } } as ResizeObserverEntry],
+          {} as ResizeObserver,
+        );
+      }
+    });
+    expect(parseFloat(firstSlot.style.width)).toBeCloseTo(zoomedWidth);
+    fireEvent.click(screen.getByRole("button", { name: "Fit to pane" }));
+    expect(firstSlot.style.width).toBe("240px");
+    expect(thirdSlot.style.width).toBe("240px");
+    expect(screen.getByText("39%")).toBeTruthy();
+  });
+
 });
