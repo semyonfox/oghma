@@ -5,7 +5,7 @@ vi.mock("@/database/pgsql.js", () => {
   Object.assign(sqlMock, { begin: vi.fn(
     async (callback: (tx: typeof sqlMock) => unknown) => callback(sqlMock),
   ) });
-  return { default: sqlMock };
+  return { default: sqlMock, afterDatabaseCommit: (effect: () => Promise<void>) => effect() };
 });
 
 vi.mock("uuid", () => ({

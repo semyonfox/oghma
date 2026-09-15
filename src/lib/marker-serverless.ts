@@ -1,3 +1,4 @@
+import { assertCanvasExecution, currentCanvasExecution } from "./canvas/execution";
 import { randomUUID } from "node:crypto";
 import type postgres from "postgres";
 
@@ -225,6 +226,8 @@ export async function submitMarkerJob({
 
   const importJobId = jobId ?? null;
   const marker = await sql.begin(async (tx: postgres.TransactionSql) => {
+    const owner = currentCanvasExecution();
+    if (owner) await assertCanvasExecution(tx, owner);
     // Match the cancellation lock order: Canvas job -> Marker row -> Canvas
     // import. If cancellation commits first, this transaction observes it and
     // exits without creating paid work; if this commits first, cancellation

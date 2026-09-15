@@ -22,7 +22,7 @@ export default function CanvasProgressPanel({
   importSummary,
   recentLogs,
   markerColdStarting,
-  estimatedSecsRemaining,
+  estimatedSecsRemaining, discovery, terminalStatus,
 }: {
   isImporting: boolean;
   isDiscovering: boolean;
@@ -32,6 +32,8 @@ export default function CanvasProgressPanel({
   recentLogs: Log[];
   markerColdStarting: boolean;
   estimatedSecsRemaining: number | null;
+  terminalStatus?: string | null;
+  discovery?: { completedCourses: number; totalCourses: number; stage: string; filesFound: number; skippedCourses?: string[]; skippedFolders?: string[] } | null;
 }) {
   const { t } = useI18n();
   const [logsSuccessOpen, setLogsSuccessOpen] = useState(false);
@@ -39,6 +41,7 @@ export default function CanvasProgressPanel({
 
   if (!progress) return null;
 
+  const skippedFolders = [...(discovery?.skippedCourses ?? []), ...(discovery?.skippedFolders ?? [])];
   const isTerminalFailure =
     !isImporting &&
     Boolean(
@@ -46,7 +49,7 @@ export default function CanvasProgressPanel({
         importSummary.imported === 0 &&
         importSummary.failed > 0,
     );
-  const terminalBarColor = importSummary?.failed
+  const terminalBarColor = terminalStatus === "cancelled" ? "bg-text-tertiary" : importSummary?.failed
     ? "bg-red-500"
     : importSummary?.forbidden
       ? "bg-orange-500"
@@ -93,7 +96,7 @@ export default function CanvasProgressPanel({
       l.status === "processing" ||
       l.status === "indexing" ||
       l.status === "pending_marker" ||
-      l.status === "pending_retry",
+      l.status === "pending_retry" || l.status === "pending_cache",
   );
 
   return (
@@ -109,9 +112,10 @@ export default function CanvasProgressPanel({
               ? isDiscovering
                 ? t("Discovering files...")
                 : `${isSyncing ? t("Checking for updates...") : t("Importing...")} (${progress.completed}/${progress.total || "?"})`
-              : isTerminalFailure
-                ? t("Import failed")
-                : t("Import complete")}
+              : terminalStatus === "cancelled" ? t("Import stopped")
+                : terminalStatus === "failed" || isTerminalFailure ? t("Import failed")
+                : (skippedFolders.length || (importSummary && (importSummary.failed > 0 || importSummary.forbidden > 0)))
+                  ? t("Completed with issues") : t("Import complete")}
           </span>
         </div>
         <div className="flex items-center gap-3">
@@ -144,11 +148,29 @@ export default function CanvasProgressPanel({
             </div>
           )}
           <span className="text-sm tabular-nums font-semibold text-text-secondary">
-            {progress.percent ?? 0}%
+            {!isDiscovering && `${progress.percent ?? 0}%`}
           </span>
         </div>
       </div>
 
+      {Boolean(skippedFolders.length) && (
+        <p className="px-4 py-3 text-xs text-orange-400" role="status">
+          {t("Some Canvas folders were skipped because they are in Trash. Restore them to include them in a future import.")}
+          {" "}{skippedFolders.join(", ")}
+        </p>
+      )}
+
+      {isImporting && isDiscovering && discovery && (
+        <p className="px-4 pb-3 text-xs text-text-secondary" role="status">
+          {t("{completed} of {total} courses checked", { completed: discovery.completedCourses, total: discovery.totalCourses })}
+          {" · "}{t("{count} files found", { count: discovery.filesFound })}
+          {" · "}{discovery.stage === "modules" ? t("Checking modules") : discovery.stage === "assignments"
+            ? t("Checking assignments") : discovery.stage === "files" ? t("Checking files") : t("Discovering files...")}
+        </p>
+      )}
+      {importSummary && importSummary.skipped > 0 && <p className="px-4 pb-3 text-xs text-text-secondary">
+        {t("{count} stopped", { count: importSummary.skipped })}
+      </p>}
       {/* progress bar */}
       <div className="h-1.5 w-full bg-subtle overflow-hidden">
         {isDiscovering ? (

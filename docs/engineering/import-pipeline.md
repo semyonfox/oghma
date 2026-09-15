@@ -2,7 +2,7 @@
 
 > **Status:** Active engineering overview
 >
-> **Last reviewed:** 2026-08-12
+> **Last reviewed:** 2026-09-15
 >
 > **Source of truth:** [`src/lib/queue.ts`](../../src/lib/queue.ts), [`src/lib/canvas/worker-entry.ts`](../../src/lib/canvas/worker-entry.ts), and the import workers
 
@@ -22,6 +22,19 @@ names, tuning values, and live troubleshooting belong in the
 
 Files can appear before semantic indexing completes. Product copy must distinguish visible material from search/chat-ready material.
 
+## Canvas execution ownership
+
+Canvas discovery and file execution carry database ownership tokens. Publication
+checks them inside the user-tree transaction, including nested note/cache
+writes. Durable retry sequences reject stale deliveries. Recovery observes by
+default until compatible workers are deployed everywhere.
+
+Identical active requests reuse their run. Replacement and Stop name the active
+job the user actually observed. Retryable failures move to a new run; completed
+notes stay available. See the [reliability handover](canvas-import-queue-reliability-handover.md)
+for behavior and release gates, and the [worker runbook](../operations/import-worker.md#canvas-claim-recovery-rollout)
+for recovery rollout.
+
 ## Content-addressed PDF reuse
 
 Canvas PDFs use two cache layers. A verified source locator combines the
@@ -33,6 +46,13 @@ by SHA-256, which remains the authoritative identity. Course names and
 filenames are provenance, never identity. Canvas's documented File object does
 not expose a content checksum, so previously unseen or changed locators must be
 downloaded once.
+
+Concurrent first-time requests for the same hash elect one durable producer.
+Other imports wait in `pending_cache`, including while that producer waits for
+Marker or a scheduled retry. The ownership lock covers only that decision;
+OCR runs after it is released. Both users may still need to download the bytes
+before their common hash is known. Ready canonical results cannot be recaptured
+from subsequent user edits.
 
 The cache owns the immutable PDF object, pipeline-versioned extracted
 Markdown, Marker image assets, chunks, and one canonical vector set. Each user

@@ -15,7 +15,10 @@ const mocks = vi.hoisted(() => {
   };
 });
 
-vi.mock("@/database/pgsql", () => ({ default: mocks.sql }));
+vi.mock("@/database/pgsql", () => ({ default: mocks.sql,
+  afterDatabaseCommit: (effect: () => Promise<void>) => effect(),
+  afterDatabaseRollback: () => undefined,
+}));
 vi.mock("@/lib/qdrant", () => ({
   deleteChunkVectors: mocks.deleteChunkVectors,
   getChunkVectors: mocks.getChunkVectors,

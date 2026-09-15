@@ -13,6 +13,12 @@ const layoutState = vi.hoisted(() => ({
   paneB: null as { fileId: string; fileType: "note" } | null,
 }));
 
+vi.mock("@/lib/canvas/status-poll", () => ({
+  DEFAULT_CANVAS_POLL_MS: 3_000,
+  canvasPollInterval: (value: unknown) => typeof value === "number" ? value : 3_000,
+  fetchCanvasStatus: (url: string, signal: AbortSignal) => fetch(url, { signal }),
+}));
+
 vi.mock("@/lib/notes/state/tree", () => ({
   default: {
     getState: () => ({ refreshTreePaths: storeMocks.refreshTreePaths }),
@@ -282,7 +288,7 @@ describe("useCanvasImport polling", () => {
     expect(result.current.isImporting).toBe(true);
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(2_000);
+      await vi.advanceTimersByTimeAsync(3_000);
     });
     expect(fetchMock).toHaveBeenLastCalledWith(
       "/api/canvas/status?publishJobId=job-b",
@@ -326,10 +332,10 @@ describe("useCanvasImport polling", () => {
 
     act(() => result.current.importer.startPolling());
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(2_000);
+      await vi.advanceTimersByTimeAsync(3_000);
     });
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(2_000);
+      await vi.advanceTimersByTimeAsync(3_000);
     });
 
     expect(result.current.forbiddenCourses).toEqual({
@@ -340,4 +346,99 @@ describe("useCanvasImport polling", () => {
     act(() => result.current.importer.stopPolling());
     unmount();
   });
+});
+
+
+describe("Canvas replacement and Stop controls", () => {
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); localStorage.clear(); });
+  const options: Parameters<typeof useCanvasImport>[0] = {
+    selectedCourseIds: ["42"], courses: [{ id: "42", name: "Course", course_code: "CS101" }],
+    courseErrors: {}, setCourseErrors: () => undefined,
+    forbiddenCourses: {}, setForbiddenCourses: () => undefined,
+    syncedCourses: {}, setSyncedCourses: () => undefined,
+    setConnectionError: () => undefined, t: (key) => key,
+  };
+
+  it("requires another confirmation when the observed replacement target changes", async () => {
+    const posts: RequestInit[] = [];
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+      if (init?.method === "POST") {
+        posts.push(init);
+        return Response.json({ activeJob: { jobId: posts.length === 1 ? "old-job" : "new-job", status: "processing" } }, { status: 409 });
+      }
+      return Response.json({ activeJob: { jobId: "old-job", phase: "processing" }, progress: null, recentLogs: [] });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { result, unmount } = renderHook(() => useCanvasImport(options));
+    await act(() => result.current.handleImport());
+    expect(result.current.pendingReplacement?.jobId).toBe("old-job");
+    expect(posts).toHaveLength(1);
+    expect(JSON.parse(String(posts[0].body))).not.toHaveProperty("expectedActiveJobId");
+    await act(() => result.current.confirmReplacement());
+    expect(JSON.parse(String(posts[1].body))).toHaveProperty("expectedActiveJobId", "old-job");
+    expect(result.current.pendingReplacement?.jobId).toBe("new-job");
+    expect(posts).toHaveLength(2);
+    unmount();
+  });
+
+  it("sends Stop for the tracked job and keeps polling its final results", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => init?.method === "DELETE"
+      ? Response.json({ cancelled: true })
+      : Response.json({ activeJob: { jobId: "observed-job", phase: "processing" }, progress: null, recentLogs: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { result, unmount } = renderHook(() => useCanvasImport(options));
+    await act(async () => result.current.startPolling("observed-job"));
+    await act(() => result.current.handleCancel());
+    expect(fetchMock).toHaveBeenCalledWith("/api/canvas/import?jobId=observed-job", { method: "DELETE" });
+    await act(() => vi.advanceTimersByTimeAsync(3000));
+    expect(fetchMock.mock.calls.filter(([url]) => url.startsWith("/api/canvas/status"))).toHaveLength(2);
+    unmount();
+  });
+  it.each([true, false])("requires an explicit Trash choice before starting, restore=%s", async (restore) => {
+    const folder = { rootId: "root", title: "Course", deletedAt: "2026-09-15T00:00:00.000Z" };
+    let imports = 0;
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === "/api/canvas/import" && init?.method === "POST") {
+        imports++;
+        return imports === 1 ? Response.json({ code: "canvas_folders_in_trash", folders: [folder] }, { status: 409 })
+          : Response.json({ jobId: "new-job", queued: true });
+      }
+      if (url === "/api/trash") return Response.json({ success: true });
+      return Response.json({ activeJob: { jobId: "new-job", phase: "discovering" }, progress: null, recentLogs: [] });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { result, unmount } = renderHook(() => useCanvasImport(options));
+    await act(() => result.current.handleImport());
+    expect(result.current.pendingTrash?.folders).toEqual([folder]);
+    expect(imports).toBe(1);
+    expect(fetchMock.mock.calls.some(([url]) => url === "/api/trash")).toBe(false);
+    await act(() => result.current.handleTrashChoice(restore));
+    expect(result.current.pendingTrash).toBeNull();
+    expect(imports).toBe(2);
+    const trash = fetchMock.mock.calls.filter(([url]) => url === "/api/trash");
+    expect(trash).toHaveLength(restore ? 1 : 0);
+    if (restore) expect(JSON.parse(String(trash[0][1]?.body))).toEqual({ action: "restore", id: "root", expectedDeletedAt: folder.deletedAt });
+    const starts = fetchMock.mock.calls.filter(([url]) => url === "/api/canvas/import");
+    expect(JSON.parse(String(starts[1][1]?.body)).keepTrashedFolders).toBe(!restore);
+    unmount();
+  });
+
+  it("rechecks Trash after stale restore consent without restoring the newer deletion", async () => {
+    let imports = 0;
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === "/api/trash") return Response.json({}, { status: 409 });
+      imports++;
+      return Response.json({ code: "canvas_folders_in_trash", folders: [{ rootId: "root", title: "Course",
+        deletedAt: imports === 1 ? "2026-09-14T00:00:00.000Z" : "2026-09-15T00:00:00.000Z" }] }, { status: 409 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { result, unmount } = renderHook(() => useCanvasImport(options));
+    await act(() => result.current.handleImport());
+    await act(() => result.current.handleTrashChoice(true));
+    expect(result.current.pendingTrash?.folders[0].deletedAt).toBe("2026-09-15T00:00:00.000Z");
+    expect(fetchMock.mock.calls.filter(([url]) => url === "/api/trash")).toHaveLength(1);
+    unmount();
+  });
+
 });

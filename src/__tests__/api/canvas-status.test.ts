@@ -89,9 +89,9 @@ describe("GET /api/canvas/status", () => {
     });
     expect(body.progress).toMatchObject({
       total: 5,
-      completed: 2,
+      completed: 1,
       pendingMarker: 2,
-      percent: 40,
+      percent: 20,
     });
     expect(body.markerColdStarting).toBe(false);
     expect(body.estimatedSecsRemaining).toBeGreaterThan(0);
@@ -138,7 +138,7 @@ describe("GET /api/canvas/status", () => {
     );
     const body = await response.json();
 
-    expect(body.progress.completed).toBe(1);
+    expect(body.progress.completed).toBe(0);
     expect(body.estimatedSecsRemaining).toBeNull();
   });
 

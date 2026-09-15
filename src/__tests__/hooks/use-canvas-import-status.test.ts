@@ -9,6 +9,12 @@ const mocks = vi.hoisted(() => ({
   refreshTree: vi.fn(),
 }));
 
+vi.mock("@/lib/canvas/status-poll", () => ({
+  DEFAULT_CANVAS_POLL_MS: 3_000,
+  canvasPollInterval: (value: unknown) => typeof value === "number" ? value : 3_000,
+  fetchCanvasStatus: (url: string, signal: AbortSignal) => fetch(url, { signal }),
+}));
+
 vi.mock("@/lib/notes/state/sync-status", () => ({
   default: {
     getState: () => ({ markCanvasNew: mocks.markCanvasNew }),
