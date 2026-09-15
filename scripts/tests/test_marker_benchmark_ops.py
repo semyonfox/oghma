@@ -218,7 +218,18 @@ class TelemetryTests(unittest.TestCase):
             environment["MARKER_TELEMETRY_INTERVAL_SECONDS"] = "0.05"
             process = subprocess.Popen(["python3", str(ROOT / "scripts/marker-bench-telemetry.py"), str(output)], env=environment)
             try:
-                time.sleep(0.2)
+                deadline = time.monotonic() + 5
+                while (
+                    (not output.exists() or output.stat().st_size == 0)
+                    and time.monotonic() < deadline
+                ):
+                    if process.poll() is not None:
+                        self.fail(f"telemetry process exited with {process.returncode}")
+                    time.sleep(0.05)
+                if not output.exists() or output.stat().st_size == 0:
+                    self.fail(
+                        "telemetry process did not emit a sample within 5 seconds"
+                    )
             finally:
                 process.terminate()
                 process.wait(timeout=5)

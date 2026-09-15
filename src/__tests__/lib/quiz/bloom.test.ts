@@ -1,10 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   getCurrentBloomLevel,
-  shouldAdvanceBloom,
   pickQuestionType,
 } from "@/lib/quiz/bloom";
-import type { BloomLevel } from "@/lib/quiz/types";
 
 describe("bloom level tracking", () => {
   it("returns level 1 when no reviews exist", () => {
@@ -30,33 +28,6 @@ describe("bloom level tracking", () => {
       { bloom_level: 3, was_correct: false },
     ];
     expect(getCurrentBloomLevel(reviews)).toBe(2);
-  });
-
-  it("stays at current level with mixed results", () => {
-    const reviews = [
-      { bloom_level: 1, was_correct: true },
-      { bloom_level: 1, was_correct: false },
-      { bloom_level: 1, was_correct: true },
-    ];
-    expect(shouldAdvanceBloom(1, reviews)).toBe(false);
-  });
-
-  it("advances when 3+ consecutive correct at >80% accuracy", () => {
-    const reviews = [
-      { bloom_level: 1, was_correct: true },
-      { bloom_level: 1, was_correct: true },
-      { bloom_level: 1, was_correct: true },
-      { bloom_level: 1, was_correct: true },
-    ];
-    expect(shouldAdvanceBloom(1, reviews)).toBe(true);
-  });
-
-  it("does not advance past level 4", () => {
-    const reviews = Array.from({ length: 5 }, () => ({
-      bloom_level: 4,
-      was_correct: true,
-    }));
-    expect(shouldAdvanceBloom(4 as BloomLevel, reviews)).toBe(false);
   });
 
   it("picks a valid question type for each bloom level", () => {

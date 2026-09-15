@@ -2,7 +2,10 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { Message } from "@/lib/chat/types";
-import { normalizeMessageParts } from "@/lib/chat/types";
+import {
+  normalizeMessageParts,
+  partitionMessageParts,
+} from "@/lib/chat/types";
 import {
   nextLlmThinkingMode,
   type LlmThinkingMode,
@@ -174,8 +177,12 @@ export function mapStoredChatMessages(messages: unknown[]): Message[] {
   return messages.flatMap((value) => {
     const m = storedMessageFrom(value);
     if (!m) return [];
-    const parts = normalizeMessageParts(m.parts) ??
-      (m.content ? [{ type: "text" as const, text: m.content }] : []);
+    const normalizedParts = normalizeMessageParts(m.parts) ?? [];
+    const hasAnswerText =
+      partitionMessageParts(normalizedParts).answerText.trim().length > 0;
+    const parts = !hasAnswerText && m.content.trim().length > 0
+      ? [...normalizedParts, { type: "text" as const, text: m.content }]
+      : normalizedParts;
     const metadata = m.metadata ?? {};
     return [{
       id: m.id,

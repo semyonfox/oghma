@@ -1,0 +1,68 @@
+name: Marker unit tests
+
+on:
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - "oghma_marker/**"
+      - "scripts/tests/test_openai_compatible_vision.py"
+      - "infra/runpod-marker/Dockerfile"
+      - "infra/runpod-marker/handler.py"
+      - "infra/runpod-marker/prefetch_models.py"
+      - "infra/runpod-marker/server.py"
+      - "infra/runpod-marker/test_handler.py"
+      - "infra/runpod-marker/run.sh"
+      - "infra/runpod-marker/requirements.txt"
+      - "infra/runpod-marker/constraints-marker-full.txt"
+      - "infra/runpod-marker/constraints-markerpp.txt"
+      - "infra/runpod-marker/constraints-vllm.txt"
+      - "infra/runpod-marker/requirements-test.txt"
+      - "scripts/package-marker-plus-plus.sh"
+      - "package.json"
+      - ".github/workflows/marker-tests.yml"
+  push:
+    branches: [dev]
+    paths:
+      - "oghma_marker/**"
+      - "scripts/tests/test_openai_compatible_vision.py"
+      - "infra/runpod-marker/Dockerfile"
+      - "infra/runpod-marker/handler.py"
+      - "infra/runpod-marker/prefetch_models.py"
+      - "infra/runpod-marker/server.py"
+      - "infra/runpod-marker/test_handler.py"
+      - "infra/runpod-marker/run.sh"
+      - "infra/runpod-marker/requirements.txt"
+      - "infra/runpod-marker/constraints-marker-full.txt"
+      - "infra/runpod-marker/constraints-markerpp.txt"
+      - "infra/runpod-marker/constraints-vllm.txt"
+      - "infra/runpod-marker/requirements-test.txt"
+      - "scripts/package-marker-plus-plus.sh"
+      - "package.json"
+      - ".github/workflows/marker-tests.yml"
+  workflow_dispatch:
+
+jobs:
+  marker-unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: infra/runpod-marker/requirements-test.txt
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install marker unit-test dependencies
+        run: python -m pip install --requirement infra/runpod-marker/requirements-test.txt
+
+      - name: Check active Marker entrypoints and run unit tests
+        run: npm run test:marker

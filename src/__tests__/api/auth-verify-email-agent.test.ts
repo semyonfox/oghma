@@ -19,7 +19,7 @@ vi.mock("@/lib/auth", () => ({
     error: null,
   }),
 }));
-vi.mock("@/lib/tokens", () => ({ verifyTokenHash: vi.fn(() => true) }));
+vi.mock("@/lib/tokens", () => ({ hashToken: vi.fn(() => "stored-hash") }));
 vi.mock("@/lib/rateLimiter", () => ({
   checkRateLimit: vi.fn().mockResolvedValue(null),
   getClientIp: vi.fn(() => "127.0.0.1"),
@@ -45,14 +45,16 @@ function request() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  sql.mockResolvedValue([
-    {
-      user_id: "00000000-0000-4000-8000-000000000001",
-      email: "student@example.com",
-      verification_token: "stored-hash",
-    },
-  ]);
-  tx.mockResolvedValue([]);
+  tx.mockReset();
+  tx
+    .mockResolvedValueOnce([
+      {
+        user_id: "00000000-0000-4000-8000-000000000001",
+        email: "student@example.com",
+      },
+    ])
+    .mockResolvedValueOnce([]);
+  sql.begin.mockReset();
   sql.begin.mockImplementation(async (callback) => callback(tx));
 });
 
@@ -63,15 +65,42 @@ describe("email verification with an agent registration claim", () => {
     expect(response.status).toBe(200);
     expect(sql.begin).toHaveBeenCalledOnce();
     expect(tx).toHaveBeenCalledTimes(2);
-    expect(createAuthSession).toHaveBeenCalledOnce();
+    expect(createAuthSession).toHaveBeenCalledWith(
+      {
+        user_id: "00000000-0000-4000-8000-000000000001",
+        email: "student@example.com",
+      },
+      1,
+    );
   });
 
   it("does not create a session when the atomic verification transaction fails", async () => {
-    tx.mockResolvedValueOnce([]).mockRejectedValueOnce(new Error("db failed"));
+    tx
+      .mockReset()
+      .mockResolvedValueOnce([
+        {
+          user_id: "00000000-0000-4000-8000-000000000001",
+          email: "student@example.com",
+        },
+      ])
+      .mockRejectedValueOnce(new Error("db failed"));
 
     const response = await POST(request());
 
     expect(response.status).toBe(500);
+    expect(createAuthSession).not.toHaveBeenCalled();
+  });
+
+  it("rejects a token that another request already consumed", async () => {
+    tx.mockReset().mockResolvedValueOnce([]);
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Invalid or expired verification token",
+    });
+    expect(tx).toHaveBeenCalledOnce();
     expect(createAuthSession).not.toHaveBeenCalled();
   });
 });

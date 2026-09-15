@@ -55,7 +55,7 @@ export async function stageCanvasExtractionRetry(msg: ExtractionRetryMessage, er
     .catch(() => console.warn("Canvas retry publication deferred to database recovery", { jobId: msg.jobId }));
 }
 
-export function getExtractionRetryDelaySeconds(attempt: number): number {
+function getExtractionRetryDelaySeconds(attempt: number): number {
   return RETRY_DELAYS[Math.min(attempt, RETRY_DELAYS.length - 1)];
 }
 

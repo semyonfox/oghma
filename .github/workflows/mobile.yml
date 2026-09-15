@@ -1,0 +1,38 @@
+name: Mobile
+
+on:
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - "apps/mobile/**"
+      - ".github/workflows/mobile.yml"
+  push:
+    branches: [dev]
+    paths:
+      - "apps/mobile/**"
+      - ".github/workflows/mobile.yml"
+  workflow_dispatch:
+
+jobs:
+  mobile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: apps/mobile/package-lock.json
+
+      - name: Install mobile dependencies
+        run: npm ci --prefix apps/mobile
+
+      - name: Type-check mobile app
+        run: npm --prefix apps/mobile run typecheck
+
+      - name: Run mobile contract tests
+        run: npm --prefix apps/mobile run test

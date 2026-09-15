@@ -109,6 +109,7 @@ infra/runpod-marker/*
 !infra/runpod-marker/constraints-vllm.txt
 !infra/runpod-marker/handler.py
 !infra/runpod-marker/prefetch_models.py
+!infra/runpod-marker/requirements-test.txt
 !infra/runpod-marker/requirements.txt
 !infra/runpod-marker/run.sh
 !infra/runpod-marker/server.py

@@ -77,9 +77,10 @@ env:
   MINIO_IMAGE: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
 
 jobs:
+  # Keep this check name stable for branch protection. Full invocations run it
+  # on an isolated runner alongside the extended job below.
   smoke:
     name: PR Smoke E2E
-    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.suite == 'smoke') }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
 
