@@ -12,7 +12,12 @@ import { toFriendlyCanvasLogMessage } from "@/lib/friendly-errors";
 
 type Progress = { percent: number; completed: number; total: number };
 type ImportSummary = { imported: number; forbidden: number; failed: number; skipped: number };
-type Log = { status?: string; filename?: string; errorMessage?: string; updatedAt?: string };
+type Log = {
+  status?: string;
+  filename?: string;
+  errorMessage?: string | null;
+  updatedAt?: string;
+};
 
 export default function CanvasProgressPanel({
   isImporting,

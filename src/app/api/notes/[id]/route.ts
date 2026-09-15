@@ -40,6 +40,7 @@ interface NoteContentRow {
   title: string;
   content: string;
   extracted_text: string | null;
+  pinned: number;
 }
 
 const MAX_TITLE_LENGTH = parseInt(process.env.MAX_TITLE_LENGTH ?? "500", 10);
@@ -137,7 +138,7 @@ export const PUT = withErrorHandler(async (request: NextRequest, { params }: Not
   }
 
   const existingRows = (await sql`
-    SELECT note_id, title, content, extracted_text
+    SELECT note_id, title, content, extracted_text, pinned
     FROM app.notes
     WHERE note_id = ${noteId}::uuid
       AND user_id = ${user.user_id}::uuid
@@ -153,6 +154,7 @@ export const PUT = withErrorHandler(async (request: NextRequest, { params }: Not
      UPDATE app.notes
      SET title = ${body.title ?? existingNote.title},
          content = ${body.content ?? existingNote.content},
+         pinned = ${body.pinned ?? existingNote.pinned},
          updated_at = NOW()
      WHERE note_id = ${noteId}::uuid
        AND user_id = ${user.user_id}::uuid
@@ -169,6 +171,9 @@ export const PUT = withErrorHandler(async (request: NextRequest, { params }: Not
       cacheKeys.treeFull(user.user_id),
       cacheKeys.notesList(user.user_id, 0, undefined),
     );
+  }
+  if (body.pinned !== undefined && body.pinned !== existingNote.pinned) {
+    keysToInvalidate.push(cacheKeys.treeFull(user.user_id));
   }
   await cacheInvalidate(...keysToInvalidate);
 

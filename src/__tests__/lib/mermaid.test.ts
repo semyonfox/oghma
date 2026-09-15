@@ -30,6 +30,8 @@ describe("Mermaid rendering", () => {
         securityLevel: "strict",
         startOnLoad: false,
         theme: "dark",
+        layout: "dagre",
+        look: "classic",
         htmlLabels: false,
         flowchart: { useMaxWidth: true },
       }),

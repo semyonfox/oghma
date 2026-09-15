@@ -75,3 +75,28 @@ Keep tests focused on observable contracts: response/status behavior, durable
 state, ownership, provider-boundary requests, or race/failure handling. Avoid
 asserting incidental helper calls unless ordering or a transaction boundary is
 the behavior being protected.
+
+## Dependency update constraints
+
+Verified 2026-09-15 against the npm registry and local checks:
+
+- Keep NextAuth on its current v5 beta line. Its npm `latest` tag still points
+  to v4, which would be a downgrade. Keep Node typings on the supported runtime
+  line rather than admitting Node 26 APIs into code that also runs on Node 22.
+- Mobile uses Expo 57's recommended React, React Native, native modules and
+  TypeScript versions. Run `npm exec -- expo install --check` from `apps/mobile`
+  after updates. See the [Expo upgrade guide](https://docs.expo.dev/workflow/upgrading-expo-sdk-walkthrough/).
+- Vitest 5 requires Vite as a peer. Both test packages list Vite explicitly so
+  installation also works when npm's `legacy-peer-deps` setting is enabled.
+- The root `lodash-es` override patches Mermaid/Chevrotain's pinned vulnerable
+  copy. Mobile's scoped `xcode > uuid` override uses the patched CommonJS v11
+  release. Recheck these overrides when the upstream packages update.
+- React-PDF 11 uses PDF.js 6. Copy the matching `build/pdf.worker.mjs` from the
+  `pdfjs-dist` package resolved by `react-pdf` into `public/pdf.worker.js` when
+  upgrading. The worker-version regression prevents mismatched copied assets.
+  `suspense={false}` preserves the viewer's loading/error UI.
+- React-PDF 11 raises browser requirements to Chrome 125 and Safari 18, with
+  additional compatibility work potentially needed below current browsers.
+  See its [upgrade guide](https://github.com/wojtekmaj/react-pdf/wiki/Upgrade-guide-from-version-10.x-to-11.x).
+  Mermaid 12 uses explicit `dagre` layout and `classic` look here to preserve
+  existing diagrams' appearance.

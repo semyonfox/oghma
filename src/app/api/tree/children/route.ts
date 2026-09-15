@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import type postgres from "postgres";
 import { withErrorHandler, requireAuth, ApiError } from '@/lib/api-error';
-import { cacheGet, cacheSet, cacheKeys } from '@/lib/cache';
 import sql from '@/database/pgsql';
 
 const database = sql as postgres.Sql;
@@ -69,18 +68,6 @@ export const GET = withErrorHandler(async (request) => {
       }
     }
 
-    const key = cacheKeys.treeChildren(user.user_id, parentId);
-    const cached = await cacheGet<{
-      parentId: string;
-      items: TreeChildRow[];
-    }>(key);
-    if (cached) {
-      return NextResponse.json({
-        ...cached,
-        items: sortTreeChildren(cached.items),
-      });
-    }
-
     // Fetch children, then apply natural title ordering so "Week 2" comes
     // before "Week 10". PostgreSQL's default text ordering is lexical.
     // Uses app.tree_items for hierarchy and app.notes for metadata.
@@ -140,6 +127,5 @@ export const GET = withErrorHandler(async (request) => {
       ),
     };
 
-    await cacheSet(key, body, 300);
     return NextResponse.json(body);
 });

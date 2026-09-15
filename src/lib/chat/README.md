@@ -35,3 +35,23 @@ replay events, presence, and cancellation state.
 - [Chat operations](../../../docs/operations/chat.md) owns readiness,
   diagnosis, and release checks. [Testing and verification](../../../docs/engineering/testing.md)
   owns the local and CI commands.
+
+## Tool-budget boundary
+
+After the last permitted tool execution, [`tool-budget.ts`](tool-budget.ts)
+keeps the tool schemas and sets `toolChoice: "none"`. Do not replace this with
+`activeTools: []`: OpenRouter adapter 3.0.0 omits the outgoing `tool_choice`
+when the tool list is empty. The execution wrapper also rejects further calls
+if a provider ignores the prohibition.
+
+On 2026-09-15, a production response from DeepSeek V3.2 contained XML for an
+unexecuted search on step 11, after 10 native tool calls. The missing outgoing
+prohibition was reproduced with the deployed SDK and adapter versions. This
+establishes a request defect at the same boundary, but does not prove the
+provider's internal reason for generating XML. The incident had no attached
+note scope; it was not caused by an empty folder falling back to library search.
+
+[`tool-budget-provider.test.ts`](../../__tests__/lib/chat/tool-budget-provider.test.ts)
+checks the actual adapter's HTTP bodies in streaming and non-streaming loops,
+including a provider that ignores `none`. It uses a local fake HTTP response,
+not a paid provider request. Model output is not stripped to hide this failure.

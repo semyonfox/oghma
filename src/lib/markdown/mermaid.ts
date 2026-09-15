@@ -8,6 +8,8 @@ export async function renderMermaidElement(source: string) {
 
   mermaid.initialize({
     startOnLoad: false,
+    layout: "dagre",
+    look: "classic",
     securityLevel: "strict",
     suppressErrorRendering: true,
     theme: dark ? "dark" : "default",

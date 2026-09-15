@@ -2,53 +2,37 @@
 import { create } from "zustand";
 import { genId } from "@/lib/notes/utils/id";
 import TreeActions, {
-  DEFAULT_TREE,
+  createEmptyTree,
   ROOT_ID,
-  TreeItemSummary,
-  TreeItemModel,
-  TreeItemUpdate,
-  TreeMoveRequest,
-  TreeMutationRequest,
-  TreeModel,
+  type TreeItemUpdate,
+  type TreeMoveRequest,
+  type TreeModel,
 } from "@/lib/notes/types/tree";
-import noteCache from "../cache/note";
-import { NOTE_DELETED } from "@/lib/notes/types/meta";
-import { NoteModel } from "@/lib/notes/types/note";
-import { uiCache } from "../cache";
-import {
-  buildTreeItemFromApi,
-  buildPinnedTree,
-} from "./tree-utils";
-
-const TREE_CACHE_KEY = "tree";
-const refreshChildrenInFlight = new Map<string, Promise<void>>();
+import type { TreeApi } from "../api/tree";
+import type { NoteModel } from "@/lib/notes/types/note";
+import { publishWorkspaceInvalidation } from "../workspace-invalidation";
+import { buildPinnedTree, pruneTree, replaceTreeBranch, sortTreeChildren } from "./tree-utils";
 
 type Toast = (message: string, type?: "error") => void;
-
-interface TreeApi {
-  fetch: () => Promise<{ items: TreeItemSummary[] } | undefined>;
-  fetchChildren: (
-    parentId: string | null,
-  ) => Promise<{ items: TreeItemSummary[] } | undefined>;
-  mutate: (body: TreeMutationRequest) => Promise<{ success: true } | undefined>;
-}
-
-function treeState(tree: TreeModel) {
-  return { tree, pinnedTree: buildPinnedTree(tree) };
-}
+type Operation = { generation: number; api: TreeApi; signal: AbortSignal; check: () => void };
 
 export interface NoteTreeState {
   tree: TreeModel;
   pinnedTree: TreeModel;
+  ownerUserId: string | null;
+  generation: number;
   initLoaded: boolean;
   loading: boolean;
+  error: string | null;
   loadingChildren: Set<string>;
+  movingIds: Set<string>;
   expandedIds: Set<string>;
   selectedIds: Set<string>;
   focusedId: string | null;
   renamingId: string | null;
   treeAPI: TreeApi | null;
   toast: Toast | null;
+  resetForSession: (userId: string | null) => void;
   initTree: () => Promise<void>;
   loadChildren: (parentId: string | null) => Promise<void>;
   refreshChildren: (parentId: string | null) => Promise<void>;
@@ -68,381 +52,317 @@ export interface NoteTreeState {
   setRenamingId: (id: string | null) => void;
 }
 
-const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
-  tree: DEFAULT_TREE,
-  pinnedTree: DEFAULT_TREE,
-  initLoaded: false,
-  loading: false,
-  loadingChildren: new Set<string>(),
-  expandedIds: new Set<string>(),
-  selectedIds: new Set<string>(),
-  focusedId: null,
-  renamingId: null,
-  treeAPI: null,
-  toast: null,
+const useNoteTreeStore = create<NoteTreeState>((set, get) => {
+  // One owner orders tree reads and writes. A refresh queued during a read
+  // runs afterwards, so callers never acknowledge a pre-publication snapshot.
+  let queue = Promise.resolve();
+  const waiting = new Map<string | symbol, Promise<void>>();
+  const controllers = new Set<AbortController>();
+  let localChanges = 0;
+  let initialRequest: Promise<void> | null = null;
 
-  setDependencies: (treeAPI, toast) => {
-    set({ treeAPI, toast });
-  },
-
-  setExpandedIds: (ids: Set<string>) => {
-    set({ expandedIds: ids });
-  },
-
-  setSelectedIds: (ids: Set<string>) => {
-    set({ selectedIds: ids });
-  },
-
-  setFocusedId: (id: string | null) => {
-    set({ focusedId: id });
-  },
-
-  setRenamingId: (id: string | null) => {
-    set({ renamingId: id });
-  },
-
-  initTree: async () => {
-    const { treeAPI, initLoaded, loading } = get();
-
-    if (initLoaded || loading) return;
-
-    if (!treeAPI) {
-      console.warn("initTree called before dependencies were set — skipping");
-      return;
-    }
-
-    set({ loading: true });
-
-    try {
-      const apiResponse = await treeAPI.fetch();
-      if (!apiResponse) throw new Error("Tree request did not return a response");
-      const items = apiResponse.items;
-
-      const newTree = { ...DEFAULT_TREE, items: { ...DEFAULT_TREE.items } };
-      const rootChildren: string[] = [];
-
-      for (const item of items) {
-        newTree.items[item.id] = buildTreeItemFromApi(item);
-        rootChildren.push(item.id);
-      }
-
-      newTree.items[ROOT_ID].children = rootChildren;
-
-      set({ ...treeState(newTree), initLoaded: true });
-      await uiCache.setItem(TREE_CACHE_KEY, newTree);
-    } catch (error) {
-      console.error("Error initializing tree:", error);
-      // Leave initLoaded unset after a failure so the caller can retry.
-      const { toast: toastFn } = get();
-      toastFn?.("Error loading notes", "error");
-    } finally {
-      set({ loading: false });
-    }
-  },
-
-  loadChildren: async (parentId: string | null) => {
-    const { treeAPI } = get();
-    const parentKey = parentId || ROOT_ID;
-
-    if (!treeAPI) {
-      console.warn(
-        "loadChildren called before dependencies were set — skipping",
-      );
-      return;
-    }
-
-    if (get().loadingChildren.has(parentKey)) return;
-
-    const currentTree = get().tree;
-    if (currentTree.items[parentKey]?.childrenLoaded) return;
-
-    set((currentState) => {
-      const loadingChildren = new Set(currentState.loadingChildren);
-      loadingChildren.add(parentKey);
-      return { loadingChildren };
-    });
-
-    try {
-      const childrenResponse = await treeAPI.fetchChildren(parentId);
-
-      if (childrenResponse && childrenResponse.items) {
-        // Merge against the latest tree so simultaneous folder loads coexist.
-        const latestTree = get().tree;
-        const newTree = {
-          ...latestTree,
-          items: { ...latestTree.items },
-        };
-        const childIds: string[] = [];
-
-        for (const item of childrenResponse.items) {
-          newTree.items[item.id] = buildTreeItemFromApi(item);
-          childIds.push(item.id);
+  function enqueue(key: string | symbol, work: (operation: Operation) => Promise<void>): Promise<void> {
+    const existing = waiting.get(key);
+    if (existing) return existing;
+    const generation = get().generation;
+    const promise = queue.then(async () => {
+      if (waiting.get(key) === promise) waiting.delete(key);
+      const controller = new AbortController();
+      const check = () => {
+        if (get().generation !== generation || controller.signal.aborted) {
+          throw new DOMException("Tree session changed", "AbortError");
         }
-
-        if (newTree.items[parentKey]) {
-          newTree.items[parentKey] = {
-            ...newTree.items[parentKey],
-            children: childIds,
-            childrenLoaded: true,
-          };
-        }
-
-        set(treeState(newTree));
-        await uiCache.setItem(TREE_CACHE_KEY, newTree);
-      }
-    } catch (error) {
-      console.error(`Error loading children for ${parentKey}:`, error);
-      const { toast: toastFn } = get();
-      toastFn?.("Failed to load folder contents", "error");
-    } finally {
-      set((currentState) => {
-        const loadingChildren = new Set(currentState.loadingChildren);
-        loadingChildren.delete(parentKey);
-        return { loadingChildren };
-      });
-    }
-  },
-
-  refreshChildren: async (parentId: string | null) => {
-    const parentKey = parentId ?? ROOT_ID;
-    const existingRefresh = refreshChildrenInFlight.get(parentKey);
-    if (existingRefresh) return existingRefresh;
-
-    // Let the normal lazy loader finish rather than letting a status update
-    // replace its children with an older snapshot. A later status tick will
-    // retry this branch if the published item was not included yet.
-    if (get().loadingChildren.has(parentKey)) return;
-
-    const refreshPromise = (async () => {
-      const { treeAPI } = get();
-      if (!treeAPI) {
-        console.warn(
-          "refreshChildren called before dependencies were set — skipping",
-        );
-        return;
-      }
-
-      try {
-        const response = await treeAPI.fetchChildren(parentId);
-        const items = response?.items;
-        if (!Array.isArray(items)) return;
-
-        // Merge against the latest state: status updates must not reset loaded
-        // descendants or make the sidebar collapse back to the root.
-        const currentTree = get().tree;
-        const parent = currentTree.items[parentKey];
-        if (!parent) return;
-
-        const nextItems = { ...currentTree.items };
-        const childIds: string[] = [];
-        for (const item of items) {
-          const incoming = buildTreeItemFromApi(item);
-          const currentItem = nextItems[item.id];
-          const mergedItem: TreeItemModel = currentItem
-            ? {
-                ...currentItem,
-                ...incoming,
-                data: incoming.data
-                  ? { ...currentItem.data, ...incoming.data }
-                  : currentItem.data,
-                children: currentItem.children,
-                childrenLoaded: currentItem.childrenLoaded,
-              }
-            : incoming;
-          nextItems[item.id] = mergedItem;
-          childIds.push(item.id);
-        }
-
-        nextItems[parentKey] = {
-          ...parent,
-          children: childIds,
-          childrenLoaded: true,
-        };
-
-        const nextTree = { ...currentTree, items: nextItems };
-        set(treeState(nextTree));
-        await uiCache.setItem(TREE_CACHE_KEY, nextTree);
-      } catch (error) {
-        // Incremental availability is best-effort. Keep the current branch
-        // visible and let the next status snapshot retry it.
-        console.error(`Error refreshing children for ${parentKey}:`, error);
-      }
-    })();
-
-    refreshChildrenInFlight.set(parentKey, refreshPromise);
-    try {
-      await refreshPromise;
-    } finally {
-      if (refreshChildrenInFlight.get(parentKey) === refreshPromise) {
-        refreshChildrenInFlight.delete(parentKey);
-      }
-    }
-  },
-
-  refreshTreePaths: async (paths: string[][]) => {
-    // A path is root-to-leaf. Refresh parents from root down so a newly
-    // created course/module is in the local tree before its child is fetched.
-    const parentsByDepth = new Map<number, Set<string>>();
-    const addParent = (depth: number, parentId: string) => {
-      const parents = parentsByDepth.get(depth) ?? new Set<string>();
-      parents.add(parentId);
-      parentsByDepth.set(depth, parents);
-    };
-
-    addParent(0, ROOT_ID);
-    for (const path of paths) {
-      const ids = Array.isArray(path)
-        ? path.filter((id) => typeof id === "string" && id.length > 0)
-        : [];
-      for (let index = 0; index < ids.length - 1; index += 1) {
-        addParent(index + 1, ids[index]);
-      }
-    }
-
-    for (const [, parentIds] of [...parentsByDepth.entries()].sort(
-      ([leftDepth], [rightDepth]) => leftDepth - rightDepth,
-    )) {
-      await Promise.all(
-        [...parentIds].map((parentId) => {
-          if (!get().tree.items[parentId]) return Promise.resolve();
-          return get().refreshChildren(parentId === ROOT_ID ? null : parentId);
-        }),
-      );
-    }
-  },
-
-  addItem: (item: NoteModel) => {
-    const currentTree = get().tree;
-    const newTree = TreeActions.mutateItem(
-      TreeActions.addItem(currentTree, item.id, item.pid),
-      item.id,
-      { data: item, isFolder: item.isFolder ?? false },
-    );
-    set(treeState(newTree));
-
-    uiCache
-      .setItem(TREE_CACHE_KEY, newTree)
-      .catch((e) => console.error("Failed to cache tree after addItem:", e));
-  },
-
-  removeItem: async (id: string) => {
-    const currentTree = get().tree;
-    const newTree = TreeActions.removeItem(currentTree, id);
-
-    set(treeState(newTree));
-
-    await uiCache.setItem(TREE_CACHE_KEY, newTree);
-
-    await Promise.all(
-      TreeActions.flattenTree(newTree, id).map(
-        async (item) =>
-          await noteCache.mutateItem(item.id, {
-            deleted: NOTE_DELETED.DELETED,
-          }),
-      ),
-    );
-  },
-
-  genNewId: () => {
-    let newId = genId();
-    const currentTree = get().tree;
-    while (currentTree.items[newId]) {
-      newId = genId();
-    }
-    return newId;
-  },
-
-  moveItem: async (data) => {
-    const state = get();
-    const { treeAPI } = state;
-    if (!treeAPI) return;
-    const currentTree = get().tree;
-    const newTree = TreeActions.moveItem(
-      currentTree,
-      data.source,
-      data.destination,
-    );
-
-    // Keep the loaded note's parent in sync with the optimistic tree move.
-    const movedId =
-      currentTree.items[data.source.parentId]?.children[data.source.index];
-    if (movedId && newTree.items[movedId]?.data) {
-      const newPid =
-        data.destination.parentId === ROOT_ID
-          ? undefined
-          : data.destination.parentId;
-      newTree.items[movedId] = {
-        ...newTree.items[movedId],
-        data: { ...newTree.items[movedId].data!, pid: newPid },
       };
-    }
-
-    set(treeState(newTree));
-    await uiCache.setItem(TREE_CACHE_KEY, newTree);
-
-    try {
-      await treeAPI.mutate({
-        action: "move",
-        data,
-      });
-    } catch {
-      set(treeState(currentTree));
-      await uiCache.setItem(TREE_CACHE_KEY, currentTree);
-      const { toast: toastFn } = get();
-      toastFn?.("Failed to move item", "error");
-    }
-  },
-
-  mutateItem: async (id, data) => {
-    const state = get();
-    const { treeAPI } = state;
-    const currentTree = get().tree;
-    if (!currentTree.items[id]) return;
-    const newTree = TreeActions.mutateItem(currentTree, id, data);
-    set(treeState(newTree));
-    if (data.isExpanded !== undefined) {
-      const expandedIds = new Set(state.expandedIds);
-      if (data.isExpanded) expandedIds.add(id);
-      else expandedIds.delete(id);
-      set({ expandedIds });
-    }
-    await uiCache.setItem(TREE_CACHE_KEY, newTree);
-    if (data.isExpanded !== undefined) {
-      if (!treeAPI) return;
-      await treeAPI.mutate({
-        action: "mutate",
-        data: { id, isExpanded: data.isExpanded },
-      });
-    }
-  },
-
-  deleteItem: async (id: string) => {
-    const currentTree = get().tree;
-    const newTree = TreeActions.deleteItem(currentTree, id);
-    set(treeState(newTree));
-    await uiCache.setItem(TREE_CACHE_KEY, newTree);
-  },
-
-  collapseAllItems: () => {
-    const currentTree = get().tree;
-    const expandedItems = TreeActions.flattenTree(currentTree).filter(
-      (item) => item.isExpanded,
-    );
-    void (async () => {
-      // Each write updates the cached tree; serialize them so a later write never
-      // persists an older snapshot over an earlier collapse.
-      for (const item of expandedItems) {
-        await get().mutateItem(item.id, { isExpanded: false });
+      check();
+      const api = get().treeAPI;
+      if (!api) throw new Error("Tree is not ready");
+      controllers.add(controller);
+      try {
+        await work({ generation, api, signal: controller.signal, check });
+        check();
+      } finally {
+        controllers.delete(controller);
       }
-    })().catch((error) =>
-      console.error("Failed to collapse tree items:", error),
-    );
-  },
+    });
+    waiting.set(key, promise);
+    queue = promise.catch(() => {});
+    return promise;
+  }
 
-  refreshTree: async () => {
-    set({ initLoaded: false });
-    await get().initTree();
-  },
-}));
+  function apply(tree: TreeModel) {
+    const clean = sortTreeChildren(pruneTree(tree));
+    const exists = (id: string) => id !== ROOT_ID && Boolean(clean.items[id]);
+    set((state) => ({
+      tree: clean,
+      pinnedTree: buildPinnedTree(clean),
+      selectedIds: new Set([...state.selectedIds].filter(exists)),
+      expandedIds: new Set([
+        ...state.expandedIds,
+        ...Object.values(clean.items).filter((item) => item.isExpanded && !state.tree.items[item.id]).map((item) => item.id),
+      ].filter(exists)),
+      focusedId: state.focusedId && exists(state.focusedId) ? state.focusedId : null,
+      renamingId: state.renamingId && exists(state.renamingId) ? state.renamingId : null,
+    }));
+  }
+
+  function report(generation: number, message: string) {
+    if (generation !== get().generation) return;
+    set({ error: message });
+    get().toast?.(message, "error");
+  }
+
+  // A snapshot batch is assembled off-screen and committed once. If note CRUD
+  // changes local state while it is read, retry without blocking the queue forever.
+  async function reconcile(operation: Operation, groups: string[][], allLoaded = false) {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      operation.check();
+      const version = localChanges;
+      let draft = get().tree;
+      const loaded = new Set(Object.values(draft.items)
+        .filter((item) => item.childrenLoaded || get().expandedIds.has(item.id))
+        .map((item) => item.id));
+      const levels = groups.map((group) => [...new Set(group)]);
+      const fetched = new Set<string>();
+      for (let depth = 0; depth < levels.length; depth += 1) {
+        operation.check();
+        const reachable = pruneTree(draft).items;
+        const parentIds = [...new Set(levels[depth])].filter((id) => reachable[id] && !fetched.has(id));
+        // Bound network work for large imports while retaining parallel reads
+        // of independent folders in a single atomic reconciliation.
+        for (let start = 0; start < parentIds.length; start += 6) {
+          operation.check();
+          const snapshots = await Promise.all(parentIds.slice(start, start + 6).map(async (id) => {
+            const response = id === ROOT_ID && allLoaded
+              ? await operation.api.fetch(operation.signal)
+              : await operation.api.fetchChildren(id === ROOT_ID ? null : id, operation.signal);
+            operation.check();
+            if (!response) throw new Error("Tree request did not return a response");
+            return { id, items: response.items };
+          }));
+          for (const { id, items } of snapshots) {
+            draft = replaceTreeBranch(draft, id, items);
+            fetched.add(id);
+            if (allLoaded) {
+              const next = items.filter((item) => item.isFolder && loaded.has(item.id)).map((item) => item.id);
+              if (next.length) (levels[depth + 1] ??= []).push(...next);
+            }
+          }
+        }
+      }
+      operation.check();
+      if (version !== localChanges) continue;
+      apply(draft);
+      set({ error: null });
+      return;
+    }
+    throw new Error("Tree kept changing during refresh. Please try again.");
+  }
+
+  function freshTree() {
+    return enqueue("refresh", async (operation) => {
+      set({ loading: true });
+      try {
+        await reconcile(operation, [[ROOT_ID]], true);
+        set({ initLoaded: true });
+      } finally {
+        if (operation.generation === get().generation) set({ loading: false });
+      }
+    });
+  }
+
+  function broadcast() {
+    const userId = get().ownerUserId;
+    if (userId) publishWorkspaceInvalidation(userId, "tree");
+  }
+
+  return {
+    tree: createEmptyTree(),
+    pinnedTree: createEmptyTree(),
+    ownerUserId: null,
+    generation: 0,
+    initLoaded: false,
+    loading: false,
+    error: null,
+    loadingChildren: new Set(),
+    movingIds: new Set(),
+    expandedIds: new Set(),
+    selectedIds: new Set(),
+    focusedId: null,
+    renamingId: null,
+    treeAPI: null,
+    toast: null,
+
+    resetForSession: (ownerUserId) => {
+      for (const controller of controllers) controller.abort();
+      controllers.clear();
+      waiting.clear();
+      queue = Promise.resolve();
+      initialRequest = null;
+      localChanges += 1;
+      set({
+        ownerUserId, generation: get().generation + 1,
+        tree: createEmptyTree(), pinnedTree: createEmptyTree(),
+        initLoaded: false, loading: false, error: null,
+        loadingChildren: new Set(), movingIds: new Set(), expandedIds: new Set(), selectedIds: new Set(),
+        focusedId: null, renamingId: null, treeAPI: null, toast: null,
+      });
+    },
+    setDependencies: (treeAPI, toast) => set({ treeAPI, toast }),
+    setExpandedIds: (ids) => set({
+      expandedIds: new Set([...ids].filter((id) => id !== ROOT_ID && get().tree.items[id])),
+    }),
+    setSelectedIds: (ids) => set({
+      selectedIds: new Set([...ids].filter((id) => id !== ROOT_ID && get().tree.items[id])),
+    }),
+    setFocusedId: (id) => set({ focusedId: id && id !== ROOT_ID && get().tree.items[id] ? id : null }),
+    setRenamingId: (id) => set({ renamingId: id && id !== ROOT_ID && get().tree.items[id] ? id : null }),
+
+    initTree: async () => {
+      if (get().initLoaded) return;
+      const generation = get().generation;
+      if (!initialRequest) {
+        const request = freshTree();
+        initialRequest = request;
+        void request.finally(() => {
+          if (initialRequest === request) initialRequest = null;
+        }).catch(() => {});
+      }
+      try { await initialRequest; }
+      catch { report(generation, "Error loading notes"); }
+    },
+
+    refreshTree: async () => {
+      const generation = get().generation;
+      try { await freshTree(); }
+      catch (error) {
+        report(generation, "Error loading notes");
+        throw error;
+      }
+    },
+
+    loadChildren: async (parentId) => {
+      const key = parentId ?? ROOT_ID;
+      const generation = get().generation;
+      try {
+        await enqueue(`load:${key}`, async (operation) => {
+          if (get().tree.items[key]?.childrenLoaded) return;
+          if (!get().tree.items[key]) throw new Error("Tree parent is no longer loaded");
+          set((state) => ({ loadingChildren: new Set([...state.loadingChildren, key]) }));
+          try { await reconcile(operation, [[key]]); }
+          finally {
+            if (generation === get().generation) set((state) => ({
+              loadingChildren: new Set([...state.loadingChildren].filter((id) => id !== key)),
+            }));
+          }
+        });
+      } catch { report(generation, "Failed to load folder contents"); }
+    },
+
+    refreshChildren: (parentId) => enqueue(`branch:${parentId ?? ROOT_ID}`, async (operation) => {
+      const key = parentId ?? ROOT_ID;
+      if (!get().tree.items[key]) throw new Error("Tree parent is no longer loaded");
+      await reconcile(operation, [[key]]);
+    }),
+
+    refreshTreePaths: (paths) => {
+      const groups: string[][] = [[ROOT_ID]];
+      for (const path of paths) {
+        for (let depth = 0; depth < path.length - 1; depth += 1) {
+          (groups[depth + 1] ??= []).push(path[depth]);
+        }
+      }
+      return enqueue(`paths:${JSON.stringify(paths)}`, async (operation) => {
+        await reconcile(operation, groups);
+        for (const path of paths) {
+          let parent = ROOT_ID;
+          for (const id of path) {
+            if (!get().tree.items[parent]?.children.includes(id)) {
+              throw new Error("Published tree path is not available yet");
+            }
+            parent = id;
+          }
+        }
+      });
+    },
+
+    addItem: (item) => {
+      localChanges += 1;
+      apply(TreeActions.mutateItem(TreeActions.addItem(get().tree, item.id, item.pid), item.id,
+        { data: item, isFolder: item.isFolder ?? false }));
+    },
+
+    removeItem: async (id) => {
+      localChanges += 1;
+      apply(TreeActions.removeItem(get().tree, id));
+    },
+
+    genNewId: () => {
+      let id = genId();
+      while (get().tree.items[id]) id = genId();
+      return id;
+    },
+
+    moveItem: async (data) => {
+      if (data.parentId === data.expectedParentId || get().movingIds.has(data.noteId)) return;
+      const generation = get().generation;
+      set((state) => ({ movingIds: new Set([...state.movingIds, data.noteId]) }));
+      try {
+        await enqueue(`move:${data.noteId}`, async (operation) => {
+          try {
+            const result = await operation.api.mutate({ action: "move", data }, operation.signal);
+            operation.check();
+            if (!result || !("noteId" in result) || result.noteId !== data.noteId) {
+              throw new Error("Move did not return its canonical result");
+            }
+            broadcast();
+          } catch (error) {
+            operation.check();
+            // The server may have committed before the connection failed.
+            // Re-read current state, never restore a captured graph.
+            broadcast();
+            await reconcile(operation, [[ROOT_ID], [data.expectedParentId ?? ROOT_ID, data.parentId ?? ROOT_ID]], true);
+            throw error;
+          }
+          await reconcile(operation, [[ROOT_ID], [data.expectedParentId ?? ROOT_ID, data.parentId ?? ROOT_ID]], true);
+        });
+      } catch { report(generation, "Failed to move item. Refresh notes to check its location."); }
+      finally {
+        if (generation === get().generation) set((state) => ({
+          movingIds: new Set([...state.movingIds].filter((id) => id !== data.noteId)),
+        }));
+      }
+    },
+
+    mutateItem: async (id, data) => {
+      if (!get().tree.items[id]) return;
+      localChanges += 1;
+      apply(TreeActions.mutateItem(get().tree, id, data));
+      if (data.isExpanded === undefined) return;
+      const isExpanded = data.isExpanded;
+      const expandedIds = new Set(get().expandedIds);
+      if (isExpanded) expandedIds.add(id); else expandedIds.delete(id);
+      set({ expandedIds });
+      const generation = get().generation;
+      try {
+        await enqueue(Symbol(`expand:${id}`), async (operation) => {
+          const result = await operation.api.mutate({ action: "mutate", data: { id, isExpanded } }, operation.signal);
+          operation.check();
+          if (!result) throw new Error("Expansion did not return a response");
+        });
+      } catch { report(generation, "Failed to save folder expansion"); }
+    },
+
+    deleteItem: async (id) => {
+      localChanges += 1;
+      apply(TreeActions.deleteItem(get().tree, id));
+    },
+
+    collapseAllItems: () => {
+      const ids = [...get().expandedIds];
+      for (const id of ids) void get().mutateItem(id, { isExpanded: false });
+      set({ expandedIds: new Set() });
+    },
+  };
+});
 
 export default useNoteTreeStore;

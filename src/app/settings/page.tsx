@@ -34,6 +34,10 @@ import EditorThemeSection from "@/components/settings/editor-theme-section";
 import PasswordSection from "@/components/settings/password-section";
 import useCourseStore from "@/lib/notes/state/courses.zustand";
 import { postNativeUpdates, postNativeOfflineAccount, useNativeAppBridge } from "@/lib/native-app";
+import { useWorkspaceSession } from "@/components/providers/workspace-lifecycle-provider";
+import { resetWorkspaceClientState } from "@/lib/notes/workspace-lifecycle";
+import { publishWorkspaceInvalidation } from "@/lib/notes/workspace-invalidation";
+import useNoteTreeStore from "@/lib/notes/state/tree";
 
 const CanvasSection = dynamic(
   () => import("@/components/settings/canvas-section"),
@@ -100,11 +104,17 @@ function applyThemePreview(theme: FormState["theme"]) {
   root.classList.toggle("dark", isDark);
 }
 
+function isCurrentWorkspace(ownerUserId: string | null, generation: number) {
+  const tree = useNoteTreeStore.getState();
+  return tree.ownerUserId === ownerUserId && tree.generation === generation;
+}
+
 export default function SettingsPage() {
   const router = useRouter();
   const { t, activeLocale } = useI18n();
   const { setSettings } = useSettingsStore();
   const nativeAppBridge = useNativeAppBridge();
+  const { userId } = useWorkspaceSession();
   const {
     settings: courseSettings,
     fetchSettings,
@@ -289,15 +299,41 @@ export default function SettingsPage() {
   };
 
   const handleSignOut = async () => {
+    const mutationOwner = userId;
+    const mutationGeneration = useNoteTreeStore.getState().generation;
+    let continuationOwner = mutationOwner;
+    let continuationGeneration = mutationGeneration;
     setIsSigningOut(true);
     postNativeOfflineAccount(null);
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
+      const response = await fetch("/api/auth/logout", { method: "POST" });
+      if (!response.ok) throw new Error(`logout failed: ${response.status}`);
+      if (!isCurrentWorkspace(mutationOwner, mutationGeneration)) {
+        if (mutationOwner) {
+          publishWorkspaceInvalidation(mutationOwner, "session");
+        }
+        setIsSigningOut(false);
+        return;
+      }
+      const clearing = resetWorkspaceClientState(null);
+      const resetGeneration = useNoteTreeStore.getState().generation;
+      continuationOwner = null;
+      continuationGeneration = resetGeneration;
+      if (mutationOwner) {
+        publishWorkspaceInvalidation(mutationOwner, "session");
+      }
+      await clearing;
+      if (!isCurrentWorkspace(null, resetGeneration)) {
+        setIsSigningOut(false);
+        return;
+      }
       localStorage.removeItem("ogma-theme");
       document.cookie = "ogma-theme=; path=/; max-age=0";
       window.location.href = "/login";
     } catch {
-      toast.error(t("Failed to sign out"));
+      if (isCurrentWorkspace(continuationOwner, continuationGeneration)) {
+        toast.error(t("Failed to sign out"));
+      }
       setIsSigningOut(false);
     }
   };

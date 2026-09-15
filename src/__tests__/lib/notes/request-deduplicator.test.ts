@@ -13,6 +13,14 @@ function jsonResponse(body: unknown) {
   };
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((yes) => {
+    resolve = yes;
+  });
+  return { promise, resolve };
+}
+
 describe("deduplicatedFetch", () => {
   beforeEach(() => {
     clearDeduplicationCache();
@@ -54,5 +62,34 @@ describe("deduplicatedFetch", () => {
     ]);
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not let an old request remove a replacement created after clear", async () => {
+    const oldResponse = deferred<ReturnType<typeof jsonResponse>>();
+    const newResponse = deferred<ReturnType<typeof jsonResponse>>();
+    const fetchMock = vi
+      .fn()
+      .mockReturnValueOnce(oldResponse.promise)
+      .mockReturnValueOnce(newResponse.promise);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const oldRequest = deduplicatedFetch<{ revision: number }>("/api/note");
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    clearDeduplicationCache();
+    const newRequest = deduplicatedFetch<{ revision: number }>("/api/note");
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+
+    oldResponse.resolve(jsonResponse({ revision: 1 }));
+    await expect(oldRequest).resolves.toEqual({ revision: 1 });
+
+    const sharedNewRequest = deduplicatedFetch<{ revision: number }>(
+      "/api/note",
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    newResponse.resolve(jsonResponse({ revision: 2 }));
+    await expect(newRequest).resolves.toEqual({ revision: 2 });
+    await expect(sharedNewRequest).resolves.toEqual({ revision: 2 });
   });
 });

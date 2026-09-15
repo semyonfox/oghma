@@ -8,19 +8,25 @@ const script = resolve("scripts/check-deploy-commit.sh");
 let repo: string;
 let tree: string;
 
+// Git hooks export repository locations. A temporary cwd does not override them.
+const gitEnv = { ...process.env };
+for (const name of Object.keys(gitEnv)) {
+  if (name.startsWith("GIT_")) delete gitEnv[name];
+}
+
 function commit(message: string) {
   return execFileSync(
     "git",
     ["-c", "user.name=Fixture", "-c", "user.email=fixture@example.test",
       "commit-tree", tree, "-m", message],
-    { cwd: repo, encoding: "utf8" },
+    { cwd: repo, env: gitEnv, encoding: "utf8" },
   ).trim();
 }
 
 function check(revision: string) {
   return spawnSync("bash", [script], {
     cwd: repo,
-    env: { ...process.env, GIT_COMMIT: revision },
+    env: { ...gitEnv, GIT_COMMIT: revision },
     encoding: "utf8",
   });
 }
@@ -28,9 +34,9 @@ function check(revision: string) {
 describe("deployment commit guard", () => {
   beforeAll(() => {
     repo = mkdtempSync(join(tmpdir(), "oghma-deploy-commit-"));
-    execFileSync("git", ["init", "--quiet", repo]);
+    execFileSync("git", ["init", "--quiet", repo], { env: gitEnv });
     tree = execFileSync("git", ["mktree"], {
-      cwd: repo, input: "", encoding: "utf8",
+      cwd: repo, env: gitEnv, input: "", encoding: "utf8",
     }).trim();
   });
 
@@ -55,7 +61,7 @@ describe("deployment commit guard", () => {
 
   it("checks the requested revision rather than a different checkout HEAD", () => {
     const good = commit("Release");
-    execFileSync("git", ["update-ref", "HEAD", good], { cwd: repo });
+    execFileSync("git", ["update-ref", "HEAD", good], { cwd: repo, env: gitEnv });
     expect(check(commit("Release [skip ci]")).status).toBe(1);
     expect(check("").status).toBe(0);
   });
