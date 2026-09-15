@@ -1,9 +1,9 @@
+import { DEFAULT_CANVAS_POLL_MS, canvasPollInterval, fetchCanvasStatus } from "@/lib/canvas/status-poll";
 import { useState, useEffect, useCallback, useRef } from "react";
 import useSyncStatusStore from "@/lib/notes/state/sync-status";
 import useNoteTreeStore from "@/lib/notes/state/tree";
 
 const LS_ACTIVE_JOB = "canvas_active_job";
-const STATUS_POLL_INTERVAL = 4_000;
 const TREE_SYNC_DELAY = 750;
 
 type StoredJob = { jobId?: string };
@@ -28,6 +28,7 @@ type CanvasLog = {
   treePath?: string[];
 };
 type StatusData = {
+  pollIntervalMs?: number;
   success?: boolean;
   activeJob?: CanvasJobStatus | null;
   latestJob?: CanvasJobStatus | null;
@@ -79,7 +80,7 @@ function isVisibleWhileProcessing(status: string | undefined): boolean {
     status === "indexing" ||
     status === "processing" ||
     status === "pending_marker" ||
-    status === "pending_retry"
+    status === "pending_retry" || status === "pending_cache"
   );
 }
 
@@ -99,6 +100,7 @@ export function useCanvasImportStatus(
     (ImportProgress & { jobType: string; forbidden: number; error: number }) | null
   >(null);
   const [showToast, setShowToast] = useState(false);
+  const pollIntervalRef = useRef(DEFAULT_CANVAS_POLL_MS);
   const [isImporting, setIsImporting] = useState(false);
   const autoSyncTriggered = useRef(false);
   const seenRecentLogNoteIds = useRef(new Set<string>());
@@ -234,11 +236,10 @@ export function useCanvasImportStatus(
         const statusUrl = requestedPublishJobId
           ? `/api/canvas/status?publishJobId=${encodeURIComponent(requestedPublishJobId)}`
           : "/api/canvas/status";
-        const res = await fetch(statusUrl, {
-          signal: controller.signal,
-        });
+        const res = await fetchCanvasStatus(statusUrl, controller.signal);
         if (!res.ok) return;
         const data = (await res.json()) as StatusData;
+        pollIntervalRef.current = canvasPollInterval(data.pollIntervalMs);
         if (!data.success || controller.signal.aborted || !mountedRef.current) return;
 
         const logs = Array.isArray(data.recentLogs) ? data.recentLogs : [];
@@ -493,9 +494,9 @@ export function useCanvasImportStatus(
     let timer: ReturnType<typeof setTimeout> | null = null;
     const poll = async () => {
       await checkStatus();
-      if (!cancelled) timer = setTimeout(poll, STATUS_POLL_INTERVAL);
+      if (!cancelled) timer = setTimeout(poll, pollIntervalRef.current);
     };
-    timer = setTimeout(poll, STATUS_POLL_INTERVAL);
+    timer = setTimeout(poll, pollIntervalRef.current);
 
     return () => {
       cancelled = true;

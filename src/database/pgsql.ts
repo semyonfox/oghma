@@ -1,4 +1,5 @@
 import postgres from "postgres";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { config } from "@/lib/config";
 
 type PostgresClient = ReturnType<typeof postgres>;
@@ -25,6 +26,50 @@ export interface DatabaseSql {
 // lazy connection - only created on first use, not at module load
 // This makes runtime environment variables available instead of build-time values.
 let sql: PostgresClient | undefined;
+const transactionContext = new AsyncLocalStorage<postgres.TransactionSql>();
+const commitEffects = new AsyncLocalStorage<Array<() => Promise<void>>>();
+const rollbackEffects = new AsyncLocalStorage<Array<() => Promise<void>>>();
+
+/** Compensate external writes if a later step aborts the outer publication. */
+export function afterDatabaseRollback(effect: () => Promise<void>): void {
+    rollbackEffects.getStore()?.push(effect);
+}
+
+/** Invalidation must follow the outer commit, including nested publications. */
+export async function afterDatabaseCommit(effect: () => Promise<void>): Promise<void> {
+    const pending = commitEffects.getStore();
+    if (pending) { pending.push(effect); return; }
+    await effect();
+}
+
+/**
+ * Keep nested note/cache helpers on the publication transaction that owns the
+ * Canvas claim. Nested begin calls become savepoints on that same connection.
+ * Outside this explicit scope the client retains its normal pool behaviour.
+ */
+export async function withDatabaseTransaction<T>(
+    work: (tx: postgres.TransactionSql) => Promise<T>,
+): Promise<T> {
+    const current = transactionContext.getStore();
+    if (current) return work(current);
+    const effects: Array<() => Promise<void>> = [];
+    const cleanup: Array<() => Promise<void>> = [];
+    let result: { value: T };
+    try {
+        result = await getSQL().begin(async (tx) => {
+            const value = await rollbackEffects.run(cleanup, () => commitEffects.run(effects,
+                () => transactionContext.run(tx, () => work(tx))));
+            return { value };
+        });
+    } catch (error) {
+        for (const effect of cleanup.reverse()) {
+            try { await effect(); } catch { console.warn("Database rollback external cleanup failed"); }
+        }
+        throw error;
+    }
+    for (const effect of effects) await effect();
+    return result.value;
+}
 
 function getSQL(): PostgresClient {
     if (!sql) {
@@ -66,7 +111,9 @@ function getSQL(): PostgresClient {
 // @ts-expect-error Runtime get/apply traps provide the declared DatabaseSql surface.
 const lazySql: DatabaseSql = new Proxy(postgres, {
     get(_target, prop) {
-        const instance = getSQL();
+        const current = transactionContext.getStore();
+        if (current && prop === "begin") return current.savepoint.bind(current);
+        const instance = current ?? getSQL();
         const value: unknown = Reflect.get(instance, prop);
         if (typeof value === "function") {
             return value.bind(instance);
@@ -74,7 +121,7 @@ const lazySql: DatabaseSql = new Proxy(postgres, {
         return value;
     },
     apply(_target, _thisArg, args) {
-        return Reflect.apply(getSQL(), undefined, args);
+        return Reflect.apply(transactionContext.getStore() ?? getSQL(), undefined, args);
     },
 });
 

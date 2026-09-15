@@ -61,8 +61,14 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   const rootId = requireValidId(requestId(body), "Trash item ID");
   if (action === "restore") {
-    const result = await restoreTrashRoot(user.user_id, rootId);
-    if (!result) throw new ApiError(404, "Trash item not found");
+    const expectedDeletedAt = body.expectedDeletedAt;
+    if (expectedDeletedAt !== undefined && (typeof expectedDeletedAt !== "string" || !Number.isFinite(Date.parse(expectedDeletedAt)) || new Date(expectedDeletedAt).toISOString() !== expectedDeletedAt)) {
+      throw new ApiError(400, "Invalid Trash confirmation");
+    }
+    const result = expectedDeletedAt === undefined
+      ? await restoreTrashRoot(user.user_id, rootId)
+      : await restoreTrashRoot(user.user_id, rootId, expectedDeletedAt);
+    if (!result) throw new ApiError(expectedDeletedAt ? 409 : 404, "Trash item changed or was not found");
     return NextResponse.json({
       success: true,
       rootId: result.rootId,

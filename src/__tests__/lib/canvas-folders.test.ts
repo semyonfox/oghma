@@ -5,7 +5,7 @@ vi.mock("@/database/pgsql.js", () => {
   Object.assign(sqlMock, { begin: vi.fn(
     async (callback: (tx: typeof sqlMock) => unknown) => callback(sqlMock),
   ) });
-  return { default: sqlMock };
+  return { default: sqlMock, afterDatabaseCommit: (effect: () => Promise<void>) => effect() };
 });
 
 vi.mock("uuid", () => ({
@@ -14,7 +14,7 @@ vi.mock("uuid", () => ({
 
 import sql from "@/database/pgsql";
 import {
-  CanvasFolderTrashedError,
+  CanvasFolderTrashedError, CanvasFolderMissingError,
   findOrCreateFolder,
 } from "@/lib/canvas/canvas-folders";
 
@@ -59,7 +59,7 @@ describe("Canvas folder lifecycle fence", () => {
   it("refuses to attach a late Canvas child beneath a trashed parent", async () => {
     vi.mocked(sql)
       .mockResolvedValueOnce([] as never) // advisory lock
-      .mockResolvedValueOnce([] as never); // no active parent
+      .mockResolvedValueOnce([{ note_id: folderId, deleted_at: new Date() }] as never); // trashed parent
 
     await expect(
       findOrCreateFolder(userId, "Week 1", folderId, {
@@ -68,4 +68,11 @@ describe("Canvas folder lifecycle fence", () => {
       }),
     ).rejects.toBeInstanceOf(CanvasFolderTrashedError);
   });
+});
+
+it("distinguishes a missing parent from a folder in Trash", async () => {
+  vi.mocked(sql).mockReset();
+  vi.mocked(sql).mockResolvedValue([] as never);
+  await expect(findOrCreateFolder(userId, "Week 1", folderId, { canvasCourseId: "101", canvasModuleId: "1" }))
+    .rejects.toBeInstanceOf(CanvasFolderMissingError);
 });

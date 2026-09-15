@@ -22,6 +22,7 @@ export interface ExtractionRetryJobData extends CanvasJobData {
   mimeType: string;
   parentFolderId: string | null;
   attempt: number;
+  retrySeq?: number;
   importRecordId?: string | null;
   jobId?: string | null;
 }
@@ -110,6 +111,10 @@ function directExtractionData(data: CanvasJobData): DirectExtractionJobData {
 }
 
 function extractionRetryData(data: CanvasJobData): ExtractionRetryJobData {
+  if (data.retrySeq !== undefined &&
+      (typeof data.retrySeq !== "number" || !Number.isSafeInteger(data.retrySeq) || data.retrySeq < 0)) {
+    throw new Error("Job data field retrySeq is invalid");
+  }
   return {
     ...data,
     noteId: requireJobString(data, "noteId"),
@@ -121,6 +126,7 @@ function extractionRetryData(data: CanvasJobData): ExtractionRetryJobData {
     attempt: requireJobAttempt(data),
     importRecordId: optionalJobString(data, "importRecordId"),
     jobId: optionalJobString(data, "jobId"),
+    ...(typeof data.retrySeq === "number" ? { retrySeq: data.retrySeq } : {}),
   };
 }
 

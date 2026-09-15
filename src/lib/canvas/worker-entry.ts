@@ -1,3 +1,5 @@
+import { checkAndCompleteJob } from "./import-extraction";
+import { recoverCanvasExecutions } from "./execution-recovery";
 /**
  * Canvas Worker Entry Point
  *
@@ -32,7 +34,6 @@ import { markerDispatchConsumerEnabled } from "../marker-worker-config";
 import { processChatGeneration } from "../chat/generate-background";
 import { recoverStaleChatGenerations } from "../chat/generation-store";
 import {
-  processImportJob,
   processDiscoverJob,
   processCanvasFile,
   processExtractionRetry,
@@ -60,7 +61,6 @@ import {
   type CanvasJobData,
 } from "./job-dispatch";
 
-const STUCK_JOB_THRESHOLD = "1 hour";
 const STUCK_JOB_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const DB_POLL_INTERVAL_MS = 30_000;
 const ORPHAN_ENQUEUE_RETRY_INTERVAL = "1 minute";
@@ -94,31 +94,16 @@ function errorMessage(error: unknown): string {
 }
 
 async function failStuckJobs(): Promise<void> {
-  const stuck = await sql`
-    UPDATE app.canvas_import_jobs jobs
-    SET status = 'failed', error_message = 'Job timed out', updated_at = NOW()
-    WHERE jobs.status IN ('processing', 'discovering')
-      AND jobs.type = 'canvas'
-      AND jobs.updated_at < NOW() - ${STUCK_JOB_THRESHOLD}::interval
-      AND NOT EXISTS (
-        SELECT 1
-        FROM app.canvas_imports imports
-        WHERE imports.job_id = jobs.id
-          AND imports.status NOT IN ('complete', 'forbidden', 'error', 'cancelled')
-          AND imports.updated_at >= NOW() - ${STUCK_JOB_THRESHOLD}::interval
-      )
-      AND NOT EXISTS (
-        SELECT 1
-        FROM app.marker_jobs marker
-        WHERE marker.canvas_job_id = jobs.id
-          AND marker.status NOT IN ('completed', 'failed', 'invalid_result', 'cancelled')
-      )
-    RETURNING id
+  const recovered = await recoverCanvasExecutions();
+  const settled = await sql<{ id: string }[]>`
+    SELECT job.id FROM app.canvas_import_jobs job WHERE job.type = 'canvas' AND job.status = 'processing'
+      AND NOT EXISTS (SELECT 1 FROM app.canvas_imports child WHERE child.job_id = job.id
+        AND child.status NOT IN ('complete', 'forbidden', 'error', 'cancelled'))
+    LIMIT 50
   `;
-  if (stuck.length > 0) {
-    console.log(
-      `[${new Date().toISOString()}] Failed ${stuck.length} stuck job(s)`,
-    );
+  for (const jobId of new Set([...recovered, ...settled.map((job) => job.id)])) {
+    const [job] = await sql<{ user_id: string }[]>`SELECT user_id FROM app.canvas_import_jobs WHERE id = ${jobId}::uuid`;
+    if (job) await checkAndCompleteJob(jobId, job.user_id);
   }
 }
 
@@ -183,27 +168,7 @@ async function claimOrphanedJobs(): Promise<boolean> {
     RETURNING id, user_id
   `;
 
-  // A stale discovery is moved back to queued before publishing. The next
-  // consumer claims it atomically, while duplicate messages become no-ops.
-  const discoveringOrphans = await sql`
-    WITH candidates AS (
-      SELECT id
-      FROM app.canvas_import_jobs
-      WHERE status = 'discovering'
-        AND type = 'canvas'
-        AND updated_at < NOW() - ${STUCK_JOB_THRESHOLD}::interval / 2
-      ORDER BY updated_at
-      LIMIT ${MAX_CONCURRENT_JOBS}
-      FOR UPDATE SKIP LOCKED
-    )
-    UPDATE app.canvas_import_jobs jobs
-    SET status = 'queued', updated_at = NOW()
-    FROM candidates
-    WHERE jobs.id = candidates.id
-    RETURNING jobs.id, jobs.user_id
-  `;
-
-  const orphaned = [...queuedOrphans, ...discoveringOrphans];
+  const orphaned = queuedOrphans;
   if (orphaned.length === 0) return false;
 
   console.log(
@@ -236,7 +201,7 @@ export async function processCanvasJob(job: CanvasJob): Promise<void> {
   const handled = await dispatchCanvasJob(job, {
     processDiscoverJob,
     processCanvasFile,
-    processImportJob,
+    processImportJob: (jobId) => processDiscoverJob(jobId),
     processDirectExtraction,
     processExtractionRetry,
     processMarkerComplete,

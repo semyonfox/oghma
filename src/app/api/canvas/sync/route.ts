@@ -10,7 +10,8 @@ import {
   discoverCanvasCourses,
   isCanvasCourseAvailabilityUnresolved,
 } from "@/lib/canvas/sync-courses";
-import { cancelActiveCanvasImportJobs } from "@/lib/canvas/cancel-import-jobs";
+import { startCanvasRun } from "@/lib/canvas/import-runs";
+import { isValidUUID } from "@/lib/utils/uuid";
 
 const ACTIVE_CANVAS_JOB_STATUSES = new Set([
   "queued",
@@ -53,6 +54,10 @@ function automaticSyncBlocked(blocker: AutomaticSyncBlocker) {
 export const POST = withErrorHandler(async (request) => {
   const user = await requireAuth();
   const automatic = request.nextUrl.searchParams.get("automatic") === "true";
+  const expectedActiveJobId = request.nextUrl.searchParams.get("expectedActiveJobId") ?? undefined;
+  if (expectedActiveJobId !== undefined && !isValidUUID(expectedActiveJobId)) {
+    throw new ApiError(400, "Invalid expected active import ID");
+  }
 
   const credentials = await loadCanvasCredentials(user.user_id);
   if (!credentials) {
@@ -137,9 +142,18 @@ export const POST = withErrorHandler(async (request) => {
     });
   }
 
-  // Manual syncs intentionally replace the active job. Automatic syncs use
-  // the same per-user lock, then decline if another request won the race or a
-  // Canvas job completed recently.
+  if (!automatic) {
+    const started = await startCanvasRun({ userId: user.user_id, courses, mode: "sync", expectedActiveJobId });
+    if (started.kind === "conflict") return NextResponse.json({
+      error: "The active import changed. Confirm the current import before replacing it.", activeJob: started.activeJob,
+    }, { status: 409 });
+    if (started.kind === "created") {
+      await enqueueCanvasJob("canvas-discover", { jobId: started.jobId, userId: user.user_id })
+        .catch((error: unknown) => logger.warn("Sync publication deferred to recovery", { error: errorMessage(error) }));
+    }
+    return NextResponse.json({ queued: true, jobId: started.jobId, alreadyActive: started.kind === "existing" });
+  }
+
   const result = await sql.begin(async (tx) => {
     if (automatic) {
       await tx`
@@ -160,12 +174,6 @@ export const POST = withErrorHandler(async (request) => {
         LIMIT 1
       `;
       if (blockers[0]) return { blocker: blockers[0], job: null };
-    } else {
-      await cancelActiveCanvasImportJobs(
-        tx,
-        user.user_id,
-        "Replaced by a newer Canvas sync",
-      );
     }
     const [inserted] = await tx<{ id: string }[]>`
       INSERT INTO app.canvas_import_jobs (user_id, course_ids, status, job_type)

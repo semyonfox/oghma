@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import type postgres from "postgres";
-import sql from "@/database/pgsql";
+import sql, { withDatabaseTransaction, afterDatabaseCommit, afterDatabaseRollback } from "@/database/pgsql";
 import {
   deleteChunkVectors,
   getChunkVectors,
@@ -42,6 +42,8 @@ export interface ImportedFileCacheRow {
   extraction_coverage: Record<string, unknown> | null;
   orphaned_at?: string | null;
   purge_after?: string | null;
+  owner_import_id?: string | null;
+  owner_job_id?: string | null;
 }
 
 interface CacheChunkRow {
@@ -152,9 +154,10 @@ export async function withImportedFileLock<T>(
   fn: () => Promise<T>,
 ): Promise<T> {
   const [key1, key2] = advisoryLockKey(sha256);
-  // Transaction-scoped locks cannot leak if work throws or a pooled connection
-  // changes. Cache writes inside fn remain independently recoverable.
-  const result = await sql.begin(async (tx: postgres.TransactionSql) => {
+  // Keep the lock and callback on one connection, including retention work.
+  // A publication already owns a transaction, which this helper reuses.
+  const result = await withDatabaseTransaction(async (tx) => {
+    await tx`SET LOCAL idle_in_transaction_session_timeout = 0`;
     await tx`SELECT pg_advisory_xact_lock(${key1}, ${key2})`;
     return { value: await fn() };
   });
@@ -215,19 +218,29 @@ export async function ensureImportedFileCacheRow(params: {
   mimeType: string;
   fileSize: number;
   storageKey: string;
+  importId?: string;
+  jobId?: string | null;
 }): Promise<ImportedFileCacheRow> {
   const [row] = await sql`
     INSERT INTO app.imported_file_cache
       (sha256, pipeline_version, mime_type, file_size, storage_key, status,
-       replayable, processing_started_at, updated_at)
+       replayable, processing_started_at, updated_at, owner_import_id, owner_job_id)
     VALUES (${params.sha256}, ${IMPORT_PIPELINE_VERSION}, ${params.mimeType},
-      ${params.fileSize}, ${params.storageKey}, 'processing', FALSE, NOW(), NOW())
+      ${params.fileSize}, ${params.storageKey}, 'processing', FALSE, NOW(), NOW(),
+      ${params.importId ?? null}::uuid, ${params.jobId ?? null}::uuid)
     ON CONFLICT (sha256, pipeline_version) DO UPDATE SET
       status = 'processing', replayable = FALSE, error_message = NULL,
       processing_started_at = NOW(), orphaned_at = NULL, purge_after = NULL,
+      owner_import_id = EXCLUDED.owner_import_id, owner_job_id = EXCLUDED.owner_job_id,
       updated_at = NOW()
+    WHERE app.imported_file_cache.status <> 'ready' OR app.imported_file_cache.replayable = FALSE
     RETURNING *
   `;
+  if (!row) {
+    const ready = await getImportedFileCacheBySha(params.sha256);
+    if (!ready) throw new Error("Shared cache disappeared during creation");
+    return ready;
+  }
   return row as ImportedFileCacheRow;
 }
 
@@ -238,7 +251,7 @@ export async function markImportedFileCacheFailed(
   await sql`
     UPDATE app.imported_file_cache SET status = 'failed', replayable = FALSE,
       error_message = ${message}, updated_at = NOW()
-    WHERE id = ${cacheId}::uuid
+    WHERE id = ${cacheId}::uuid AND status <> 'ready'
   `;
 }
 
@@ -246,6 +259,11 @@ export async function captureImportedPdfCache(params: {
   cacheId: string;
   sourceNoteId: string;
 }): Promise<{ replayable: boolean }> {
+  return withDatabaseTransaction(async () => {
+  const [existing] = await sql<{ status: string; replayable: boolean }[]>`
+    SELECT status, replayable FROM app.imported_file_cache WHERE id = ${params.cacheId}::uuid FOR UPDATE
+  `;
+  if (existing?.status === "ready" && existing.replayable) return { replayable: true };
   const [note] = await sql`
     SELECT content, extracted_text, extraction_coverage, user_id FROM app.notes
     WHERE note_id = ${params.sourceNoteId}::uuid LIMIT 1
@@ -293,6 +311,7 @@ export async function captureImportedPdfCache(params: {
     ORDER BY created_at, id
   `) as CacheChunkRow[];
   const vectors = await getChunkVectors(sourceChunks.map((chunk) => chunk.id));
+  if (vectors.length !== sourceChunks.length) replayable = false;
   const vectorById = new Map(
     vectors.map((item) => [item.chunkId, item.vector]),
   );
@@ -300,7 +319,7 @@ export async function captureImportedPdfCache(params: {
   const prior = (await sql`
     SELECT id FROM app.imported_file_cache_chunks WHERE cache_id = ${params.cacheId}::uuid
   `) as Array<{ id: string }>;
-  await deleteChunkVectors(prior.map((row) => row.id)).catch(() => undefined);
+  await afterDatabaseCommit(() => deleteChunkVectors(prior.map((row) => row.id)).catch(() => undefined));
 
   const cachedRows: Array<{ id: string; ordinal: number }> = await sql.begin(
     async (tx: postgres.TransactionSql) => {
@@ -328,16 +347,6 @@ export async function captureImportedPdfCache(params: {
             RETURNING id, ordinal
           `;
       await tx`
-        UPDATE app.imported_file_cache
-        SET status = 'ready', replayable = ${replayable},
-          extracted_markdown = ${markdown},
-          extracted_text = ${note.extracted_text ?? null},
-          extraction_coverage = ${JSON.stringify(note.extraction_coverage ?? null)}::jsonb,
-          error_message = NULL, orphaned_at = NULL, purge_after = NULL,
-          updated_at = NOW()
-        WHERE id = ${params.cacheId}::uuid
-      `;
-      await tx`
         UPDATE app.notes
         SET imported_file_cache_id = ${params.cacheId}::uuid,
           updated_at = NOW()
@@ -361,8 +370,22 @@ export async function captureImportedPdfCache(params: {
         }]
       : [];
   });
-  if (points.length) await upsertChunkVectors(points);
+  if (points.length) {
+    afterDatabaseRollback(() => deleteChunkVectors(points.map((point) => point.chunkId)));
+    await upsertChunkVectors(points);
+  }
+      await sql`
+        UPDATE app.imported_file_cache
+        SET status = 'ready', replayable = ${replayable},
+          extracted_markdown = ${markdown},
+          extracted_text = ${note.extracted_text ?? null},
+          extraction_coverage = ${JSON.stringify(note.extraction_coverage ?? null)}::jsonb,
+          error_message = NULL, orphaned_at = NULL, purge_after = NULL,
+          updated_at = NOW()
+        WHERE id = ${params.cacheId}::uuid
+      `;
   return { replayable };
+  });
 }
 
 /**
@@ -458,8 +481,8 @@ export async function cloneImportedPdfCacheToNote(params: {
   );
   if (!prepared) return 0;
 
-  await cacheInvalidate(cacheKeys.note(params.userId, params.noteId));
-  await deleteChunkVectors(prepared.oldChunkIds).catch(() => undefined);
+  await afterDatabaseCommit(() => cacheInvalidate(cacheKeys.note(params.userId, params.noteId)));
+  await afterDatabaseCommit(() => deleteChunkVectors(prepared.oldChunkIds).catch(() => undefined));
   if (!prepared.cached.length) return 0;
 
   const { cached, inserted } = prepared;
@@ -476,7 +499,10 @@ export async function cloneImportedPdfCacheToNote(params: {
         }]
       : [];
   });
-  if (points.length) await upsertChunkVectors(points);
+  if (points.length) {
+    afterDatabaseRollback(() => deleteChunkVectors(points.map((point) => point.chunkId)));
+    await upsertChunkVectors(points);
+  }
 
   // The guarded SQL work and the Qdrant upsert cannot be one transaction.
   // If Trash wins immediately afterwards, retain the vectors for restore but

@@ -12,7 +12,11 @@ vi.mock("@/database/pgsql.js", () => {
   sqlMock.begin = vi.fn(
     async (callback: (tx: typeof sqlMock) => unknown) => callback(sqlMock),
   );
-  return { default: sqlMock };
+  return { default: sqlMock,
+    withDatabaseTransaction: (work: (tx: typeof sqlMock) => Promise<unknown>) => work(sqlMock),
+    afterDatabaseCommit: (effect: () => Promise<void>) => effect(),
+    afterDatabaseRollback: () => undefined,
+  };
 });
 
 vi.mock("@/lib/qdrant", () => ({

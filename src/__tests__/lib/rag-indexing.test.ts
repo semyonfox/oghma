@@ -13,6 +13,8 @@ const { sqlMock, txMock } = vi.hoisted(() => {
 
 vi.mock("@/database/pgsql", () => ({
   default: sqlMock,
+  afterDatabaseCommit: (effect: () => Promise<void>) => effect(),
+  afterDatabaseRollback: () => undefined,
 }));
 
 vi.mock("@/lib/embeddings", () => ({
