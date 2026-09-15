@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { withErrorHandler } from "@/lib/api-error";
 import {
+  hasPrivacySignal,
   marketingEventResponse,
   recordMarketingEvent,
 } from "@/lib/marketing/events";
@@ -23,6 +24,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   }
 
   const ok = await recordMarketingEvent(body, request, { trusted: false });
-  const optedOut = request.headers.get("dnt") === "1" || request.headers.get("sec-gpc") === "1";
+  const optedOut = hasPrivacySignal(request);
   return marketingEventResponse(ok || optedOut, ok || optedOut ? 202 : 400);
 });

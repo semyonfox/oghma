@@ -54,7 +54,7 @@ function clickProperties(element: HTMLElement): Record<string, string | undefine
 
 const MAX_PATH_CHAIN_LENGTH = 4;
 
-export function appendBoundedPathChain(paths: string[], path: string | null): string[] {
+function appendBoundedPathChain(paths: string[], path: string | null): string[] {
   if (!path) return paths;
   if (paths.at(-1) === path) return paths;
   return [...paths, path].slice(-MAX_PATH_CHAIN_LENGTH);

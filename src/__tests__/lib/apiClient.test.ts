@@ -1,117 +1,104 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  APIError,
-  apiGet,
-  apiPost,
-  getErrorMessage,
-  getValidationErrors,
-  isErrorStatus,
-} from "@/lib/apiClient";
+import { getErrorMessage, login, register } from "@/lib/apiClient";
 
-function makeJsonResponse(body: unknown, ok = true, status = 200): Response {
-  const response = new Response(JSON.stringify(body), {
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json" },
   });
-  if (response.ok !== ok) {
-    Object.defineProperty(response, "ok", { value: ok });
-  }
-  return response;
 }
 
-describe("apiClient", () => {
+describe("browser auth API client", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     global.fetch = vi.fn<typeof fetch>();
   });
 
-  it("apiGet sends JSON headers and includes credentials by default", async () => {
-    vi.mocked(global.fetch).mockResolvedValue(makeJsonResponse({ ok: true }));
-
-    await apiGet("/api/ping");
-
-    expect(global.fetch).toHaveBeenCalledWith(
-      "/api/ping",
-      expect.objectContaining({
-        method: "GET",
-        credentials: "include",
-        headers: expect.objectContaining({
-          "Content-Type": "application/json",
-        }),
-      }),
-    );
-  });
-
-  it("apiPost serializes JSON body", async () => {
-    vi.mocked(global.fetch).mockResolvedValue(makeJsonResponse({ created: true }));
-
-    await apiPost("/api/items", { name: "test" });
-
-    expect(global.fetch).toHaveBeenCalledWith(
-      "/api/items",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ name: "test" }),
-      }),
-    );
-  });
-
-  it("throws APIError with status and payload for non-2xx responses", async () => {
+  it("posts login credentials with the browser session", async () => {
     vi.mocked(global.fetch).mockResolvedValue(
-      makeJsonResponse({ error: "Invalid input" }, false, 400),
+      jsonResponse({ success: true }),
     );
 
-    await expect(apiGet("/api/fail")).rejects.toMatchObject({
-      name: "APIError",
-      message: "Invalid input",
-      status: 400,
-      data: { error: "Invalid input" },
-    });
-  });
-
-  it("maps failed fetch network errors to friendly APIError", async () => {
-    vi.mocked(global.fetch).mockRejectedValue(new TypeError("Failed to fetch"));
-
-    await expect(apiGet("/api/offline")).rejects.toMatchObject({
-      message: "No server response. Please check your connection.",
-      status: 0,
-    });
-  });
-
-  it("maps abort errors to timeout APIError", async () => {
-    const abortErr = new Error("aborted");
-    abortErr.name = "AbortError";
-    vi.mocked(global.fetch).mockRejectedValue(abortErr);
-
-    await expect(apiGet("/api/slow")).rejects.toMatchObject({
-      message: "Request timeout",
-      status: 408,
-    });
-  });
-
-  it("extracts validation messages and status helpers correctly", () => {
-    const err = new APIError("Validation failed", 422, {
-      validationErrors: {
-        email: "Email is invalid",
-        password: "Password is too short",
-      },
-    });
-
-    expect(getErrorMessage(err)).toBe(
-      "Email is invalid; Password is too short",
+    await expect(login("student@example.com", "password", true)).resolves.toEqual(
+      { success: true },
     );
-    expect(getValidationErrors(err)).toEqual({
-      email: "Email is invalid",
-      password: "Password is too short",
+    expect(global.fetch).toHaveBeenCalledWith("/api/auth/login", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: "student@example.com",
+        password: "password",
+        rememberMe: true,
+      }),
     });
-    expect(isErrorStatus(err, 422)).toBe(true);
-    expect(isErrorStatus(err, 400)).toBe(false);
   });
 
-  it("returns fallback values for non-API errors", () => {
-    const plainError = new Error("plain failure");
-    expect(getErrorMessage(plainError)).toBe("plain failure");
-    expect(getValidationErrors(plainError)).toBeNull();
-    expect(isErrorStatus(plainError, 500)).toBe(false);
+  it("forwards registration attribution and agent claims", async () => {
+    vi.mocked(global.fetch).mockResolvedValue(
+      jsonResponse({ requiresVerification: true }),
+    );
+    const marketing = { source: "homepage" };
+
+    await register("student@example.com", "StrongPass1", marketing, {
+      agentClaimToken: "claim-token",
+      agentUserCode: "123456",
+    });
+
+    const request = vi.mocked(global.fetch).mock.calls[0];
+    expect(request?.[0]).toBe("/api/auth/register");
+    expect(JSON.parse(String(request?.[1]?.body))).toEqual({
+      email: "student@example.com",
+      password: "StrongPass1",
+      marketing,
+      agentClaimToken: "claim-token",
+      agentUserCode: "123456",
+    });
   });
+
+  it("returns the API's field errors to the form", async () => {
+    vi.mocked(global.fetch).mockResolvedValue(
+      jsonResponse(
+        {
+          error: "Validation failed",
+          validationErrors: {
+            email: "Email is invalid",
+            password: ["Password is too short", "Password needs a number"],
+            ignored: 42,
+          },
+        },
+        422,
+      ),
+    );
+
+    try {
+      await login("invalid", "short");
+      throw new Error("expected login to reject");
+    } catch (error) {
+      expect(error).toMatchObject({
+        name: "APIError",
+        message: "Validation failed",
+        status: 422,
+      });
+      expect(getErrorMessage(error)).toBe(
+        "Email is invalid; Password is too short; Password needs a number",
+      );
+    }
+  });
+
+  it.each(["Failed to fetch", "Load failed"])(
+    "maps a failed fetch to the connection error regardless of browser wording",
+    async (message) => {
+      vi.mocked(global.fetch).mockRejectedValue(new TypeError(message));
+
+      try {
+        await login("student@example.com", "password");
+        throw new Error("expected login to reject");
+      } catch (error) {
+        expect(getErrorMessage(error)).toBe(
+          "No server response. Please check your connection.",
+        );
+      }
+    },
+  );
 });

@@ -1,5 +1,5 @@
 const COMBINING_MARKS_REGEX = /\p{M}/gu;
-const PUNCTUATION_OR_SYMBOL_REGEX = /[\p{P}\p{S}]/gu;
+const INCIDENTAL_PUNCTUATION_OR_SYMBOL_REGEX = /[^\p{L}\p{N}\s+#]/gu;
 const WHITESPACE_REGEX = /\s+/g;
 const ALTERNATIVE_DELIMITER_REGEX = /\s*(?:\||;)\s*/u;
 
@@ -9,17 +9,17 @@ const ALTERNATIVE_DELIMITER_REGEX = /\s*(?:\||;)\s*/u;
  * Fill-in answers are short recall prompts, so grading should not depend on
  * casing, accent marks, punctuation, or incidental whitespace.
  */
-export function normalizeFillAnswer(answer: string): string {
+function normalizeFillAnswer(answer: string): string {
   return answer
     .normalize("NFKD")
     .replace(COMBINING_MARKS_REGEX, "")
     .toLocaleLowerCase("en")
-    .replace(PUNCTUATION_OR_SYMBOL_REGEX, " ")
+    .replace(INCIDENTAL_PUNCTUATION_OR_SYMBOL_REGEX, " ")
     .replace(WHITESPACE_REGEX, " ")
     .trim();
 }
 
-export function acceptedFillAnswers(correctAnswer: string | string[]): string[] {
+function acceptedFillAnswers(correctAnswer: string | string[]): string[] {
   const candidates = Array.isArray(correctAnswer)
     ? correctAnswer
     : correctAnswer.split(ALTERNATIVE_DELIMITER_REGEX);

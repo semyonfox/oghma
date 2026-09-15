@@ -8,6 +8,11 @@ interface VaultJobIdRow {
   id: string;
 }
 
+function isUniqueViolation(error: unknown): boolean {
+  return typeof error === "object" && error !== null &&
+    (error as { code?: string }).code === "23505";
+}
+
 /**
  * POST /api/vault/export
  *
@@ -35,26 +40,40 @@ export const POST = withErrorHandler(async (request) => {
     );
   }
 
-  // note: TOCTOU between SELECT and INSERT — concurrent double-submits could both create jobs.
-  // acceptable for now (requires fast double-click); proper fix needs a unique partial index on (user_id, type) where status in ('queued','processing').
-  const jobId = await sql.begin(async (tx: postgres.TransactionSql) => {
-    if (existing) {
-      // also set cancel_requested_at so any running worker stops cooperatively
-      await tx`
-        UPDATE app.canvas_import_jobs
-        SET status = 'cancelled', completed_at = NOW(), cancel_requested_at = NOW(), updated_at = NOW()
-        WHERE user_id = ${user.user_id}
-          AND type = 'vault-export'
-          AND status IN ('queued', 'processing')
+  let jobId: string;
+  try {
+    jobId = await sql.begin(async (tx: postgres.TransactionSql) => {
+      if (existing) {
+        // also set cancel_requested_at so any running worker stops cooperatively
+        await tx`
+          UPDATE app.canvas_import_jobs
+          SET status = 'cancelled', completed_at = NOW(), cancel_requested_at = NOW(), updated_at = NOW()
+          WHERE user_id = ${user.user_id}
+            AND type = 'vault-export'
+            AND status IN ('queued', 'processing')
+        `;
+      }
+      const [row] = await tx<VaultJobIdRow[]>`
+        INSERT INTO app.canvas_import_jobs (user_id, type, status)
+        VALUES (${user.user_id}::uuid, 'vault-export', 'queued')
+        RETURNING id
       `;
-    }
-    const [row] = await tx<VaultJobIdRow[]>`
-      INSERT INTO app.canvas_import_jobs (user_id, type, status)
-      VALUES (${user.user_id}::uuid, 'vault-export', 'queued')
-      RETURNING id
+      return row.id;
+    });
+  } catch (error) {
+    if (!isUniqueViolation(error)) throw error;
+    const [active] = await sql<VaultJobIdRow[]>`
+      SELECT id FROM app.canvas_import_jobs
+      WHERE user_id = ${user.user_id}
+        AND type = 'vault-export'
+        AND status IN ('queued', 'processing')
+      LIMIT 1
     `;
-    return row.id;
-  });
+    return NextResponse.json(
+      { error: "Export already in progress", activeJobId: active?.id },
+      { status: 409 },
+    );
+  }
 
   try {
     await enqueueCanvasJob("vault-export", {

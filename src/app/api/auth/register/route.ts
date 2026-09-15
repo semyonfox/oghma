@@ -10,7 +10,7 @@
 
 import { after, NextResponse, type NextRequest } from "next/server";
 import sql from "@/database/pgsql";
-import { validateAuthCredentials } from "@/lib/validation";
+import { validateAuthCredentials } from "@/lib/auth-credentials";
 import {
   createErrorResponse,
   createValidationErrorResponse,

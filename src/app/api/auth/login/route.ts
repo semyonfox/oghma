@@ -12,7 +12,7 @@ import bcrypt from "bcryptjs";
 import { createHash } from "crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import sql from "@/database/pgsql";
-import { validateAuthCredentials } from "@/lib/validation";
+import { validateAuthCredentials } from "@/lib/auth-credentials";
 import {
   createAuthSession,
   createErrorResponse,

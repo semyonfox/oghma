@@ -18,35 +18,3 @@ export function isValidUUID(value: unknown): value is string {
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   return uuidRegex.test(value);
 }
-
-/**
- * Strictly validate UUID v7 format
- * Use this for validating frontend-generated or application UUIDs
- * Format: xxxxxxxx-xxxx-7xxx-yxxx-xxxxxxxxxxxx
- */
-export function isValidUUIDv7(value: unknown): value is string {
-  if (typeof value !== "string") return false;
-  const uuidv7Pattern =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  return uuidv7Pattern.test(value);
-}
-
-/**
- * Validate and throw error if invalid (loose validation)
- */
-export function getValidatedUUID(value: unknown, fieldName = "ID"): string {
-  if (!isValidUUID(value)) {
-    throw new Error(`Invalid ${fieldName}: must be a valid UUID format`);
-  }
-  return value;
-}
-
-/**
- * Validate and throw error if not UUID v7 (strict validation)
- */
-export function getValidatedUUIDv7(value: unknown, fieldName = "ID"): string {
-  if (!isValidUUIDv7(value)) {
-    throw new Error(`Invalid ${fieldName}: must be a valid UUID v7 format`);
-  }
-  return value;
-}

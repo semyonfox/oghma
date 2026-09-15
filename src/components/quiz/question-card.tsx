@@ -20,7 +20,7 @@ interface QuestionCardProps {
   onAnswer: (answer: string, wasCorrect: boolean) => void;
 }
 
-export function QuizOptionText({ children }: { children: string }) {
+function QuizOptionText({ children }: { children: string }) {
   return <span className="whitespace-pre-wrap break-words">{children}</span>;
 }
 

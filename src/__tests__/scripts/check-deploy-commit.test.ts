@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const script = resolve("scripts/check-deploy-commit.sh");
 let repo: string;
+let gitDir: string;
 let tree: string;
 
 // Git hooks export repository locations. A temporary cwd does not override them.
@@ -17,16 +18,17 @@ for (const name of Object.keys(gitEnv)) {
 function commit(message: string) {
   return execFileSync(
     "git",
-    ["-c", "user.name=Fixture", "-c", "user.email=fixture@example.test",
+    ["--git-dir", gitDir,
+      "-c", "user.name=Fixture", "-c", "user.email=fixture@example.test",
       "commit-tree", tree, "-m", message],
-    { cwd: repo, env: gitEnv, encoding: "utf8" },
+    { env: gitEnv, encoding: "utf8" },
   ).trim();
 }
 
 function check(revision: string) {
   return spawnSync("bash", [script], {
     cwd: repo,
-    env: { ...gitEnv, GIT_COMMIT: revision },
+    env: { ...gitEnv, GIT_DIR: gitDir, GIT_COMMIT: revision },
     encoding: "utf8",
   });
 }
@@ -34,9 +36,10 @@ function check(revision: string) {
 describe("deployment commit guard", () => {
   beforeAll(() => {
     repo = mkdtempSync(join(tmpdir(), "oghma-deploy-commit-"));
-    execFileSync("git", ["init", "--quiet", repo], { env: gitEnv });
-    tree = execFileSync("git", ["mktree"], {
-      cwd: repo, env: gitEnv, input: "", encoding: "utf8",
+    gitDir = join(repo, "fixture.git");
+    execFileSync("git", ["init", "--bare", "--quiet", gitDir], { env: gitEnv });
+    tree = execFileSync("git", ["--git-dir", gitDir, "mktree"], {
+      env: gitEnv, input: "", encoding: "utf8",
     }).trim();
   });
 
@@ -61,7 +64,9 @@ describe("deployment commit guard", () => {
 
   it("checks the requested revision rather than a different checkout HEAD", () => {
     const good = commit("Release");
-    execFileSync("git", ["update-ref", "HEAD", good], { cwd: repo, env: gitEnv });
+    execFileSync("git", ["--git-dir", gitDir, "update-ref", "HEAD", good], {
+      env: gitEnv,
+    });
     expect(check(commit("Release [skip ci]")).status).toBe(1);
     expect(check("").status).toBe(0);
   });

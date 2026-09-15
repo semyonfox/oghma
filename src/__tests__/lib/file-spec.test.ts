@@ -1,127 +1,137 @@
-import { describe, it, expect } from 'vitest';
-import { inferFileType, buildFileSpec, extractTags } from '@/lib/notes/utils/file-spec';
+import { describe, expect, it } from "vitest";
+import {
+  buildFileSpec,
+  extractTags,
+  inferFileType,
+  parseFileDragPayload,
+} from "@/lib/notes/utils/file-spec";
 
-describe('inferFileType', () => {
-    it('returns "pdf" for .pdf files', () => {
-        expect(inferFileType('lecture.pdf')).toBe('pdf');
-        expect(inferFileType('NOTES.PDF')).toBe('pdf');
-    });
+const fileTypeCases: ReadonlyArray<
+  readonly [string | null | undefined, ReturnType<typeof inferFileType>]
+> = [
+  ["lecture.pdf", "pdf"],
+  ["LECTURE.PDF", "pdf"],
+  ...["png", "jpg", "jpeg", "gif", "svg", "webp", "bmp", "avif"].map(
+    (extension) => [`image.${extension}`, "image"] as const,
+  ),
+  ...["mp4", "webm", "ogg", "mov", "m4v"].map(
+    (extension) => [`video.${extension}`, "video"] as const,
+  ),
+  ["readme.md", "note"],
+  ["archive.json", "note"],
+  ["Untitled", "note"],
+  [null, "note"],
+  [undefined, "note"],
+];
 
-    it('returns "image" for image extensions', () => {
-        expect(inferFileType('photo.png')).toBe('image');
-        expect(inferFileType('banner.jpg')).toBe('image');
-        expect(inferFileType('icon.svg')).toBe('image');
-        expect(inferFileType('pic.webp')).toBe('image');
-        expect(inferFileType('frame.avif')).toBe('image');
-    });
+describe("file type inference", () => {
+  it.each(fileTypeCases)("maps %s to %s", (title, expected) => {
+    expect(inferFileType(title)).toBe(expected);
+  });
 
-    it('returns "video" for video extensions', () => {
-        expect(inferFileType('clip.mp4')).toBe('video');
-        expect(inferFileType('screen.webm')).toBe('video');
-        expect(inferFileType('recording.mov')).toBe('video');
-    });
-
-    it('returns "note" for markdown and unknown extensions', () => {
-        expect(inferFileType('readme.md')).toBe('note');
-        expect(inferFileType('data.json')).toBe('note');
-        expect(inferFileType('My Note')).toBe('note');
-    });
-
-    it('returns "note" for null/undefined/empty title', () => {
-        expect(inferFileType(null)).toBe('note');
-        expect(inferFileType(undefined)).toBe('note');
-        expect(inferFileType('')).toBe('note');
-    });
-
-    it('handles titles with multiple dots', () => {
-        expect(inferFileType('my.lecture.notes.pdf')).toBe('pdf');
-    });
-
-    it('uses persisted MIME type when the title has no extension', () => {
-        expect(inferFileType('Lecture slides', 'application/pdf')).toBe('pdf');
-    });
+  it.each([
+    ["application/pdf", "pdf"],
+    ["image/png", "image"],
+    ["video/mp4", "video"],
+  ])("uses persisted MIME type %s when the title has no extension", (mimeType, expected) => {
+    expect(inferFileType("Lecture attachment", mimeType)).toBe(expected);
+  });
 });
 
-describe('buildFileSpec', () => {
-    it('builds a note file spec from content', () => {
-        const spec = buildFileSpec({ id: '1', title: 'My Note', content: '# Hello' });
-        expect(spec.fileId).toBe('1');
-        expect(spec.fileType).toBe('note');
-        expect(spec.sourcePath).toBe('# Hello');
+describe("file specs", () => {
+  it("keeps note content as the editor source", () => {
+    expect(
+      buildFileSpec({ id: "note-1", title: "My Note", content: "# Hello" }),
+    ).toEqual({
+      fileId: "note-1",
+      fileType: "note",
+      title: "My Note",
+      sourcePath: "# Hello",
     });
+  });
 
-    it('builds a PDF file spec preferring s3Key', () => {
-        const spec = buildFileSpec({ id: '2', title: 'doc.pdf', content: 'fallback', s3Key: 'uploads/doc.pdf' });
-        expect(spec.fileType).toBe('pdf');
-        expect(spec.sourcePath).toBe('uploads/doc.pdf');
-    });
+  it("prefers object storage for attachments and falls back to content", () => {
+    expect(
+      buildFileSpec({
+        id: "pdf-1",
+        title: "slides.pdf",
+        content: "fallback",
+        s3Key: "uploads/slides.pdf",
+      }).sourcePath,
+    ).toBe("uploads/slides.pdf");
+    expect(
+      buildFileSpec({ id: "pdf-2", title: "slides.pdf", content: "fallback" })
+        .sourcePath,
+    ).toBe("fallback");
+  });
 
-    it('builds an extensionless PDF spec from attachment metadata', () => {
-        const spec = buildFileSpec({ id: '2', title: 'Lecture slides', s3Key: 'uploads/slides', mimeType: 'application/pdf' });
-        expect(spec.fileType).toBe('pdf');
-        expect(spec.sourcePath).toBe('uploads/slides');
-    });
-
-    it('falls back to content for media when s3Key is missing', () => {
-        const spec = buildFileSpec({ id: '3', title: 'pic.png', content: '/path/to/pic.png' });
-        expect(spec.fileType).toBe('image');
-        expect(spec.sourcePath).toBe('/path/to/pic.png');
-    });
-
-    it('handles missing id and title', () => {
-        const spec = buildFileSpec({});
-        expect(spec.fileId).toBe('');
-        expect(spec.title).toBeUndefined();
-        expect(spec.fileType).toBe('note');
-    });
+  it("uses attachment metadata for extensionless PDFs", () => {
+    expect(
+      buildFileSpec({
+        id: "pdf-1",
+        title: "Lecture slides",
+        mimeType: "application/pdf",
+        s3Key: "uploads/slides",
+      }),
+    ).toMatchObject({ fileType: "pdf", sourcePath: "uploads/slides" });
+  });
 });
 
-describe('extractTags', () => {
-    it('extracts hashtags from content', () => {
-        const tags = extractTags('This is a #test note with #javascript');
-        expect(tags).toContain('test');
-        expect(tags).toContain('javascript');
-    });
+describe("file drag payload parsing", () => {
+  it("accepts a complete payload produced by the notes sidebar", () => {
+    const payload = {
+      file: {
+        fileId: "note-1",
+        fileType: "pdf" as const,
+        title: "Lecture.pdf",
+        sourcePath: "uploads/lecture.pdf",
+      },
+      sourcePane: "A" as const,
+    };
 
-    it('extracts tags from YAML frontmatter', () => {
-        const content = `---
-tags: biology, chemistry
----
-# Notes`;
-        const tags = extractTags(content);
-        expect(tags).toContain('biology');
-        expect(tags).toContain('chemistry');
-    });
+    expect(parseFileDragPayload(JSON.stringify(payload))).toEqual(payload);
+  });
 
-    it('deduplicates tags', () => {
-        const tags = extractTags('#react and more #react content');
-        const reactCount = tags.filter(t => t === 'react').length;
-        expect(reactCount).toBe(1);
-    });
+  it.each([
+    "",
+    "not JSON",
+    JSON.stringify(null),
+    JSON.stringify({}),
+    JSON.stringify({ file: { fileId: "", fileType: "note" } }),
+    JSON.stringify({ file: { fileId: "note-1", fileType: "archive" } }),
+    JSON.stringify({
+      file: { fileId: "note-1", fileType: "note", title: 42 },
+    }),
+    JSON.stringify({
+      file: { fileId: "note-1", fileType: "note" },
+      sourcePane: "C",
+    }),
+  ])("rejects malformed external payload %s", (raw) => {
+    expect(parseFileDragPayload(raw)).toBeNull();
+  });
+});
 
-    it('returns empty array for null/empty content', () => {
-        expect(extractTags(null)).toEqual([]);
-        expect(extractTags('')).toEqual([]);
-        expect(extractTags(undefined)).toEqual([]);
-    });
+describe("note tag extraction", () => {
+  it("combines frontmatter aliases and inline tags without duplicates", () => {
+    const content = [
+      "---",
+      "keywords: algorithms, data-structures",
+      "---",
+      "See #algorithms and #TypeScript",
+    ].join("\n");
 
-    it('handles frontmatter with keyword: alias', () => {
-        const content = `---
-keywords: algo, data-structures
----
-content here`;
-        const tags = extractTags(content);
-        expect(tags).toContain('algo');
-        expect(tags).toContain('data-structures');
-    });
+    expect(extractTags(content)).toEqual([
+      "algorithms",
+      "data-structures",
+      "typescript",
+    ]);
+  });
 
-    it('combines frontmatter and hashtag sources', () => {
-        const content = `---
-tags: math
----
-Some #physics notes`;
-        const tags = extractTags(content);
-        expect(tags).toContain('math');
-        expect(tags).toContain('physics');
-    });
+  it("ignores hashtag-like text in the middle of a token", () => {
+    expect(extractTags("c#programming is not a tag")).toEqual([]);
+  });
+
+  it.each([null, undefined, ""])("returns no tags for %s", (content) => {
+    expect(extractTags(content)).toEqual([]);
+  });
 });

@@ -8,6 +8,7 @@ import CanvasImportNotifications from "@/components/canvas/canvas-import-notific
 import PomodoroTimerController from "@/components/pomodoro/pomodoro-timer-controller";
 import ChatPresenceController from "@/components/chat/chat-presence-controller";
 import GlobalSearchRoot from "@/components/search/global-search-root";
+import MarketingTracker from "@/components/marketing-tracker";
 import { getRequestLocale } from "@/lib/i18n/server";
 import { loadLocaleData } from "@/lib/i18n/locale-data";
 import { Locale } from "@/locales";
@@ -164,6 +165,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             <PomodoroTimerController />
             <ChatPresenceController />
             <GlobalSearchRoot />
+            <MarketingTracker />
             <WorkspaceLifecycleProvider>
               <CanvasImportNotifications>
                 {children}
