@@ -101,7 +101,7 @@ export async function getQuizDashboardData(
         SELECT
           n.canvas_course_id,
           COALESCE(
-            (SELECT f.title FROM app.notes f
+            (SELECT NULLIF(BTRIM(f.title), '') FROM app.notes f
              WHERE f.user_id = ${userId}::uuid
                AND f.canvas_course_id = n.canvas_course_id
                AND f.is_folder = true
@@ -110,7 +110,8 @@ export async function getQuizDashboardData(
                AND f.deleted_at IS NULL
              ORDER BY f.created_at ASC
              LIMIT 1),
-            MAX(n.title)
+            NULLIF(BTRIM(MAX(ucs.course_name)), ''),
+            'Course ' || n.canvas_course_id::text
           ) as course_name,
           COUNT(DISTINCT qc.id)::int as total_cards,
           COUNT(DISTINCT qc.id) FILTER (WHERE qc.due <= now())::int as due_count,

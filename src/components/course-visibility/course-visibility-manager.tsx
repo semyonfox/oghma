@@ -17,7 +17,7 @@ export interface CourseVisibilityItem {
 
 export interface CourseVisibilityItemSource {
   courseId: string;
-  courseName: string;
+  courseName: string | null;
   isActive?: boolean;
   contextText?: string | null;
   hasDueItems?: boolean;
@@ -56,6 +56,16 @@ function sortItems(items: CourseVisibilityItem[]) {
   );
 }
 
+function resolveCourseName(courseId: string, ...names: Array<string | null | undefined>) {
+  for (const name of names) {
+    const trimmed = name?.trim();
+    if (trimmed && trimmed !== courseId && trimmed !== `Course ${courseId}`) {
+      return trimmed;
+    }
+  }
+  return `Course ${courseId}`;
+}
+
 export function mergeCourseVisibilityItems(
   sources: CourseVisibilityItemSource[],
   settings: CourseSetting[],
@@ -65,7 +75,7 @@ export function mergeCourseVisibilityItems(
   for (const setting of settings) {
     merged.set(setting.canvasCourseId, {
       courseId: setting.canvasCourseId,
-      courseName: setting.courseName,
+      courseName: resolveCourseName(setting.canvasCourseId, setting.courseName),
       isActive: setting.isActive,
     });
   }
@@ -74,7 +84,7 @@ export function mergeCourseVisibilityItems(
     const existing = merged.get(source.courseId);
     merged.set(source.courseId, {
       courseId: source.courseId,
-      courseName: source.courseName,
+      courseName: resolveCourseName(source.courseId, source.courseName, existing?.courseName),
       isActive: existing?.isActive ?? source.isActive ?? true,
       contextText: source.contextText ?? existing?.contextText ?? null,
       hasDueItems: source.hasDueItems ?? existing?.hasDueItems,
