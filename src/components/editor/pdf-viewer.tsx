@@ -292,6 +292,7 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane: _pane }) => {
           </div>
         ) : (
           <Document
+            suspense={false}
             key={file.fileId}
             file={pdfSource}
             className="mx-auto w-max min-w-full"
