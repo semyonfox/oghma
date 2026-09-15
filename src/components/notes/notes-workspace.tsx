@@ -193,7 +193,6 @@ export default function NotesWorkspace({ view = "notes" }: NotesWorkspaceProps) 
 
         {isDesktop === true && (
           <PanelGroup
-            key={rightPanelOpen && !isTrashView ? "with-inspector" : "without-inspector"}
             orientation="horizontal"
             className="min-w-0 flex-1"
             onLayoutChanged={() => {

@@ -175,4 +175,24 @@ describe("NotesWorkspace note route synchronization", () => {
     expect(mocks.replace).not.toHaveBeenCalled();
     expect(fetch).not.toHaveBeenCalled();
   });
+
+  it.each([true, false])("keeps the editor position when the inspector toggles, desktop=%s", (isDesktop) => {
+    mocks.isDesktop = isDesktop;
+    layoutState.paneA.fileId = "550e8400-e29b-41d4-a716-446655440000";
+    const { rerender } = render(React.createElement(NotesWorkspace));
+    const editor = screen.getByText("Editor content");
+    editor.scrollTop = 900;
+
+    layoutState.rightPanelOpen = true;
+    rerender(React.createElement(NotesWorkspace));
+    expect(screen.getByText("Editor content")).toBe(editor);
+    expect(editor.scrollTop).toBe(900);
+
+    layoutState.rightPanelOpen = false;
+    rerender(React.createElement(NotesWorkspace));
+    expect(screen.getByText("Editor content")).toBe(editor);
+    expect(editor.scrollTop).toBe(900);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
 });

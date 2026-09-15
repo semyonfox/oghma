@@ -2,7 +2,7 @@
 
 > **Status:** Active behaviour contract
 >
-> **Last reviewed:** 2026-09-04
+> **Last reviewed:** 2026-09-15
 >
 > **Source of truth:** [`split-editor-pane.tsx`](../../src/components/editor/split-editor-pane.tsx), [`editor-pane.tsx`](../../src/components/editor/editor-pane.tsx), [`layout.zustand.ts`](../../src/lib/notes/state/layout.zustand.ts), [`file-spec.ts`](../../src/lib/notes/utils/file-spec.ts), and [`save-indicator.ts`](../../src/lib/notes/state/save-indicator.ts)
 
@@ -76,6 +76,25 @@ Removing the floating button freed the editor toolbar to run the full width of
 the pane. It scrolls horizontally with hidden scrollbars rather than wrapping,
 so the full set of block and formatting options stays reachable in a narrow
 split pane.
+
+## Preserving the open editor
+
+The workspace panel group keeps the same React identity when the inspector
+opens or closes. Pane A also stays inside the same nested panel group when
+pane B opens or closes. Those changes resize the existing editor instead of
+unmounting it, preserving its scroll position, selection, unsaved content, and
+PDF zoom state. Phone inspector drawers likewise leave the primary editor
+mounted. The Android WebView uses these same components, so this behavior
+ships with the website and does not require an APK update.
+
+`FileRenderer` is memoized so header-only updates do not render its viewer
+again. Markdown editors subscribe to sync-status actions individually instead
+of subscribing to every note's sync status.
+
+PDF pages use one display width for both lazy placeholders and rendered
+canvases. Zoom uses the first loaded page's dimensions, and fit mode follows
+the pane's measured content width. Loading another page therefore cannot
+widen the document and shift the visible page sideways.
 
 ## Known cost
 

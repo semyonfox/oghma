@@ -56,7 +56,8 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
   const dismissUnavailablePane = useLayoutStore(
     (s) => s.dismissUnavailablePane,
   );
-  const { markModified, markSynced } = useSyncStatusStore();
+  const markModified = useSyncStatusStore((s) => s.markModified);
+  const markSynced = useSyncStatusStore((s) => s.markSynced);
   const editorSize = useSettingsStore((s) => s.settings?.editorsize);
   const setSettings = useSettingsStore((s) => s.setSettings);
   const [resolvedEditorSize, setResolvedEditorSize] = useState<unknown>();
