@@ -241,6 +241,46 @@ describe("background chat restore", () => {
     ]);
   });
 
+  it.each([
+    ["an empty array", []],
+    ["only malformed entries", [{ type: "tool", name: "missing-label" }, null]],
+  ])("falls back to canonical content when parts contain %s", (_label, parts) => {
+    expect(
+      mapStoredChatMessages([
+        {
+          id: "answer-1",
+          role: "assistant",
+          content: "Durable answer",
+          parts,
+        },
+      ]),
+    ).toEqual([
+      expect.objectContaining({
+        content: "Durable answer",
+        parts: [{ type: "text", text: "Durable answer" }],
+      }),
+    ]);
+  });
+
+  it.each([
+    ["blank text", [{ type: "text", text: "   " }]],
+    ["tool activity only", [{ type: "tool", name: "readNote", label: "Reading note" }]],
+  ])("appends canonical content when parts contain %s", (_label, parts) => {
+    const [message] = mapStoredChatMessages([
+      {
+        id: "answer-1",
+        role: "assistant",
+        content: "Durable answer",
+        parts,
+      },
+    ]);
+
+    expect(message.parts).toEqual([
+      ...parts,
+      { type: "text", text: "Durable answer" },
+    ]);
+  });
+
   it("filters malformed persisted messages at the network boundary", () => {
     expect(
       mapStoredChatMessages([

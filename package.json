@@ -51,6 +51,7 @@
     "benchmark:marker:artifacts": "python3 scripts/marker-bench-artifacts.py",
     "benchmark:marker:aws": "python3 scripts/marker-aws-session.py",
     "benchmark:marker:test": "python3 -m unittest discover -s scripts/tests -p 'test_marker_bench*.py'",
+    "test:marker": "PYTHONPYCACHEPREFIX=/tmp/oghma-marker-pycache python3 -m py_compile oghma_marker/services.py infra/runpod-marker/handler.py infra/runpod-marker/server.py infra/runpod-marker/prefetch_models.py && bash -n infra/runpod-marker/run.sh && PYTHONPYCACHEPREFIX=/tmp/oghma-marker-pycache python3 -m unittest scripts/tests/test_openai_compatible_vision.py infra/runpod-marker/test_handler.py",
     "marker:vast:plan": "node --experimental-strip-types scripts/vast-marker-plan.ts",
     "marker:runpod:build": "bash scripts/build-runpod-marker-image.sh",
     "marker:runpod:validate": "RUNPOD_MARKER_VALIDATE_ONLY=1 bash scripts/build-runpod-marker-image.sh",

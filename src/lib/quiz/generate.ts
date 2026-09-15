@@ -146,7 +146,9 @@ function parseOptions(value: unknown): QuizOption[] | null {
     }
 
     const { text, is_correct } = option as Record<string, unknown>;
-    return typeof text === "string" && typeof is_correct === "boolean"
+    return typeof text === "string" &&
+      text.trim().length > 0 &&
+      typeof is_correct === "boolean"
       ? { text, is_correct }
       : null;
   });
@@ -156,11 +158,53 @@ function parseOptions(value: unknown): QuizOption[] | null {
     : null;
 }
 
+function hasOneMatchingCorrectOption(
+  options: QuizOption[],
+  correctAnswer: string,
+): boolean {
+  const correctOptions = options.filter((option) => option.is_correct);
+  return (
+    correctOptions.length === 1 &&
+    correctOptions[0].text.trim() === correctAnswer.trim()
+  );
+}
+
+function hasUniqueOptionLabels(options: QuizOption[]): boolean {
+  const labels = options.map((option) =>
+    option.text.trim().toLocaleLowerCase("en"),
+  );
+  return new Set(labels).size === labels.length;
+}
+
+function optionsMatchQuestionType(
+  options: QuizOption[] | null,
+  correctAnswer: string,
+  questionType: QuestionType,
+): boolean {
+  if (questionType === "fill_in") return options === null;
+  if (!options || !hasOneMatchingCorrectOption(options, correctAnswer)) {
+    return false;
+  }
+
+  if (questionType === "mcq") {
+    return options.length === 4 && hasUniqueOptionLabels(options);
+  }
+
+  return (
+    options.length === 2 &&
+    options.map((option) => option.text.trim()).sort().join("|") ===
+      "False|True"
+  );
+}
+
 export function isSkipSignal(raw: string): boolean {
   return parseJsonObject(raw)?.skip === true;
 }
 
-export function parseGeneratedQuestion(raw: string): ParsedQuestion | null {
+export function parseGeneratedQuestion(
+  raw: string,
+  questionType: QuestionType,
+): ParsedQuestion | null {
   const parsed = parseJsonObject(raw);
   if (
     !parsed ||
@@ -174,6 +218,9 @@ export function parseGeneratedQuestion(raw: string): ParsedQuestion | null {
 
   const options = parseOptions(parsed.options);
   if (parsed.options != null && options === null) return null;
+  if (!optionsMatchQuestionType(options, parsed.correct_answer, questionType)) {
+    return null;
+  }
 
   return {
     question_text: parsed.question_text,
@@ -262,7 +309,7 @@ export async function generateQuestion(
     return null;
   }
 
-  const parsed = parseGeneratedQuestion(raw);
+  const parsed = parseGeneratedQuestion(raw, questionType);
   if (!parsed) {
     logger.warn("quiz generation: failed to parse LLM response", {
       raw: raw.slice(0, 500),

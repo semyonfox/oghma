@@ -2,7 +2,7 @@
 
 > **Status:** Active engineering workflow
 >
-> **Last verified:** 2026-09-13 against `package.json`, Vitest configuration,
+> **Last verified:** 2026-09-15 against `package.json`, test configuration,
 > and GitHub Actions workflows
 
 Use this page to choose a check that proves the change you made. It describes
@@ -16,7 +16,7 @@ Run the smallest relevant test file while iterating:
 npm run test -- --run src/__tests__/lib/example.test.ts
 ```
 
-For a repository-wide fast quality gate, run:
+For the fast web and Canvas MCP quality gate, run:
 
 ```bash
 npm run lint:all
@@ -24,10 +24,10 @@ npm run lint:all
 
 `lint:all` runs ESLint, the i18n audit, TypeScript 7 checks for the app and
 Canvas MCP, the root Vitest suite (including TSX tests), and the Canvas MCP
-Vitest suite. All first-party source and root tests under `src/` are
-TypeScript/TSX. ESLint rejects explicit `any`; parse untrusted data as
-`unknown` and narrow it at the boundary instead.
-It does not start containers, run integration tests, or run Playwright.
+Vitest suite. All first-party web-app tests under `src/` are TypeScript/TSX.
+ESLint rejects explicit `any`; parse untrusted data as `unknown` and narrow it
+at the boundary instead. This command does not run the separate mobile app,
+Python Marker tests, integration tests, or Playwright.
 
 The i18n audit parses source syntax instead of guessing with regular
 expressions. It proves that literal `t(...)` keys exist in the base catalog,
@@ -35,6 +35,32 @@ every locale has the same string-key shape, and interpolation variables agree.
 Catalog values passed dynamically (for example blog content) are valid runtime
 usage and are not mislabeled as unused. Linguistic quality still needs a
 native-language review; it is not something a static script can establish.
+
+## Mobile and Marker checks
+
+The Android app has its own lockfile and Node contract tests. Install its
+dependencies separately, then run its type check and tests:
+
+```bash
+npm ci --prefix apps/mobile
+npm run mobile:check
+```
+
+The current Marker deployment unit tests cover the hosted-vision adapter and
+the RunPod handler. They use fake Marker and RunPod modules plus a local HTTP
+server, so they do not need a GPU, cloud credentials, or a running service.
+The same command syntax-checks the active Python modules and RunPod shell
+entrypoint.
+Install their pinned test-only dependencies before running them:
+
+```bash
+python3 -m pip install --requirement infra/runpod-marker/requirements-test.txt
+npm run test:marker
+```
+
+The retired AWS-era `infra/marker` pytest files are not part of this command
+or CI. Benchmark harness tests remain an explicit manual check through
+`npm run benchmark:marker:test`.
 
 ## Disposable-service checks
 
@@ -63,13 +89,19 @@ See the [chat runbook](../operations/chat.md) and
 ## CI scope
 
 The [test workflow](../../.github/workflows/test.yml) runs `npm run test:ci`,
-which executes the root and Canvas MCP Vitest suites. The build workflow
-installs with `npm ci`, runs ESLint and the i18n audit, then builds Next.js with
-placeholder local service configuration. PR CI also runs integration contracts
-and the Playwright smoke suite through the [E2E workflow](../../.github/workflows/e2e.yml),
-using disposable services and a real background worker.
-It runs for pull requests to `dev` or `main` and for pushes to `dev`. The larger
-Playwright suite runs nightly or by manual dispatch.
+which executes the root and Canvas MCP Vitest suites. The build workflow runs
+ESLint, the i18n audit, and a Next.js build for pull requests to `dev` and
+`main`, plus pushes to those branches. The path-filtered mobile workflow
+installs the mobile lockfile and runs its type check and Node contract tests.
+The path-filtered Marker workflow installs only pinned Pydantic and Pillow
+dependencies, syntax-checks the active entrypoints, then runs the
+credential-free adapter and RunPod handler tests.
+
+PR CI also runs integration contracts and the Playwright smoke suite through
+the [E2E workflow](../../.github/workflows/e2e.yml), using disposable services
+and a real background worker. It runs for pull requests to `dev` or `main` and
+for pushes to `dev`. The nightly/manual `full` workflow runs that isolated
+smoke/integration job alongside the extended scenarios under `tests/e2e/full`.
 
 Keep tests focused on observable contracts: response/status behavior, durable
 state, ownership, provider-boundary requests, or race/failure handling. Avoid

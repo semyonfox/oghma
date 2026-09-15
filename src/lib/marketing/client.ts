@@ -41,8 +41,11 @@ function safeSessionStorage(): Storage | null {
 export function marketingAnalyticsAllowed(): boolean {
   if (typeof window === "undefined" || typeof navigator === "undefined") return false;
   const gpc = Reflect.get(navigator, "globalPrivacyControl") === true;
-  const dnt = navigator.doNotTrack || Reflect.get(window, "doNotTrack");
-  return !gpc && dnt !== "1" && dnt !== "yes";
+  const dnt = [navigator.doNotTrack, Reflect.get(window, "doNotTrack")].some(
+    (value) =>
+      typeof value === "string" && ["1", "yes"].includes(value.toLowerCase()),
+  );
+  return !gpc && !dnt;
 }
 
 function clearAnalyticsStorage() {
