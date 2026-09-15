@@ -138,6 +138,21 @@ describe("trash state", () => {
     ]);
   });
 
+  it("keeps the newest search when an older response arrives last", async () => {
+    let finishOld!: (value: { id: string; title: string; isFolder: boolean }[]) => void;
+    list.mockImplementationOnce(() => new Promise((resolve) => { finishOld = resolve; }))
+      .mockResolvedValueOnce([{ id: "new", title: "Databases", isFolder: false }]);
+    const older = useTrashStore.getState().filterNotes("algo");
+    await useTrashStore.getState().filterNotes("data");
+    finishOld([{ id: "old", title: "Algorithms", isFolder: false }]);
+    await older;
+
+    expect(useTrashStore.getState().keyword).toBe("data");
+    expect(useTrashStore.getState().list).toEqual([
+      expect.objectContaining({ id: "new", title: "Databases" }),
+    ]);
+  });
+
   it("permanently removes local data only after the server succeeds", async () => {
     mutate.mockResolvedValue(undefined);
     await useTrashStore.getState().deleteNote(note.id);

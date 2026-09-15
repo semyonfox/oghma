@@ -14,6 +14,7 @@ import {
   clearAllDrafts,
   finishDraftCacheReset,
   quarantineUnownedDrafts,
+  waitForDraftWrites,
 } from "@/lib/notes/draft-cache";
 
 let resetInFlight: Promise<void> | null = null;
@@ -95,6 +96,7 @@ export async function resetWorkspaceClientState(
   const clearing = cacheClearQueue
     .catch(() => {})
     .then(async () => {
+      await waitForDraftWrites();
       if (shouldQuarantine) {
         await Promise.all([
           quarantineUnownedNotes(),

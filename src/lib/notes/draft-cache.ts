@@ -7,6 +7,7 @@ const key = (noteId: string) => `draft:${noteId}`;
 const LEGACY_DRAFT_PREFIX = "legacy-unowned-draft:";
 let generation = 0;
 let writable = true;
+const pendingWrites = new Set<Promise<void>>();
 
 export interface NoteDraft {
   content: string;
@@ -15,11 +16,19 @@ export interface NoteDraft {
 
 export async function writeDraft(noteId: string, content: string): Promise<void> {
   if (!writable) return;
-  const writeGeneration = generation;
-  await uiCache.setItem<NoteDraft>(key(noteId), { content, draftAt: Date.now() });
-  if (!writable || generation !== writeGeneration) {
-    await uiCache.removeItem(key(noteId));
+  const write = uiCache.setItem<NoteDraft>(key(noteId), { content, draftAt: Date.now() });
+  pendingWrites.add(write);
+  try {
+    await write;
+  } finally {
+    pendingWrites.delete(write);
   }
+}
+
+// Reset blocks new writers, then drains writes already opening an IDB connection.
+// Leave their values intact until quarantine has copied any unowned drafts.
+export async function waitForDraftWrites(): Promise<void> {
+  await Promise.allSettled([...pendingWrites]);
 }
 
 export async function readDraft(noteId: string): Promise<NoteDraft | null> {

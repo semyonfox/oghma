@@ -54,6 +54,8 @@ export interface TrashStoreState {
   setDependencies: (trashAPI: TrashAPI, treeStore: TrashTreeStore) => void;
 }
 
+let filterRequestId = 0;
+
 const useTrashStore = create<TrashStoreState>((set, get) => ({
   keyword: undefined,
   list: undefined,
@@ -65,13 +67,14 @@ const useTrashStore = create<TrashStoreState>((set, get) => ({
   },
 
   filterNotes: async (keyword = "") => {
+    const requestId = ++filterRequestId;
     const { trashAPI } = get();
     if (!trashAPI) return;
     const generation = useNoteStore.getState().generation;
 
     const normalizedKeyword = keyword.trim().toLocaleLowerCase();
     const serverItems = await trashAPI.list();
-    if (!serverItems || useNoteStore.getState().generation !== generation) return;
+    if (!serverItems || requestId !== filterRequestId || useNoteStore.getState().generation !== generation) return;
 
     const items = serverItems
       .filter(

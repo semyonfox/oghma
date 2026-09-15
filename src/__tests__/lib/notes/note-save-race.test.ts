@@ -23,6 +23,11 @@ vi.mock("@/lib/notes/cache/note", () => ({
   },
 }));
 
+vi.mock("@/lib/notes/workspace-invalidation", () => ({
+  publishWorkspaceInvalidation: vi.fn(),
+}));
+import { publishWorkspaceInvalidation } from "@/lib/notes/workspace-invalidation";
+
 import useNoteStore from "@/lib/notes/state/note";
 import noteCache from "@/lib/notes/cache/note";
 
@@ -62,6 +67,7 @@ function treeStore() {
 describe("note save/fetch coordination", () => {
   beforeEach(() => {
     memory.clear();
+    vi.clearAllMocks();
     useNoteStore.setState({
       note: undefined,
       loading: false,
@@ -122,6 +128,43 @@ describe("note save/fetch coordination", () => {
     expect(removeItem).not.toHaveBeenCalled();
     expect(useNoteStore.getState().note?.id).toBe(id);
     consoleError.mockRestore();
+  });
+
+  it.each(["delete", "title", "pin", "note", "folder"] as const)(
+    "invalidates the original owner's tabs after a late successful %s", async (operation) => {
+      let finish!: (value: NoteModel & { success: true }) => void;
+      const remote = vi.fn(() => new Promise<NoteModel & { success: true }>((resolve) => { finish = resolve; }));
+      const original = note();
+      memory.set(NOTE_ID, original);
+      useNoteStore.setState({ note: original });
+      useNoteStore.getState().setDependencies(
+        noteApi({ remove: remote, mutate: remote, create: remote }), treeStore(), vi.fn(),
+      );
+      const store = useNoteStore.getState();
+      const pending = operation === "delete" ? store.removeNote(NOTE_ID)
+        : operation === "title" ? store.mutateNote(NOTE_ID, { title: "Renamed" })
+        : operation === "pin" ? store.mutateNote(NOTE_ID, { pinned: NOTE_PINNED.PINNED })
+        : operation === "note" ? store.createNote({ title: "New note", content: "" })
+        : store.createFolder();
+      await vi.waitFor(() => expect(remote).toHaveBeenCalledOnce());
+      useNoteStore.getState().resetForSession("user-2");
+      memory.clear();
+      finish({ ...original, success: true });
+      await pending;
+
+      expect(publishWorkspaceInvalidation).toHaveBeenCalledExactlyOnceWith("user-1", "tree");
+      expect(useNoteStore.getState().note).toBeUndefined();
+      expect(memory.size).toBe(0);
+    },
+  );
+
+  it("invalidates tabs even if cache cleanup fails after a successful deletion", async () => {
+    useNoteStore.getState().setDependencies(
+      noteApi({ remove: vi.fn().mockResolvedValue({ success: true }) }), treeStore(), vi.fn(),
+    );
+    vi.mocked(noteCache.removeItem).mockRejectedValueOnce(new Error("cache unavailable"));
+    await expect(useNoteStore.getState().removeNote(NOTE_ID)).rejects.toThrow("cache unavailable");
+    expect(publishWorkspaceInvalidation).toHaveBeenCalledExactlyOnceWith("user-1", "tree");
   });
 
   it("does not cache a save when the API returns no canonical note", async () => {

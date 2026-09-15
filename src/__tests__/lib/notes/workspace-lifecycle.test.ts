@@ -97,6 +97,8 @@ import {
   resetWorkspaceClientState,
 } from "@/lib/notes/workspace-lifecycle";
 
+import { writeDraft } from "@/lib/notes/draft-cache";
+
 function resetMemoryState() {
   mocks.noteState.ownerUserId = null;
   mocks.noteState.generation = 0;
@@ -213,6 +215,33 @@ describe("workspace lifecycle", () => {
     await resetWorkspaceClientState(null);
     expect(mocks.uiValues.get("legacy-unowned-note:note-1")).toEqual(note);
     expect(mocks.uiValues.get("legacy-unowned-draft:note-1")).toEqual(draft);
+  });
+
+  it.each([true, false])("drains a pending draft before resetting, quarantine=%s", async (quarantineUnowned) => {
+    let finishWrite!: () => void;
+    mocks.setUiItem.mockImplementationOnce(async (key, value) => {
+      await new Promise<void>((resolve) => { finishWrite = resolve; });
+      mocks.uiValues.set(key, value);
+    });
+    const writing = writeDraft("pending", "unsaved content");
+    const resetting = resetWorkspaceClientState("user-2", { quarantineUnowned });
+    await writeDraft("blocked", "must not enter the new workspace");
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(mocks.setUiItem).toHaveBeenCalledOnce();
+    expect(mocks.uiKeys).not.toHaveBeenCalled();
+    expect(mocks.noteState.sessionReady).toBe(false);
+
+    finishWrite();
+    await Promise.all([writing, resetting]);
+    expect(mocks.uiValues.has("draft:pending")).toBe(false);
+    expect(mocks.uiValues.has("draft:blocked")).toBe(false);
+    if (quarantineUnowned) {
+      expect(mocks.uiValues.get("legacy-unowned-draft:pending")).toMatchObject({
+        content: "unsaved content",
+      });
+    }
+    expect(mocks.noteState.sessionReady).toBe(true);
   });
 
   it("leaves unknown live data blocked and intact until quarantine retry succeeds", async () => {

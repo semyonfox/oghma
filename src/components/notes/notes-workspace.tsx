@@ -45,8 +45,6 @@ export default function NotesWorkspace({ view = "notes" }: NotesWorkspaceProps) 
   const setPaneA = useLayoutStore((s) => s.setPaneA);
   const paneAFileId = useLayoutStore((s) => s.paneA.fileId);
   const treeGeneration = useNoteTreeStore((s) => s.generation);
-  const treeGenerationRef = useRef(treeGeneration);
-  treeGenerationRef.current = treeGeneration;
   const routeRequestRef = useRef(0);
   const treeWidthRef = useRef(treeWidth);
   const rightPanelWidthRef = useRef(rightPanelWidth);
@@ -75,7 +73,7 @@ export default function NotesWorkspace({ view = "notes" }: NotesWorkspaceProps) 
     const requestIsCurrent = () =>
       !controller.signal.aborted &&
       routeRequestRef.current === requestId &&
-      treeGenerationRef.current === requestGeneration;
+      useNoteTreeStore.getState().generation === requestGeneration;
     void fetch(`/api/notes/${fileId}`, { signal: controller.signal })
       .then(async (response) => {
         if (response.status === 404) {

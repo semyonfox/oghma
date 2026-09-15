@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   setPaneA: vi.fn(),
   schedulePrefetch: vi.fn(),
   isDesktop: true,
+  treeState: { initLoaded: false, generation: 0 },
 }));
 
 const layoutState = {
@@ -48,11 +49,12 @@ vi.mock("@/lib/notes/state/layout.zustand", () => {
   return { __esModule: true, default: useLayoutStore };
 });
 
-vi.mock("@/lib/notes/state/tree", () => ({
-  __esModule: true,
-  default: (selector: (state: { initLoaded: boolean }) => unknown) =>
-    selector({ initLoaded: false }),
-}));
+vi.mock("@/lib/notes/state/tree", () => {
+  const useTreeStore = (selector: (state: typeof mocks.treeState) => unknown) =>
+    selector(mocks.treeState);
+  useTreeStore.getState = () => mocks.treeState;
+  return { __esModule: true, default: useTreeStore };
+});
 
 vi.mock("@/lib/notes/prefetch", () => ({
   schedulePrefetch: mocks.schedulePrefetch,
@@ -101,6 +103,7 @@ describe("NotesWorkspace note route synchronization", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.isDesktop = true;
+    mocks.treeState.generation = 0;
     mocks.pathname = "/notes/550e8400-e29b-41d4-a716-446655440000";
     layoutState.paneA.fileId = "";
     layoutState.rightPanelOpen = false;
@@ -223,6 +226,27 @@ describe("NotesWorkspace note route synchronization", () => {
 
     expect(mocks.replace).not.toHaveBeenCalled();
     expect(mocks.setPaneA).toHaveBeenCalledOnce();
+  });
+
+  it("rejects a route response when the store resets before React rerenders", async () => {
+    let resolveResponse!: (response: Response) => void;
+    vi.mocked(fetch).mockImplementationOnce(
+      () => new Promise<Response>((resolve) => { resolveResponse = resolve; }),
+    );
+    render(React.createElement(NotesWorkspace));
+    await waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+
+    mocks.treeState.generation += 1;
+    await act(async () => {
+      resolveResponse(Response.json({
+        id: "550e8400-e29b-41d4-a716-446655440000",
+        title: "Previous workspace",
+        content: "",
+      }));
+    });
+
+    expect(mocks.setPaneA).not.toHaveBeenCalled();
+    expect(mocks.replace).not.toHaveBeenCalled();
   });
 
   it("renders resize handles for both desktop side panels", () => {

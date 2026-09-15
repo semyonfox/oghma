@@ -171,6 +171,7 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
     try {
       const result = await noteAPI.remove(id);
       if (!result?.success) throw new Error("Note deletion failed");
+      if (ownerUserId) publishWorkspaceInvalidation(ownerUserId, "tree");
     } catch (error) {
       console.error("Error deleting note:", error);
       throw error;
@@ -185,7 +186,6 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
     set((currentState) => ({
       note: currentState.note?.id === id ? undefined : currentState.note,
     }));
-    if (ownerUserId) publishWorkspaceInvalidation(ownerUserId, "tree");
   },
 
   mutateNote: async (id, payload) => {
@@ -237,6 +237,9 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
     noteWriteVersions.set(id, mutationVersion);
 
     const result = await noteAPI.mutate(id, payload);
+    if (result && ownerUserId && (payload.title !== undefined || payload.pinned !== undefined)) {
+      publishWorkspaceInvalidation(ownerUserId, "tree");
+    }
 
     if (get().generation !== generation) return;
     if ((noteWriteVersions.get(id) ?? 0) !== mutationVersion) return;
@@ -265,9 +268,6 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
     }
     await treeStore.getState().mutateItem(id, { data: savedNote });
     if (get().generation !== generation) return;
-    if (ownerUserId && (payload.title !== undefined || payload.pinned !== undefined)) {
-      publishWorkspaceInvalidation(ownerUserId, "tree");
-    }
   },
 
   createNote: async (body) => {
@@ -281,6 +281,7 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
     }
 
     const result = await noteAPI.create(body);
+    if (result && ownerUserId) publishWorkspaceInvalidation(ownerUserId, "tree");
 
     if (get().generation !== generation) return;
     if (!result) {
@@ -298,7 +299,6 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
     treeStore.getState().addItem(note);
 
     useSyncStatusStore.getState().markNew(note.id);
-    if (ownerUserId) publishWorkspaceInvalidation(ownerUserId, "tree");
 
     return note;
   },
@@ -321,6 +321,7 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
     };
 
     const result = await noteAPI.create(body);
+    if (result && ownerUserId) publishWorkspaceInvalidation(ownerUserId, "tree");
 
     if (get().generation !== generation) return;
     if (!result) {
@@ -336,7 +337,6 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
     treeStore.getState().addItem(result);
 
     useSyncStatusStore.getState().markNew(result.id);
-    if (ownerUserId) publishWorkspaceInvalidation(ownerUserId, "tree");
 
     return result;
   },
