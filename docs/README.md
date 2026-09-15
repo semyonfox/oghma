@@ -40,6 +40,7 @@ Use this page to find the owner of a fact. Link to that owner instead of copying
 | [Architecture](engineering/architecture.md) | Current application, data, queue, worker, and deployment boundaries |
 | [File-tree coordination](engineering/file-tree-coordination.md) | Tree request ordering, refresh, session resets, and import publication |
 | [Import pipeline](engineering/import-pipeline.md) | Canvas/vault processing stages and tuning model |
+| [Canvas reliability handover](engineering/canvas-import-queue-reliability-handover.md) | Execution ownership, shared PDF dedupe, replacement/Stop contracts, and rollout gates |
 | [Canvas data emergency plan](engineering/canvas-data-emergency-plan.md) | Contingency modes for reducing or stopping retention of Canvas-originated content |
 | [Design system](engineering/design-system.md) | UI tokens and component conventions |
 | [Split-pane editor](engineering/split-pane-editor.md) | Pane drag/swap resolution, save-affordance placement, and the second-editor cost decision |

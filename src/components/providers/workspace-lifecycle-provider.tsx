@@ -26,13 +26,13 @@ import useI18n from "@/lib/notes/hooks/use-i18n";
 interface WorkspaceSessionValue {
   userId: string | null;
   ready: boolean;
-  refreshIdentity: () => Promise<void>;
+  refreshIdentity: () => Promise<boolean>;
 }
 
 const WorkspaceSessionContext = createContext<WorkspaceSessionValue>({
   userId: null,
   ready: false,
-  refreshIdentity: async () => {},
+  refreshIdentity: async () => false,
 });
 
 function isWorkspacePath(pathname: string): boolean {
@@ -99,18 +99,20 @@ export default function WorkspaceLifecycleProvider({
       if (response.ok && !nextUserId) {
         throw new Error("auth API returned no user ID");
       }
-      if (request !== identityRequest.current) return;
+      if (request !== identityRequest.current) return false;
       await reconcileWorkspaceSession(nextUserId);
-      if (request !== identityRequest.current) return;
+      if (request !== identityRequest.current) return false;
       setUserId(nextUserId);
       identityResolved.current = true;
       identityRequired.current = false;
       setReady(true);
+      return true;
     } catch (error) {
       console.warn("Failed to resolve the workspace session:", error);
       if (request === identityRequest.current && identityRequired.current) {
         setIdentityError(true);
       }
+      return false;
     }
   }, []);
 
@@ -125,7 +127,8 @@ export default function WorkspaceLifecycleProvider({
   useEffect(() => {
     if (!managedPath) return;
     const catchUp = async () => {
-      await refreshIdentity();
+      const identityVerified = await refreshIdentity();
+      if (!identityVerified) return;
       const treeState = useNoteTreeStore.getState();
       if (!identityResolved.current || !treeState.ownerUserId || !treeState.treeAPI) {
         return;
@@ -156,13 +159,22 @@ export default function WorkspaceLifecycleProvider({
         await refreshIdentity();
         return;
       }
+
+      const currentTreeState = useNoteTreeStore.getState();
       if (event.scope === "vault") {
-        await resetWorkspaceClientState(userId);
+        if (currentTreeState.ownerUserId === event.userId) {
+          await resetWorkspaceClientState(event.userId);
+        }
         return;
       }
 
+      const identityVerified = await refreshIdentity();
+      if (!identityVerified) return;
+      const treeState = useNoteTreeStore.getState();
+      if (treeState.ownerUserId !== event.userId) return;
+
       try {
-        await useNoteTreeStore.getState().refreshTree();
+        if (treeState.treeAPI) await treeState.refreshTree();
       } catch (error) {
         console.warn("Failed to refresh notes after a tab update:", error);
       }

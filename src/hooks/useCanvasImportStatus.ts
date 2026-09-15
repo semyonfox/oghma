@@ -1,11 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  DEFAULT_CANVAS_POLL_MS,
+  canvasPollInterval,
+  fetchCanvasStatus,
+} from "@/lib/canvas/status-poll";
 import useSyncStatusStore from "@/lib/notes/state/sync-status";
 import useNoteTreeStore from "@/lib/notes/state/tree";
 import useNoteStore from "@/lib/notes/state/note";
 import useLayoutStore from "@/lib/notes/state/layout.zustand";
 
 const LS_ACTIVE_JOB = "canvas_active_job";
-const STATUS_POLL_INTERVAL = 4_000;
 const TREE_SYNC_DELAY = 750;
 const MAX_TREE_SYNC_RETRIES = 3;
 
@@ -48,8 +52,18 @@ export type CanvasStatusData = {
   publishedJobId?: string | null;
   publishedNoteCount?: number;
   publishedTreePaths?: string[][];
+  pollIntervalMs?: number;
   progress?: Partial<CanvasImportProgress>;
-  issues?: { forbidden?: number; error?: number };
+  issues?: { forbidden?: number; error?: number; stopped?: number };
+  discovery?: {
+    completedCourses: number;
+    totalCourses: number;
+    stage: string;
+    filesFound: number;
+    skippedCourses?: string[];
+    skippedFolders?: string[];
+  } | null;
+  retryableFiles?: number;
   markerColdStarting?: boolean;
   estimatedSecsRemaining?: number | null;
 };
@@ -138,7 +152,8 @@ function isVisibleWhileProcessing(status: string | undefined): boolean {
     status === "indexing" ||
     status === "processing" ||
     status === "pending_marker" ||
-    status === "pending_retry"
+    status === "pending_retry" ||
+    status === "pending_cache"
   );
 }
 
@@ -155,6 +170,7 @@ export function useCanvasImportStatus(
   const { autoCheckOnMount = true, enabled = true } = options;
 
   const [progress, setProgress] = useState<CanvasImportProgress | null>(null);
+  const pollIntervalRef = useRef(DEFAULT_CANVAS_POLL_MS);
   const [showToast, setShowToast] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isDiscovering, setIsDiscovering] = useState(false);
@@ -342,11 +358,10 @@ export function useCanvasImportStatus(
         const statusUrl = requestedPublishJobId
           ? `/api/canvas/status?publishJobId=${encodeURIComponent(requestedPublishJobId)}`
           : "/api/canvas/status";
-        const res = await fetch(statusUrl, {
-          signal: controller.signal,
-        });
+        const res = await fetchCanvasStatus(statusUrl, controller.signal);
         if (!res.ok) return;
         const data = (await res.json()) as CanvasStatusData;
+        pollIntervalRef.current = canvasPollInterval(data.pollIntervalMs);
         if (
           !data.success ||
           controller.signal.aborted ||
@@ -541,7 +556,12 @@ export function useCanvasImportStatus(
         }
         if (data.latestJob?.status === "failed") {
           setProgress(normalizedProgress(data, jobType, true));
-          setImportSummary(null);
+          setImportSummary({
+            imported: data.progress?.completed ?? 0,
+            forbidden: data.issues?.forbidden ?? 0,
+            failed: data.issues?.error ?? 0,
+            skipped: data.issues?.stopped ?? 0,
+          });
           setShowToast(!dismissedRef.current);
         } else if (
           data.latestJob?.status === "complete" &&
@@ -554,7 +574,16 @@ export function useCanvasImportStatus(
             imported: completedProgress.completed,
             forbidden: completedProgress.forbidden,
             failed: completedProgress.error,
-            skipped: 0,
+            skipped: data.issues?.stopped ?? 0,
+          });
+          setShowToast(!dismissedRef.current);
+        } else if (data.latestJob?.status === "cancelled" && data.progress) {
+          setProgress(normalizedProgress(data, jobType));
+          setImportSummary({
+            imported: data.progress.completed ?? 0,
+            forbidden: data.issues?.forbidden ?? 0,
+            failed: data.issues?.error ?? 0,
+            skipped: data.issues?.stopped ?? 0,
           });
           setShowToast(!dismissedRef.current);
         } else {
@@ -760,9 +789,9 @@ export function useCanvasImportStatus(
     let timer: ReturnType<typeof setTimeout> | null = null;
     const poll = async () => {
       await checkStatus();
-      if (!cancelled) timer = setTimeout(poll, STATUS_POLL_INTERVAL);
+      if (!cancelled) timer = setTimeout(poll, pollIntervalRef.current);
     };
-    timer = setTimeout(poll, STATUS_POLL_INTERVAL);
+    timer = setTimeout(poll, pollIntervalRef.current);
 
     return () => {
       cancelled = true;
@@ -781,6 +810,15 @@ export function useCanvasImportStatus(
     markerColdStarting,
     estimatedSecsRemaining,
     statusSnapshot,
+    discovery: statusSnapshot?.discovery ?? null,
+    terminalStatus: statusSnapshot?.activeJob
+      ? null
+      : statusSnapshot?.latestJob?.status ?? null,
+    retrySourceJobId:
+      !statusSnapshot?.activeJob &&
+      (statusSnapshot?.retryableFiles ?? 0) > 0
+        ? statusSnapshot?.latestJob?.jobId ?? null
+        : null,
     checkStatus,
     trackJob,
     resetStatus,

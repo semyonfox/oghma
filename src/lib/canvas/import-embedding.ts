@@ -1,3 +1,5 @@
+import { captureImportedPdfCache } from "./import-cache";
+import { CanvasClaimLostError, withCanvasPublication } from "./execution";
 /**
  * Canvas Import — Embedding Phase
  *
@@ -15,6 +17,7 @@ import { cacheInvalidate, cacheKeys } from "@/lib/cache";
 import {
   enqueueExtractionRetry,
   MAX_EXTRACTION_RETRIES,
+  stageCanvasExtractionRetry,
   type ExtractionRetryMessage,
 } from "./extraction-retry.ts";
 import {
@@ -56,6 +59,7 @@ export interface RagPipelineOptions {
   canvasAssignmentId?: string | number | null;
   extractionOverride?: ExtractionResult | null;
   retryOnFailure?: boolean;
+  cacheId?: string | null;
 }
 
 interface FindOrCreateNoteOptions {
@@ -168,7 +172,7 @@ export async function processRagPipeline(
         return { noteId, chunksStored: 0, skipped: true };
       }
       if (!s3Key) throw new Error("Marker submission requires a stored source file");
-      const markerParentFolderId = await ensurePdfBundle();
+      const markerParentFolderId = await withCanvasPublication(ensurePdfBundle);
       const submitted = await submitMarkerJob({
         sourceKey: s3Key,
         sourceBytes: buffer?.length ?? null,
@@ -269,6 +273,13 @@ export async function processRagPipeline(
       );
     }
 
+    return await withCanvasPublication(async () => {
+    const finish = async (result: RagPipelineResult) => {
+      if (ragOpts.cacheId && !result.skipped) {
+        await captureImportedPdfCache({ cacheId: ragOpts.cacheId, sourceNoteId: result.noteId });
+      }
+      return result;
+    };
     if (isText) {
       const searchText = stripMarkdown(rawText);
       // text files: embed on the original note directly (no sibling needed)
@@ -303,7 +314,7 @@ export async function processRagPipeline(
       });
 
       console.log(`RAG: ${count} chunks embedded on text note ${noteId}`);
-      return { noteId, chunksStored: count };
+      return finish({ noteId, chunksStored: count });
     }
 
     // Binary files create an extracted .md companion. PDFs share a named
@@ -335,7 +346,7 @@ export async function processRagPipeline(
       if (updated.length === 0) return { noteId, chunksStored: 0, skipped: true };
       await invalidateExtractedNote(userId, noteId);
       const count = await replaceEmbeddings(noteId, userId, chunks);
-      return { noteId, chunksStored: count };
+      return finish({ noteId, chunksStored: count });
     }
 
     if (!(await isActiveNote(noteId, userId))) {
@@ -390,12 +401,20 @@ export async function processRagPipeline(
     console.log(
       `RAG: ${count} chunks embedded on MD note ${mdNoteId} (source: ${noteId}, marker images: ${markerAssets.imageCount})`,
     );
-    return { noteId: mdNoteId, chunksStored: count };
+    return finish({ noteId: mdNoteId, chunksStored: count });
+    });
   } catch (error) {
+    if (error instanceof CanvasClaimLostError) throw error;
     if (error instanceof MarkerSubmissionCancelledError) {
       // Cancellation won the durable submission fence. Do not turn that into
       // a generic extraction retry, which could revive the cancelled import.
       console.log(`Marker submission skipped for inactive import ${noteId}`);
+      return null;
+    }
+    if (retryOnFailure && jobId && importRecordId) {
+      await stageCanvasExtractionRetry({ noteId, userId, s3Key, filename, mimeType,
+        parentFolderId: extractedParentFolderId, attempt, importRecordId, jobId },
+      error instanceof Error ? error.message : String(error));
       return null;
     }
     if (retryOnFailure && attempt < MAX_EXTRACTION_RETRIES) {

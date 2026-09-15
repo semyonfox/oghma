@@ -1,3 +1,5 @@
+import { config } from "@/lib/config";
+import { canvasPollInterval } from "@/lib/canvas/status-poll";
 import { NextResponse } from "next/server";
 import { withErrorHandler, requireAuth } from "@/lib/api-error";
 import sql from "@/database/pgsql";
@@ -12,6 +14,7 @@ interface CanvasJobRow {
   completed_at: Date | string | null;
   expected_total: number | null;
   error_message: string | null;
+  discovery_progress?: { completedCourses?: number; totalCourses?: number; stage?: string; skippedCourses?: string[]; skippedFolders?: string[] } | null;
 }
 
 interface CanvasFileStatsRow {
@@ -24,6 +27,9 @@ interface CanvasFileStatsRow {
   pending_marker: string;
   forbidden: string;
   error: string;
+  retryable?: string;
+  stopped?: string;
+  pending_cache?: string;
 }
 
 interface CanvasLogRow {
@@ -76,7 +82,7 @@ export const GET = withErrorHandler(async (request) => {
 
   // active or most-recently-completed job
   const activeJobs = await sql<CanvasJobRow[]>`
-    SELECT id, status, job_type, created_at, started_at, completed_at, expected_total, error_message
+    SELECT id, status, job_type, created_at, started_at, completed_at, expected_total, error_message, discovery_progress
     FROM app.canvas_import_jobs
     WHERE user_id = ${user.user_id} AND type = 'canvas'
     ORDER BY created_at DESC
@@ -128,7 +134,10 @@ export const GET = withErrorHandler(async (request) => {
         COUNT(CASE WHEN status = 'pending_retry' THEN 1 END) as pending_retry,
         COUNT(CASE WHEN status = 'pending_marker' THEN 1 END) as pending_marker,
         COUNT(CASE WHEN status = 'forbidden'   THEN 1 END) as forbidden,
-        COUNT(CASE WHEN status = 'error'       THEN 1 END) as error
+        COUNT(CASE WHEN status = 'error'       THEN 1 END) as error,
+        COUNT(CASE WHEN status = 'error' AND retryable THEN 1 END) as retryable,
+        COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as stopped,
+        COUNT(CASE WHEN status = 'pending_cache' THEN 1 END) as pending_cache
       FROM app.canvas_imports
       WHERE user_id = ${user.user_id}
         AND CASE
@@ -181,7 +190,7 @@ export const GET = withErrorHandler(async (request) => {
     stats.forbidden,
     stats.error,
   ].map((value) => parseInt(String(value), 10));
-  const completed = indexed + indexing;
+  const completed = indexed;
 
   // use expected_total from the discovery phase as denominator when available —
   // this prevents the progress bar from jumping backwards as new files are found
@@ -304,8 +313,17 @@ export const GET = withErrorHandler(async (request) => {
 
   return NextResponse.json({
     success: true,
+    pollIntervalMs: canvasPollInterval(config.canvas.pollIntervalMs),
     latestJob,
     activeJob,
+    retryableFiles: Number(stats.retryable ?? 0),
+    discovery: job?.discovery_progress ? {
+      completedCourses: job.discovery_progress?.completedCourses ?? 0,
+      totalCourses: job.discovery_progress?.totalCourses ?? 0,
+      stage: job.discovery_progress?.stage ?? "modules", filesFound: total,
+      skippedCourses: job.discovery_progress?.skippedCourses ?? [],
+      skippedFolders: job.discovery_progress?.skippedFolders ?? [],
+    } : null,
     progress: {
       total: denominator,
       completed,
@@ -315,11 +333,13 @@ export const GET = withErrorHandler(async (request) => {
       processing,
       retrying,
       pendingMarker,
+      pendingCache: Number(stats.pending_cache ?? 0),
       percent: progressPercent,
     },
     issues: {
       forbidden,
       error: errorCount,
+      stopped: Number(stats.stopped ?? 0),
     },
     // `pending_marker` means the file was handed off to the asynchronous
     // Marker pipeline; it is not evidence that a cold start is happening.

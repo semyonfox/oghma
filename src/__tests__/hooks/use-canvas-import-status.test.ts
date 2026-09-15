@@ -14,6 +14,12 @@ const layoutState = vi.hoisted(() => ({
   paneB: null as { fileId: string; fileType: "note" } | null,
 }));
 
+vi.mock("@/lib/canvas/status-poll", () => ({
+  DEFAULT_CANVAS_POLL_MS: 3_000,
+  canvasPollInterval: (value: unknown) => typeof value === "number" ? value : 3_000,
+  fetchCanvasStatus: (url: string, signal: AbortSignal) => fetch(url, { signal }),
+}));
+
 vi.mock("@/lib/notes/state/sync-status", () => ({
   default: {
     getState: () => ({ markCanvasNew: mocks.markCanvasNew }),
@@ -599,6 +605,40 @@ describe("useCanvasImportStatus", () => {
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(4_000);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    unmount();
+  });
+
+  it("uses the server poll interval for the next status request", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () =>
+        canvasStatus({
+          pollIntervalMs: 7_000,
+          activeJob: {
+            jobId: "job-1",
+            status: "processing",
+            jobType: "import",
+          },
+        }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { result, unmount } = renderHook(() =>
+      useCanvasImportStatus({ autoCheckOnMount: false }),
+    );
+
+    await act(async () => {
+      await result.current.checkStatus();
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(6_999);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     unmount();

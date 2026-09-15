@@ -77,6 +77,25 @@ export async function recoverStaleCanvasDispatches(limit = 100): Promise<number>
  * worker slots. The advisory lock makes selection safe across worker replicas.
  */
 export async function dispatchFairCanvasFiles(limit = 10): Promise<number> {
+  // A waiter owns no OCR work. Once the shared result is ready, or its
+  // producing import has stopped, return through normal per-user dispatch.
+  await sql`
+    UPDATE app.canvas_imports waiting SET status = 'pending', dispatched_at = NULL,
+      next_attempt_at = NULL, updated_at = NOW()
+    FROM app.canvas_import_jobs job
+    WHERE waiting.status = 'pending_cache' AND job.id = waiting.job_id AND job.status = 'processing'
+      AND (
+        EXISTS (SELECT 1 FROM app.imported_file_cache cache
+          WHERE cache.id = waiting.imported_file_cache_id AND cache.status = 'ready' AND cache.replayable)
+        OR NOT EXISTS (
+          SELECT 1 FROM app.imported_file_cache cache
+          JOIN app.canvas_imports owner ON owner.id = cache.owner_import_id AND owner.job_id = cache.owner_job_id
+          JOIN app.canvas_import_jobs owner_job ON owner_job.id = owner.job_id
+          WHERE cache.id = waiting.imported_file_cache_id AND owner_job.status = 'processing'
+            AND owner.status IN ('pending', 'downloading', 'processing', 'indexing', 'pending_retry', 'pending_marker')
+        )
+      )
+  `;
   const recovered = await recoverStaleCanvasDispatches();
   if (recovered > 0) {
     console.warn(`Released ${recovered} stale Canvas dispatch lease(s)`);
@@ -93,6 +112,7 @@ export async function dispatchFairCanvasFiles(limit = 10): Promise<number> {
         JOIN app.login l ON l.user_id = ci.user_id
         WHERE ci.status = 'pending'
           AND ci.dispatched_at IS NULL
+          AND (ci.next_attempt_at IS NULL OR ci.next_attempt_at <= NOW())
           AND cij.type = 'canvas'
           AND cij.status = 'processing'
           AND NOT EXISTS (
@@ -134,6 +154,7 @@ export async function dispatchFairCanvasFiles(limit = 10): Promise<number> {
         LEFT JOIN app.import_scheduler_users isu ON isu.user_id = ci.user_id
         WHERE ci.status = 'pending'
           AND ci.dispatched_at IS NULL
+          AND (ci.next_attempt_at IS NULL OR ci.next_attempt_at <= NOW())
           AND cij.type = 'canvas'
           AND cij.status = 'processing'
           AND COALESCE(l.import_service_class, 'free') = ${decision.chosen}

@@ -308,3 +308,42 @@ Stop workload verification and use the homelab deployment guide. Do not edit
 - `src/lib/canvas/import-embedding.ts`
 - `scripts/worker-healthcheck.ts`
 - [Vast Serverless Marker runbook](vast-marker.md)
+
+
+## Canvas claim recovery rollout
+
+Added 2026-09-15. This section describes the new code contract; live rollout has
+not been verified. See the [reliability handover](../engineering/canvas-import-queue-reliability-handover.md)
+for test and release gates.
+
+Migration 067 adds ownership and retry state plus a unique active-Canvas-run
+index. Before applying it, check for conflicting active runs with this read-only
+query on the intended environment:
+
+```sql
+SELECT user_id, count(*) AS active_runs
+FROM app.canvas_import_jobs
+WHERE type = 'canvas' AND status IN ('queued', 'discovering', 'processing')
+GROUP BY user_id
+HAVING count(*) > 1;
+```
+
+Any results require review and an explicit choice of the retained run. Do not
+silently cancel rows as part of schema installation.
+
+Recovery defaults to observation. Deploy migration 067 and compatible API and
+worker binaries, verify all old writers have stopped, and inspect
+`canvas-expired-executions` logs. Set `CANVAS_CLAIM_RECOVERY=enabled` only after
+the development release gates pass. Unset it to stop further reclamation.
+
+Recovery renews no ownership on behalf of a dead worker. It clears the old
+token and either schedules another bounded attempt or records a retryable
+error. Active file/discovery leases last five minutes and renew every 30
+seconds. Legacy active rows with no token receive a one-hour grace period.
+The normal worker sweep determines detection latency after expiry.
+
+An additive schema does not make an old binary safe after reclamation starts.
+An old writer cannot enforce the new token checks. Keep compatible writers
+through rollback, or drain active work and review an explicit rollback plan.
+Provider OCR already in flight may still incur cost after Stop; publication
+must nevertheless reject the stopped run.

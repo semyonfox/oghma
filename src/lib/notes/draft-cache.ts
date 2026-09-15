@@ -4,6 +4,7 @@
 import { uiCache } from "./cache";
 
 const key = (noteId: string) => `draft:${noteId}`;
+const LEGACY_DRAFT_PREFIX = "legacy-unowned-draft:";
 let generation = 0;
 let writable = true;
 
@@ -47,4 +48,18 @@ export async function clearAllDrafts(): Promise<void> {
       .filter((cacheKey) => cacheKey.startsWith("draft:"))
       .map((cacheKey) => uiCache.removeItem(cacheKey)),
   );
+}
+
+export async function quarantineUnownedDrafts(): Promise<void> {
+  const keys = await uiCache.keys();
+  for (const cacheKey of keys) {
+    if (!cacheKey.startsWith("draft:")) continue;
+
+    const backupKey = `${LEGACY_DRAFT_PREFIX}${cacheKey.slice("draft:".length)}`;
+    const existingBackup = await uiCache.getItem<unknown>(backupKey);
+    if (existingBackup !== undefined) continue;
+
+    const draft = await uiCache.getItem<unknown>(cacheKey);
+    if (draft !== undefined) await uiCache.setItem(backupKey, draft);
+  }
 }

@@ -1,3 +1,4 @@
+import { withCanvasPublication } from "./execution";
 /**
  * Canvas Assignment Metadata Sync
  *
@@ -121,7 +122,7 @@ export async function syncAssignmentMetadata(
       const assignmentType = deriveAssignmentType(a);
       const submission = a.submission;
 
-      await sql`
+      await withCanvasPublication(() => sql`
         INSERT INTO app.assignments (
           user_id, canvas_course_id, canvas_assignment_id,
           title, description, course_name, course_color,
@@ -151,7 +152,7 @@ export async function syncAssignmentMetadata(
           points_possible = EXCLUDED.points_possible,
           assignment_type = EXCLUDED.assignment_type,
           updated_at = NOW()
-      `;
+      `);
       synced++;
     } catch (err) {
       console.error(

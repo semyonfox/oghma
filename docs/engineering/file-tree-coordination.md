@@ -60,6 +60,15 @@ the notes workspace. Same-user remounts retain the tree. Owner transitions,
 logout, and Clear Vault reset the tree, note store, pane references, and relevant
 browser caches. Normal same-account reloads preserve saved drafts.
 
+Browsers upgraded from the unscoped cache format have no trustworthy owner.
+Before opening the workspace, the lifecycle copies their note values to
+`legacy-unowned-note:<note-id>` and draft values to
+`legacy-unowned-draft:<note-id>` in the `oghma-ui` IndexedDB `data` store. It
+then clears the live note and draft keys. Existing quarantine values are never
+overwritten, and a failed copy leaves the live caches blocked and intact for a
+retry. There is no recovery UI yet. Pane metadata is not quarantined because it
+contains no unsaved note data and cannot establish ownership.
+
 Workspace operations use generations to prevent late note responses or saves
 from repopulating erased state. Session cleanup evicts the unused browser tree
 snapshot. The server returns 503 for an authentication-profile backend failure,
@@ -74,8 +83,9 @@ This is same-browser coordination, not a server push protocol across devices.
 ## Canvas publication
 
 The existing Canvas provider is the sole polling and publication owner across
-notes and settings. Settings consumes its state and retains start, sync, and
-cancel actions. Public and unauthenticated pages do not poll.
+notes and settings. Settings consumes its state and retains start, sync, replacement confirmation,
+Trash recovery, failed-file retry, and job-specific Stop actions. Server responses
+control the polling interval. Public and unauthenticated pages do not poll.
 
 Publication paths remain pending until the tree store applies the requested
 reads. Failed requests retain their paths for retry. Job, mount, session, and
@@ -109,9 +119,9 @@ rapid expansion changes, malformed HTTP responses, publication retries, and
 session/cache ownership.
 
 Final local checks passed: `npm run lint:all`, including ESLint, the 12-locale
-audit, both typechecks, 1,523 app tests, and 186 Canvas MCP tests. The production
+audit, both typechecks, 1,547 app tests, and 186 Canvas MCP tests. The production
 build passed with the CI placeholder configuration. `git diff --check` passed.
 
-The implementation is local and uncommitted. No live import, production cache
-load benchmark, or controlled worker interruption was performed. See
+No live import, production cache load benchmark, or controlled worker
+interruption was performed. See
 [testing](testing.md) for disposable-service and browser release checks.

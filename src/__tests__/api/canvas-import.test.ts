@@ -50,6 +50,11 @@ vi.mock("@/lib/api-error", () => {
       },
   };
 });
+vi.mock("@/lib/canvas/trash-conflicts", async (original) => ({
+  ...await original<typeof import("@/lib/canvas/trash-conflicts")>(),
+  findCanvasTrashConflicts: vi.fn().mockResolvedValue([]),
+}));
+import { findCanvasTrashConflicts } from "@/lib/canvas/trash-conflicts";
 vi.mock("@/database/pgsql", () => ({ default: vi.fn() }));
 vi.mock("@/lib/canvas/client", () => ({
   CanvasClient: vi.fn(function CanvasClient() {
@@ -93,6 +98,7 @@ function rawRequest(body: string) {
 describe("POST /api/canvas/import Canvas IDs", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(findCanvasTrashConflicts).mockResolvedValue([]);
     vi.mocked(requireAuth).mockResolvedValue({ user_id: "user-123" } as never);
     vi.mocked(loadCanvasCredentials).mockResolvedValue({
       domain: "example.instructure.com",
@@ -129,8 +135,20 @@ describe("POST /api/canvas/import Canvas IDs", () => {
     expect(response.status).toBe(400);
   });
 
+  it("requires a Trash choice before creating a new job", async () => {
+    const tx = vi.fn().mockResolvedValue([]);
+    Object.assign(sql, { begin: vi.fn(async (callback) => callback(tx)) });
+    const folders = [{ rootId: "root", title: "Course", deletedAt: "2026-09-15T00:00:00.000Z" }];
+    vi.mocked(findCanvasTrashConflicts).mockResolvedValue(folders);
+    const response = await POST(request(["42"]));
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ code: "canvas_folders_in_trash", folders });
+    expect(enqueueCanvasJob).not.toHaveBeenCalled();
+    expect(tx.mock.calls.some(([parts]) => Array.from(parts).join("").includes("INSERT INTO"))).toBe(false);
+  });
+
   it("uses self enrollments to validate token liveness before queueing", async () => {
-    const tx = vi.fn().mockResolvedValue([{ id: "job-123" }]);
+    const tx = vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValue([{ id: "job-123" }]);
     const begin = vi.fn(async (callback) => callback(tx));
     Object.assign(sql, { begin });
     canvas.getSelfEnrollments.mockResolvedValue({ data: [] });
@@ -148,7 +166,7 @@ describe("POST /api/canvas/import Canvas IDs", () => {
   });
 
   it("falls back to the regular course list when enrollment access is scoped", async () => {
-    const tx = vi.fn().mockResolvedValue([{ id: "job-456" }]);
+    const tx = vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValue([{ id: "job-456" }]);
     const begin = vi.fn(async (callback) => callback(tx));
     Object.assign(sql, { begin });
     canvas.getSelfEnrollments.mockResolvedValue({

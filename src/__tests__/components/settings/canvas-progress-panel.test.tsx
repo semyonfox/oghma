@@ -59,6 +59,16 @@ describe("CanvasProgressPanel", () => {
       />,
     );
 
-    expect(screen.getByText("Import complete")).toBeTruthy();
+    expect(screen.getByText("Completed with issues")).toBeTruthy();
   });
+});
+
+
+it("explains skipped Trash courses after the run completes", () => {
+  render(<CanvasProgressPanel isImporting={false} isDiscovering={false} isSyncing={false}
+    progress={{ percent: 100, completed: 0, total: 0 }} importSummary={{ imported: 0, forbidden: 0, failed: 0, skipped: 0 }}
+    recentLogs={[]} markerColdStarting={false} estimatedSecsRemaining={null}
+    discovery={{ completedCourses: 2, totalCourses: 2, stage: "files", filesFound: 0, skippedCourses: ["CS101"] }} />);
+  expect(screen.getByText(/Restore them to include/).textContent).toContain("CS101");
+  expect(screen.getByText("Completed with issues")).toBeTruthy();
 });

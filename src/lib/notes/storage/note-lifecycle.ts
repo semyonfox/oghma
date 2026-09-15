@@ -223,7 +223,7 @@ async function cancelNoteProcessing(
       )
       AND status IN (
         'pending', 'downloading', 'processing', 'indexing', 'pending_retry',
-        'pending_marker'
+        'pending_marker', 'pending_cache'
       )
   `;
 
@@ -340,6 +340,7 @@ export async function moveSubtreeToTrash(
 export async function restoreTrashRoot(
   userId: string,
   rootNoteId: string,
+  expectedDeletedAt?: string,
 ): Promise<TrashTransitionResult | null> {
   const result = await sql.begin(async (tx: TransactionSql) => {
     await lockUserTree(tx, userId);
@@ -351,6 +352,11 @@ export async function restoreTrashRoot(
       WHERE n.user_id = ${userId}::uuid
         AND n.deleted_at IS NOT NULL
         AND n.trash_root_id = ${rootNoteId}::uuid
+      AND (${expectedDeletedAt ?? null}::timestamptz IS NULL OR EXISTS (
+        SELECT 1 FROM app.notes observed
+        WHERE observed.note_id = ${rootNoteId}::uuid AND observed.user_id = ${userId}::uuid
+          AND date_trunc('milliseconds', observed.deleted_at) = ${expectedDeletedAt ?? null}::timestamptz
+      ))
       FOR UPDATE OF n
     `) as NoteTreeRow[];
 

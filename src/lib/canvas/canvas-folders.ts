@@ -1,3 +1,4 @@
+import { withCanvasPublication } from "./execution";
 /**
  * Canvas folder deduplication and naming utilities.
  * Handles find-or-create semantics backed by partial unique indexes.
@@ -42,6 +43,13 @@ export class CanvasFolderTrashedError extends Error {
   }
 }
 
+export class CanvasFolderMissingError extends Error {
+  constructor(readonly noteId: string) {
+    super("The local Canvas parent folder is missing");
+    this.name = "CanvasFolderMissingError";
+  }
+}
+
 async function findCanvasFolder(
   db: postgres.TransactionSql,
   userId: string,
@@ -78,14 +86,14 @@ async function ensureActiveParent(
 ): Promise<void> {
   if (!parentId) return;
   const [parent] = await db`
-    SELECT note_id
+    SELECT note_id, deleted_at
     FROM app.notes
     WHERE note_id = ${parentId}::uuid
       AND user_id = ${userId}::uuid
-      AND deleted_at IS NULL
     FOR KEY SHARE
   `;
-  if (!parent) throw new CanvasFolderTrashedError(parentId);
+  if (!parent) throw new CanvasFolderMissingError(parentId);
+  if (parent.deleted_at) throw new CanvasFolderTrashedError(parentId);
 }
 
 async function reuseExisting(
@@ -108,6 +116,7 @@ export async function findOrCreateFolder(
   parentId: string | null,
   canvas: CanvasFolderIdentity = {},
 ): Promise<string | null> {
+  return withCanvasPublication(async () => {
   const { canvasCourseId, canvasAcademicYear } = canvas;
 
   try {
@@ -147,7 +156,7 @@ export async function findOrCreateFolder(
     await invalidateTreeAfterPublish(userId, parentId);
     return folderId;
   } catch (error) {
-    if (error instanceof CanvasFolderTrashedError) throw error;
+    if (error instanceof CanvasFolderTrashedError || error instanceof CanvasFolderMissingError) throw error;
     // Unique index conflict: a concurrent worker won the creation race.
     if (isUniqueViolation(error) && canvasCourseId != null) {
       const folderId = await sql.begin(async (tx) => {
@@ -168,4 +177,6 @@ export async function findOrCreateFolder(
     console.warn(`Failed to create folder "${title}": ${errorMessage(error)}`);
     return parentId;
   }
+
+  });
 }

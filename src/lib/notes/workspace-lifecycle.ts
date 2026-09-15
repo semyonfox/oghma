@@ -13,11 +13,14 @@ import {
   beginDraftCacheReset,
   clearAllDrafts,
   finishDraftCacheReset,
+  quarantineUnownedDrafts,
 } from "@/lib/notes/draft-cache";
 
 let resetInFlight: Promise<void> | null = null;
 let cacheClearQueue = Promise.resolve();
+let unownedQuarantinePending = false;
 const OWNER_STORAGE_KEY = "oghmaNotes-workspace-owner";
+const LEGACY_NOTE_PREFIX = "legacy-unowned-note:";
 
 interface PersistedOwner {
   known: boolean;
@@ -30,12 +33,25 @@ function readPersistedOwner(): PersistedOwner {
     const value = window.localStorage.getItem(OWNER_STORAGE_KEY);
     if (value === null) return { known: false, userId: null };
     const parsed: unknown = JSON.parse(value);
-    return {
-      known: true,
-      userId: typeof parsed === "string" ? parsed : null,
-    };
+    if (parsed === null) return { known: true, userId: null };
+    if (typeof parsed === "string" && parsed.length > 0) {
+      return { known: true, userId: parsed };
+    }
+    return { known: false, userId: null };
   } catch {
-    return { known: true, userId: null };
+    return { known: false, userId: null };
+  }
+}
+
+async function quarantineUnownedNotes(): Promise<void> {
+  const noteIds = await noteCacheInstance.keys();
+  for (const noteId of noteIds) {
+    const backupKey = `${LEGACY_NOTE_PREFIX}${noteId}`;
+    const existingBackup = await uiCache.getItem<unknown>(backupKey);
+    if (existingBackup !== undefined) continue;
+
+    const note = await noteCacheInstance.getItem<unknown>(noteId);
+    if (note !== undefined) await uiCache.setItem(backupKey, note);
   }
 }
 
@@ -57,7 +73,10 @@ function adoptWorkspaceSession(userId: string | null): void {
 
 export async function resetWorkspaceClientState(
   userId: string | null,
+  options: { quarantineUnowned?: boolean } = {},
 ): Promise<void> {
+  if (options.quarantineUnowned) unownedQuarantinePending = true;
+  const shouldQuarantine = unownedQuarantinePending;
   const draftGeneration = beginDraftCacheReset();
   try {
     window.localStorage.removeItem("canvas_active_job");
@@ -75,17 +94,24 @@ export async function resetWorkspaceClientState(
 
   const clearing = cacheClearQueue
     .catch(() => {})
-    .then(() =>
-      Promise.all([
+    .then(async () => {
+      if (shouldQuarantine) {
+        await Promise.all([
+          quarantineUnownedNotes(),
+          quarantineUnownedDrafts(),
+        ]);
+      }
+      await Promise.all([
         noteCacheInstance.clear(),
         clearAllDrafts(),
         uiCache.removeItem("tree"),
-      ]),
-    )
+      ]);
+    })
     .then(() => {
       finishDraftCacheReset(draftGeneration);
       useNoteStore.getState().markSessionReady(noteGeneration);
       const state = useNoteStore.getState();
+      if (shouldQuarantine) unownedQuarantinePending = false;
       if (state.generation === noteGeneration && state.ownerUserId === userId) {
         persistOwner(userId);
       }
@@ -104,7 +130,10 @@ export async function reconcileWorkspaceSession(
 ): Promise<boolean> {
   const treeState = useNoteTreeStore.getState();
   const noteState = useNoteStore.getState();
+  const freshClientState =
+    treeState.generation === 0 && noteState.generation === 0;
   if (
+    !freshClientState &&
     treeState.ownerUserId === userId &&
     noteState.ownerUserId === userId
   ) {
@@ -113,16 +142,17 @@ export async function reconcileWorkspaceSession(
   }
 
   const persistedOwner = readPersistedOwner();
-  const freshClientState =
-    treeState.generation === 0 && noteState.generation === 0;
   if (
     freshClientState &&
-    (!persistedOwner.known || persistedOwner.userId === userId)
+    persistedOwner.known &&
+    persistedOwner.userId === userId
   ) {
     adoptWorkspaceSession(userId);
     return false;
   }
 
-  await resetWorkspaceClientState(userId);
+  await resetWorkspaceClientState(userId, {
+    quarantineUnowned: freshClientState && !persistedOwner.known,
+  });
   return true;
 }

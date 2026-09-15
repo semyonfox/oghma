@@ -5,13 +5,15 @@ import {
   ApiError,
   parseJsonObject,
 } from "@/lib/api-error";
+import { CanvasTrashConflictError } from "@/lib/canvas/trash-conflicts";
 import { CanvasClient } from "@/lib/canvas/client";
 import sql from "@/database/pgsql";
 import { enqueueCanvasJob } from "@/lib/queue";
 import logger from "@/lib/logger";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
 import { recordActivationMilestone } from "@/lib/marketing/events";
-import { normalizeCanvasCourseSelection } from "@/lib/canvas/id";
+import { activeCanvasRun, canonicalCanvasCourses, lockCanvasRuns, startCanvasRun } from "@/lib/canvas/import-runs";
+import { isValidUUID } from "@/lib/utils/uuid";
 import { cancelActiveCanvasImportJobs } from "@/lib/canvas/cancel-import-jobs";
 
 function errorMessage(error: unknown): string {
@@ -31,14 +33,17 @@ function errorMessage(error: unknown): string {
 export const POST = withErrorHandler(async (request) => {
   const user = await requireAuth();
 
-  const { courseIds } = await parseJsonObject(request);
+  const { courseIds, expectedActiveJobId, keepTrashedFolders } = await parseJsonObject(request);
+  if (expectedActiveJobId !== undefined && !isValidUUID(expectedActiveJobId)) {
+    throw new ApiError(400, "Invalid expected active import ID");
+  }
 
   if (!Array.isArray(courseIds) || courseIds.length === 0) {
     throw new ApiError(400, "courseIds array is required");
   }
   let normalizedCourseIds;
   try {
-    normalizedCourseIds = courseIds.map(normalizeCanvasCourseSelection);
+    normalizedCourseIds = canonicalCanvasCourses(courseIds);
   } catch (error) {
     throw new ApiError(
       400,
@@ -46,6 +51,9 @@ export const POST = withErrorHandler(async (request) => {
     );
   }
 
+  if (keepTrashedFolders !== undefined && typeof keepTrashedFolders !== "boolean") {
+    throw new ApiError(400, "Invalid Trash choice");
+  }
   const credentials = await loadCanvasCredentials(user.user_id);
   if (!credentials) {
     throw new ApiError(400, "No Canvas account connected");
@@ -78,23 +86,26 @@ export const POST = withErrorHandler(async (request) => {
     // Continue: the worker validates the selected course's real resources.
   }
 
-  // Cancel any existing queued/processing job and insert the new one atomically
-  // This prevents a worker from taking the old job after its replacement.
-  const job = await sql.begin(async (tx) => {
-    await cancelActiveCanvasImportJobs(
-      tx,
-      user.user_id,
-      "Replaced by a newer Canvas import",
-    );
-    const [inserted] = await tx<{ id: string }[]>`
-      INSERT INTO app.canvas_import_jobs (user_id, course_ids, status)
-      VALUES (${user.user_id}::uuid, ${JSON.stringify(normalizedCourseIds)}::jsonb, 'queued')
-      RETURNING id
-    `;
-    return inserted;
+  const result = await startCanvasRun({
+    checkTrash: !keepTrashedFolders,
+    userId: user.user_id,
+    courses: normalizedCourseIds,
+    mode: "import",
+    expectedActiveJobId: typeof expectedActiveJobId === "string" ? expectedActiveJobId : undefined,
+  }).catch((error: unknown) => {
+    if (error instanceof CanvasTrashConflictError) return error;
+    throw error;
   });
-
-  const jobId = job.id;
+  if (result instanceof CanvasTrashConflictError) {
+    return NextResponse.json({ code: "canvas_folders_in_trash", folders: result.folders }, { status: 409 });
+  }
+  if (result.kind === "conflict") {
+    return NextResponse.json({ error: "The active import changed. Confirm the current import before replacing it.", activeJob: result.activeJob }, { status: 409 });
+  }
+  const jobId = result.jobId;
+  if (result.kind === "existing") {
+    return NextResponse.json({ success: true, queued: true, alreadyActive: true, jobId });
+  }
 
   try {
     await enqueueCanvasJob("canvas-discover", { jobId, userId: user.user_id });
@@ -119,12 +130,20 @@ export const POST = withErrorHandler(async (request) => {
  * Cancels the active import job for the current user.
  * Marks the job and all its in-flight file records as cancelled.
  */
-export const DELETE = withErrorHandler(async () => {
+export const DELETE = withErrorHandler(async (request) => {
   const user = await requireAuth();
 
-  const cancelled = await sql.begin((tx) =>
-    cancelActiveCanvasImportJobs(tx, user.user_id, "Cancelled by user"),
-  );
+  const expectedJobId = request.nextUrl.searchParams.get("jobId");
+  if (!isValidUUID(expectedJobId)) throw new ApiError(400, "An import ID is required to stop it");
+  const outcome = await sql.begin(async (tx) => {
+    await lockCanvasRuns(tx, user.user_id);
+    const active = await activeCanvasRun(tx, user.user_id);
+    if (active && active.id !== expectedJobId) return { conflict: true, cancelled: [] };
+    return { conflict: false, cancelled: active
+      ? await cancelActiveCanvasImportJobs(tx, user.user_id, "Stopped by user") : [] };
+  });
+  if (outcome.conflict) return NextResponse.json({ error: "The active import changed. Refresh before stopping it." }, { status: 409 });
+  const cancelled = outcome.cancelled;
 
   if (cancelled.length === 0) {
     return NextResponse.json({

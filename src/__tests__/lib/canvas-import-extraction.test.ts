@@ -1,12 +1,30 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// Execution fencing is exercised with real PostgreSQL in the integration
+// contract. These tests isolate the existing extraction/result behaviour.
+vi.mock("@/lib/canvas/execution", async (original) => ({
+  ...await original<typeof import("@/lib/canvas/execution")>(),
+  withCanvasExecution: (_owner: unknown, work: () => Promise<unknown>) => work(),
+  withCanvasMarkerPublication: (_owner: unknown, work: () => Promise<unknown>) => work(),
+}));
+vi.mock("@/lib/queue", () => ({
+  enqueueExtractRetryJob: vi.fn().mockResolvedValue(undefined),
+  getCanvasQueueAttemptLimit: () => 3,
+  getMarkerCompletionAttemptLimit: () => 3,
+}));
+import { enqueueExtractRetryJob } from "@/lib/queue";
+
 vi.mock("@/database/pgsql", () => {
   const sqlMock = vi.fn();
   sqlMock.mockResolvedValue([]);
   Object.assign(sqlMock, { begin: vi.fn(
     async (callback: (tx: typeof sqlMock) => unknown) => callback(sqlMock),
   ) });
-  return { default: sqlMock };
+  return { default: sqlMock,
+    withDatabaseTransaction: (work: (tx: typeof sqlMock) => Promise<unknown>) => work(sqlMock),
+    afterDatabaseCommit: (effect: () => Promise<void>) => effect(),
+    afterDatabaseRollback: () => undefined,
+  };
 });
 
 vi.mock("@/lib/storage/init.ts", () => ({
@@ -75,7 +93,6 @@ vi.mock("@/lib/logger.ts", () => ({
 import sql from "@/database/pgsql";
 import { getStorageProvider } from "@/lib/storage/init";
 import { processRagPipeline } from "@/lib/canvas/import-embedding";
-import { enqueueExtractionRetry } from "@/lib/canvas/extraction-retry.ts";
 import { findOrCreateExtractionBundle } from "@/lib/notes/extraction-bundle";
 import {
   processDirectExtraction,
@@ -484,7 +501,7 @@ describe("processExtractionRetry", () => {
   it("re-enqueues a stale durable Canvas retry with its exact row generation", async () => {
     vi.mocked(sql).mockResolvedValueOnce([
       {
-        import_record_id: "import-123",
+        import_record_id: "import-123", retry_seq: 3, retry_attempts: 2, next_attempt_at: new Date(Date.now() + 400_000),
         note_id: "note-123",
         user_id: "user-123",
         job_id: "job-123",
@@ -497,12 +514,12 @@ describe("processExtractionRetry", () => {
 
     await expect(recoverPendingExtractionRetries()).resolves.toBe(1);
 
-    expect(enqueueExtractionRetry).toHaveBeenCalledWith(
+    expect(enqueueExtractRetryJob).toHaveBeenCalledWith(
       expect.objectContaining({
         importRecordId: "import-123",
         jobId: "job-123",
-        noteId: "note-123",
-      }),
+        noteId: "note-123", retrySeq: 3, attempt: 3,
+      }), expect.any(Number),
     );
   });
 });
@@ -709,7 +726,7 @@ describe("shared imported PDF cache integrity", () => {
     );
   });
 
-  it("downloads and rebuilds when a source-matched cache row has no object", async () => {
+  it("restores a missing binary while retaining a ready extraction", async () => {
     const { client, storage } = await importFile({
       sourceCache: cache,
       shaCache: cache,
@@ -719,21 +736,14 @@ describe("shared imported PDF cache integrity", () => {
     expect(storage.hasObject).toHaveBeenCalledWith(cache.storage_key);
     expect(client.downloadFile).toHaveBeenCalledWith(file.url);
     expect(storage.putObject).toHaveBeenCalledWith(
-      expect.stringMatching(/^imports\/shared\/[0-9a-f]{64}\.pdf$/),
+      cache.storage_key,
       expect.any(Buffer),
       { contentType: "application/pdf" },
     );
-    expect(processRagPipeline).toHaveBeenCalledWith(
-      expect.any(String),
-      "user-123",
-      "bundle-123",
-      expect.any(Buffer),
-      expect.objectContaining({ filename: "lecture.pdf" }),
-      expect.any(Function),
-    );
+    expect(processRagPipeline).not.toHaveBeenCalled();
   });
 
-  it("downloads and rebuilds when a matching SHA cache row has no object", async () => {
+  it("restores the binary when a matching SHA cache row has no object", async () => {
     const { client, storage } = await importFile({
       shaCache: cache,
       hasObjectResults: [false],

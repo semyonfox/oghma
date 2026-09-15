@@ -167,6 +167,7 @@ export function LogStatusIcon({ status, t = (value: string) => value }: { status
       dot: "bg-amber-400 animate-pulse",
       label: t("processing"),
     },
+    pending_cache: { dot: "bg-amber-400 animate-pulse", label: t("processing") },
     pending_retry: {
       dot: "bg-yellow-400 animate-pulse",
       label: t("processing"),

@@ -1,4 +1,4 @@
-import sql from "@/database/pgsql";
+import sql, { afterDatabaseCommit, afterDatabaseRollback } from "@/database/pgsql";
 import { embedChunks } from "@/lib/embeddings";
 import {
   deleteChunkVectors,
@@ -51,7 +51,7 @@ async function deleteVectorsOrJournal(chunkIds: string[], userId: string): Promi
 async function deleteChunkSet(chunkIds: string[], userId: string): Promise<void> {
   if (chunkIds.length === 0) return;
 
-  await deleteVectorsOrJournal(chunkIds, userId);
+  await afterDatabaseCommit(() => deleteVectorsOrJournal(chunkIds, userId));
   await deletePgEmbeddings(chunkIds);
   await sql`DELETE FROM app.chunks WHERE id = ANY(${chunkIds}::uuid[])`;
 }
@@ -139,6 +139,8 @@ export async function replaceNoteEmbeddings(
         RETURNING id
       `;
       insertedChunkIds = chunkRows.map((row) => row.id);
+      const publishedIds = insertedChunkIds;
+      afterDatabaseRollback(() => deleteVectorsOrJournal(publishedIds, userId));
 
       await upsertChunkVectors(
         chunkRows.map((row, index) => ({
