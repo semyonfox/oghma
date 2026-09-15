@@ -59,6 +59,7 @@ interface PublishedNoteRow {
  *   markerColdStarting: boolean,
  *   estimatedSecsRemaining: number | null,
  *   publishedJobId: string | null,
+ *   publishedNoteCount: number,
  *   publishedTreePaths: string[][],
  *   recentLogs: [{ filename, status, errorMessage, updatedAt, noteId, treePath }],
  * }
@@ -234,11 +235,15 @@ export const GET = withErrorHandler(async (request) => {
   const publishedNotes =
     publishedJobId
       ? await sql<PublishedNoteRow[]>`
-          SELECT DISTINCT note_id
-          FROM app.canvas_imports
-          WHERE user_id = ${user.user_id}
-            AND note_id IS NOT NULL
-            AND job_id = ${publishedJobId}::uuid
+          SELECT DISTINCT canvas_import.note_id
+          FROM app.canvas_imports AS canvas_import
+          JOIN app.notes AS note
+            ON note.note_id = canvas_import.note_id
+           AND note.user_id = canvas_import.user_id
+          WHERE canvas_import.user_id = ${user.user_id}::uuid
+            AND canvas_import.note_id IS NOT NULL
+            AND canvas_import.job_id = ${publishedJobId}::uuid
+            AND note.deleted_at IS NULL
         `
       : [];
 
@@ -323,6 +328,7 @@ export const GET = withErrorHandler(async (request) => {
     markerColdStarting: false,
     estimatedSecsRemaining,
     publishedJobId,
+    publishedNoteCount: publishedNotes.length,
     publishedTreePaths: publishedNotes.flatMap((row) => {
       const path = treePathByNoteId.get(row.note_id);
       return path?.length ? [path] : [];

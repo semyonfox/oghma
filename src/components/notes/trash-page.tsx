@@ -19,6 +19,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import useNoteTreeStore from "@/lib/notes/state/tree";
+import { publishWorkspaceInvalidation } from "@/lib/notes/workspace-invalidation";
 
 export interface TrashRoot {
   id: string;
@@ -82,6 +83,8 @@ async function requestTrashAction(
   if (!response.ok) {
     throw new Error(`Trash action failed: ${response.status}`);
   }
+  const userId = useNoteTreeStore.getState().ownerUserId;
+  if (userId) publishWorkspaceInvalidation(userId, "tree");
 }
 
 export default function TrashPage() {

@@ -2,7 +2,7 @@
 // Each user has an isolated tree structure stored in the database
 import sql from '@/database/pgsql';
 import { cacheGet, cacheSet, cacheKeys } from '@/lib/cache';
-import type { TreeData, TreeItem } from '@/lib/notes/types/tree';
+import type { TreeData, TreeItem, TreeMoveResult } from '@/lib/notes/types/tree';
 
 const ROOT_ID = 'root';
 
@@ -24,6 +24,13 @@ export class TreeItemUnavailableError extends Error {
   constructor() {
     super('Tree item does not exist or is unavailable');
     this.name = 'TreeItemUnavailableError';
+  }
+}
+
+export class TreeMoveConflictError extends Error {
+  constructor() {
+    super('Tree item parent changed');
+    this.name = 'TreeMoveConflictError';
   }
 }
 
@@ -206,11 +213,12 @@ export async function moveNoteInTree(
   userId: string,
   noteId: string,
   newParentId: string | null,
-): Promise<void> {
+  expectedParentId?: string | null,
+): Promise<TreeMoveResult> {
   try {
     const actualParentId = newParentId || null;
 
-    await sql.begin(async (tx) => {
+    return await sql.begin(async (tx) => {
       // Serialize tree moves for one user before reading parent relationships.
       // The transaction-scoped advisory lock closes the race where two valid
       // snapshots could otherwise be updated into a cycle.
@@ -218,15 +226,31 @@ export async function moveNoteInTree(
         SELECT pg_advisory_xact_lock(hashtextextended(${userId}::text, 0))
       `;
 
-      const source = await tx`
-        SELECT note_id
-        FROM app.notes
-        WHERE note_id = ${noteId}::uuid
-          AND user_id = ${userId}::uuid
-          AND deleted_at IS NULL
-        FOR UPDATE
+      const source = await tx<{ note_id: string; parent_id: string | null }[]>`
+        SELECT tree.note_id, tree.parent_id
+        FROM app.tree_items tree
+        JOIN app.notes note
+          ON note.note_id = tree.note_id
+         AND note.user_id = tree.user_id
+        WHERE tree.note_id = ${noteId}::uuid
+          AND tree.user_id = ${userId}::uuid
+          AND note.deleted_at IS NULL
+        FOR UPDATE OF tree, note
       `;
       if (!source[0]) throw new TreeItemUnavailableError();
+
+      const oldParentId = source[0].parent_id
+        ? String(source[0].parent_id)
+        : null;
+      const normalizedExpectedParentId = expectedParentId
+        ? expectedParentId.toLowerCase()
+        : expectedParentId;
+      if (
+        expectedParentId !== undefined &&
+        (oldParentId?.toLowerCase() ?? null) !== normalizedExpectedParentId
+      ) {
+        throw new TreeMoveConflictError();
+      }
 
       if (actualParentId) {
         const parent = await tx`
@@ -257,13 +281,20 @@ export async function moveNoteInTree(
 
       assertValidTreeParent(rows, String(noteId), actualParentId && String(actualParentId));
 
-      const moved = await tx`
+      const moved = await tx<{ note_id: string; parent_id: string | null }[]>`
         UPDATE app.tree_items
         SET parent_id = ${actualParentId}, updated_at = NOW()
         WHERE user_id = ${userId}::uuid AND note_id = ${noteId}::uuid
-        RETURNING note_id
+        RETURNING note_id, parent_id
       `;
       if (!moved[0]) throw new TreeItemUnavailableError();
+
+      return {
+        success: true,
+        noteId: String(moved[0].note_id),
+        oldParentId,
+        newParentId: moved[0].parent_id ? String(moved[0].parent_id) : null,
+      };
     });
   } catch (error) {
     console.error('Error moving note in tree:', error);

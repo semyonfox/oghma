@@ -91,6 +91,7 @@ interface LayoutState {
   toggleCollapsedSection: (section: string) => void;
   setSelectedNode: (nodeId: string | null) => void;
   setDraggedFile: (file: FileSpec | null) => void;
+  resetWorkspace: () => void;
 }
 
 const useLayoutStore = create<LayoutState>()(
@@ -284,6 +285,20 @@ const useLayoutStore = create<LayoutState>()(
       setSelectedNode: (nodeId) => set({ selectedNode: nodeId }),
 
       setDraggedFile: (file) => set({ draggedFile: file }),
+
+      resetWorkspace: () =>
+        set({
+          activeNav: "notes",
+          paneA: { fileId: "", fileType: "note" },
+          paneB: null,
+          activePane: "A",
+          rightPanelOpen: false,
+          rightPanelTab: "meta",
+          expandedNodes: new Set(["root"]),
+          collapsedSections: new Set(),
+          selectedNode: null,
+          draggedFile: null,
+        }),
     }),
     {
       name: "oghmaNotes-layout-store",

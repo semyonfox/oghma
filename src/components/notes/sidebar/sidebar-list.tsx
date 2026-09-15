@@ -45,6 +45,7 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
   const {
     loading,
     loadingChildren,
+    movingIds,
     selectedIds,
     setSelectedIds,
     focusedId,
@@ -216,7 +217,7 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
             <button
               type="button"
               onClick={() => {
-                void refreshTree();
+                void refreshTree().catch(() => {});
               }}
               disabled={loading}
               className="flex h-11 w-11 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 disabled:cursor-wait disabled:opacity-40 md:h-7 md:w-7"
@@ -334,7 +335,8 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
             onMissingItems={onMissingItems}
             onStartRenamingItem={() => {}}
             canDragAndDrop
-            canReorderItems
+            canDrag={(items) => items.every((item) => !movingIds.has(String(item.index)))}
+            canReorderItems={false}
             canDropOnFolder
           >
             <Tree
@@ -370,7 +372,7 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
                     isSelected={isSelected}
                     isDragging={isDragging}
                     isDraggingOver={isDraggingOver}
-                    isLoading={loadingChildren.has(itemId)}
+                    isLoading={loadingChildren.has(itemId) || movingIds.has(itemId)}
                     hasChildren={hasChildren}
                     depth={depth}
                     isRenaming={isItemRenaming}

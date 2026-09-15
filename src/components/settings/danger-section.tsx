@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { readResponseError } from "./settings-utils";
+import { useWorkspaceSession } from "@/components/providers/workspace-lifecycle-provider";
+import { resetWorkspaceClientState } from "@/lib/notes/workspace-lifecycle";
+import { publishWorkspaceInvalidation } from "@/lib/notes/workspace-invalidation";
 
 const DELETE_ACCOUNT_PHRASE = "delete my account";
 
@@ -14,6 +17,7 @@ const VAULT_CONFIRM_PHRASE =
 export default function DangerSection() {
   const { t } = useI18n();
   const router = useRouter();
+  const { userId } = useWorkspaceSession();
 
   const [clearVaultConfirm, setClearVaultConfirm] = useState(false);
   const [clearVaultInput, setClearVaultInput] = useState("");
@@ -32,6 +36,8 @@ export default function DangerSection() {
       }
       const data = await res.json();
       const { summary } = data;
+      await resetWorkspaceClientState(userId);
+      if (userId) publishWorkspaceInvalidation(userId, "vault");
       toast.success(
         `${t("Vault cleared")} — ${summary.notesDeleted} ${t("notes")}, ${summary.s3FilesDeleted} ${t("files deleted")}`,
       );
@@ -57,6 +63,8 @@ export default function DangerSection() {
         );
         return;
       }
+      await resetWorkspaceClientState(null);
+      if (userId) publishWorkspaceInvalidation(userId, "session");
       router.push("/login");
     } catch {
       toast.error(t("Failed to delete account"));

@@ -236,6 +236,7 @@ describe("GET /api/canvas/status", () => {
 
     expect(body.recentLogs).toHaveLength(50);
     expect(body.publishedJobId).toBe(JOB_ID);
+    expect(body.publishedNoteCount).toBe(55);
     expect(body.publishedTreePaths).toHaveLength(55);
     expect(body.publishedTreePaths).toContainEqual([
       "course-123",
@@ -314,6 +315,7 @@ describe("GET /api/canvas/status", () => {
       }),
     ]);
     expect(body.publishedJobId).toBe(JOB_ID);
+    expect(body.publishedNoteCount).toBe(1);
     expect(body.publishedTreePaths).toEqual([
       ["course-123", "note-older"],
     ]);
@@ -362,15 +364,18 @@ describe("GET /api/canvas/status", () => {
     expect(response.status).toBe(200);
     expect(body.latestJob).toMatchObject({ jobId: NEWER_JOB_ID });
     expect(body.publishedJobId).toBeNull();
+    expect(body.publishedNoteCount).toBe(0);
     expect(body.publishedTreePaths).toEqual([]);
     expect(sql).toHaveBeenCalledTimes(4);
 
     const queries = vi
       .mocked(sql)
       .mock.calls.map((call) => (call[0] as TemplateStringsArray).join(" "));
-    expect(queries.some((query) => query.includes("SELECT DISTINCT note_id"))).toBe(
-      false,
-    );
+    expect(
+      queries.some((query) =>
+        query.includes("SELECT DISTINCT canvas_import.note_id"),
+      ),
+    ).toBe(false);
     const publicationLookupIndex = queries.findIndex((query) =>
       query.includes("WHERE id ="),
     );
@@ -380,6 +385,112 @@ describe("GET /api/canvas/status", () => {
     expect(
       vi.mocked(sql).mock.calls[publicationLookupIndex]?.slice(1),
     ).toEqual([UNOWNED_JOB_ID, "user-123"]);
+  });
+
+  it("reports live published notes whose tree paths are unresolved", async () => {
+    vi.mocked(sql)
+      .mockResolvedValueOnce([
+        {
+          id: JOB_ID,
+          status: "complete",
+          job_type: "import",
+          created_at: "2026-04-20T12:00:00.000Z",
+          started_at: "2026-04-20T12:00:05.000Z",
+          completed_at: "2026-04-20T12:10:00.000Z",
+          expected_total: 2,
+          error_message: null,
+        },
+      ] as never)
+      .mockResolvedValueOnce([
+        {
+          total: 2,
+          indexed: 2,
+          indexing: 0,
+          downloading: 0,
+          processing: 0,
+          pending_retry: 0,
+          pending_marker: 0,
+          forbidden: 0,
+          error: 0,
+        },
+      ] as never)
+      .mockResolvedValueOnce([] as never)
+      .mockResolvedValueOnce([
+        { note_id: "note-visible" },
+        { note_id: "note-without-path" },
+      ] as never)
+      .mockResolvedValueOnce([
+        {
+          leaf_note_id: "note-visible",
+          tree_path: ["course-123", "note-visible"],
+        },
+      ] as never);
+
+    const response = await GET(
+      new NextRequest(
+        `http://localhost/api/canvas/status?publishJobId=${JOB_ID}`,
+      ),
+    );
+    const body = await response.json();
+
+    expect(body.publishedJobId).toBe(JOB_ID);
+    expect(body.publishedNoteCount).toBe(2);
+    expect(body.publishedTreePaths).toEqual([
+      ["course-123", "note-visible"],
+    ]);
+
+    const publicationQuery = vi
+      .mocked(sql)
+      .mock.calls.map((call) => (call[0] as TemplateStringsArray).join(" "))
+      .find((query) =>
+        query.includes("SELECT DISTINCT canvas_import.note_id"),
+      );
+    expect(publicationQuery).toContain("JOIN app.notes AS note");
+    expect(publicationQuery).toContain("note.user_id = canvas_import.user_id");
+    expect(publicationQuery).toContain("note.deleted_at IS NULL");
+  });
+
+  it("proves a cancelled job with no visible notes is empty", async () => {
+    vi.mocked(sql)
+      .mockResolvedValueOnce([
+        {
+          id: JOB_ID,
+          status: "cancelled",
+          job_type: "import",
+          created_at: "2026-04-20T12:00:00.000Z",
+          started_at: "2026-04-20T12:00:05.000Z",
+          completed_at: "2026-04-20T12:00:10.000Z",
+          expected_total: 0,
+          error_message: null,
+        },
+      ] as never)
+      .mockResolvedValueOnce([
+        {
+          total: 0,
+          indexed: 0,
+          indexing: 0,
+          downloading: 0,
+          processing: 0,
+          pending_retry: 0,
+          pending_marker: 0,
+          forbidden: 0,
+          error: 0,
+        },
+      ] as never)
+      .mockResolvedValueOnce([] as never)
+      .mockResolvedValueOnce([] as never);
+
+    const response = await GET(
+      new NextRequest(
+        `http://localhost/api/canvas/status?publishJobId=${JOB_ID}`,
+      ),
+    );
+    const body = await response.json();
+
+    expect(body.publishedJobId).toBe(JOB_ID);
+    expect(body.publishedNoteCount).toBe(0);
+    expect(body.publishedTreePaths).toEqual([]);
+    expect(sql).toHaveBeenCalledTimes(4);
   });
 
   it("rejects an invalid publish job ID before querying import state", async () => {

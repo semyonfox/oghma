@@ -13,6 +13,8 @@ import type {
   TrashMutationBody,
   TrashMutationResponse,
 } from "@/lib/notes/api/trash";
+import { publishWorkspaceInvalidation } from "../workspace-invalidation";
+import useNoteStore from "./note";
 
 interface TrashAPI {
   list: () => Promise<TrashListItem[] | undefined>;
@@ -23,6 +25,7 @@ interface TrashAPI {
 
 interface TrashTreeStore {
   getState: () => {
+    ownerUserId?: string | null;
     refreshTree: () => Promise<void>;
     deleteItem: (id: string) => Promise<void>;
   };
@@ -52,10 +55,11 @@ const useTrashStore = create<TrashStoreState>((set, get) => ({
   filterNotes: async (keyword = "") => {
     const { trashAPI } = get();
     if (!trashAPI) return;
+    const generation = useNoteStore.getState().generation;
 
     const normalizedKeyword = keyword.trim().toLocaleLowerCase();
     const serverItems = await trashAPI.list();
-    if (!serverItems) return;
+    if (!serverItems || useNoteStore.getState().generation !== generation) return;
 
     const items = serverItems
       .filter(
@@ -93,6 +97,8 @@ const useTrashStore = create<TrashStoreState>((set, get) => ({
     };
     await noteCache.removeItem(note.id);
     await treeStore.getState().refreshTree();
+    const userId = treeStore.getState().ownerUserId;
+    if (userId) publishWorkspaceInvalidation(userId, "tree");
 
     return restoredNote;
   },
@@ -112,6 +118,8 @@ const useTrashStore = create<TrashStoreState>((set, get) => ({
 
     await noteCache.removeItem(id);
     await treeStore.getState().deleteItem(id);
+    const userId = treeStore.getState().ownerUserId;
+    if (userId) publishWorkspaceInvalidation(userId, "tree");
   },
 }));
 

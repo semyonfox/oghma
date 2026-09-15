@@ -34,6 +34,9 @@ import EditorThemeSection from "@/components/settings/editor-theme-section";
 import PasswordSection from "@/components/settings/password-section";
 import useCourseStore from "@/lib/notes/state/courses.zustand";
 import { postNativeUpdates, postNativeOfflineAccount, useNativeAppBridge } from "@/lib/native-app";
+import { useWorkspaceSession } from "@/components/providers/workspace-lifecycle-provider";
+import { resetWorkspaceClientState } from "@/lib/notes/workspace-lifecycle";
+import { publishWorkspaceInvalidation } from "@/lib/notes/workspace-invalidation";
 
 const CanvasSection = dynamic(
   () => import("@/components/settings/canvas-section"),
@@ -105,6 +108,7 @@ export default function SettingsPage() {
   const { t, activeLocale } = useI18n();
   const { setSettings } = useSettingsStore();
   const nativeAppBridge = useNativeAppBridge();
+  const { userId } = useWorkspaceSession();
   const {
     settings: courseSettings,
     fetchSettings,
@@ -292,7 +296,10 @@ export default function SettingsPage() {
     setIsSigningOut(true);
     postNativeOfflineAccount(null);
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
+      const response = await fetch("/api/auth/logout", { method: "POST" });
+      if (!response.ok) throw new Error(`logout failed: ${response.status}`);
+      await resetWorkspaceClientState(null);
+      if (userId) publishWorkspaceInvalidation(userId, "session");
       localStorage.removeItem("ogma-theme");
       document.cookie = "ogma-theme=; path=/; max-age=0";
       window.location.href = "/login";

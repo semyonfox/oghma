@@ -4,340 +4,210 @@ import React from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const storeMocks = vi.hoisted(() => ({
-  refreshTreePaths: vi.fn().mockResolvedValue(undefined),
-  fetchNote: vi.fn().mockResolvedValue(undefined),
-}));
-const layoutState = vi.hoisted(() => ({
-  paneA: null as { fileId: string; fileType: "note" } | null,
-  paneB: null as { fileId: string; fileType: "note" } | null,
+const owner = vi.hoisted(() => ({
+  isImporting: false,
+  isDiscovering: false,
+  importSummary: null as {
+    imported: number;
+    forbidden: number;
+    failed: number;
+    skipped: number;
+  } | null,
+  progress: null as {
+    total: number;
+    percent: number;
+    completed: number;
+    downloading: number;
+    processing: number;
+    jobType: string;
+    forbidden: number;
+    error: number;
+  } | null,
+  recentLogs: [] as Array<{ status?: string; courseId?: string }>,
+  markerColdStarting: false,
+  estimatedSecsRemaining: null as number | null,
+  statusSnapshot: null as {
+    activeJob?: { jobId?: string } | null;
+    latestJob?: {
+      jobId?: string;
+      status?: string;
+      errorMessage?: string | null;
+    } | null;
+    progress?: { completed?: number };
+    recentLogs?: Array<{ status?: string; courseId?: string }>;
+  } | null,
+  checkStatus: vi.fn().mockResolvedValue(undefined),
+  trackJob: vi.fn(),
+  resetStatus: vi.fn(),
 }));
 
-vi.mock("@/lib/notes/state/tree", () => ({
-  default: {
-    getState: () => ({ refreshTreePaths: storeMocks.refreshTreePaths }),
-  },
-}));
-vi.mock("@/lib/notes/state/note", () => ({
-  default: { getState: () => ({ fetchNote: storeMocks.fetchNote }) },
-}));
-vi.mock("@/lib/notes/state/layout.zustand", () => ({
-  default: { getState: () => layoutState },
+vi.mock("@/components/canvas/canvas-import-notifications", () => ({
+  useCanvasImportOwner: () => owner,
 }));
 
 import useCanvasImport from "@/components/settings/canvas/use-canvas-import";
 
-function statusResponse(forbiddenCourseId: string) {
-  return {
-    ok: true,
-    json: vi.fn().mockResolvedValue({
-      activeJob: { phase: "processing" },
-      progress: null,
-      recentLogs: [{ status: "forbidden", courseId: forbiddenCourseId }],
-    }),
-  };
+function renderImporter(
+  options: {
+    selectedCourseIds?: string[];
+    courses?: Array<{
+      id: string;
+      name: string;
+      course_code: string;
+      canvasStatus?: string;
+    }>;
+  } = {},
+) {
+  return renderHook(() => {
+    const [courseErrors, setCourseErrors] = React.useState<
+      Record<string, string>
+    >({});
+    const [forbiddenCourses, setForbiddenCourses] = React.useState<
+      Record<string, boolean>
+    >({});
+    const [syncedCourses, setSyncedCourses] = React.useState<
+      Record<string, boolean>
+    >({});
+    const [connectionError, setConnectionError] = React.useState<string | null>(
+      null,
+    );
+
+    return {
+      courseErrors,
+      forbiddenCourses,
+      syncedCourses,
+      connectionError,
+      importer: useCanvasImport({
+        selectedCourseIds: options.selectedCourseIds ?? [],
+        courses: options.courses ?? [],
+        courseErrors,
+        setCourseErrors,
+        forbiddenCourses,
+        setForbiddenCourses,
+        syncedCourses,
+        setSyncedCourses,
+        setConnectionError,
+        t: (key) => key,
+      }),
+    };
+  });
 }
 
-describe("useCanvasImport polling", () => {
+describe("useCanvasImport shared status owner", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    layoutState.paneA = null;
-    layoutState.paneB = null;
+    owner.isImporting = false;
+    owner.isDiscovering = false;
+    owner.importSummary = null;
+    owner.progress = null;
+    owner.recentLogs = [];
+    owner.markerColdStarting = false;
+    owner.estimatedSecsRemaining = null;
+    owner.statusSnapshot = null;
   });
 
   afterEach(() => {
-    vi.useRealTimers();
     vi.unstubAllGlobals();
     localStorage.clear();
   });
 
-  it("acknowledges a completed import only after every path refreshes", async () => {
-    layoutState.paneA = { fileId: "note-1", fileType: "note" };
-    localStorage.setItem(
-      "canvas_active_job",
-      JSON.stringify({ jobId: "job-1" }),
-    );
-    let finishTreeRefresh: (() => void) | undefined;
-    storeMocks.refreshTreePaths.mockReturnValueOnce(
-      new Promise<void>((resolve) => {
-        finishTreeRefresh = resolve;
-      }),
-    );
-    const fetchMock = vi.fn().mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({
-          activeJob: null,
-          latestJob: { jobId: "job-1", status: "complete" },
-          progress: { percent: 100, completed: 60, total: 60 },
-          recentLogs: [
-            { status: "complete", treePath: ["course-1", "note-60"] },
-          ],
-          publishedJobId: "job-1",
-          publishedTreePaths: [
-            ["course-1", "note-1"],
-            ["course-1", "note-60"],
-          ],
-          issues: { forbidden: 0, error: 0 },
-        }),
-      });
+  it("uses the shared owner without starting a settings status poller", () => {
+    owner.isImporting = true;
+    owner.isDiscovering = true;
+    owner.progress = {
+      total: 4,
+      percent: 25,
+      completed: 1,
+      downloading: 1,
+      processing: 2,
+      jobType: "import",
+      forbidden: 0,
+      error: 0,
+    };
+    const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
-    const { result, unmount } = renderHook(() => {
-      const [courseErrors, setCourseErrors] = React.useState<
-        Record<string, string>
-      >({});
-      const [forbiddenCourses, setForbiddenCourses] = React.useState<
-        Record<string, boolean>
-      >({});
-      const [syncedCourses, setSyncedCourses] = React.useState<
-        Record<string, boolean>
-      >({});
-      const [, setConnectionError] = React.useState<string | null>(null);
+    const { result } = renderImporter();
 
-      return useCanvasImport({
-        selectedCourseIds: [],
-        courses: [],
-        courseErrors,
-        setCourseErrors,
-        forbiddenCourses,
-        setForbiddenCourses,
-        syncedCourses,
-        setSyncedCourses,
-        setConnectionError,
-        t: (key) => key,
-      });
-    });
-
-    act(() => result.current.startPolling("job-1"));
-
-    await waitFor(() => {
-      expect(storeMocks.refreshTreePaths).toHaveBeenCalledWith([
-        ["course-1", "note-1"],
-        ["course-1", "note-60"],
-      ]);
-    });
-    expect(fetchMock).toHaveBeenCalledWith(
-      "/api/canvas/status?publishJobId=job-1",
-      expect.objectContaining({ signal: expect.any(AbortSignal) }),
-    );
-    expect(localStorage.getItem("canvas_active_job")).not.toBeNull();
-    expect(storeMocks.fetchNote).not.toHaveBeenCalled();
-
-    finishTreeRefresh?.();
-    await waitFor(() => {
-      expect(localStorage.getItem("canvas_active_job")).toBeNull();
-    });
-    expect(storeMocks.fetchNote).toHaveBeenCalledWith("note-1");
-    unmount();
+    expect(result.current.importer.isImporting).toBe(true);
+    expect(result.current.importer.isDiscovering).toBe(true);
+    expect(result.current.importer.progress).toBe(owner.progress);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("publishes partial results from a failed import before acknowledging it", async () => {
-    localStorage.setItem(
-      "canvas_active_job",
-      JSON.stringify({ jobId: "job-1" }),
-    );
+  it("starts an import through the shared owner", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
         ok: true,
-        json: vi.fn().mockResolvedValue({
-          activeJob: null,
-          latestJob: {
-            jobId: "job-1",
-            status: "failed",
-            errorMessage: "One file could not be imported",
-          },
-          progress: { percent: 99, completed: 1, total: 2 },
-          recentLogs: [],
-          publishedJobId: "job-1",
-          publishedTreePaths: [["course-1", "note-1"]],
-          issues: { forbidden: 0, error: 1 },
-        }),
+        status: 200,
+        json: async () => ({ jobId: "job-1" }),
       }),
     );
-
-    const { result, unmount } = renderHook(() => {
-      const [courseErrors, setCourseErrors] = React.useState<
-        Record<string, string>
-      >({});
-      const [forbiddenCourses, setForbiddenCourses] = React.useState<
-        Record<string, boolean>
-      >({});
-      const [syncedCourses, setSyncedCourses] = React.useState<
-        Record<string, boolean>
-      >({});
-      const [, setConnectionError] = React.useState<string | null>(null);
-
-      return useCanvasImport({
-        selectedCourseIds: [],
-        courses: [],
-        courseErrors,
-        setCourseErrors,
-        forbiddenCourses,
-        setForbiddenCourses,
-        syncedCourses,
-        setSyncedCourses,
-        setConnectionError,
-        t: (key) => key,
-      });
+    const { result } = renderImporter({
+      selectedCourseIds: ["course-1"],
+      courses: [
+        { id: "course-1", name: "Course", course_code: "CS101" },
+      ],
     });
 
-    act(() => result.current.startPolling("job-1"));
-
-    await waitFor(() => {
-      expect(storeMocks.refreshTreePaths).toHaveBeenCalledWith([
-        ["course-1", "note-1"],
-      ]);
-      expect(localStorage.getItem("canvas_active_job")).toBeNull();
+    await act(async () => {
+      await result.current.importer.handleImport();
     });
-    unmount();
+
+    expect(owner.trackJob).toHaveBeenCalledWith("job-1", "import");
+    expect(JSON.parse(localStorage.getItem("canvas_active_job") ?? "null")).toMatchObject({
+      jobId: "job-1",
+    });
   });
 
-  it("publishes a completed job before polling its active successor", async () => {
-    vi.useFakeTimers();
-    localStorage.setItem(
-      "canvas_active_job",
-      JSON.stringify({ jobId: "job-a" }),
-    );
-    let finishTreeRefresh: (() => void) | undefined;
-    storeMocks.refreshTreePaths.mockReturnValueOnce(
-      new Promise<void>((resolve) => {
-        finishTreeRefresh = resolve;
+  it("lets the shared owner publish a cancelled import before clearing it", async () => {
+    localStorage.setItem("canvas_active_job", JSON.stringify({ jobId: "job-1" }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ cancelled: true }),
       }),
     );
-    const activeJob = {
-      jobId: "job-b",
-      phase: "processing",
-      status: "processing",
-      jobType: "sync",
+    const { result } = renderImporter();
+
+    await act(async () => {
+      await result.current.importer.handleCancel();
+    });
+
+    expect(owner.checkStatus).toHaveBeenCalledOnce();
+    expect(owner.resetStatus).not.toHaveBeenCalled();
+    expect(localStorage.getItem("canvas_active_job")).not.toBeNull();
+  });
+
+  it("applies course status from the owner's snapshots", async () => {
+    const { result, rerender } = renderImporter({
+      selectedCourseIds: ["course-1"],
+      courses: [
+        { id: "course-1", name: "Course", course_code: "CS101" },
+      ],
+    });
+
+    owner.statusSnapshot = {
+      activeJob: { jobId: "job-1" },
+      latestJob: { jobId: "job-1", status: "processing" },
+      recentLogs: [{ status: "forbidden", courseId: "course-2" }],
     };
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue({
-          activeJob,
-          latestJob: activeJob,
-          progress: { percent: 25, completed: 1, total: 4 },
-          recentLogs: [],
-          publishedJobId: "job-a",
-          publishedTreePaths: [["course-a", "note-a"]],
-        }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue({
-          activeJob,
-          latestJob: activeJob,
-          progress: { percent: 50, completed: 2, total: 4 },
-          recentLogs: [],
-        }),
-      });
-    vi.stubGlobal("fetch", fetchMock);
-
-    const { result, unmount } = renderHook(() => {
-      const [courseErrors, setCourseErrors] = React.useState<
-        Record<string, string>
-      >({});
-      const [forbiddenCourses, setForbiddenCourses] = React.useState<
-        Record<string, boolean>
-      >({});
-      const [syncedCourses, setSyncedCourses] = React.useState<
-        Record<string, boolean>
-      >({});
-      const [, setConnectionError] = React.useState<string | null>(null);
-
-      return useCanvasImport({
-        selectedCourseIds: [],
-        courses: [],
-        courseErrors,
-        setCourseErrors,
-        forbiddenCourses,
-        setForbiddenCourses,
-        syncedCourses,
-        setSyncedCourses,
-        setConnectionError,
-        t: (key) => key,
-      });
+    rerender();
+    await waitFor(() => {
+      expect(result.current.forbiddenCourses).toEqual({ "course-2": true });
     });
 
-    act(() => result.current.startPolling("job-a"));
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(0);
+    owner.statusSnapshot = {
+      activeJob: null,
+      latestJob: { jobId: "job-1", status: "complete" },
+      progress: { completed: 1 },
+      recentLogs: [],
+    };
+    rerender();
+    await waitFor(() => {
+      expect(result.current.syncedCourses).toEqual({ "course-1": true });
     });
-    expect(storeMocks.refreshTreePaths).toHaveBeenCalledWith([
-      ["course-a", "note-a"],
-    ]);
-    expect(localStorage.getItem("canvas_active_job")).toBe(
-      JSON.stringify({ jobId: "job-a" }),
-    );
-
-    await act(async () => {
-      finishTreeRefresh?.();
-      await vi.advanceTimersByTimeAsync(0);
-    });
-    expect(localStorage.getItem("canvas_active_job")).toBe(
-      JSON.stringify({ jobId: "job-b" }),
-    );
-    expect(result.current.isImporting).toBe(true);
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(2_000);
-    });
-    expect(fetchMock).toHaveBeenLastCalledWith(
-      "/api/canvas/status?publishJobId=job-b",
-      expect.objectContaining({ signal: expect.any(AbortSignal) }),
-    );
-    expect(result.current.isImporting).toBe(true);
-    act(() => result.current.stopPolling());
-    unmount();
-  });
-
-  it("keeps every restriction reported during a long-running poll", async () => {
-    vi.useFakeTimers();
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(statusResponse("course-a"))
-      .mockResolvedValueOnce(statusResponse("course-b"));
-    vi.stubGlobal("fetch", fetchMock);
-
-    const { result, unmount } = renderHook(() => {
-      const [courseErrors, setCourseErrors] = React.useState<Record<string, string>>({});
-      const [forbiddenCourses, setForbiddenCourses] = React.useState<Record<string, boolean>>({});
-      const [syncedCourses, setSyncedCourses] = React.useState<Record<string, boolean>>({});
-      const [, setConnectionError] = React.useState<string | null>(null);
-
-      return {
-        forbiddenCourses,
-        importer: useCanvasImport({
-          selectedCourseIds: [],
-          courses: [],
-          courseErrors,
-          setCourseErrors,
-          forbiddenCourses,
-          setForbiddenCourses,
-          syncedCourses,
-          setSyncedCourses,
-          setConnectionError,
-          t: (key) => key,
-        }),
-      };
-    });
-
-    act(() => result.current.importer.startPolling());
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(2_000);
-    });
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(2_000);
-    });
-
-    expect(result.current.forbiddenCourses).toEqual({
-      "course-a": true,
-      "course-b": true,
-    });
-
-    act(() => result.current.importer.stopPolling());
-    unmount();
   });
 });
