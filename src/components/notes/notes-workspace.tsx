@@ -44,12 +44,18 @@ export default function NotesWorkspace({ view = "notes" }: NotesWorkspaceProps) 
   const setSizes = useLayoutStore((s) => s.setSizes);
   const setPaneA = useLayoutStore((s) => s.setPaneA);
   const paneAFileId = useLayoutStore((s) => s.paneA.fileId);
+  const treeGeneration = useNoteTreeStore((s) => s.generation);
+  const treeGenerationRef = useRef(treeGeneration);
+  treeGenerationRef.current = treeGeneration;
+  const routeRequestRef = useRef(0);
   const treeWidthRef = useRef(treeWidth);
   const rightPanelWidthRef = useRef(rightPanelWidth);
   const isTrashView = view === "trash";
   const showMobileLibrary = !isTrashView && pathname === "/notes";
 
   useEffect(() => {
+    const requestId = ++routeRequestRef.current;
+    if (!noteDependenciesReady) return;
     const route = resolveNoteRoute(pathname);
     if (route.type === "ignore") return;
 
@@ -65,15 +71,26 @@ export default function NotesWorkspace({ view = "notes" }: NotesWorkspaceProps) 
     if (fileId === paneAFileId) return;
 
     const controller = new AbortController();
+    const requestGeneration = treeGeneration;
+    const requestIsCurrent = () =>
+      !controller.signal.aborted &&
+      routeRequestRef.current === requestId &&
+      treeGenerationRef.current === requestGeneration;
     void fetch(`/api/notes/${fileId}`, { signal: controller.signal })
       .then(async (response) => {
+        if (response.status === 404) {
+          if (requestIsCurrent()) router.replace("/notes");
+          return null;
+        }
         if (!response.ok)
           throw new Error(`note fetch failed: ${response.status}`);
         const note = await response.json();
-        setPaneA(buildFileSpec(note));
+        if (requestIsCurrent() && note) {
+          setPaneA(buildFileSpec(note));
+        }
       })
       .catch((error) => {
-        if (controller.signal.aborted) return;
+        if (!requestIsCurrent()) return;
         console.error("Failed to resolve note route metadata:", error);
         setPaneA({ fileId, fileType: "note", title: fileId });
       });
@@ -81,7 +98,7 @@ export default function NotesWorkspace({ view = "notes" }: NotesWorkspaceProps) 
     return () => controller.abort();
     // router is a stable Next.js ref
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname, paneAFileId, setPaneA]);
+  }, [noteDependenciesReady, pathname, paneAFileId, setPaneA, treeGeneration]);
 
   const initLoaded = useNoteTreeStore((s) => s.initLoaded);
   useEffect(() => {

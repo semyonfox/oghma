@@ -62,7 +62,13 @@ function treeStore() {
 describe("note save/fetch coordination", () => {
   beforeEach(() => {
     memory.clear();
-    useNoteStore.setState({ note: undefined, loading: false });
+    useNoteStore.setState({
+      note: undefined,
+      loading: false,
+      ownerUserId: "user-1",
+      generation: 0,
+      sessionReady: true,
+    });
   });
 
   it("does not let a GET started before save overwrite the saved cache", async () => {
@@ -75,7 +81,10 @@ describe("note save/fetch coordination", () => {
           resolveFind = resolve;
         }),
     );
-    const api = noteApi({ find, mutate: vi.fn().mockResolvedValue(undefined) });
+    const api = noteApi({
+      find,
+      mutate: vi.fn().mockResolvedValue(note({ content: "saved in full" })),
+    });
     useNoteStore.getState().setDependencies(api, treeStore(), vi.fn());
 
     const pendingFetch = useNoteStore.getState().fetchNote(id);
@@ -113,5 +122,152 @@ describe("note save/fetch coordination", () => {
     expect(removeItem).not.toHaveBeenCalled();
     expect(useNoteStore.getState().note?.id).toBe(id);
     consoleError.mockRestore();
+  });
+
+  it("does not cache a save when the API returns no canonical note", async () => {
+    const original = note({ content: "before" });
+    memory.set(NOTE_ID, original);
+    useNoteStore.setState({ note: original });
+    useNoteStore.getState().setDependencies(
+      noteApi({ mutate: vi.fn().mockResolvedValue(undefined) }),
+      treeStore(),
+      vi.fn(),
+    );
+
+    await expect(
+      useNoteStore.getState().mutateNote(NOTE_ID, { content: "after" }),
+    ).rejects.toThrow("Failed to save note");
+
+    expect(memory.get(NOTE_ID)).toEqual(original);
+    expect(useNoteStore.getState().note).toEqual(original);
+  });
+
+  it("drops a note response that finishes after the workspace changes owner", async () => {
+    let resolveFind!: (result: NoteModel) => void;
+    const find = vi.fn(
+      () =>
+        new Promise<NoteModel>((resolve) => {
+          resolveFind = resolve;
+        }),
+    );
+    useNoteStore
+      .getState()
+      .setDependencies(noteApi({ find }), treeStore(), vi.fn());
+
+    const pendingFetch = useNoteStore.getState().fetchNote(NOTE_ID);
+    await vi.waitFor(() => expect(find).toHaveBeenCalledOnce());
+    useNoteStore.getState().resetForSession("user-2");
+    resolveFind(note({ content: "belongs to user 1" }));
+
+    await expect(pendingFetch).resolves.toBeUndefined();
+    expect(useNoteStore.getState().note).toBeUndefined();
+    expect(memory.has(NOTE_ID)).toBe(false);
+  });
+
+  it("blocks a queued save while session caches are being cleared", async () => {
+    memory.set(NOTE_ID, note({ content: "old content" }));
+    const mutate = vi.fn();
+    const api = noteApi({ mutate });
+    useNoteStore.getState().resetForSession("user-1");
+    useNoteStore.getState().setDependencies(api, treeStore(), vi.fn());
+
+    await useNoteStore
+      .getState()
+      .mutateNote(NOTE_ID, { content: "late autosave" });
+
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it("force refresh bypasses an older shared read and fences its response", async () => {
+    let resolveOld!: (result: NoteModel) => void;
+    const fresh = note({ content: "imported content" });
+    const find = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<NoteModel>((resolve) => {
+            resolveOld = resolve;
+          }),
+      )
+      .mockResolvedValueOnce(fresh);
+    useNoteStore
+      .getState()
+      .setDependencies(noteApi({ find }), treeStore(), vi.fn());
+
+    const oldRead = useNoteStore.getState().fetchNote(NOTE_ID);
+    await vi.waitFor(() => expect(find).toHaveBeenCalledOnce());
+    await expect(
+      useNoteStore.getState().fetchNote(NOTE_ID, { forceFresh: true }),
+    ).resolves.toMatchObject({ content: "imported content" });
+    resolveOld(note({ content: "pre-import content" }));
+
+    await expect(oldRead).resolves.toMatchObject({ content: "imported content" });
+    expect(find).toHaveBeenNthCalledWith(2, NOTE_ID, { deduplicate: false });
+    expect(memory.get(NOTE_ID)).toMatchObject({ content: "imported content" });
+  });
+
+  it("does not let force refresh overwrite a user save made while it loads", async () => {
+    const original = note({ content: "before" });
+    const saved = note({ content: "user edit" });
+    memory.set(NOTE_ID, original);
+    let resolveFresh!: (result: NoteModel) => void;
+    const find = vi.fn(
+      () =>
+        new Promise<NoteModel>((resolve) => {
+          resolveFresh = resolve;
+        }),
+    );
+    useNoteStore.getState().setDependencies(
+      noteApi({ find, mutate: vi.fn().mockResolvedValue(saved) }),
+      treeStore(),
+      vi.fn(),
+    );
+
+    const refresh = useNoteStore
+      .getState()
+      .fetchNote(NOTE_ID, { forceFresh: true });
+    await vi.waitFor(() => expect(find).toHaveBeenCalledOnce());
+    await useNoteStore
+      .getState()
+      .mutateNote(NOTE_ID, { content: "user edit" });
+    resolveFresh(note({ content: "imported content" }));
+
+    await expect(refresh).rejects.toThrow("Note changed during refresh");
+    expect(memory.get(NOTE_ID)).toMatchObject({ content: "user edit" });
+  });
+
+  it("does not let a delayed failed save revert a newer successful save", async () => {
+    const original = note({ content: "before" });
+    const newer = note({ content: "newer save" });
+    memory.set(NOTE_ID, original);
+    useNoteStore.setState({ note: original });
+    let resolveOlder!: (result: NoteModel | undefined) => void;
+    const mutate = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<NoteModel | undefined>((resolve) => {
+            resolveOlder = resolve;
+          }),
+      )
+      .mockResolvedValueOnce(newer);
+    useNoteStore
+      .getState()
+      .setDependencies(noteApi({ mutate }), treeStore(), vi.fn());
+
+    const olderSave = useNoteStore
+      .getState()
+      .mutateNote(NOTE_ID, { content: "older save" });
+    await vi.waitFor(() => expect(mutate).toHaveBeenCalledOnce());
+    await useNoteStore
+      .getState()
+      .mutateNote(NOTE_ID, { content: "newer save" });
+    resolveOlder(undefined);
+
+    await expect(olderSave).resolves.toBeUndefined();
+    expect(memory.get(NOTE_ID)).toMatchObject({ content: "newer save" });
+    expect(useNoteStore.getState().note).toMatchObject({
+      content: "newer save",
+    });
   });
 });

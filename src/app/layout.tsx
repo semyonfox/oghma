@@ -3,6 +3,8 @@ import "@fontsource-variable/strichpunkt-sans";
 import I18nRootProvider from "@/components/providers/i18n-root-provider";
 import ThemeProvider from "@/components/providers/theme-provider";
 import NativeAppBridge from "@/components/providers/native-app-bridge";
+import WorkspaceLifecycleProvider from "@/components/providers/workspace-lifecycle-provider";
+import CanvasImportNotifications from "@/components/canvas/canvas-import-notifications";
 import PomodoroTimerController from "@/components/pomodoro/pomodoro-timer-controller";
 import ChatPresenceController from "@/components/chat/chat-presence-controller";
 import GlobalSearchRoot from "@/components/search/global-search-root";
@@ -162,7 +164,11 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             <PomodoroTimerController />
             <ChatPresenceController />
             <GlobalSearchRoot />
-            {children}
+            <WorkspaceLifecycleProvider>
+              <CanvasImportNotifications>
+                {children}
+              </CanvasImportNotifications>
+            </WorkspaceLifecycleProvider>
             <Toaster position="bottom-center" />
           </ThemeProvider>
         </I18nRootProvider>

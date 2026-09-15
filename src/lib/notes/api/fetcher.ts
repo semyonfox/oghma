@@ -6,6 +6,7 @@ export interface FetchParams {
   url: string;
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   headers?: Record<string, string>;
+  deduplicate?: boolean;
 }
 
 export default function useFetcher() {
@@ -43,7 +44,7 @@ export default function useFetcher() {
       abortRef.current = controller;
 
       try {
-        if (params.method === "GET") {
+        if (params.method === "GET" && params.deduplicate !== false) {
           return await deduplicatedFetch<ResponseData>(params.url, init);
         }
 
