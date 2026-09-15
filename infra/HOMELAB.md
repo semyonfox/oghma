@@ -34,6 +34,24 @@ Jenkins runtime environments for both the app and worker:
 The Jenkins env files are the deploy inputs. Do not copy their values into this
 repository. Follow [the secrets policy](../docs/operations/secrets.md).
 
+Verified 2026-09-15: the live jobs use the operator-owned pipelines at
+`/home/semyon/server-stacks/jenkins/oghma-dev/Jenkinsfile` and
+`/home/semyon/server-stacks/jenkins/oghma-prod/Jenkinsfile`. Their GitHub check
+gate uses `jenkins/scripts/wait-for-github-ci.sh` in that same stack repository.
+Changing this repository's root `Jenkinsfile` does not update those live jobs.
+The deployment sequence below describes the repository pipeline; compare the
+operator-owned pipeline before changing a live deployment.
+
+Release commits on `dev` and `main` must run CI. Do not use `[skip ci]` or other
+[GitHub skip instructions](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/skip-workflow-runs)
+for releases. Run `bash scripts/check-deploy-commit.sh` after checkout and
+before waiting for GitHub checks. The live pipelines need this guard wired
+separately; its presence in the repository is not proof of installation.
+
+The live app storage endpoint was verified as Cloudflare R2 on 2026-09-15.
+RustFS remains a running stack service; its health does not prove application
+object storage is reachable.
+
 The root `docker-compose.yml` is a repository convenience for the development
 app/worker/Qdrant shape; it is not the persistent homelab stack definition.
 

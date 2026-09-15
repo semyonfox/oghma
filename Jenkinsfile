@@ -41,6 +41,7 @@ pipeline {
 
         stage('validate runtime environment') {
             steps {
+                sh 'bash scripts/check-deploy-commit.sh'
                 sh '''
                     set -eu
                     test -r "$ENV_FILE"
