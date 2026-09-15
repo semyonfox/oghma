@@ -22,7 +22,7 @@ import useSaveIndicatorStore, {
 import { useSettingsStore } from "@/lib/notes/state/ui/settings";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { toast } from "sonner";
-import { writeDraft, readDraft, clearDraft } from "@/lib/notes/draft-cache";
+import { writeDraft, readDraft, clearDraft, acknowledgeDraftRecovery, type NoteDraft } from "@/lib/notes/draft-cache";
 import { getEditorWidthStyle } from "@/lib/notes/editor-width";
 
 // Milkdown accesses browser APIs on import, so load the writing surface client-side only.
@@ -138,22 +138,30 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
 
     (async () => {
       // check for an unsaved draft first — restore immediately if it exists
-      let draftRestored = false;
+      let restoredDraft: NoteDraft | null = null;
+      const notifyRecovery = () => {
+        if (!cancelled && acknowledgeDraftRecovery(file.fileId)) {
+          toast.info(t("Restored unsaved draft"), {
+            id: `draft-recovery:${file.fileId}`, duration: 3000,
+          });
+        }
+      };
       try {
         const draft = await readDraft(file.fileId);
         if (draft && !cancelled && currentFileId.current === stale) {
           setLocalContent(draft.content);
+          localContentRef.current = draft.content;
+          isDirtyRef.current = true;
           setLoaded(true);
           setIsDirty(true);
-          draftRestored = true;
-          toast.info(t("Restored unsaved draft"), { duration: 3000 });
+          restoredDraft = draft;
         }
       } catch {
         // draft read failure is non-fatal
       }
 
       // try IDB cache for instant display (if no draft)
-      if (!draftRestored) {
+      if (!restoredDraft) {
         try {
           const { noteCacheInstance } = await import("@/lib/notes/cache");
           const cached = await noteCacheInstance.getItem<{
@@ -166,6 +174,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
             currentFileId.current === stale
           ) {
             setLocalContent(cached.content);
+            localContentRef.current = cached.content;
             setLoaded(true);
           }
         } catch {
@@ -190,20 +199,30 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
 
           // If a draft was restored, do not overwrite the user's unsaved work.
           // Check whether the server version is newer.
-          if (draftRestored) {
-            const draft = await readDraft(file.fileId);
+          if (restoredDraft) {
+            const draft = restoredDraft;
+            if (cancelled || currentFileId.current !== stale) return;
+            const matchesServer = draft.content === (result.content ?? "");
+            if (matchesServer && editRevision.current === 0) {
+              isDirtyRef.current = false;
+              setIsDirty(false);
+              markSynced(file.fileId);
+              await clearDraft(file.fileId).catch(() => {});
+            }
             const serverMs = result.updatedAt
               ? new Date(result.updatedAt).getTime()
               : 0;
-            const draftMs = draft?.draftAt ?? 0;
-            if (serverMs > draftMs) {
+            const draftMs = draft.draftAt;
+            if (!matchesServer && serverMs > draftMs) {
               // The server has a newer version than the draft. Warn once, but do not block.
               toast.warning(
                 t(
                   "This note was saved elsewhere. Your draft is older — save to overwrite, or discard.",
                 ),
-                { duration: 6000 },
+                { id: `draft-conflict:${file.fileId}`, duration: 6000 },
               );
+            } else if (!matchesServer) {
+              notifyRecovery();
             }
           } else if (editRevision.current === 0) {
             // The request may have started from the instant IDB-cache view.
@@ -215,6 +234,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
           }
         }
       } catch (err) {
+        if (restoredDraft) notifyRecovery();
         console.error(err);
       }
     })();
@@ -231,7 +251,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
         );
       }
     };
-  }, [dismissUnavailablePane, file.fileId, fetchNote, pane, router, t]);
+  }, [dismissUnavailablePane, file.fileId, fetchNote, markSynced, pane, router, t]);
 
   // removed: the old effect watched the global `note` singleton, meaning a
   // fetchNote in pane B would push new state into pane A and cause a flash.
@@ -369,10 +389,10 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
   const clearIndicator = useSaveIndicatorStore((s) => s.clearIndicator);
   const saveState: SaveState = isSaving
     ? "saving"
-    : isDirty
-      ? "dirty"
-      : saveError
-        ? "error"
+    : saveError
+      ? "error"
+      : isDirty
+        ? "dirty"
         : "saved";
 
   const requestSave = useCallback(() => {
@@ -404,6 +424,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
             <MilkdownWriteEditor
               value={displayContent}
               onChange={(val, programmaticUpdate) => {
+                if (val === localContentRef.current) return;
                 setLocalContent(val);
                 localContentRef.current = val;
                 if (!programmaticUpdate) {
