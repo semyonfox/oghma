@@ -199,7 +199,7 @@ const FullMessageBubbleComponent: FC<{
     return (
       <div className="flex justify-end">
         <div className="group/msg min-w-0 max-w-[90%]">
-          <div className="rounded-radius-xl rounded-br-[4px] border border-primary-500/25 bg-primary-500/10 px-3 py-2.5 text-sm leading-relaxed text-text">
+          <div className="rounded-radius-xl rounded-br-[4px] border border-primary-500/25 bg-primary-500/10 px-3 py-2.5 text-base leading-relaxed text-text">
             <ChatMarkdown>{m.content}</ChatMarkdown>
           </div>
           <div className="mt-0.5 flex items-center justify-end gap-1.5 text-xs text-text-tertiary">
@@ -238,7 +238,7 @@ const FullMessageBubbleComponent: FC<{
       )}
 
       {(presentation.hasAnswer || (isStreaming && !m.error)) && (
-        <div className="glass-card rounded-radius-xl rounded-bl-[4px] px-3 py-2.5 text-sm leading-relaxed text-text">
+        <div className="glass-card rounded-radius-xl rounded-bl-[4px] px-3 py-2.5 text-base leading-relaxed text-text">
           {presentation.hasAnswer ? (
             <AssistantBody
               parts={presentation.answer}

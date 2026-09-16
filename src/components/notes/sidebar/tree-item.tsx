@@ -136,7 +136,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
           className={`
             group/item mb-0.5 flex min-h-12 items-center pr-1 cursor-pointer select-none md:min-h-7
             transition-colors duration-75 rounded-radius-sm mx-0.5
-            ${isActive ? "bg-primary-500/10 text-primary-700 dark:text-primary-300 shadow-[inset_2px_0_0_var(--color-primary-500)]" : ""}
+            ${isActive ? "bg-subtle text-text-secondary" : ""}
             ${
               !isActive && isSelected
                 ? "bg-primary-500/10 text-text-secondary"
