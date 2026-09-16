@@ -40,12 +40,20 @@ beforeEach(() => {
   mocks.mutateNote.mockResolvedValue(undefined);
 });
 afterEach(async () => { cleanup(); await waitForDraftWrites(); });
-const open = () => render(<MarkdownEditor pane="A" file={{ fileId: "note", fileType: "note" }} />);
+async function open() {
+  let view!: ReturnType<typeof render>;
+  // Recovery toasts run inside the load promise; the save indicator is
+  // published by a later React effect. Flush both before asserting either.
+  await act(async () => {
+    view = render(<MarkdownEditor pane="A" file={{ fileId: "note", fileType: "note" }} />);
+  });
+  return view;
+}
 const state = () => useSaveIndicatorStore.getState().files.note?.state;
 
 it("clears a cached draft matching the saved document without a recovery or conflict popup", async () => {
   mocks.cache.set("draft:note", { content: "Saved", draftAt: 1 });
-  open();
+  await open();
   await waitFor(() => expect(mocks.cache.has("draft:note")).toBe(false));
   expect(state()).toBe("saved");
   expect(mocks.info).not.toHaveBeenCalled();
@@ -53,28 +61,28 @@ it("clears a cached draft matching the saved document without a recovery or conf
 });
 
 it("announces a recovered draft once, retains it, and stays quiet when reopened", async () => {
-  mocks.cache.set("draft:note", { content: "Recovered", draftAt: Date.now() });
-  const first = open();
+  mocks.cache.set("draft:note", { content: "Recovered", draftAt: Date.parse("2026-09-15T13:00:00Z") });
+  const first = await open();
   await waitFor(() => expect(mocks.info).toHaveBeenCalledTimes(1));
   expect(screen.getByRole("textbox")).toHaveProperty("value", "Recovered");
   expect(state()).toBe("dirty");
-  first.unmount();
+  act(() => first.unmount());
   await waitForDraftWrites();
-  open();
+  await open();
   await waitFor(() => expect(mocks.fetchNote).toHaveBeenCalledTimes(2));
   expect(mocks.info).toHaveBeenCalledTimes(1);
 });
 
 it("does not announce a draft created during ordinary navigation in this session", async () => {
   await writeDraft("note", "Work in progress");
-  open();
+  await open();
   await waitFor(() => expect(state()).toBe("dirty"));
   expect(mocks.info).not.toHaveBeenCalled();
 });
 
 it("retains real conflict warnings instead of showing the routine recovery popup", async () => {
   mocks.cache.set("draft:note", { content: "Older work", draftAt: 1 });
-  open();
+  await open();
   await waitFor(() => expect(mocks.warning).toHaveBeenCalledTimes(1));
   expect(mocks.info).not.toHaveBeenCalled();
   expect(state()).toBe("dirty");
@@ -83,7 +91,7 @@ it("retains real conflict warnings instead of showing the routine recovery popup
 it("saves genuine edits and keeps a newer edit dirty while an earlier save completes", async () => {
   let finishSave: () => void = () => {};
   mocks.mutateNote.mockImplementation(() => new Promise<void>((resolve) => { finishSave = resolve; }));
-  open();
+  await open();
   await screen.findByRole("textbox");
   expect(state()).toBe("saved");
   fireEvent.change(screen.getByRole("textbox"), { target: { value: "First edit" } });
@@ -99,7 +107,7 @@ it("saves genuine edits and keeps a newer edit dirty while an earlier save compl
 it("shows save errors while retaining the unsaved text", async () => {
   mocks.mutateNote.mockRejectedValue(new Error("offline"));
   const log = vi.spyOn(console, "error").mockImplementation(() => {});
-  open();
+  await open();
   await screen.findByRole("textbox");
   fireEvent.change(screen.getByRole("textbox"), { target: { value: "Keep me" } });
   await act(async () => useSaveIndicatorStore.getState().files.note.save());
