@@ -11,10 +11,12 @@ import {
   parseLocalDateKey,
 } from "@/lib/notes/utils/calendar-date";
 import DayAgenda from "@/components/calendar/day-agenda";
+import { ClipboardDocumentListIcon } from "@heroicons/react/20/solid";
 
 interface MobileCalendarProps {
   onAddTask: () => void;
   onRetry: () => void;
+  onOpenTasks?: () => void;
   monthOpen?: boolean;
   onToggleMonth?: () => void;
 }
@@ -26,6 +28,7 @@ function dayOfMonth(dateKey: string): string {
 export default function MobileCalendar({
   onAddTask,
   onRetry,
+  onOpenTasks,
   monthOpen = false,
   onToggleMonth = () => {},
 }: MobileCalendarProps) {
@@ -88,15 +91,27 @@ export default function MobileCalendar({
           <p className="text-xs font-medium text-text-tertiary">
             {t("Select date")}
           </p>
-          <button
-            type="button"
-            onClick={onToggleMonth}
-            aria-expanded={monthOpen}
-            aria-controls="mobile-calendar-month"
-            className="min-h-11 rounded-radius-md px-3 text-xs font-medium text-primary-700 transition-colors hover:bg-primary-500/10 dark:text-primary-300"
-          >
-            {t(monthOpen ? "Week" : "Month")}
-          </button>
+          <div className="flex items-center gap-1">
+            {onOpenTasks && (
+              <button
+                type="button"
+                onClick={onOpenTasks}
+                className="flex min-h-11 items-center justify-center gap-1.5 rounded-radius-md px-3 text-xs font-medium text-text-secondary transition-colors hover:bg-subtle"
+              >
+                <ClipboardDocumentListIcon className="h-5 w-5" aria-hidden="true" />
+                {t("Tasks")}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onToggleMonth}
+              aria-expanded={monthOpen}
+              aria-controls="mobile-calendar-month"
+              className="min-h-11 rounded-radius-md px-3 text-xs font-medium text-primary-700 transition-colors hover:bg-primary-500/10 dark:text-primary-300"
+            >
+              {t(monthOpen ? "Week" : "Month")}
+            </button>
+          </div>
         </div>
         <div className="grid grid-cols-7 gap-1 pb-2" aria-label={t("Select date")}>
           {weekDates.map((dateKey) => {

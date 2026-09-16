@@ -46,7 +46,7 @@ test.describe("chat responsive smoke", () => {
     await page.goto("/chat");
     await expect(page.getByRole("main")).toBeVisible();
 
-    if ((page.viewportSize()?.width ?? 1280) < 768) {
+    if ((page.viewportSize()?.width ?? 1280) < 1024) {
       await expect(page.getByText("Mobile chat history")).not.toBeVisible();
       await page.getByRole("button", { name: "Chat history" }).click();
       const drawer = page.getByRole("dialog");

@@ -282,6 +282,7 @@ export default function CalendarPage() {
                 {isDesktop === false ? (
                   <MobileCalendar
                     onAddTask={() => openNewTask(selectedDate)}
+                    onOpenTasks={() => setTasksOpen(true)}
                     monthOpen={mobileMonthOpen}
                     onToggleMonth={() => setMobileMonthOpen((open) => !open)}
                     onRetry={() => {

@@ -5,7 +5,10 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import MobileCalendar from "@/components/calendar/mobile-calendar";
 
-const mocks = vi.hoisted(() => ({ onToggleMonth: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  onOpenTasks: vi.fn(),
+  onToggleMonth: vi.fn(),
+}));
 
 vi.mock("@/lib/notes/hooks/use-i18n", () => ({
   default: () => ({
@@ -48,6 +51,7 @@ describe("MobileCalendar", () => {
       <MobileCalendar
         onAddTask={vi.fn()}
         onRetry={vi.fn()}
+        onOpenTasks={mocks.onOpenTasks}
         monthOpen={false}
         onToggleMonth={mocks.onToggleMonth}
       />,
@@ -58,6 +62,8 @@ describe("MobileCalendar", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Month" }));
     expect(mocks.onToggleMonth).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "Tasks" }));
+    expect(mocks.onOpenTasks).toHaveBeenCalledOnce();
   });
 
   it("renders the selectable month without overriding the selected-day background", () => {
