@@ -51,6 +51,10 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ back: vi.fn() }),
 }));
 
+vi.mock("@/components/navigation/mobile-bottom-navigation", () => ({
+  default: () => null,
+}));
+
 vi.mock("next/dynamic", () => ({
   default: (loader: () => Promise<{ default: React.ComponentType }>) =>
     React.lazy(loader),

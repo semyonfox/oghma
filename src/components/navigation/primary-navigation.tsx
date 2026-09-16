@@ -89,8 +89,6 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
   const pathname = usePathname();
   const activeNav = useLayoutStore((state) => state.activeNav);
   const setActiveNav = useLayoutStore((state) => state.setActiveNav);
-  const rightPanelOpen = useLayoutStore((state) => state.rightPanelOpen);
-  const rightPanelTab = useLayoutStore((state) => state.rightPanelTab);
   const { t } = useI18n();
   const pomodoroPhase = usePomodoroStore((state) => state.phase);
   const startPomodoro = usePomodoroStore((state) => state.start);
@@ -116,11 +114,7 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
         ? "calendar"
         : pathname?.startsWith("/chat")
           ? "chat"
-          : pathname?.startsWith("/notes") &&
-              rightPanelOpen &&
-              rightPanelTab === "ai"
-            ? "chat"
-            : pathname?.startsWith("/notes")
+          : pathname?.startsWith("/notes")
               ? "notes"
               : activeNav;
 
@@ -166,7 +160,7 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
           <span>{t("Search OghmaNotes")}</span>
         </button>
 
-        <div className="grid grid-cols-2 gap-2">
+        <div className="flex flex-col gap-1">
           {NAV_ITEMS.filter((item) => item.section !== "search").map((item) => {
             const IconComp = item.icon;
             const isActive = derivedActiveSection === item.section;
@@ -179,15 +173,16 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
                 onClick={() => handleNavClick(item)}
                 aria-label={translatedLabel}
                 aria-current={isActive ? "page" : undefined}
-                className={`flex min-h-24 w-full flex-col items-start justify-center gap-3 rounded-radius-xl px-4 py-3 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 ${
+                className={`flex min-h-12 w-full items-center gap-3 rounded-radius-lg px-4 py-3 text-left text-base font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 ${
                   isActive
-                    ? "bg-primary-500/10 text-primary-600 dark:text-primary-400"
-                    : "bg-subtle text-text-secondary hover:bg-subtle-hover"
+                    ? "bg-primary-500/10 text-primary-700 dark:text-primary-300"
+                    : "text-text-secondary hover:bg-subtle"
                 }`}
                 title={translatedLabel}
               >
-                <IconComp className="h-5 w-5 shrink-0" />
+                <IconComp className="h-5 w-5 shrink-0" aria-hidden="true" />
                 <span>{translatedLabel}</span>
+                {isActive && <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden="true" />}
               </button>
             );
           })}
@@ -196,9 +191,9 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
             type="button"
             onClick={handleFocusClick}
             disabled={focusActive}
-            aria-label={focusLabel}
+            aria-label={focusTitle}
             aria-pressed={focusActive}
-            className={`col-span-2 flex min-h-12 w-full items-center gap-3 rounded-radius-lg px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 ${
+            className={`mt-2 flex min-h-12 w-full items-center gap-3 rounded-radius-lg px-4 text-base font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 ${
               focusActive
                 ? "bg-primary-500/10 text-primary-600 dark:text-primary-400"
                 : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
@@ -206,7 +201,7 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
             title={focusTitle}
           >
             <ClockIcon className="h-5 w-5 shrink-0" />
-            <span>{focusLabel}</span>
+            <span>{focusTitle}</span>
           </button>
         </div>
 
@@ -279,7 +274,7 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
               <div
                 id={`tooltip-${item.id}`}
                 role="tooltip"
-                className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded-radius-md border border-border-subtle bg-surface px-2 py-1 text-xs text-text-secondary opacity-0 transition-opacity group-hover:opacity-100"
+                className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded-radius-md border border-border-subtle bg-surface px-2 py-1 text-xs text-text-secondary opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
               >
                 {translatedLabel}
               </div>
@@ -305,7 +300,7 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
           <div
             id="tooltip-focus"
             role="tooltip"
-            className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded-radius-md border border-border-subtle bg-surface px-2 py-1 text-xs text-text-secondary opacity-0 transition-opacity group-hover:opacity-100"
+            className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded-radius-md border border-border-subtle bg-surface px-2 py-1 text-xs text-text-secondary opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
           >
             {focusTitle}
           </div>
@@ -339,7 +334,7 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
         <div
           id="tooltip-settings"
           role="tooltip"
-          className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded-radius-md border border-border-subtle bg-surface px-2 py-1 text-xs text-text-secondary opacity-0 transition-opacity group-hover:opacity-100"
+          className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded-radius-md border border-border-subtle bg-surface px-2 py-1 text-xs text-text-secondary opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
         >
           {t("Settings")}
         </div>

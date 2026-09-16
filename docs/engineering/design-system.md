@@ -2,7 +2,7 @@
 
 > **Status:** Active reference
 >
-> **Last reviewed:** 2026-07-11
+> **Last reviewed:** 2026-09-16
 >
 > **Source of truth:** [`src/app/globals.css`](../../src/app/globals.css), [`tailwind.config.js`](../../tailwind.config.js), and this usage guide
 
@@ -44,8 +44,9 @@ The file tree retains its deliberately dense sizing and small radius. Treat it a
 
 ## Typography and colour
 
-- Variable DM Sans (`font-sans`) is the interface and body face. Its open shapes and restrained weight range keep dense controls legible.
-- Variable Source Serif 4 (`font-serif`) is reserved for page-level titles, long-form note headings, and intentional editorial display. Chat headings stay in DM Sans because chat is compact interface content.
+- Variable Source Sans 3 (`font-sans`) is the interface and body face. Its open shapes and restrained weight range keep dense controls legible.
+- Variable Source Serif 4 (`font-serif`) is reserved for intentional editorial display. Note and chat headings use Source Sans 3 to stay consistent with their reading surfaces.
+- Captions use 12px, compact controls use 14px, and reading text uses 16px. Phone inputs use at least 16px to prevent browser zoom.
 - The shared Tailwind scale in `globals.css` pairs each `text-xs` through `text-7xl` size with an explicit line height. Prefer that scale; avoid new arbitrary pixel sizes and one-off line heights.
 - Long-form paragraphs target a maximum measure of `72ch`. Full-width tables, code, media, and application UI are intentional exceptions.
 - Headings use restrained negative tracking and balanced wrapping. Body copy uses normal tracking and at least 1.5 line-height where it may wrap across several lines.
@@ -74,7 +75,17 @@ text-sm text-text placeholder:text-text-tertiary
 focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50
 ```
 
-Large composers may intentionally use a softer radius. All controls still need visible keyboard focus, disabled state, and readable contrast in light and dark themes.
+Large composers may intentionally use a softer radius. All controls still need visible keyboard focus, disabled state, and readable contrast in light and dark themes. Use `text-base md:text-sm` for inputs.
+
+Shared compact icon controls use `.ui-icon-button`: 44px below 1024px and 32px on desktop, with consistent focus, hover and disabled states. Give icon-only actions an accessible label. Actions hidden on hover must remain available on touch devices.
+
+## Mobile application layout
+
+Phone and tablet app shells below 1024px place the page header above a scrollable main region and the five-destination bottom navigation below it: Notes, AI Chat, Calendar, Quiz, and More. The More sheet holds secondary destinations such as search, settings, focus, Trash, and the native offline reader when it is available. Keep the footer in normal flex layout so content never sits behind it.
+
+Below 1024px, Notes opens in a library-first view. Folder navigation drills into the selected folder and exposes a clear return path; opening a note moves to its compact editor. Do not render the desktop file tree on a phone. Editor actions sit below the filename, where they remain reachable without crowding the header. From 768px to 1023px, the inspector uses a drawer so it cannot squeeze the editor below its minimum width.
+
+Calendar is agenda-first on phones. A compact week strip selects the day and the month grid expands only when needed; the page header owns the month, Today, and period controls. This avoids duplicate mobile toolbars while retaining the full month view.
 
 ## Guardrails
 

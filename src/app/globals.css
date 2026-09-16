@@ -11,12 +11,11 @@
   --font-display: "Strichpunkt Sans Variable", var(--font-source-serif), ui-serif, Georgia, serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 
-  /* A restrained 1.25 type scale with roomier leading for reading text. */
-  /* Small labels remain compact; regular UI text starts at Oliver's 16 px floor. */
-  --text-xs: 0.875rem;
-  --text-xs--line-height: 1.25rem;
-  --text-sm: 1rem;
-  --text-sm--line-height: 1.5rem;
+  /* Distinct captions, controls, and reading text. Mobile inputs stay at 16px. */
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.25rem;
   --text-base: 1rem;
   --text-base--line-height: 1.625rem;
   --text-lg: 1.125rem;
@@ -250,6 +249,28 @@ body {
   line-height: 1.5;
 }
 
+@layer base {
+  :where(a, button, input, textarea, select, [tabindex]):focus-visible {
+    outline: 2px solid var(--color-primary-400);
+    outline-offset: 2px;
+  }
+
+  :where(button, input, textarea, select) {
+    touch-action: manipulation;
+  }
+
+  :where(button):disabled {
+    cursor: not-allowed;
+  }
+}
+
+/* Small control text must not trigger Safari's automatic input zoom. */
+@media (max-width: 1023px) {
+  :is(input, textarea, select):is(.text-xs, .text-sm) {
+    font-size: 1rem;
+  }
+}
+
 body {
   font-optical-sizing: auto;
   font-kerning: normal;
@@ -257,9 +278,9 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-h1,
-h2,
-h3 {
+h1:not(.truncate),
+h2:not(.truncate),
+h3:not(.truncate) {
   text-wrap: balance;
 }
 
@@ -349,6 +370,10 @@ select option:disabled {
   }
 
 @layer components {
+  .ui-icon-button {
+    @apply flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 disabled:cursor-not-allowed disabled:opacity-40 lg:h-8 lg:w-8;
+  }
+
   /* Editor Styles */
   .editor-input {
     @apply w-full bg-surface text-text outline-none border-none rounded-lg;
@@ -1159,13 +1184,6 @@ html.light .glass-card-active {
   line-height: 1.06;
 }
 
-@media (max-width: 767px) {
-  .oghma-milkdown-editor .milkdown .ProseMirror {
-    max-width: none;
-    margin-inline: 0;
-    padding: 2rem 1rem 5rem;
-  }
-}
 
 .oghma-milkdown-editor .milkdown .ProseMirror h2 {
   color: var(--color-text);
@@ -1177,6 +1195,37 @@ html.light .glass-card-active {
   color: var(--color-text);
   font-size: var(--md-heading-3-size, 1.5rem);
   line-height: 1.2;
+}
+
+@media (max-width: 1023px) {
+  .oghma-milkdown-editor .milkdown .ProseMirror {
+    max-width: none;
+    margin-inline: 0;
+    padding: 1.5rem 1.25rem 5rem;
+  }
+
+  .oghma-milkdown-editor .milkdown .ProseMirror h1 {
+    font-size: min(var(--md-heading-1-size, 2.75rem), 2rem);
+    line-height: 1.2;
+  }
+
+  .oghma-milkdown-editor .milkdown .ProseMirror h2 {
+    font-size: min(var(--md-heading-2-size, 2rem), 1.5rem);
+    line-height: 1.25;
+  }
+
+  .oghma-milkdown-editor .milkdown .ProseMirror h3 {
+    font-size: min(var(--md-heading-3-size, 1.5rem), 1.25rem);
+  }
+
+  .oghma-milkdown-editor .milkdown-top-bar .top-bar-heading-button {
+    min-height: 2.75rem;
+  }
+
+  .oghma-milkdown-editor .milkdown-top-bar .top-bar-item {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
 }
 
 .oghma-milkdown-editor .milkdown .ProseMirror a {

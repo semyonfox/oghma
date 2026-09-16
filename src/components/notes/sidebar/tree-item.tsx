@@ -134,9 +134,9 @@ const TreeItem: React.FC<TreeItemProps> = memo(
           {...rctProps}
           {...(isRenaming ? {} : interactiveProps)}
           className={`
-            group/item mb-0.5 flex h-11 items-center pr-1 cursor-pointer select-none md:h-[26px]
+            group/item mb-0.5 flex min-h-12 items-center pr-1 cursor-pointer select-none md:min-h-7
             transition-colors duration-75 rounded-radius-sm mx-0.5
-            ${isActive ? "bg-subtle text-text-secondary" : ""}
+            ${isActive ? "bg-primary-500/10 text-primary-700 dark:text-primary-300 shadow-[inset_2px_0_0_var(--color-primary-500)]" : ""}
             ${
               !isActive && isSelected
                 ? "bg-primary-500/10 text-text-secondary"
@@ -144,7 +144,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
             }
             ${
               !isActive && !isSelected
-                ? "text-text-tertiary hover:text-text-secondary hover:bg-subtle"
+                ? "text-text-secondary hover:text-text hover:bg-subtle"
                 : ""
             }
             ${isActive && isSelected ? "ring-1 ring-primary-500/20" : ""}
@@ -170,7 +170,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
           }}
         >
           <span
-            className="flex-shrink-0 flex items-center justify-center w-4 h-4 mr-0.5"
+            className="mr-1 flex h-11 w-6 shrink-0 items-center justify-center md:mr-0.5 md:h-5 md:w-4"
             onClick={(e) => {
               if (isFolder) {
                 e.preventDefault();
@@ -226,18 +226,20 @@ const TreeItem: React.FC<TreeItemProps> = memo(
                   }
                 }}
                 onClick={(e) => e.stopPropagation()}
-                className="w-full min-w-0 truncate bg-subtle border border-primary-500/50 rounded-radius-sm px-1 py-0 outline-none text-text-secondary text-[13px] leading-tight"
+                aria-label={t("Rename")}
+                className="w-full min-w-0 truncate bg-surface border border-primary-500/50 rounded-radius-sm px-1 py-1 outline-none text-text text-base md:py-0 md:text-[13px] leading-snug"
               />
             </div>
           ) : (
             <span
-              className={`flex-1 min-w-0 truncate text-[13px] leading-snug ${
+              title={nodeData?.title || t("Untitled")}
+              className={`flex-1 min-w-0 truncate text-base md:text-[13px] leading-snug ${
                 isFolder ? "font-medium" : ""
               } ${
                 syncStatus === "modified"
-                  ? "text-amber-400"
+                  ? "text-amber-700 dark:text-amber-400"
                   : syncStatus === "new"
-                    ? "text-green-400"
+                    ? "text-green-700 dark:text-green-400"
                     : ""
               }`}
             >
@@ -258,7 +260,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
             <span className="flex-shrink-0 ml-0.5">
               <button
                 type="button"
-                className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-[color,background-color,opacity] hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 md:h-5 md:w-5 md:opacity-0 md:group-hover/item:opacity-100 md:group-focus-within/item:opacity-100"
+                className="flex h-11 w-11 items-center justify-center rounded-radius-sm text-text-tertiary transition-[color,background-color,opacity] hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 md:h-6 md:w-6 md:opacity-0 md:group-hover/item:opacity-100 md:group-focus-within/item:opacity-100 pointer-coarse:opacity-100"
                 onClick={onDotsClick}
                 title={t("More actions")}
                 aria-label={t("More actions")}
@@ -282,7 +284,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
 
         {isFolder && isExpanded && !hasChildren && initLoaded && (
           <div
-            className="h-6 flex items-center text-xs text-text-tertiary/50 select-none italic"
+            className="min-h-8 flex items-center text-sm text-text-tertiary md:text-xs"
             style={{ paddingLeft: `${pl + INDENT_PX + 8}px` }}
           >
             {t("No pages inside")}

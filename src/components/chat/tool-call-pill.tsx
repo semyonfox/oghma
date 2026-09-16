@@ -63,7 +63,7 @@ export const WorkLog: FC<{
     <div className="overflow-hidden rounded-radius-lg border border-border-subtle bg-surface/20">
       <button
         type="button"
-        className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-subtle/30"
+        className="flex min-h-11 w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-subtle/30 lg:min-h-0"
         aria-expanded={expanded}
         aria-controls={expanded ? panelId : undefined}
         onClick={() => {

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -22,11 +22,13 @@ vi.mock("next/dynamic", () => ({
 
 import GlobalSearchRoot from "@/components/search/global-search-root";
 import { isGlobalSearchRoute } from "@/lib/global-search/routes";
+import useGlobalSearchStore from "@/lib/global-search/state";
 
 describe("global search route boundary", () => {
   beforeEach(() => {
     mocks.pathname = "/";
     mocks.renderDeferredModal.mockClear();
+    useGlobalSearchStore.getState().close();
   });
 
   it("recognizes only the existing workspace path prefixes", () => {
@@ -44,12 +46,26 @@ describe("global search route boundary", () => {
     expect(mocks.renderDeferredModal).not.toHaveBeenCalled();
   });
 
-  it("renders the deferred modal on a workspace route", () => {
+  it("loads the deferred modal only after the workspace shortcut opens search", () => {
     mocks.pathname = "/notes";
 
     render(React.createElement(GlobalSearchRoot));
 
+    expect(screen.queryByTestId("global-search-modal")).toBeNull();
+    expect(mocks.renderDeferredModal).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(document, { key: "k", metaKey: true });
+
     expect(screen.getByTestId("global-search-modal")).toBeTruthy();
     expect(mocks.renderDeferredModal).toHaveBeenCalledOnce();
+  });
+
+  it("does not open search from the shortcut on a public route", () => {
+    mocks.pathname = "/about";
+
+    render(React.createElement(GlobalSearchRoot));
+    fireEvent.keyDown(document, { key: "k", ctrlKey: true });
+
+    expect(useGlobalSearchStore.getState().visible).toBe(false);
   });
 });

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, BackHandler, Linking, Text, View } from "react-native";
+import { Alert, BackHandler, Linking, ScrollView, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import { Ionicons } from "@expo/vector-icons";
 import * as SystemUI from "expo-system-ui";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -49,6 +50,46 @@ function AppShell({ ready }: { ready: boolean }) {
       {ready ? <Workspace /> : <Loading />}
       {ready && <UpdateBanner />}
     </SafeAreaView>
+  );
+}
+
+function RecoveryScreen({
+  title,
+  detail,
+  retry,
+  openOffline,
+}: {
+  title: string;
+  detail: string;
+  retry: () => void;
+  openOffline: () => void;
+}) {
+  const { colors, styles } = useTheme();
+  return (
+    <ScrollView
+      style={{ flex: 1 }}
+      contentContainerStyle={[styles.content, { flexGrow: 1, justifyContent: "center" }]}
+    >
+      <View style={{ width: "100%", maxWidth: 560, alignSelf: "center", gap: 16 }}>
+        <View
+          style={{
+            width: 52,
+            height: 52,
+            borderRadius: 26,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: colors.errorSoft,
+          }}
+        >
+          <Ionicons name="cloud-offline-outline" size={27} color={colors.error} />
+        </View>
+        <Text accessibilityRole="header" style={styles.title}>{title}</Text>
+        <Text style={styles.text}>{detail}</Text>
+        <Button title="Try again" onPress={retry} />
+        <Button quiet title="Read offline notes" onPress={openOffline} />
+        <AppUpdateLink />
+      </View>
+    </ScrollView>
   );
 }
 
@@ -148,17 +189,18 @@ function Workspace() {
     }
   };
   if (startupError) {
+    return <RecoveryScreen title="Could not restore sign-in" detail={startupError} retry={() => void restore()} openOffline={offline.open} />;
+  }
+  if (!ready) {
     return (
       <View style={[styles.content, { flex: 1, justifyContent: "center" }]}>
-        <Text style={styles.title}>Could not restore sign-in</Text>
-        <Text style={styles.text}>{startupError}</Text>
-        <Button title="Try again" onPress={() => void restore()} />
-        <Button quiet title="Read offline notes" onPress={offline.open} />
-        <AppUpdateLink />
+        <View style={{ width: "100%", maxWidth: 560, alignSelf: "center", gap: 16 }}>
+          <Loading />
+          <Button quiet title="Read offline notes" onPress={offline.open} />
+        </View>
       </View>
     );
   }
-  if (!ready) return <View style={styles.screen}><Loading /><Button quiet title="Read offline notes" onPress={offline.open} /></View>;
   return (
     <View style={styles.screen}>
       <WebView
@@ -182,7 +224,16 @@ function Workspace() {
         javaScriptCanOpenWindowsAutomatically={false}
         setSupportMultipleWindows
         startInLoadingState
-        renderLoading={() => <View style={{ position: "absolute", inset: 0, backgroundColor: colors.background }}><Loading /><Button quiet title="Read offline notes" onPress={offline.open} /></View>}
+        renderLoading={() => (
+          <View style={{ position: "absolute", inset: 0, backgroundColor: colors.background }}>
+            <View style={[styles.content, { flex: 1, justifyContent: "center" }]}>
+              <View style={{ width: "100%", maxWidth: 560, alignSelf: "center", gap: 16 }}>
+                <Loading />
+                <Button quiet title="Read offline notes" onPress={offline.open} />
+              </View>
+            </View>
+          </View>
+        )}
         onLoadStart={() => setLoadError("")}
         onError={() => setLoadError("OghmaNotes could not load. Check your connection and try again.")}
         onHttpError={(event) => {
@@ -194,12 +245,16 @@ function Workspace() {
         renderError={() => <View />}
       />
       {loadError ? (
-        <View style={[styles.content, { position: "absolute", inset: 0, justifyContent: "center", backgroundColor: colors.background }]}>
-          <Text style={styles.title}>Could not load your workspace</Text>
-          <Text style={styles.text}>{loadError}</Text>
-          <Button title="Try again" onPress={() => { setLoadError(""); setWebViewVersion((value) => value + 1); }} />
-          <Button quiet title="Read offline notes" onPress={offline.open} />
-          <AppUpdateLink />
+        <View style={{ position: "absolute", inset: 0, backgroundColor: colors.background }}>
+          <RecoveryScreen
+            title="Could not load your workspace"
+            detail={loadError}
+            retry={() => {
+              setLoadError("");
+              setWebViewVersion((value) => value + 1);
+            }}
+            openOffline={offline.open}
+          />
         </View>
       ) : null}
     </View>

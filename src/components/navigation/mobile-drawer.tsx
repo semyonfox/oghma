@@ -50,15 +50,15 @@ export default function MobileDrawer({
           <DialogPanel
             transition
             className={clsx(
-              "flex h-dvh w-[calc(100vw-1rem)] max-w-sm flex-col bg-background pb-[env(safe-area-inset-bottom)] shadow-2xl ring-1 ring-border-subtle transition duration-200 ease-out data-closed:opacity-0 motion-reduce:transition-none",
+              "flex h-dvh w-[calc(100vw-1rem)] max-w-sm flex-col bg-background pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] shadow-2xl ring-1 ring-border-subtle transition duration-200 ease-out data-closed:opacity-0 motion-reduce:transition-none",
               side === "left"
                 ? "rounded-r-2xl data-closed:-translate-x-full"
                 : "rounded-l-2xl data-closed:translate-x-full",
               panelClassName,
             )}
           >
-            <div className="flex min-h-16 shrink-0 items-center gap-3 border-b border-border-subtle px-4 py-2">
-              <DialogTitle className="min-w-0 flex-1 truncate text-sm font-semibold text-text-secondary">
+            <div className="flex min-h-14 shrink-0 items-center gap-3 border-b border-border-subtle px-4 py-1">
+              <DialogTitle className="min-w-0 flex-1 truncate text-base font-semibold text-text">
                 {title}
               </DialogTitle>
               <button
