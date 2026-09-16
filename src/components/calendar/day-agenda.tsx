@@ -113,7 +113,7 @@ export default function DayAgenda({
               {heading}
             </h2>
             {reviewDates.has(dateKey) && (
-              <p className="mt-0.5 text-xs text-primary-400">
+              <p className="mt-0.5 text-xs text-primary-700 dark:text-primary-300">
                 ᚑ {t("Quiz reviewed")}
               </p>
             )}
@@ -191,13 +191,13 @@ export default function DayAgenda({
                       <button
                         type="button"
                         onClick={() => void toggleBlock(block.id)}
-                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-md text-text-tertiary hover:bg-subtle hover:text-primary-400"
+                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-md text-text-tertiary hover:bg-subtle hover:text-primary-700 dark:hover:text-primary-300"
                         aria-label={
                           block.completed ? t("Mark incomplete") : t("Mark complete")
                         }
                       >
                         {block.completed ? (
-                          <CheckCircleSolid className="h-5 w-5 text-primary-400" />
+                          <CheckCircleSolid className="h-5 w-5 text-primary-700 dark:text-primary-300" />
                         ) : (
                           <CheckCircleIcon className="h-5 w-5" />
                         )}
@@ -255,11 +255,11 @@ export default function DayAgenda({
                         <button
                           type="button"
                           onClick={() => void toggleAssignment(assignment.id, completed)}
-                          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-md text-text-tertiary hover:bg-subtle hover:text-primary-400"
+                          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-md text-text-tertiary hover:bg-subtle hover:text-primary-700 dark:hover:text-primary-300"
                           aria-label={completed ? t("Mark as upcoming") : t("Mark as done")}
                         >
                           {completed ? (
-                            <CheckCircleSolid className="h-5 w-5 text-primary-400" />
+                            <CheckCircleSolid className="h-5 w-5 text-primary-700 dark:text-primary-300" />
                           ) : (
                             <CheckCircleIcon className="h-5 w-5" />
                           )}
@@ -298,7 +298,7 @@ export default function DayAgenda({
                                 courseColor: assignment.course_color ?? undefined,
                               })
                             }
-                            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-md text-text-tertiary hover:bg-primary-500/10 hover:text-primary-400"
+                            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-md text-text-tertiary hover:bg-primary-500/10 hover:text-primary-700 dark:hover:text-primary-300"
                             aria-label={t("Start Focus")}
                           >
                             <PlayIcon className="h-4 w-4" aria-hidden="true" />

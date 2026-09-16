@@ -2,10 +2,13 @@
 
 import { FC, memo, useCallback, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { FileSpec, PaneId } from "@/lib/notes/state/layout.zustand";
 import {
   ArrowPathIcon,
+  ArrowLeftIcon,
+  EllipsisHorizontalIcon,
   CheckCircleIcon,
   ClipboardDocumentCheckIcon,
   CloudArrowUpIcon,
@@ -28,8 +31,14 @@ import {
   parseFileDragPayload,
 } from "@/lib/notes/utils/file-spec";
 import { toast } from "sonner";
+
 import SaveOfflineButton from "@/components/notes/save-offline-button";
 
+const MobileNoteActions = dynamic(
+  () => import("@/components/notes/mobile-note-actions"),
+);
+const mobileActionClass =
+  "flex min-h-12 w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-base text-text-secondary hover:bg-subtle";
 const FileRenderer = dynamic(() => import("./file-renderer"), { ssr: false });
 
 interface EditorPaneProps {
@@ -52,6 +61,15 @@ const EditorPane: FC<EditorPaneProps> = ({
 }) => {
   const { t } = useI18n();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const folderPath = searchParams.get("folder");
+  const libraryHref = folderPath
+    ? `/notes?folder=${encodeURIComponent(folderPath)}`
+    : "/notes";
+  const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
+  const liveTitle = useNoteTreeStore((s) =>
+    file?.fileId ? s.tree.items[file.fileId]?.data?.title : undefined,
+  );
 
   // granular selectors — only re-render when values this component reads change
   const rightPanelOpen = useLayoutStore((s) => s.rightPanelOpen);
@@ -119,14 +137,16 @@ const EditorPane: FC<EditorPaneProps> = ({
       }
 
       const rect = paneRef.current?.getBoundingClientRect();
-      if (rect) setDropTarget(e.clientX >= rect.left + rect.width / 2 ? "B" : "A");
+      if (rect)
+        setDropTarget(e.clientX >= rect.left + rect.width / 2 ? "B" : "A");
     },
     [hasSecondaryPane, pane, splitInteractionsEnabled],
   );
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     const nextTarget = e.relatedTarget;
-    if (nextTarget instanceof Node && e.currentTarget.contains(nextTarget)) return;
+    if (nextTarget instanceof Node && e.currentTarget.contains(nextTarget))
+      return;
     setDropTarget(null);
   }, []);
 
@@ -137,7 +157,9 @@ const EditorPane: FC<EditorPaneProps> = ({
       setIsDragging(false);
 
       try {
-        const payload = parseFileDragPayload(e.dataTransfer.getData(FILE_DRAG_MIME));
+        const payload = parseFileDragPayload(
+          e.dataTransfer.getData(FILE_DRAG_MIME),
+        );
         const target = dropTarget ?? pane;
         if (payload) placeFileInPane(payload.file, target, payload.sourcePane);
       } finally {
@@ -242,13 +264,15 @@ const EditorPane: FC<EditorPaneProps> = ({
     }
 
     return (
-      <div className="h-full flex flex-col items-center justify-center text-text-tertiary gap-3">
-        <DocumentIcon className="w-8 h-8 opacity-20" />
+      <div className="h-full flex flex-col items-center justify-center px-6 text-text-tertiary gap-4">
+        <div className="rounded-radius-xl border border-border-subtle bg-subtle p-3">
+          <DocumentIcon className="w-7 h-7" aria-hidden="true" />
+        </div>
         <div className="text-center">
-          <p className="text-sm text-text-tertiary">
+          <p className="text-base font-medium text-text-secondary">
             {t("file_view_pane.select_file")}
           </p>
-          <p className="text-xs text-text-tertiary/60 mt-1 max-w-[16rem] leading-relaxed">
+          <p className="text-sm text-text-tertiary mt-2 max-w-xs leading-relaxed">
             {t("file_view_pane.select_file_hint")}
           </p>
         </div>
@@ -277,32 +301,109 @@ const EditorPane: FC<EditorPaneProps> = ({
           }`}
         />
       )}
+      <div className="flex min-h-16 shrink-0 items-center gap-1 border-b border-border-subtle bg-background px-2 pt-[env(safe-area-inset-top)] lg:hidden">
+        <Link
+          href={libraryHref}
+          className="ui-icon-button shrink-0"
+          aria-label={t("Back to notes")}
+        >
+          <ArrowLeftIcon className="h-5 w-5" aria-hidden="true" />
+        </Link>
+        <div className="min-w-0 flex-1 px-1">
+          <h1 className="truncate text-base font-semibold text-text">
+            {liveTitle || file.title || t("Untitled")}
+          </h1>
+        </div>
+        {saveIndicator && (
+          <SaveIndicatorButton indicator={saveIndicator} t={t} />
+        )}
+        <button
+          type="button"
+          className="ui-icon-button shrink-0"
+          onClick={() => openRightPanelTab("ai")}
+          aria-label={aiChatLabel}
+          aria-expanded={aiChatIsOpen}
+        >
+          <SparklesIcon className="h-5 w-5" aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className="ui-icon-button shrink-0"
+          onClick={() => setMobileActionsOpen(true)}
+          aria-label={t("Note options")}
+          aria-haspopup="dialog"
+        >
+          <EllipsisHorizontalIcon className="h-5 w-5" aria-hidden="true" />
+        </button>
+      </div>
+      {mobileActionsOpen && (
+        <MobileNoteActions
+          noteId={file.fileId}
+          title={liveTitle || file.title}
+          onClose={() => setMobileActionsOpen(false)}
+        >
+          <button
+            type="button"
+            className={mobileActionClass}
+            onClick={() => {
+              setMobileActionsOpen(false);
+              openRightPanelTab("meta");
+            }}
+          >
+            <RectangleGroupIcon className="h-5 w-5" aria-hidden="true" />
+            {t("Meta")}
+          </button>
+          <button
+            type="button"
+            className={mobileActionClass}
+            onClick={() => {
+              setMobileActionsOpen(false);
+              openRightPanelTab("tasks");
+            }}
+          >
+            <ClipboardDocumentCheckIcon
+              className="h-5 w-5"
+              aria-hidden="true"
+            />
+            {t("Global Tasks")}
+          </button>
+          {file.fileType === "note" && (
+            <SaveOfflineButton noteId={file.fileId} presentation="row" />
+          )}
+          <div className="my-2 border-t border-border-subtle" />
+        </MobileNoteActions>
+      )}
       {/* Pane Header */}
       <div
-        className={`flex h-12 flex-shrink-0 items-center justify-between border-b border-border-subtle px-3 md:h-9 ${
+        className={`hidden min-h-11 flex-shrink-0 flex-wrap lg:flex items-center justify-between gap-x-3 border-b border-border-subtle px-3 py-1 lg:flex-nowrap ${
           splitInteractionsEnabled ? "cursor-move" : "cursor-default"
         }`}
         draggable={splitInteractionsEnabled}
         onDragStart={splitInteractionsEnabled ? handleDragStart : undefined}
         onDragEnd={splitInteractionsEnabled ? handleDragEnd : undefined}
       >
-        <div className="flex min-w-0 items-center gap-1.5">
-          <span className="truncate text-sm text-text-secondary">
-            {file.title || file.fileId}
+        <div className="flex min-h-8 w-full min-w-0 items-center gap-1.5 lg:w-auto lg:flex-1">
+          <span
+            className="truncate text-sm font-medium text-text-secondary"
+            title={file.title || file.fileId}
+          >
+            {liveTitle || file.title || file.fileId}
           </span>
           {saveIndicator ? (
             <SaveIndicatorButton indicator={saveIndicator} t={t} />
           ) : null}
         </div>
 
-        <div className="flex items-center gap-0.5">
-          {file.fileType === "note" && <SaveOfflineButton noteId={file.fileId} />}
+        <div className="flex w-full shrink-0 items-center justify-end gap-1 lg:w-auto lg:gap-0.5">
+          {file.fileType === "note" && (
+            <SaveOfflineButton noteId={file.fileId} />
+          )}
           <button
             type="button"
             onClick={() => openRightPanelTab("meta")}
-            className={`flex h-10 w-10 items-center justify-center rounded transition-colors md:h-7 md:w-7 ${
+            className={`ui-icon-button w-auto gap-1.5 px-2 lg:w-8 lg:px-0 ${
               metadataIsOpen
-                ? "bg-subtle text-text-secondary"
+                ? "bg-primary-500/10 text-primary-700 dark:text-primary-300"
                 : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
             }`}
             title={t("Toggle metadata panel")}
@@ -310,13 +411,14 @@ const EditorPane: FC<EditorPaneProps> = ({
             aria-expanded={metadataIsOpen}
           >
             <RectangleGroupIcon className="h-5 w-5" aria-hidden="true" />
+            <span className="text-xs font-medium lg:hidden">{t("Meta")}</span>
           </button>
           <button
             type="button"
             onClick={() => openRightPanelTab("ai")}
-            className={`flex h-10 w-10 items-center justify-center rounded transition-colors md:h-7 md:w-7 ${
+            className={`ui-icon-button w-auto gap-1.5 px-2 lg:w-8 lg:px-0 ${
               aiChatIsOpen
-                ? "bg-subtle text-text-secondary"
+                ? "bg-primary-500/10 text-primary-700 dark:text-primary-300"
                 : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
             }`}
             title={aiChatLabel}
@@ -324,26 +426,35 @@ const EditorPane: FC<EditorPaneProps> = ({
             aria-expanded={aiChatIsOpen}
           >
             <SparklesIcon className="h-5 w-5" aria-hidden="true" />
+            <span className="text-xs font-medium lg:hidden">
+              {t("AI Chat")}
+            </span>
           </button>
           <button
             type="button"
             onClick={() => openRightPanelTab("tasks")}
-            className={`flex h-10 w-10 items-center justify-center rounded transition-colors md:h-7 md:w-7 ${
+            className={`ui-icon-button w-auto gap-1.5 px-2 lg:w-8 lg:px-0 ${
               tasksAreOpen
-                ? "bg-subtle text-text-secondary"
+                ? "bg-primary-500/10 text-primary-700 dark:text-primary-300"
                 : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
             }`}
             title={t("Global Tasks")}
             aria-label={t("Global Tasks")}
             aria-expanded={tasksAreOpen}
           >
-            <ClipboardDocumentCheckIcon className="h-5 w-5" aria-hidden="true" />
+            <ClipboardDocumentCheckIcon
+              className="h-5 w-5"
+              aria-hidden="true"
+            />
+            <span className="text-xs font-medium lg:hidden">{t("Tasks")}</span>
           </button>
           {pane === "B" && (
             <button
+              type="button"
               onClick={handleClose}
-              className="flex h-10 w-10 items-center justify-center rounded text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary md:h-auto md:w-auto md:p-1"
+              className="ui-icon-button"
               title={t("Close this pane")}
+              aria-label={t("Close this pane")}
             >
               <XMarkIcon className="w-3.5 h-3.5" />
             </button>
@@ -352,7 +463,7 @@ const EditorPane: FC<EditorPaneProps> = ({
       </div>
 
       {/* File Renderer */}
-      <div className="flex-1 overflow-auto bg-background">
+      <div className="min-h-0 flex-1 overflow-auto overscroll-contain bg-background">
         <FileRenderer key={file.fileId} pane={pane} file={file} />
       </div>
     </div>
@@ -366,13 +477,16 @@ interface SaveIndicatorButtonProps {
 
 // compact save affordance living in the filename bar. a settled note stays a
 // quiet glyph; anything the user can act on becomes a real button
-const SaveIndicatorButton: FC<SaveIndicatorButtonProps> = ({ indicator, t }) => {
+const SaveIndicatorButton: FC<SaveIndicatorButtonProps> = ({
+  indicator,
+  t,
+}) => {
   const { state, save } = indicator;
 
   if (state === "saved") {
     return (
       <span
-        className="flex h-6 w-6 items-center justify-center text-text-tertiary/50"
+        className="flex h-6 w-6 shrink-0 items-center justify-center text-text-tertiary"
         title={t("Saved")}
         aria-label={t("Saved")}
       >
@@ -384,7 +498,7 @@ const SaveIndicatorButton: FC<SaveIndicatorButtonProps> = ({ indicator, t }) => 
   if (state === "saving") {
     return (
       <span
-        className="flex h-6 w-6 items-center justify-center text-text-tertiary"
+        className="flex h-6 w-6 shrink-0 items-center justify-center text-text-tertiary"
         title={t("Saving...")}
         aria-label={t("Saving...")}
         role="status"
@@ -403,10 +517,10 @@ const SaveIndicatorButton: FC<SaveIndicatorButtonProps> = ({ indicator, t }) => 
       onClick={save}
       title={label}
       aria-label={label}
-      className={`flex h-6 items-center gap-1 rounded-radius-sm px-1.5 text-[11px] font-medium transition-colors ${
+      className={`flex min-h-11 shrink-0 items-center gap-1 rounded-radius-md px-2 text-xs font-medium transition-colors lg:min-h-7 ${
         isError
-          ? "text-error-400 hover:bg-error-500/10"
-          : "text-yellow-500 hover:bg-yellow-500/10"
+          ? "text-error-700 dark:text-error-400 hover:bg-error-500/10"
+          : "text-amber-700 dark:text-amber-400 hover:bg-amber-500/10"
       }`}
     >
       {isError ? (
@@ -414,9 +528,7 @@ const SaveIndicatorButton: FC<SaveIndicatorButtonProps> = ({ indicator, t }) => 
       ) : (
         <CloudArrowUpIcon className="h-4 w-4" aria-hidden="true" />
       )}
-      <span className="hidden md:inline">
-        {isError ? t("Save failed") : t("Unsaved")}
-      </span>
+      <span>{isError ? t("Save failed") : t("Unsaved")}</span>
     </button>
   );
 };

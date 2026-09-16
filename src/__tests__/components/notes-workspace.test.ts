@@ -84,6 +84,12 @@ vi.mock("@/components/navigation/mobile-app-header", () => ({
 vi.mock("@/components/navigation/mobile-drawer", () => ({
   default: () => null,
 }));
+vi.mock("@/components/navigation/mobile-bottom-navigation", () => ({
+  default: () => React.createElement("nav", null, "Mobile navigation"),
+}));
+vi.mock("@/components/notes/mobile-library", () => ({
+  default: () => React.createElement("div", null, "Mobile library content"),
+}));
 vi.mock("@/components/notes/note-tree-panel", () => ({
   default: () => React.createElement("div", null, "Library content"),
 }));
@@ -104,6 +110,7 @@ describe("NotesWorkspace note route synchronization", () => {
     vi.clearAllMocks();
     mocks.isDesktop = true;
     mocks.treeState.generation = 0;
+    mocks.treeState.initLoaded = false;
     mocks.pathname = "/notes/550e8400-e29b-41d4-a716-446655440000";
     layoutState.paneA.fileId = "";
     layoutState.rightPanelOpen = false;
@@ -115,16 +122,27 @@ describe("NotesWorkspace note route synchronization", () => {
     mocks.pathname = "/notes";
     layoutState.paneA.fileId = "550e8400-e29b-41d4-a716-446655440000";
     render(React.createElement(NotesWorkspace));
-    expect(screen.getByText("Library content")).toBeTruthy();
+    expect(screen.getByText("Mobile library content")).toBeTruthy();
+    expect(screen.getByText("Mobile navigation")).toBeTruthy();
+    expect(screen.queryByText("Library content")).toBeNull();
     expect(screen.queryByText("Editor content")).toBeNull();
   });
 
-  it("keeps a directly opened mobile note in the editor", () => {
+  it("keeps a directly opened mobile note in the editor", async () => {
     mocks.isDesktop = false;
     layoutState.paneA.fileId = "550e8400-e29b-41d4-a716-446655440000";
     render(React.createElement(NotesWorkspace));
-    expect(screen.getByText("Editor content")).toBeTruthy();
+    expect(await screen.findByText("Editor content")).toBeTruthy();
+    expect(screen.queryByText("Mobile navigation")).toBeNull();
     expect(screen.queryByText("Library content")).toBeNull();
+  });
+
+  it("does not prefetch desktop folders and remembered panes on mobile", () => {
+    mocks.isDesktop = false;
+    mocks.pathname = "/notes";
+    mocks.treeState.initLoaded = true;
+    render(React.createElement(NotesWorkspace));
+    expect(mocks.schedulePrefetch).not.toHaveBeenCalled();
   });
 
   it("hydrates a direct PDF route before choosing its renderer", async () => {
@@ -231,18 +249,23 @@ describe("NotesWorkspace note route synchronization", () => {
   it("rejects a route response when the store resets before React rerenders", async () => {
     let resolveResponse!: (response: Response) => void;
     vi.mocked(fetch).mockImplementationOnce(
-      () => new Promise<Response>((resolve) => { resolveResponse = resolve; }),
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveResponse = resolve;
+        }),
     );
     render(React.createElement(NotesWorkspace));
     await waitFor(() => expect(fetch).toHaveBeenCalledOnce());
 
     mocks.treeState.generation += 1;
     await act(async () => {
-      resolveResponse(Response.json({
-        id: "550e8400-e29b-41d4-a716-446655440000",
-        title: "Previous workspace",
-        content: "",
-      }));
+      resolveResponse(
+        Response.json({
+          id: "550e8400-e29b-41d4-a716-446655440000",
+          title: "Previous workspace",
+          content: "",
+        }),
+      );
     });
 
     expect(mocks.setPaneA).not.toHaveBeenCalled();
@@ -263,33 +286,35 @@ describe("NotesWorkspace note route synchronization", () => {
     ).toBeTruthy();
   });
 
-  it("renders Trash without treating its reserved route as a note id", () => {
+  it("renders Trash without treating its reserved route as a note id", async () => {
     mocks.pathname = "/notes/trash";
 
     render(React.createElement(NotesWorkspace, { view: "trash" }));
 
-    expect(screen.getByText("Trash page")).toBeTruthy();
+    expect(await screen.findByText("Trash page")).toBeTruthy();
     expect(mocks.replace).not.toHaveBeenCalled();
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it.each([true, false])("keeps the editor position when the inspector toggles, desktop=%s", (isDesktop) => {
-    mocks.isDesktop = isDesktop;
-    layoutState.paneA.fileId = "550e8400-e29b-41d4-a716-446655440000";
-    const { rerender } = render(React.createElement(NotesWorkspace));
-    const editor = screen.getByText("Editor content");
-    editor.scrollTop = 900;
+  it.each([true, false])(
+    "keeps the editor position when the inspector toggles, desktop=%s",
+    (isDesktop) => {
+      mocks.isDesktop = isDesktop;
+      layoutState.paneA.fileId = "550e8400-e29b-41d4-a716-446655440000";
+      const { rerender } = render(React.createElement(NotesWorkspace));
+      const editor = screen.getByText("Editor content");
+      editor.scrollTop = 900;
 
-    layoutState.rightPanelOpen = true;
-    rerender(React.createElement(NotesWorkspace));
-    expect(screen.getByText("Editor content")).toBe(editor);
-    expect(editor.scrollTop).toBe(900);
+      layoutState.rightPanelOpen = true;
+      rerender(React.createElement(NotesWorkspace));
+      expect(screen.getByText("Editor content")).toBe(editor);
+      expect(editor.scrollTop).toBe(900);
 
-    layoutState.rightPanelOpen = false;
-    rerender(React.createElement(NotesWorkspace));
-    expect(screen.getByText("Editor content")).toBe(editor);
-    expect(editor.scrollTop).toBe(900);
-    expect(fetch).not.toHaveBeenCalled();
-  });
-
+      layoutState.rightPanelOpen = false;
+      rerender(React.createElement(NotesWorkspace));
+      expect(screen.getByText("Editor content")).toBe(editor);
+      expect(editor.scrollTop).toBe(900);
+      expect(fetch).not.toHaveBeenCalled();
+    },
+  );
 });

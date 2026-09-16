@@ -205,22 +205,23 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
 
         {/* Section header - obsidian style */}
         <div
-          className="group mt-1 flex h-12 items-center px-2 md:h-9"
+          className="group flex min-h-16 items-center gap-2 px-3 py-2 md:min-h-11 md:px-2 md:py-1"
           role="toolbar"
           aria-label={t("Notes actions")}
         >
-          <span className="flex-1 text-xs font-semibold uppercase tracking-wider text-text-tertiary select-none">
+          <span className="hidden flex-1 text-xs font-semibold tracking-wide text-text-tertiary md:block">
             {t("Notes")}
           </span>
           {/* action buttons - always visible */}
-          <div className="flex items-center gap-0.5">
+          <div className="flex w-full items-center gap-1 md:w-auto md:gap-0.5">
             <button
               type="button"
               onClick={() => {
                 void refreshTree().catch(() => {});
               }}
               disabled={loading}
-              className="flex h-11 w-11 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 disabled:cursor-wait disabled:opacity-40 md:h-7 md:w-7"
+              className="ui-icon-button"
+              aria-busy={loading}
               title={t("Refresh notes")}
               aria-label={t("Refresh notes")}
             >
@@ -232,16 +233,17 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
             <button
               type="button"
               onClick={handleQuickNewNote}
-              className="flex h-11 w-11 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 md:h-7 md:w-7"
+              className="order-first flex min-h-11 flex-1 items-center justify-center gap-2 rounded-radius-md bg-primary-600 px-3 text-sm font-medium text-white transition-colors hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-background md:order-none md:h-8 md:min-h-8 md:w-8 md:flex-none md:bg-transparent md:px-0 md:text-text-secondary md:hover:bg-subtle"
               title={t("New note")}
               aria-label={t("New note")}
             >
               <DocumentPlusIcon className="h-[18px] w-[18px]" aria-hidden="true" />
+              <span className="md:hidden">{t("New note")}</span>
             </button>
             <button
               type="button"
               onClick={handleQuickNewFolder}
-              className="flex h-11 w-11 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 md:h-7 md:w-7"
+              className="ui-icon-button"
               title={t("New folder")}
               aria-label={t("New folder")}
             >
@@ -250,7 +252,7 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
             <button
               type="button"
               onClick={() => uploadInputRef.current?.click()}
-              className="flex h-11 w-11 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 md:h-7 md:w-7"
+              className="ui-icon-button"
               title={t("Upload")}
               aria-label={t("Upload")}
             >
@@ -271,9 +273,9 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
         </div>
 
         {selectedCount > 1 && (
-          <div className="mx-2 mb-1 flex h-8 items-center gap-2 rounded-radius-md border border-primary-500/20 bg-primary-500/10 px-2 text-xs text-text-secondary">
+          <div className="mx-2 mb-2 flex flex-wrap items-center gap-2 rounded-radius-md border border-primary-500/20 bg-primary-500/10 px-2 py-1 text-xs text-text-secondary">
             <div className="flex min-w-0 flex-1 items-center gap-1.5">
-              <span className="flex h-4 min-w-4 items-center justify-center rounded-radius-sm bg-primary-500/20 px-1 font-semibold tabular-nums text-primary-300">
+              <span className="flex h-5 min-w-5 items-center justify-center rounded-radius-sm bg-primary-500/20 px-1 font-semibold tabular-nums text-primary-700 dark:text-primary-300">
                 {selectedCount}
               </span>
               <span className="truncate font-medium">
@@ -287,7 +289,7 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
                 e.stopPropagation();
                 handleBulkDeleteRequest(selectedItemIds);
               }}
-              className="inline-flex h-6 items-center gap-1 rounded-radius-sm bg-error-500/15 px-2 font-medium text-error-400 transition-colors hover:bg-error-500/25 hover:text-error-300 focus:outline-none focus:ring-1 focus:ring-error-500/50"
+              className="inline-flex min-h-11 items-center gap-1 rounded-radius-md px-2 font-medium text-error-700 transition-colors hover:bg-error-500/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error-500 dark:text-error-400 md:min-h-7"
               title={t("Move to Trash")}
               aria-label={t("Move to Trash")}
             >
@@ -302,7 +304,7 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
                 setSelectedIds(new Set());
                 setSelectionAnchorId(null);
               }}
-              className="flex h-6 w-6 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus:outline-none focus:ring-1 focus:ring-primary-500/50"
+              className="ui-icon-button"
               title={t("Clear selection")}
               aria-label={t("Clear selection")}
             >
@@ -470,7 +472,7 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
           onClick={() => setDeleteConfirmTarget(null)}
         >
           <div
-            className="bg-surface rounded-radius-lg shadow-2xl ring-1 ring-border-subtle p-5 w-[320px] space-y-4"
+            className="bg-surface rounded-radius-xl shadow-2xl ring-1 ring-border-subtle p-5 w-[calc(100%-2rem)] max-w-sm space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <p className="text-sm text-text-secondary">
@@ -509,13 +511,13 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setDeleteConfirmTarget(null)}
-                className="px-3 py-1.5 text-xs font-medium rounded-radius-sm text-text-secondary hover:bg-subtle transition-colors"
+                className="min-h-11 px-3 py-2 text-sm font-medium rounded-radius-md text-text-secondary hover:bg-subtle transition-colors"
               >
                 {t("Cancel")}
               </button>
               <button
                 onClick={handleDeleteConfirm}
-                className="px-3 py-1.5 text-xs font-medium rounded-radius-sm bg-error-500/20 text-error-400 hover:bg-error-500/30 transition-colors"
+                className="min-h-11 px-3 py-2 text-sm font-medium rounded-radius-md bg-error-600 text-white hover:bg-error-700 transition-colors"
               >
                 {t("Move to Trash")}
               </button>

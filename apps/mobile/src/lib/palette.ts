@@ -14,6 +14,7 @@ export type Palette = {
   textOnAccent: string;
   accent: string;
   action: string;
+  actionPressed: string;
   accentHover: string;
   accentSoft: string;
   border: string;
@@ -46,6 +47,7 @@ export const lightPalette: Palette = {
   textOnAccent: "#ffffff",
   accent: "#4f46e5",
   action: "#4f46e5",
+  actionPressed: "#4338ca",
   accentHover: "#4338ca",
   accentSoft: "rgba(79, 70, 229, 0.12)",
   border: "rgba(0, 0, 0, 0.12)",
@@ -77,6 +79,7 @@ export const darkPalette: Palette = {
   textOnAccent: "#ffffff",
   accent: "#818cf8",
   action: "#4f46e5",
+  actionPressed: "#4338ca",
   accentHover: "#a5b4fc",
   accentSoft: "rgba(99, 102, 241, 0.18)",
   border: "rgba(255, 255, 255, 0.1)",
@@ -107,11 +110,11 @@ export function createStyles(colors: Palette) {
       gap: 12,
     },
     screen: { flex: 1, backgroundColor: colors.background },
-    content: { padding: 22, gap: 16 },
+    content: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 32, gap: 16 },
     row: { flexDirection: "row", alignItems: "center", gap: 12 },
     title: {
       fontFamily: "SourceSerif4_600SemiBold",
-      fontSize: 32,
+      fontSize: 30,
       lineHeight: 38,
       color: colors.text,
     },
@@ -154,7 +157,7 @@ export function createStyles(colors: Palette) {
     card: {
       padding: 18,
       backgroundColor: colors.surface,
-      borderRadius: 12,
+      borderRadius: 14,
       borderWidth: 1,
       borderColor: colors.border,
       gap: 10,
@@ -165,6 +168,7 @@ export function createStyles(colors: Palette) {
       justifyContent: "space-between",
       paddingHorizontal: 16,
       paddingVertical: 8,
+      minHeight: 56,
       borderBottomWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.surface,

@@ -234,7 +234,7 @@ export default function GlobalSearchModal() {
   const { t } = useI18n();
   const router = useRouter();
   const pathname = usePathname();
-  const { visible, open, close } = useGlobalSearchStore();
+  const { visible, close } = useGlobalSearchStore();
   const [query, setQuery] = useState("");
   const [remoteResults, setRemoteResults] = useState<
     Omit<ResultsBySection, "destinations">
@@ -281,20 +281,6 @@ export default function GlobalSearchModal() {
   useEffect(() => {
     if (!enabled && visible) handleClose();
   }, [enabled, handleClose, visible]);
-
-  useEffect(() => {
-    if (!enabled) return;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        open();
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [enabled, open]);
 
   useEffect(() => {
     if (!visible) return;

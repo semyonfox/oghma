@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import PrimaryNavigation from "@/components/navigation/primary-navigation";
 import MobileAppHeader from "@/components/navigation/mobile-app-header";
+import MobileBottomNavigation from "@/components/navigation/mobile-bottom-navigation";
 import QuizDashboard from "@/components/quiz/quiz-dashboard";
 import useMediaQuery from "@/lib/hooks/use-media-query";
 import useLayoutStore from "@/lib/notes/state/layout.zustand";
@@ -15,7 +16,7 @@ export default function QuizPageClient({
   initialData: QuizDashboardInitialData;
 }) {
   const { t } = useI18n();
-  const isDesktop = useMediaQuery("(min-width: 768px)");
+  const isDesktop = useMediaQuery("(min-width: 1024px)");
   const setActiveNav = useLayoutStore((state) => state.setActiveNav);
 
   useEffect(() => {
@@ -38,6 +39,7 @@ export default function QuizPageClient({
           />
         </main>
       </div>
+      <MobileBottomNavigation />
     </div>
   );
 }

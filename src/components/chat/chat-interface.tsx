@@ -42,6 +42,7 @@ export function TogglePill({
   tooltipTitle,
   tooltipText,
   dense = false,
+  tooltipAlign = "left",
 }: {
   active: boolean;
   onClick: () => void;
@@ -50,6 +51,7 @@ export function TogglePill({
   tooltipTitle: string;
   tooltipText: string;
   dense?: boolean;
+  tooltipAlign?: "left" | "right";
 }) {
   const tooltipId = useId();
   return (
@@ -60,10 +62,12 @@ export function TogglePill({
         aria-pressed={active}
         aria-describedby={tooltipId}
         className={`peer flex items-center rounded-radius-md border font-medium transition-colors ${
-          dense ? "gap-1 px-1.5 py-[3px] text-xs" : "gap-1.5 px-2.5 py-1 text-xs"
+          dense
+            ? "min-h-11 gap-1 px-2 text-xs lg:min-h-0 lg:px-1.5 lg:py-[3px]"
+            : "min-h-11 gap-1.5 px-2.5 text-xs lg:min-h-0 lg:py-1"
         } ${
           active
-            ? "text-primary-300 bg-primary-500/10 border-primary-500/20 hover:bg-primary-500/15"
+            ? "text-primary-700 dark:text-primary-300 bg-primary-500/10 border-primary-500/20 hover:bg-primary-500/15"
             : "text-text-tertiary border-border-subtle hover:text-text-secondary hover:border-border"
         }`}
       >
@@ -73,7 +77,9 @@ export function TogglePill({
       <div
         id={tooltipId}
         role="tooltip"
-        className="pointer-events-none absolute bottom-full left-0 z-50 mb-1.5 flex w-48 flex-col gap-0.5 rounded-radius-md border border-border-subtle bg-surface-elevated px-2 py-1.5 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 peer-focus-visible:opacity-100"
+        className={`pointer-events-none absolute bottom-full z-50 mb-1.5 flex w-48 flex-col gap-0.5 rounded-radius-md border border-border-subtle bg-surface-elevated px-2 py-1.5 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 peer-focus-visible:opacity-100 ${
+          tooltipAlign === "right" ? "right-0" : "left-0"
+        }`}
       >
         <span className="text-xs font-semibold text-text">{tooltipTitle}</span>
         <span className="text-[11px] leading-snug text-text-tertiary">
@@ -368,7 +374,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               <button
                 type="button"
                 onClick={retryConversation}
-                className="font-medium text-primary-300 hover:text-primary-200"
+                className="font-medium text-primary-700 dark:text-primary-300 hover:text-primary-200"
               >
                 {t("Try again")}
               </button>
@@ -397,9 +403,10 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               label={thinkingLabel}
               tooltipTitle={t("chat.thinking_title")}
               tooltipText={t("chat.thinking_tooltip")}
+              tooltipAlign="right"
             />
           </div>
-          <div className="flex items-center gap-1.5 bg-surface border border-border-subtle rounded-radius-md px-2.5 py-[5px] focus-within:border-primary-500/50 transition-colors">
+          <div className="flex min-h-11 items-center gap-1.5 rounded-radius-md border border-border-subtle bg-surface px-2.5 py-[5px] transition-colors focus-within:border-primary-500/50">
             <input
               ref={inputRef as React.RefObject<HTMLInputElement>}
               type="text"
@@ -407,15 +414,17 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={t("chat.ask_about_note")}
+              aria-label={t("chat.ask_about_note")}
               disabled={composerDisabled}
-              className="flex-1 min-w-0 bg-transparent text-xs text-text-secondary placeholder:text-text-tertiary focus:outline-none disabled:opacity-50"
+              className="min-w-0 flex-1 bg-transparent text-base text-text-secondary placeholder:text-text-tertiary focus:outline-none disabled:opacity-50 lg:text-sm"
             />
             <button
               onClick={handleSend}
               disabled={composerDisabled || !input.trim()}
-              className="p-1 bg-primary-600 hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed text-text-on-primary rounded-radius-sm transition-colors flex-shrink-0"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-sm bg-primary-600 text-text-on-primary transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-40 lg:h-9 lg:w-9"
+              aria-label={t("Send message")}
             >
-              <PaperAirplaneIcon className="w-3 h-3" />
+              <PaperAirplaneIcon className="h-4 w-4" />
             </button>
           </div>
         </div>
@@ -430,7 +439,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-4 md:px-8 lg:px-10 py-3 obsidian-scrollbar"
+        className="flex-1 overflow-y-auto px-4 lg:px-10 py-3 obsidian-scrollbar"
       >
         <div
           className={`mx-auto flex w-full max-w-3xl flex-col space-y-2.5 ${
@@ -485,7 +494,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                 <button
                   type="button"
                   onClick={retryConversation}
-                  className="font-medium text-primary-300 transition-colors hover:text-primary-200"
+                  className="font-medium text-primary-700 dark:text-primary-300 transition-colors hover:text-primary-200"
                 >
                   {t("Try again")}
                 </button>
@@ -499,7 +508,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
 
       {/* input area */}
       <div
-        className="flex-shrink-0 border-t border-border-subtle bg-background px-3 py-3 md:px-8 lg:px-10"
+        className="flex-shrink-0 border-t border-border-subtle bg-background px-3 py-3 lg:px-10"
         style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
       >
         <div className="mx-auto max-w-3xl">
@@ -518,7 +527,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                   {onRemoveNote && (
                     <button
                       onClick={() => onRemoveNote(note.id)}
-                      className="-mr-0.5 ml-0.5 rounded-full px-0.5 leading-4 opacity-60 transition-opacity hover:opacity-100"
+                      className="touch-target-44 -mr-0.5 ml-0.5 rounded-full px-0.5 leading-4 opacity-60 transition-opacity hover:opacity-100"
                       aria-label={t("Remove {title}", { title: note.title })}
                       title={t("Remove {title}", { title: note.title })}
                     >
@@ -534,7 +543,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                   {onRemoveFolder && (
                     <button
                       onClick={() => onRemoveFolder(folder.id)}
-                      className="-mr-0.5 ml-0.5 rounded-full px-0.5 leading-4 opacity-60 transition-opacity hover:opacity-100"
+                      className="touch-target-44 -mr-0.5 ml-0.5 rounded-full px-0.5 leading-4 opacity-60 transition-opacity hover:opacity-100"
                       aria-label={t("Remove {title}", { title: folder.title })}
                       title={t("Remove {title}", { title: folder.title })}
                     >
@@ -545,7 +554,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               ))}
             </div>
           )}
-          <div className="mb-1.5 flex flex-wrap items-center gap-1.5 px-1">
+          <div className="mb-1.5 hidden flex-wrap items-center gap-1.5 px-1 lg:flex">
             <TogglePill
               active={useRag}
               onClick={toggleRag}
@@ -561,14 +570,45 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               label={thinkingLabel}
               tooltipTitle={t("chat.thinking_title")}
               tooltipText={t("chat.thinking_tooltip")}
+              tooltipAlign="right"
             />
           </div>
+          <details className="group mb-1.5 rounded-radius-md border border-border-subtle bg-surface/60 px-1 lg:hidden">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 px-2 text-xs font-medium text-text-tertiary marker:content-none">
+              {t("Chat options")}
+              <span
+                className="text-text-tertiary transition-transform group-open:rotate-180"
+                aria-hidden="true"
+              >
+                ⌄
+              </span>
+            </summary>
+            <div className="flex flex-wrap items-center gap-1.5 border-t border-border-subtle px-2 py-2">
+              <TogglePill
+                active={useRag}
+                onClick={toggleRag}
+                icon={<DocumentTextIcon className="h-3 w-3" />}
+                label={t("chat.use_notes")}
+                tooltipTitle={t("chat.rag_title")}
+                tooltipText={t("chat.rag_tooltip")}
+              />
+              <TogglePill
+                active={thinkingActive}
+                onClick={toggleThinking}
+                icon={<span aria-hidden="true">◆</span>}
+                label={thinkingLabel}
+                tooltipTitle={t("chat.thinking_title")}
+                tooltipText={t("chat.thinking_tooltip")}
+                tooltipAlign="right"
+              />
+            </div>
+          </details>
           <form
             onSubmit={(e: FormEvent) => {
               e.preventDefault();
               handleSend();
             }}
-            className="flex items-end gap-1.5 rounded-radius-lg border border-border-subtle bg-surface px-2.5 py-1.5 shadow-sm transition-[border-color,box-shadow] focus-within:border-primary-500/50 focus-within:ring-1 focus-within:ring-primary-500/25 md:items-center md:py-2"
+            className="flex items-end gap-1.5 rounded-radius-lg border border-border-subtle bg-surface px-2.5 py-1.5 shadow-sm transition-[border-color,box-shadow] focus-within:border-primary-500/50 focus-within:ring-1 focus-within:ring-primary-500/25 lg:items-center lg:py-2"
           >
             <textarea
               ref={inputRef as React.RefObject<HTMLTextAreaElement>}
@@ -580,16 +620,16 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               }}
               onKeyDown={handleKeyDown}
               placeholder={t("chat.ask_placeholder")}
+              aria-label={t("chat.ask_placeholder")}
               disabled={composerDisabled}
               rows={1}
-              className="min-w-0 flex-1 resize-none bg-transparent py-2 text-sm leading-snug text-text placeholder:text-text-tertiary focus:outline-none disabled:opacity-50 md:py-0"
-              style={{ minHeight: "20px", maxHeight: "96px" }}
+              className="min-h-11 max-h-24 min-w-0 flex-1 resize-none bg-transparent py-2 text-base leading-snug text-text placeholder:text-text-tertiary focus:outline-none disabled:opacity-50 lg:text-sm lg:min-h-5 lg:py-0"
             />
             {busy ? (
               <button
                 type="button"
                 onClick={stopGenerating}
-                className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-radius-md bg-error-500/15 text-error-400 transition-colors hover:bg-error-500/25 hover:text-error-300 md:h-8 md:w-8"
+                className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-radius-md bg-error-500/15 text-error-400 transition-colors hover:bg-error-500/25 hover:text-error-300 lg:h-8 lg:w-8"
                 aria-label={t("Stop generating")}
                 title={t("Stop generating")}
               >
@@ -601,7 +641,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               <button
                 type="submit"
                 disabled={composerDisabled || !input.trim()}
-                className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-radius-md bg-primary-600 text-text-on-primary transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-40 md:h-8 md:w-8"
+                className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-radius-md bg-primary-600 text-text-on-primary transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-40 lg:h-8 lg:w-8"
                 aria-label={t("Send message")}
               >
                 <PaperAirplaneIcon className="h-4 w-4" />
@@ -609,7 +649,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
             )}
           </form>
 
-          <p className="text-center text-xs text-text-tertiary opacity-50 mt-1.5">
+          <p className="text-center text-xs leading-relaxed text-text-tertiary mt-1.5">
             {t("chat.disclaimer")}
           </p>
         </div>

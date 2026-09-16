@@ -35,17 +35,27 @@ export function Button({
         borderRadius: 8,
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: quiet ? colors.accentSoft : colors.action,
+        backgroundColor: disabled
+          ? colors.surfaceElevated
+          : pressed
+            ? quiet
+              ? colors.selected
+              : colors.actionPressed
+            : quiet
+              ? colors.accentSoft
+              : colors.action,
         borderWidth: quiet ? 1 : 0,
         borderColor: quiet ? colors.border : "transparent",
-        opacity: disabled ? 0.6 : pressed ? 0.75 : 1,
+        opacity: disabled ? 0.7 : 1,
       })}
     >
       <Text
         style={{
           fontFamily: "SourceSans3_600SemiBold",
           fontSize: 16,
-          color: quiet ? colors.accent : colors.textOnAccent,
+          lineHeight: 22,
+          textAlign: "center",
+          color: disabled ? colors.muted : quiet ? colors.accent : colors.textOnAccent,
         }}
       >
         {title}
@@ -72,13 +82,16 @@ export function IconButton({
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={{
+      hitSlop={4}
+      style={({ pressed }) => ({
         minWidth: 48,
         minHeight: 48,
         alignItems: "center",
         justifyContent: "center",
+        borderRadius: 24,
+        backgroundColor: pressed && !disabled ? colors.accentSoft : "transparent",
         opacity: disabled ? 0.5 : 1,
-      }}
+      })}
     >
       <Ionicons name={name} size={24} color={colors.accent} />
     </Pressable>
@@ -104,6 +117,7 @@ export function ErrorBox({
   const { colors, styles } = useTheme();
   return (
     <View
+      accessibilityRole="alert"
       accessibilityLiveRegion="polite"
       style={[
         styles.card,
@@ -116,10 +130,11 @@ export function ErrorBox({
   );
 }
 export function Loading() {
-  const { colors } = useTheme();
+  const { colors, styles } = useTheme();
   return (
-    <View style={{ padding: 32 }}>
+    <View accessibilityRole="progressbar" accessibilityLabel="Loading" style={{ alignItems: "center", gap: 12, padding: 32 }}>
       <ActivityIndicator accessibilityLabel="Loading" color={colors.accent} />
+      <Text style={styles.muted}>Loading OghmaNotes</Text>
     </View>
   );
 }

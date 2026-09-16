@@ -298,7 +298,7 @@ export default function NoteInspectorPanel({
   );
 
   const tabClasses = (tab: Exclude<RightPanelTab, "tasks">) => `
-    px-2.5 py-1.5 text-xs font-medium transition-colors border-b-2
+    min-h-11 px-3 py-2 text-sm font-medium transition-colors border-b-2 md:min-h-9 md:text-xs
     ${
       activeTab === tab
         ? "border-primary-500 text-text-secondary"
@@ -309,7 +309,7 @@ export default function NoteInspectorPanel({
   return (
     <div className="h-full flex flex-col text-text">
       {presentation === "desktop" && (
-        <div className="flex h-9 items-center justify-between border-b border-border-subtle px-3">
+        <div className="flex min-h-11 items-center justify-between gap-2 border-b border-border-subtle px-3">
           <h3 className="truncate text-sm text-text-secondary">
             {activeTab === "tasks"
               ? t("Global Tasks")
@@ -329,14 +329,25 @@ export default function NoteInspectorPanel({
       )}
 
       <div className="flex items-stretch justify-between border-b border-border-subtle px-2">
-        <div className="flex" role="tablist" aria-label="Inspector tabs">
+        <div
+          className="flex"
+          role="tablist"
+          aria-label="Inspector tabs"
+          onKeyDown={(event) => {
+            if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+            event.preventDefault();
+            const nextTab = event.key === "Home" ? "meta" : event.key === "End" ? "ai" : activeTab === "meta" ? "ai" : "meta";
+            setRightPanelTab(nextTab);
+            event.currentTarget.querySelector<HTMLButtonElement>(`#tab-${nextTab}`)?.focus();
+          }}
+        >
           <button
             type="button"
             role="tab"
             id="tab-meta"
             aria-selected={activeTab === "meta"}
             aria-controls="panel-meta"
-            tabIndex={activeTab === "meta" ? 0 : -1}
+            tabIndex={activeTab !== "ai" ? 0 : -1}
             onClick={() => setRightPanelTab("meta")}
             className={tabClasses("meta")}
           >
@@ -359,7 +370,7 @@ export default function NoteInspectorPanel({
           type="button"
           onClick={() => setRightPanelTab("tasks")}
           aria-pressed={activeTab === "tasks"}
-          className={`border-b-2 px-2.5 py-1.5 text-xs font-medium transition-colors ${
+          className={`min-h-11 border-b-2 px-3 py-2 text-sm font-medium transition-colors md:min-h-9 md:text-xs ${
             activeTab === "tasks"
               ? "border-primary-500 text-text-secondary"
               : "border-transparent text-text-tertiary hover:text-text-secondary"
@@ -370,14 +381,14 @@ export default function NoteInspectorPanel({
       </div>
 
       {/* Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="min-h-0 flex-1 flex flex-col overflow-hidden">
         {/* Meta Tab — file info + tags */}
         {activeTab === "meta" && (
           <div
             id="panel-meta"
             role="tabpanel"
             aria-labelledby="tab-meta"
-            className="flex-1 overflow-y-auto p-4 space-y-5"
+            className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-5"
           >
             {loading ? (
               <p className="text-xs text-text-tertiary">{t("Loading...")}</p>
@@ -386,7 +397,7 @@ export default function NoteInspectorPanel({
                 <dl className="space-y-3">
                   <div>
                     <dt className="text-xs text-text-tertiary">{t("Title")}</dt>
-                    <dd className="mt-0.5 text-text-secondary text-sm">
+                    <dd className="mt-0.5 break-words text-text-secondary text-sm">
                       {note.title || activeFile?.title || t("Untitled")}
                     </dd>
                   </div>
@@ -428,7 +439,7 @@ export default function NoteInspectorPanel({
                   </div>
                   <div>
                     <dt className="text-xs text-text-tertiary">{t("ID")}</dt>
-                    <dd className="mt-0.5 break-all font-mono text-xs text-text-tertiary/50">
+                    <dd className="mt-0.5 break-all font-mono text-xs text-text-tertiary">
                       {note.id || activeFile.fileId}
                     </dd>
                   </div>
@@ -447,8 +458,9 @@ export default function NoteInspectorPanel({
                         <button
                           type="button"
                           onClick={() => void removeTag(tag)}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity hover:text-error-400 rounded-full"
+                          className="flex h-11 w-11 items-center justify-center rounded-full transition-colors hover:bg-error-500/10 hover:text-error-600 dark:hover:text-error-400 md:h-6 md:w-6"
                           title={t("Remove tag")}
+                          aria-label={t("Remove tag")}
                         >
                           <XMarkIcon className="w-3 h-3" />
                         </button>
@@ -467,13 +479,15 @@ export default function NoteInspectorPanel({
                       }}
                       disabled={isSavingTag}
                       placeholder={t("add tag")}
-                      className="flex-1 bg-transparent text-xs text-text placeholder:text-text-tertiary/60 focus:outline-none disabled:opacity-50 min-w-0"
+                      aria-label={t("add tag")}
+                      className="min-h-11 min-w-0 flex-1 bg-transparent text-base text-text placeholder:text-text-tertiary focus:outline-none disabled:opacity-50 md:min-h-8 md:text-sm"
                     />
                     <button
                       type="button"
                       onClick={() => void addTag()}
+                      aria-label={t("add tag")}
                       disabled={!newTag.trim() || isSavingTag}
-                      className="flex-shrink-0 text-text-tertiary hover:text-text-secondary disabled:opacity-30 transition-colors"
+                      className="ui-icon-button"
                     >
                       <PlusIcon className="w-3.5 h-3.5" />
                     </button>

@@ -11,7 +11,7 @@ import useLayoutStore from "@/lib/notes/state/layout.zustand";
 import EditorPane from "./editor-pane";
 
 const SplitEditorPane: FC = () => {
-  const isDesktop = useMediaQuery("(min-width: 768px)");
+  const isDesktop = useMediaQuery("(min-width: 1024px)");
   const paneA = useLayoutStore((s) => s.paneA);
   const paneB = useLayoutStore((s) => s.paneB);
   const setActivePane = useLayoutStore((s) => s.setActivePane);
@@ -28,7 +28,12 @@ const SplitEditorPane: FC = () => {
   return (
     <div className="flex h-full w-full" data-pane-shortcut="true">
       <PanelGroup orientation="horizontal" className="flex-1">
-        <Panel id="editor-a" defaultSize={50} minSize={20} className="flex min-w-0">
+        <Panel
+          id="editor-a"
+          defaultSize={50}
+          minSize={20}
+          className="flex min-w-0"
+        >
           <div className="h-full w-full">
             <EditorPane
               pane="A"
@@ -44,7 +49,12 @@ const SplitEditorPane: FC = () => {
         )}
 
         {showSecondaryPane && (
-          <Panel id="editor-b" defaultSize={50} minSize={20} className="flex min-w-0">
+          <Panel
+            id="editor-b"
+            defaultSize={50}
+            minSize={20}
+            className="flex min-w-0"
+          >
             <div className="h-full w-full">
               <EditorPane pane="B" file={paneB ?? undefined} hasSecondaryPane />
             </div>
