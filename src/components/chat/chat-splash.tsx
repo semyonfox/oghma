@@ -24,7 +24,7 @@ const ChatSplash: FC<{ onSelectPrompt?: (prompt: string) => void }> = ({
           <h2 className="text-base font-semibold text-text">
             OghmaNotes AI
           </h2>
-          <p className="max-w-md text-sm leading-relaxed text-text-tertiary">
+          <p className="max-w-md text-base leading-relaxed text-text-tertiary">
             {t("Ask anything about your notes, or start a conversation.")}
           </p>
           {onSelectPrompt && (

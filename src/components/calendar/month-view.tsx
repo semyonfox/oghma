@@ -129,11 +129,15 @@ export default function MonthView({ onSelectDate }: MonthViewProps) {
                 {day.assignments.slice(0, 2).map((a) => (
                   <div
                     key={a.id}
-                    className="group/a pointer-events-none relative flex items-center gap-0.5 rounded-radius-md px-1 py-0.5 text-xs leading-snug border-l-2 bg-surface-elevated shadow-sm"
-                    style={{
-                      borderColor: a.courseColor ?? "var(--color-primary-500)",
-                    }}
+                    className="group/a pointer-events-none relative flex items-center gap-1 rounded-radius-sm pl-2 pr-1 py-0.5 text-xs leading-snug bg-surface-elevated"
                   >
+                    <span
+                      aria-hidden="true"
+                      className="absolute bottom-1 left-0 top-1 w-0.5 rounded-full"
+                      style={{
+                        backgroundColor: a.courseColor ?? "var(--color-primary-500)",
+                      }}
+                    />
                     <button
                       onClick={(e) => {
                         e.preventDefault();
@@ -165,11 +169,15 @@ export default function MonthView({ onSelectDate }: MonthViewProps) {
                   .map((tb) => (
                     <div
                       key={tb.id}
-                      className="group/tb pointer-events-none relative flex items-center gap-0.5 rounded-radius-md px-1 py-0.5 text-xs leading-snug border-l-2 bg-surface-elevated shadow-sm"
-                      style={{
-                        borderColor: tb.courseColor ?? "var(--color-primary-500)",
-                      }}
+                      className="group/tb pointer-events-none relative flex items-center gap-1 rounded-radius-sm pl-2 pr-1 py-0.5 text-xs leading-snug bg-surface-elevated"
                     >
+                      <span
+                        aria-hidden="true"
+                        className="absolute bottom-1 left-0 top-1 w-0.5 rounded-full"
+                        style={{
+                          backgroundColor: tb.courseColor ?? "var(--color-primary-500)",
+                        }}
+                      />
                       <button
                         onClick={(e) => {
                           e.preventDefault();

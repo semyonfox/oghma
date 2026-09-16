@@ -149,7 +149,7 @@ export function ConversationHistory({
         <button
           type="button"
           onClick={onNewConversation}
-          className="glass-card-interactive flex h-11 w-full items-center gap-2 rounded-radius-md px-3 text-sm font-medium text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-400/30 lg:h-9 lg:text-xs"
+          className="glass-card-interactive flex h-11 w-full items-center gap-2 rounded-radius-md px-3 text-sm font-medium text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-400/30 lg:h-9"
         >
           <PlusIcon className="h-4 w-4" />
           {t("chat.new_conversation")}
@@ -202,16 +202,16 @@ export function ConversationHistory({
               {sectionOpen && (
                 <div
                   id={isPinned ? "pinned-conversations" : undefined}
-                  className="obsidian-scrollbar min-h-0 flex-1 space-y-0.5 overflow-y-auto px-1.5"
+                  className="obsidian-scrollbar min-h-0 flex-1 space-y-0 overflow-y-auto px-1.5"
                 >
                   {section.items.map((conv) => (
                     <div
                       key={conv.id}
-                      className={`group relative min-h-11 overflow-hidden rounded-radius-sm text-xs transition-colors lg:min-h-8 ${conv.id === activeId ? "bg-subtle text-text-secondary" : "text-text-tertiary hover:bg-subtle/70 hover:text-text-secondary"} focus-within:ring-1 focus-within:ring-inset focus-within:ring-primary-400/30`}
+                      className={`group relative min-h-11 overflow-hidden rounded-radius-sm text-xs transition-colors lg:min-h-7 ${conv.id === activeId ? "bg-subtle text-text-secondary" : "text-text-tertiary hover:bg-subtle/70 hover:text-text-secondary"} focus-within:ring-1 focus-within:ring-inset focus-within:ring-primary-400/30`}
                     >
                       {editingId === conv.id ? (
                         <form
-                          className="flex min-h-11 items-center gap-1 px-1.5 lg:min-h-8"
+                          className="flex min-h-11 items-center gap-1 px-1.5 lg:min-h-7"
                           onSubmit={(event) => {
                             event.preventDefault();
                             void finishRename();
@@ -245,7 +245,7 @@ export function ConversationHistory({
                         <Link
                           href={`/chat/${conv.id}`}
                           onClick={() => onSelectConversation(conv.id)}
-                          className="flex min-h-11 w-full items-center gap-1.5 px-2.5 pr-36 text-left transition-[padding] duration-150 focus-visible:outline-none lg:min-h-8 lg:pr-16 lg:group-hover:pr-28 lg:group-focus-within:pr-28"
+                          className="flex min-h-11 w-full items-center gap-1.5 px-2.5 pr-36 text-left transition-[padding] duration-150 focus-visible:outline-none lg:min-h-7 lg:pr-16 lg:group-hover:pr-28 lg:group-focus-within:pr-28"
                           aria-current={
                             conv.id === activeId ? "page" : undefined
                           }
@@ -253,7 +253,7 @@ export function ConversationHistory({
                           {conv.pinned && (
                             <PushPinIcon className="h-3 w-3 shrink-0 text-primary-400" />
                           )}
-                          <span className="min-w-0 flex-1 truncate text-sm font-medium lg:text-xs lg:font-normal">
+                          <span className="min-w-0 flex-1 truncate text-sm font-medium lg:font-normal">
                             {conv.title}
                           </span>
                         </Link>
