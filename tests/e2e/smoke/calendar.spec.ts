@@ -66,23 +66,27 @@ test.describe("calendar responsive smoke", () => {
       await expect(page.getByRole("button", { name: "Tasks" })).not.toBeVisible();
     }
 
-    if (width < 768) {
-      const monthView = page.getByLabel("Month view");
-      await expect(monthView).toBeVisible();
-      await expect(monthView.getByRole("button")).toHaveCount(42);
-      await expect(page.getByRole("main", { name: "Calendar" }).getByText("Calendar smoke task")).toBeVisible();
-      await expect(page.getByText("Revision block")).toBeVisible();
+    if (width < 1024) {
+      const agenda = page.getByRole("main", { name: "Calendar" });
+      await expect(agenda.getByText("Calendar smoke task")).toBeVisible();
+      await expect(agenda.getByText("Revision block")).toBeVisible();
+      const monthToggle = page.getByRole("button", { name: "Month" });
+      await expect(monthToggle).toHaveAttribute("aria-expanded", "false");
       expect(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= window.innerWidth,
         ),
       ).toBe(true);
       await page.getByRole("button", { name: "Previous period" }).click();
-      await expect(monthView.getByRole("button", { pressed: true })).toHaveCount(1);
       await page.getByRole("button", { name: "Today" }).click();
+      await monthToggle.click();
+      const monthView = page.locator("#mobile-calendar-month");
+      await expect(monthView).toBeVisible();
+      await expect(monthView.getByRole("button")).toHaveCount(42);
       await expect(monthView.getByRole("button", { pressed: true })).toHaveCount(1);
-      await page.getByRole("tab", { name: "Week" }).click();
-      await expect(page.getByLabel("Week view")).toBeVisible();
+      await page.getByRole("button", { name: "Week", exact: true }).click();
+      await expect(monthView).not.toBeVisible();
+      await expect(monthToggle).toHaveAttribute("aria-expanded", "false");
       await page.getByRole("button", { name: "New Task" }).first().click();
       const taskDialog = page.getByRole("dialog").last();
       await expect(taskDialog.getByRole("heading", { name: "New Task" })).toBeVisible();
