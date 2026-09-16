@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { ChatBubbleLeftRightIcon } from "@heroicons/react/24/outline";
+import { ChatBubbleLeftRightIcon, PlusIcon } from "@heroicons/react/24/outline";
 import ChatInterface from "@/components/chat/chat-interface";
 import {
   ConversationHistory,
@@ -11,6 +11,7 @@ import {
 import PrimaryNavigation from "@/components/navigation/primary-navigation";
 import MobileAppHeader from "@/components/navigation/mobile-app-header";
 import MobileDrawer from "@/components/navigation/mobile-drawer";
+import MobileBottomNavigation from "@/components/navigation/mobile-bottom-navigation";
 import useMediaQuery from "@/lib/hooks/use-media-query";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { buildChatSessionHref, buildNewChatHref } from "@/lib/chat/routes";
@@ -126,7 +127,7 @@ function sortConversations(conversations: Conversation[]): Conversation[] {
 export default function ChatPageClient() {
   const { t } = useI18n();
   const router = useRouter();
-  const isDesktop = useMediaQuery("(min-width: 768px)");
+  const isDesktop = useMediaQuery("(min-width: 1024px)");
   const params = useParams<{ sessionId?: string }>();
   const searchParams = useSearchParams();
   const routeSessionId =
@@ -481,14 +482,24 @@ export default function ChatPageClient() {
       <MobileAppHeader
         title={conversationTitle}
         actions={
-          <button
-            type="button"
-            onClick={() => setHistoryOpen(true)}
-            className="flex h-11 w-11 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50"
-            aria-label={t("Chat history")}
-          >
-            <ChatBubbleLeftRightIcon className="h-5 w-5" aria-hidden="true" />
-          </button>
+          <div className="flex items-center gap-0.5">
+            <button
+              type="button"
+              onClick={newConversation}
+              className="flex h-11 w-11 items-center justify-center rounded-radius-md text-primary-700 transition-colors hover:bg-primary-500/10 dark:text-primary-300"
+              aria-label={t("chat.new_conversation")}
+            >
+              <PlusIcon className="h-5 w-5" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setHistoryOpen(true)}
+              className="flex h-11 w-11 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50"
+              aria-label={t("Chat history")}
+            >
+              <ChatBubbleLeftRightIcon className="h-5 w-5" aria-hidden="true" />
+            </button>
+          </div>
         }
       />
 
@@ -506,7 +517,7 @@ export default function ChatPageClient() {
         )}
 
         <main className="flex min-w-0 flex-1 flex-col">
-          <header className="glass-panel hidden min-h-[52px] flex-shrink-0 items-center border-b border-border-subtle px-5 md:flex">
+          <header className="glass-panel hidden min-h-[52px] flex-shrink-0 items-center border-b border-border-subtle px-5 lg:flex">
             <h1 className="truncate text-sm font-medium text-text-secondary">
               {conversationTitle}
             </h1>
@@ -547,11 +558,12 @@ export default function ChatPageClient() {
           onClose={() => setHistoryOpen(false)}
           title={t("chat.title")}
           side="left"
-          className="md:hidden"
+          className="lg:hidden"
         >
           <ConversationHistory {...historyProps} showHeader={false} />
         </MobileDrawer>
       )}
+      <MobileBottomNavigation />
     </div>
   );
 }

@@ -92,7 +92,7 @@ const SourcesBlock: FC<{
         type="button"
         onClick={() => setExpanded(!expanded)}
         aria-expanded={expanded}
-        className="w-full flex items-center justify-between px-3 py-2 bg-surface/50 hover:bg-subtle/50 transition-colors text-left"
+        className="flex min-h-11 w-full items-center justify-between bg-surface/50 px-3 py-2 text-left transition-colors hover:bg-subtle/50 lg:min-h-0"
       >
         <span className="text-xs text-text-tertiary">
           <span className="font-medium text-text-secondary">
@@ -178,7 +178,7 @@ const CopyMessageButton: FC<{ content: string }> = ({ content }) => {
       type="button"
       onClick={handleCopy}
       disabled={busy}
-      className="inline-flex items-center rounded-radius-sm text-text-tertiary opacity-70 transition-colors hover:opacity-100 hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/40 disabled:cursor-default"
+      className="touch-target-44 inline-flex items-center justify-center rounded-radius-sm text-text-tertiary opacity-70 transition-colors hover:opacity-100 hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/40 disabled:cursor-default"
       aria-label={t("Copy message")}
       title={t("Copy message")}
     >
@@ -204,7 +204,7 @@ const FullMessageBubbleComponent: FC<{
           </div>
           <div className="mt-0.5 flex items-center justify-end gap-1.5 text-xs text-text-tertiary">
             {hasContent && (
-              <span className="opacity-0 transition-opacity duration-150 group-hover/msg:opacity-100 focus-within:opacity-100">
+              <span className="opacity-100 transition-opacity duration-150 lg:opacity-0 lg:group-hover/msg:opacity-100 lg:focus-within:opacity-100 pointer-coarse:opacity-100">
                 <CopyMessageButton content={m.content} />
               </span>
             )}
@@ -268,7 +268,7 @@ const FullMessageBubbleComponent: FC<{
           })}
         </p>
         {presentation.answerText.trim() && (
-          <span className="opacity-0 transition-opacity duration-150 group-hover/msg:opacity-100 focus-within:opacity-100">
+          <span className="opacity-100 transition-opacity duration-150 lg:opacity-0 lg:group-hover/msg:opacity-100 lg:focus-within:opacity-100 pointer-coarse:opacity-100">
             <CopyMessageButton content={presentation.answerText} />
           </span>
         )}
@@ -343,7 +343,7 @@ const CompactMessageBubbleComponent: FC<{
 
         {hasContent && (
           <div
-            className={`flex opacity-0 transition-opacity duration-150 group-hover/msg:opacity-100 focus-within:opacity-100 ${m.role === "user" ? "justify-end" : "justify-start"}`}
+            className={`flex opacity-100 transition-opacity duration-150 lg:opacity-0 lg:group-hover/msg:opacity-100 lg:focus-within:opacity-100 pointer-coarse:opacity-100 ${m.role === "user" ? "justify-end" : "justify-start"}`}
           >
             <CopyMessageButton
               content={presentation?.answerText ?? m.content}

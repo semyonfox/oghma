@@ -14,6 +14,7 @@ import { loadLocaleData } from "@/lib/i18n/locale-data";
 import { Locale } from "@/locales";
 import { Toaster } from "sonner";
 import type { ReactNode } from "react";
+import type { Viewport } from "next";
 import "katex/dist/katex.min.css";
 import "./globals.css";
 
@@ -28,6 +29,12 @@ const sourceSerif = Source_Serif_4({
   display: "swap",
   variable: "--font-source-serif",
 });
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  interactiveWidget: "resizes-content",
+};
 
 export const metadata = {
   applicationName: "OghmaNotes",

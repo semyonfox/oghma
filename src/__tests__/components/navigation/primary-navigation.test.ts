@@ -83,10 +83,21 @@ describe("PrimaryNavigation AI chat entry", () => {
     expect(mocks.push).not.toHaveBeenCalled();
   });
 
-  it("identifies the current destination accessibly", () => {
+  it("keeps Notes current when its AI side panel is open", () => {
     render(React.createElement(PrimaryNavigation));
 
     expect(screen.getByRole("navigation", { name: "Main navigation" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Notes" }).getAttribute("aria-current"),
+    ).toBe("page");
+    expect(
+      screen.getByRole("button", { name: "AI Chat" }).getAttribute("aria-current"),
+    ).toBeNull();
+  });
+
+  it("identifies a full chat session as the current destination", () => {
+    mocks.pathname = "/chat/session-123";
+    render(React.createElement(PrimaryNavigation));
     expect(
       screen.getByRole("button", { name: "AI Chat" }).getAttribute("aria-current"),
     ).toBe("page");

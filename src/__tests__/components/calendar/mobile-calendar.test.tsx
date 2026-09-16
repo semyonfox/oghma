@@ -5,7 +5,10 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import MobileCalendar from "@/components/calendar/mobile-calendar";
 
-const mocks = vi.hoisted(() => ({ setView: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  onOpenTasks: vi.fn(),
+  onToggleMonth: vi.fn(),
+}));
 
 vi.mock("@/lib/notes/hooks/use-i18n", () => ({
   default: () => ({
@@ -20,7 +23,6 @@ vi.mock("@/lib/notes/state/calendar.zustand", () => {
     currentDate: "2026-08-15T12:00:00.000Z",
     selectedDate: "2026-08-15",
     setSelectedDate: vi.fn(),
-    setView: mocks.setView,
     timeBlocks: [],
     reviewDates: new Set<string>(),
     loading: false,
@@ -44,15 +46,42 @@ vi.mock("@/components/calendar/day-agenda", () => ({
 }));
 
 describe("MobileCalendar", () => {
-  it("shows a full month grid and lets people switch to the week view", () => {
+  it("keeps the agenda-first date strip visible and expands the month on request", () => {
     render(
-      <MobileCalendar onAddTask={vi.fn()} onRetry={vi.fn()} />,
+      <MobileCalendar
+        onAddTask={vi.fn()}
+        onRetry={vi.fn()}
+        onOpenTasks={mocks.onOpenTasks}
+        monthOpen={false}
+        onToggleMonth={mocks.onToggleMonth}
+      />,
     );
 
-    const monthPanel = screen.getByRole("tabpanel", { name: "Month view" });
-    expect(within(monthPanel).getAllByRole("button")).toHaveLength(42);
+    expect(screen.getByText("Day agenda")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "August 1, 2026" })).toBeNull();
 
-    fireEvent.click(screen.getByRole("tab", { name: "Week" }));
-    expect(mocks.setView).toHaveBeenCalledWith("week");
+    fireEvent.click(screen.getByRole("button", { name: "Month" }));
+    expect(mocks.onToggleMonth).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "Tasks" }));
+    expect(mocks.onOpenTasks).toHaveBeenCalledOnce();
+  });
+
+  it("renders the selectable month without overriding the selected-day background", () => {
+    render(
+      <MobileCalendar
+        onAddTask={vi.fn()}
+        onRetry={vi.fn()}
+        monthOpen
+        onToggleMonth={mocks.onToggleMonth}
+      />,
+    );
+
+    const month = document.getElementById("mobile-calendar-month");
+    expect(month).not.toBeNull();
+    const selectedDate = within(month!).getByRole("button", {
+      name: "Saturday, August 15, 2026",
+    });
+    expect(selectedDate.classList.contains("bg-primary-600")).toBe(true);
+    expect(selectedDate.classList.contains("bg-surface")).toBe(false);
   });
 });

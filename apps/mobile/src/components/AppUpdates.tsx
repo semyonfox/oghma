@@ -69,6 +69,13 @@ function statusTitle(state: UpdateState) {
   }
 }
 
+function statusIcon(state: UpdateState): keyof typeof Ionicons.glyphMap {
+  if (state.status === "current") return "checkmark-circle-outline";
+  if (state.status === "error") return "alert-circle-outline";
+  if (["ready", "installer"].includes(state.status)) return "arrow-down-circle-outline";
+  return "cloud-download-outline";
+}
+
 export function UpdatesProvider({ children }: { children: ReactNode }) {
   const [controller] = useState(
     () => new UpdateController({ ...nativeUpdater, fetchRelease }),
@@ -127,7 +134,13 @@ export function AppUpdateLink() {
     <Pressable
       accessibilityRole="button"
       onPress={open}
-      style={{ minHeight: 48, justifyContent: "center", alignItems: "center" }}
+      hitSlop={4}
+      style={({ pressed }) => ({
+        minHeight: 48,
+        justifyContent: "center",
+        alignItems: "center",
+        opacity: pressed ? 0.72 : 1,
+      })}
     >
       <Text style={[styles.muted, { color: colors.accent }]}>App updates</Text>
     </Pressable>
@@ -149,7 +162,12 @@ export function UpdateBanner() {
       <Pressable
         accessibilityRole="button"
         onPress={open}
-        style={{ flex: 1, minHeight: 48, justifyContent: "center" }}
+        style={({ pressed }) => ({
+          flex: 1,
+          minHeight: 48,
+          justifyContent: "center",
+          opacity: pressed ? 0.72 : 1,
+        })}
       >
         <Text style={[styles.muted, { color: colors.accent }]}>
           {state.status === "available"
@@ -202,27 +220,40 @@ function UpdateSheet({
           <IconButton name="close" label="Close app updates" onPress={close} />
         </View>
         <ScrollView contentContainerStyle={[styles.content, { flexGrow: 1 }]}>
-          <Text style={styles.label}>OGHMANOTES ANDROID ALPHA</Text>
-          <Text style={styles.muted}>
-            Installed version {controller.installed.version}
-          </Text>
-          <View style={[styles.card, { padding: 24, gap: 18 }]}>
-            <Ionicons
-              name={
-                state.status === "current"
-                  ? "checkmark-circle-outline"
-                  : "cloud-download-outline"
-              }
-              size={36}
-              color={colors.accent}
-            />
-            <Text
-              accessibilityRole="header"
-              accessibilityLiveRegion="polite"
-              style={styles.title}
-            >
-              {statusTitle(state)}
-            </Text>
+          <View style={{ gap: 4 }}>
+            <Text style={styles.label}>APP UPDATES</Text>
+            <Text style={styles.heading}>OghmaNotes for Android</Text>
+            <Text style={styles.muted}>Installed version {controller.installed.version}</Text>
+          </View>
+          <View style={[styles.card, { gap: 16 }]}>
+            <View style={[styles.row, { alignItems: "flex-start" }]}>
+              <View
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: state.status === "error" ? colors.errorSoft : colors.accentSoft,
+                }}
+              >
+                <Ionicons
+                  name={statusIcon(state)}
+                  size={25}
+                  color={state.status === "error" ? colors.error : colors.accent}
+                />
+              </View>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={styles.label}>UPDATE STATUS</Text>
+                <Text
+                  accessibilityRole="header"
+                  accessibilityLiveRegion="polite"
+                  style={styles.heading}
+                >
+                  {statusTitle(state)}
+                </Text>
+              </View>
+            </View>
             {release && (
               <Text style={styles.muted}>
                 Version {release.version} · {sizeLabel(release.bytes)}
@@ -251,17 +282,18 @@ function UpdateSheet({
                   accessibilityRole="progressbar"
                   accessibilityLabel="Update download"
                   accessibilityValue={{ min: 0, max: 100, now: percent }}
+                  accessibilityLiveRegion="polite"
                   style={{
-                    height: 8,
+                    height: 10,
                     backgroundColor: colors.surfaceElevated,
-                    borderRadius: 4,
+                    borderRadius: 5,
                     overflow: "hidden",
                   }}
                 >
                   <View
                     style={{
                       width: `${percent}%`,
-                      height: 8,
+                      height: 10,
                       backgroundColor: colors.action,
                     }}
                   />

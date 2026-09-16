@@ -1,62 +1,42 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import { Bars3Icon } from "@heroicons/react/24/outline";
+import { type ReactNode } from "react";
 import clsx from "clsx";
-import useI18n from "@/lib/notes/hooks/use-i18n";
-import MobileDrawer from "./mobile-drawer";
-import PrimaryNavigation from "./primary-navigation";
 
 interface MobileAppHeaderProps {
   title: ReactNode;
+  subtitle?: ReactNode;
+  leading?: ReactNode;
   actions?: ReactNode;
   className?: string;
 }
 
 export default function MobileAppHeader({
   title,
+  subtitle,
+  leading,
   actions,
   className,
 }: MobileAppHeaderProps) {
-  const { t } = useI18n();
-  const [navigationOpen, setNavigationOpen] = useState(false);
-
   return (
-    <>
-      <header
-        className={clsx(
-          "flex min-h-16 shrink-0 items-center gap-3 border-b border-border-subtle bg-background px-3 py-2 md:hidden",
-          className,
-        )}
-      >
-        <button
-          type="button"
-          onClick={() => setNavigationOpen(true)}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50"
-          aria-label={t("Open main menu")}
-          aria-haspopup="dialog"
-          aria-expanded={navigationOpen}
-        >
-          <Bars3Icon className="h-5 w-5" aria-hidden="true" />
-        </button>
-        <div className="min-w-0 flex-1 truncate text-base font-semibold text-text-secondary">
+    <header
+      className={clsx(
+        "flex min-h-20 shrink-0 items-center gap-3 bg-background px-5 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] lg:hidden",
+        className,
+      )}
+    >
+      {leading}
+      <div className="min-w-0 flex-1">
+        <h1 className="truncate text-2xl font-semibold tracking-tight text-text">
           {title}
-        </div>
-        {actions && <div className="flex shrink-0 items-center">{actions}</div>}
-      </header>
-
-      <MobileDrawer
-        open={navigationOpen}
-        onClose={() => setNavigationOpen(false)}
-        title={t("Main navigation")}
-        side="left"
-        className="md:hidden"
-      >
-        <PrimaryNavigation
-          variant="drawer"
-          onNavigate={() => setNavigationOpen(false)}
-        />
-      </MobileDrawer>
-    </>
+        </h1>
+        {subtitle && (
+          <p className="mt-0.5 text-sm text-text-tertiary">{subtitle}</p>
+        )}
+      </div>
+      {actions && (
+        <div className="flex shrink-0 items-center gap-1">{actions}</div>
+      )}
+    </header>
   );
 }

@@ -1,4 +1,11 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   Alert,
   FlatList,
@@ -7,8 +14,10 @@ import {
   ScrollView,
   Text,
   View,
+  type ListRenderItemInfo,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Markdown from "react-native-markdown-display";
 import { origin } from "../lib/api";
@@ -18,18 +27,26 @@ import {
   type OfflineSnapshot,
 } from "../lib/offline-state";
 import { useTheme } from "../lib/theme";
-import { Button, Field, IconButton, message } from "../ui";
+import { Empty, ErrorBox, Field, IconButton, Loading, message } from "../ui";
 
 interface OfflineActions {
   open(): void;
   setAccount(ownerId: string | null): void;
   save(snapshot: OfflineSnapshot): void;
 }
+
+type Notice = { kind: "success" | "error"; text: string };
+
 const Context = createContext<OfflineActions | null>(null);
+
 export function useOfflineNotes() {
   const value = useContext(Context);
   if (!value) throw new Error("Offline notes provider is missing");
   return value;
+}
+
+function savedAt(note: OfflineNote) {
+  return new Date(note.savedAt).toLocaleString();
 }
 
 export function OfflineNotesProvider({ children }: { children: ReactNode }) {
@@ -45,64 +62,113 @@ export function OfflineNotesProvider({ children }: { children: ReactNode }) {
   const [notes, setNotes] = useState<OfflineNote[]>([]);
   const [selected, setSelected] = useState<OfflineNote | null>(null);
   const [query, setQuery] = useState("");
-  const [status, setStatus] = useState("");
+  const [notice, setNotice] = useState<Notice | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const perform = async (operation: () => Promise<unknown>, success = "") => {
-    setBusy(true);
-    setStatus("");
-    try {
-      await operation();
-      setStatus(success);
-    } catch (error) {
-      setStatus(message(error));
-    } finally {
-      setNotes([...library.notes]);
-      setBusy(false);
-    }
-  };
-  const close = () => {
+  const perform = useCallback(
+    async (operation: () => Promise<unknown>, success?: string) => {
+      setBusy(true);
+      setNotice(null);
+      try {
+        await operation();
+        if (success) setNotice({ kind: "success", text: success });
+      } catch (error) {
+        setNotice({ kind: "error", text: message(error) });
+      } finally {
+        setNotes([...library.notes]);
+        setBusy(false);
+      }
+    },
+    [library],
+  );
+  const close = useCallback(() => {
     setVisible(false);
     setSelected(null);
-  };
-  const open = () => {
+    setNotice(null);
+  }, []);
+  const open = useCallback(() => {
     setSelected(null);
     setQuery("");
     setVisible(true);
     void perform(() => library.read());
-  };
-  const actions: OfflineActions = {
-    open,
-    setAccount: (ownerId) => {
-      if (!ownerId || library.ownerId !== ownerId) {
+  }, [library, perform]);
+  const actions = useMemo<OfflineActions>(
+    () => ({
+      open,
+      setAccount: (ownerId) => {
+        if (!ownerId || library.ownerId !== ownerId) {
+          setSelected(null);
+          setNotes([]);
+        }
+        void perform(() => library.setAccount(ownerId));
+      },
+      save: (snapshot) => {
         setSelected(null);
-        setNotes([]);
-      }
-      void perform(() => library.setAccount(ownerId));
-    },
-    save: (snapshot) => {
-      setSelected(null);
-      setQuery("");
-      setVisible(true);
-      void perform(() => library.save(snapshot), "Saved for offline reading.");
-    },
-  };
-  const removeAll = () =>
-    Alert.alert(
-      "Remove offline notes?",
-      "This removes downloaded copies from this phone. Your online notes stay saved.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Remove downloads",
-          style: "destructive",
-          onPress: () => {
-            setSelected(null);
-            void perform(() => library.clear(), "Downloaded notes removed.");
+        setQuery("");
+        setVisible(true);
+        void perform(() => library.save(snapshot), "Saved for offline reading.");
+      },
+    }),
+    [library, open, perform],
+  );
+  const removeAll = useCallback(
+    () =>
+      Alert.alert(
+        "Remove offline notes?",
+        "This removes downloaded copies from this phone. Your online notes stay saved.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Remove downloads",
+            style: "destructive",
+            onPress: () => {
+              setSelected(null);
+              void perform(() => library.clear(), "Downloaded notes removed.");
+            },
           },
-        },
-      ],
-    );
+        ],
+      ),
+    [library, perform],
+  );
+  const removeSelected = useCallback(() => {
+    if (!selected) return;
+    const id = selected.id;
+    setSelected(null);
+    void perform(() => library.remove(id), "Downloaded copy removed.");
+  }, [library, perform, selected]);
+  const filteredNotes = useMemo(() => {
+    const term = query.trim().toLocaleLowerCase();
+    return term
+      ? notes.filter((note) => note.title.toLocaleLowerCase().includes(term))
+      : notes;
+  }, [notes, query]);
+  const renderItem = useCallback(
+    ({ item }: ListRenderItemInfo<OfflineNote>) => (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Open downloaded note: ${item.title || "Untitled note"}`}
+        accessibilityHint="Opens this read-only copy"
+        onPress={() => setSelected(item)}
+        style={({ pressed }) => [
+          styles.card,
+          {
+            minHeight: 78,
+            marginTop: 12,
+            backgroundColor: pressed ? colors.surfaceElevated : colors.surface,
+          },
+        ]}
+      >
+        <View style={[styles.row, { justifyContent: "space-between" }]}>
+          <Text numberOfLines={2} style={[styles.heading, { flex: 1 }]}>
+            {item.title || "Untitled note"}
+          </Text>
+          <Ionicons name="chevron-forward" size={20} color={colors.faint} />
+        </View>
+        <Text style={styles.muted}>Downloaded {savedAt(item)}</Text>
+      </Pressable>
+    ),
+    [colors.faint, colors.surface, colors.surfaceElevated, styles.card, styles.heading, styles.muted, styles.row],
+  );
 
   return (
     <Context.Provider value={actions}>
@@ -113,101 +179,97 @@ export function OfflineNotesProvider({ children }: { children: ReactNode }) {
         onRequestClose={() => (selected ? setSelected(null) : close())}
       >
         <SafeAreaView style={styles.screen}>
-          <View
-            style={[
-              styles.row,
-              {
-                paddingHorizontal: 12,
-                borderBottomWidth: 1,
-                borderColor: colors.border,
-              },
-            ]}
-          >
-            {selected && (
+          <View style={styles.bar}>
+            {selected ? (
               <IconButton
                 name="arrow-back"
                 label="Back to offline notes"
                 onPress={() => setSelected(null)}
               />
-            )}
+            ) : null}
             <Text
               accessibilityRole="header"
+              numberOfLines={1}
               style={[styles.heading, { flex: 1 }]}
             >
-              Offline notes
+              {selected?.title || (selected ? "Untitled note" : "Offline notes")}
             </Text>
-            <IconButton
-              name="close"
-              label="Close offline notes"
-              onPress={close}
-            />
+            {selected ? (
+              <IconButton
+                disabled={busy}
+                name="trash-outline"
+                label="Remove downloaded copy"
+                onPress={removeSelected}
+              />
+            ) : notes.length ? (
+              <IconButton
+                disabled={busy}
+                name="trash-outline"
+                label="Remove all downloaded notes"
+                onPress={removeAll}
+              />
+            ) : null}
+            <IconButton name="close" label="Close offline notes" onPress={close} />
           </View>
-          {status ? (
-            <Text
+          {notice?.kind === "error" ? (
+            <View style={{ paddingHorizontal: 20, paddingTop: 12 }}>
+              <ErrorBox message={notice.text} />
+            </View>
+          ) : notice ? (
+            <View
               accessibilityLiveRegion="polite"
-              style={[styles.muted, { padding: 16 }]}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+                paddingHorizontal: 20,
+                paddingVertical: 12,
+                backgroundColor: colors.accentSoft,
+              }}
             >
-              {status}
-            </Text>
+              <Ionicons name="checkmark-circle" size={20} color={colors.accent} />
+              <Text style={[styles.muted, { flex: 1 }]}>{notice.text}</Text>
+            </View>
           ) : null}
           {selected ? (
-            <ScrollView contentContainerStyle={styles.content}>
-              <Text selectable style={styles.title}>
-                {selected.title || "Untitled note"}
-              </Text>
-              <Text style={styles.muted}>
-                Read-only copy · Synced{" "}
-                {new Date(selected.savedAt).toLocaleString()}
-              </Text>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
+              <View style={[styles.card, { gap: 6 }]}>
+                <Text style={styles.label}>OFFLINE COPY</Text>
+                <Text style={styles.muted}>Downloaded {savedAt(selected)} · Read-only</Text>
+              </View>
               <Markdown
                 onLinkPress={() => false}
                 rules={{ image: () => null }}
                 style={{
-                  body: { color: colors.text, fontSize: 18, lineHeight: 28 },
-                  code_inline: {
+                  body: {
                     color: colors.text,
-                    backgroundColor: colors.accentSoft,
+                    fontFamily: "SourceSans3_400Regular",
+                    fontSize: 18,
+                    lineHeight: 29,
                   },
-                  fence: {
-                    color: colors.text,
-                    backgroundColor: colors.accentSoft,
-                  },
+                  heading1: { color: colors.markdown.heading1, fontFamily: "SourceSerif4_600SemiBold" },
+                  heading2: { color: colors.markdown.heading2, fontFamily: "SourceSans3_600SemiBold" },
+                  heading3: { color: colors.markdown.heading3, fontFamily: "SourceSans3_600SemiBold" },
+                  code_inline: { color: colors.text, backgroundColor: colors.accentSoft },
+                  fence: { color: colors.text, backgroundColor: colors.accentSoft },
                 }}
               >
                 {selected.content || "This note is empty."}
               </Markdown>
-              <Button
-                quiet
-                title="Remove downloaded copy"
-                disabled={busy}
-                onPress={() => {
-                  const id = selected.id;
-                  setSelected(null);
-                  void perform(
-                    () => library.remove(id),
-                    "Downloaded copy removed.",
-                  );
-                }}
-              />
             </ScrollView>
           ) : (
             <FlatList
-              data={notes.filter((note) =>
-                note.title
-                  .toLocaleLowerCase()
-                  .includes(query.toLocaleLowerCase()),
-              )}
+              data={filteredNotes}
               keyExtractor={(note) => note.id}
-              contentContainerStyle={styles.content}
+              renderItem={renderItem}
+              contentContainerStyle={[styles.content, { flexGrow: 1 }]}
               keyboardShouldPersistTaps="handled"
               ListHeaderComponent={
-                <View style={{ gap: 16 }}>
-                  <Text style={styles.title}>Ready without Wi-Fi</Text>
+                <View style={{ gap: 12 }}>
+                  <Text style={styles.label}>OFFLINE LIBRARY</Text>
+                  <Text style={styles.title}>Notes saved to this phone</Text>
                   <Text style={styles.muted}>
-                    Keep notes you choose on this phone. To refresh a copy, open
-                    the online note and save it offline again. Images and
-                    attachments are not downloaded. Signing out removes these
-                    copies.
+                    These copies stay available without a connection. Refresh one from its online note.
                   </Text>
                   <Field
                     accessibilityLabel="Find an offline note"
@@ -218,40 +280,15 @@ export function OfflineNotesProvider({ children }: { children: ReactNode }) {
                 </View>
               }
               ListEmptyComponent={
-                <Text style={[styles.muted, { paddingVertical: 24 }]}>
-                  {busy
-                    ? "Loading…"
-                    : query
-                      ? "No matching notes."
-                      : "No downloaded notes yet. Open a note online and choose Save offline."}
-                </Text>
-              }
-              renderItem={({ item }) => (
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => setSelected(item)}
-                  style={({ pressed }) => [
-                    styles.card,
-                    { marginTop: 12, opacity: pressed ? 0.7 : 1 },
-                  ]}
-                >
-                  <Text style={styles.heading}>
-                    {item.title || "Untitled note"}
-                  </Text>
-                  <Text style={styles.muted}>
-                    Synced {new Date(item.savedAt).toLocaleString()}
-                  </Text>
-                </Pressable>
-              )}
-              ListFooterComponent={
-                <View style={{ marginTop: 24 }}>
-                  <Button
-                    quiet
-                    title="Remove downloaded notes"
-                    disabled={busy}
-                    onPress={removeAll}
-                  />
-                </View>
+                busy ? (
+                  <Loading />
+                ) : query ? (
+                  <Empty title="No matching notes">Try a different title.</Empty>
+                ) : (
+                  <Empty title="Nothing saved offline">
+                    Save a note from the online editor to read it here without a connection.
+                  </Empty>
+                )
               }
             />
           )}

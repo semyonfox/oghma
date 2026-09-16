@@ -21,6 +21,7 @@ import useI18n from "@/lib/notes/hooks/use-i18n";
 import PrimaryNavigation from "@/components/navigation/primary-navigation";
 import MobileAppHeader from "@/components/navigation/mobile-app-header";
 import MobileDrawer from "@/components/navigation/mobile-drawer";
+import MobileBottomNavigation from "@/components/navigation/mobile-bottom-navigation";
 import MonthView from "@/components/calendar/month-view";
 import WeekView from "@/components/calendar/week-view";
 import AssignmentTracker from "@/components/assignments/assignment-tracker";
@@ -30,18 +31,20 @@ import NewTaskModal from "@/components/assignments/new-task-modal";
 import useAssignmentStore from "@/lib/notes/state/assignments.zustand";
 import {
   addDaysToDateKey,
-  formatDateKey,
+  addMonthsToDateKey,
   localDateKeyRangeToIso,
 } from "@/lib/notes/utils/calendar-date";
+import { getCalendarFetchRange } from "@/components/calendar/calendar-fetch-range";
 
 export default function CalendarPage() {
   const { activeLocale, t } = useI18n();
-  const isDesktop = useMediaQuery("(min-width: 768px)");
+  const isDesktop = useMediaQuery("(min-width: 1024px)");
   const hasTaskSidebar = useMediaQuery("(min-width: 1024px)");
   const [tasksOpen, setTasksOpen] = useState(false);
   const [dayDetailsOpen, setDayDetailsOpen] = useState(false);
   const [newTaskOpen, setNewTaskOpen] = useState(false);
   const [newTaskDueAt, setNewTaskDueAt] = useState<string>();
+  const [mobileMonthOpen, setMobileMonthOpen] = useState(false);
   const {
     view,
     currentDate,
@@ -50,6 +53,7 @@ export default function CalendarPage() {
     navigateBack,
     goToToday,
     selectedDate,
+    setSelectedDate,
     fetchTimeBlocks,
     fetchReviewDates,
   } = useCalendarStore();
@@ -83,33 +87,26 @@ export default function CalendarPage() {
     void fetchAssignments();
   }, [fetchAssignments]);
 
+  const calendarFetchRange = useMemo(
+    () => getCalendarFetchRange(currentDate, view),
+    [currentDate, view],
+  );
+
   useEffect(() => {
-    const anchor = new Date(currentDate);
-    let startDateKey: string;
-    let endDateKey: string;
-    if (view === "month") {
-      startDateKey = formatDateKey(
-        new Date(anchor.getFullYear(), anchor.getMonth(), -6),
-      );
-      endDateKey = formatDateKey(
-        new Date(anchor.getFullYear(), anchor.getMonth() + 1, 7),
-      );
-    } else {
-      const monday = new Date(anchor);
-      monday.setDate(anchor.getDate() - ((anchor.getDay() + 6) % 7));
-      startDateKey = formatDateKey(monday);
-      endDateKey = addDaysToDateKey(startDateKey, 6);
-    }
-    const range = localDateKeyRangeToIso(startDateKey, endDateKey);
+    const range = localDateKeyRangeToIso(
+      calendarFetchRange.startDateKey,
+      calendarFetchRange.endDateKey,
+    );
     void fetchTimeBlocks(range.start, range.end);
-    void fetchReviewDates(startDateKey, endDateKey);
+    void fetchReviewDates(
+      calendarFetchRange.startDateKey,
+      calendarFetchRange.endDateKey,
+    );
   }, [
-    currentDate,
+    calendarFetchRange.endDateKey,
+    calendarFetchRange.startDateKey,
     fetchReviewDates,
     fetchTimeBlocks,
-    isDesktop,
-    selectedDate,
-    view,
   ]);
 
   useEffect(() => {
@@ -130,6 +127,10 @@ export default function CalendarPage() {
     month: "long",
     year: "numeric",
   });
+  const mobileMonthYear = current.toLocaleDateString(activeLocale, {
+    month: "short",
+    year: "numeric",
+  });
   const weekLabel =
     view === "week"
       ? t("Week of {date}", {
@@ -139,10 +140,46 @@ export default function CalendarPage() {
           }),
         })
       : monthYear;
+  const moveMobilePeriod = (direction: -1 | 1) => {
+    setSelectedDate(
+      mobileMonthOpen
+        ? addMonthsToDateKey(selectedDate, direction)
+        : addDaysToDateKey(selectedDate, direction * 7),
+    );
+  };
 
   return (
     <div className="flex h-dvh flex-col bg-app-page text-text">
-      <MobileAppHeader title={t("Calendar")} />
+      <MobileAppHeader
+        title={<span aria-label={monthYear}>{mobileMonthYear}</span>}
+        actions={
+          <div className="flex items-center gap-0.5">
+            <button
+              type="button"
+              onClick={() => moveMobilePeriod(-1)}
+              className="flex h-11 w-11 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary"
+              aria-label={t("Previous period")}
+            >
+              <ChevronLeftIcon className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={goToToday}
+              className="min-h-11 rounded-radius-md px-2 text-xs font-medium text-primary-700 transition-colors hover:bg-primary-500/10 dark:text-primary-300"
+            >
+              {t("Today")}
+            </button>
+            <button
+              type="button"
+              onClick={() => moveMobilePeriod(1)}
+              className="flex h-11 w-11 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary"
+              aria-label={t("Next period")}
+            >
+              <ChevronRightIcon className="h-4 w-4" />
+            </button>
+          </div>
+        }
+      />
 
       <div className="flex min-h-0 flex-1">
         {isDesktop === true && (
@@ -164,8 +201,8 @@ export default function CalendarPage() {
               className="flex h-full w-full min-w-0 flex-1 flex-col"
               aria-label={t("Calendar")}
             >
-              <header className="glass-panel relative z-50 hidden h-12 shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-4 md:flex">
-                <h1 className="min-w-0 flex-1 truncate text-sm font-semibold text-text-secondary md:text-base">
+              <header className="glass-panel relative z-50 hidden h-12 shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-4 lg:flex">
+                <h1 className="min-w-0 flex-1 truncate text-sm font-semibold text-text-secondary lg:text-base">
                   <time>{weekLabel}</time>
                 </h1>
 
@@ -182,7 +219,7 @@ export default function CalendarPage() {
                     <button
                       type="button"
                       onClick={goToToday}
-                      className="hidden h-8 px-3 text-xs font-medium text-text-secondary hover:bg-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400/50 md:block"
+                      className="hidden h-8 px-3 text-xs font-medium text-text-secondary hover:bg-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400/50 lg:block"
                     >
                       {t("Today")}
                     </button>
@@ -241,55 +278,13 @@ export default function CalendarPage() {
                 </div>
               </header>
 
-              {isDesktop === false && (
-                <div className="flex shrink-0 items-center gap-1 border-b border-border-subtle px-2 py-1.5">
-                  <button
-                    type="button"
-                    onClick={navigateBack}
-                    className="flex h-11 w-11 items-center justify-center rounded-md glass-card"
-                    aria-label={t("Previous period")}
-                  >
-                    <ChevronLeftIcon className="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={goToToday}
-                    className="h-11 rounded-md px-3 text-xs font-medium glass-card"
-                  >
-                    {t("Today")}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={navigateForward}
-                    className="flex h-11 w-11 items-center justify-center rounded-md glass-card"
-                    aria-label={t("Next period")}
-                  >
-                    <ChevronRightIcon className="h-4 w-4" />
-                  </button>
-                  <div className="flex-1" />
-                  <button
-                    type="button"
-                    onClick={() => setTasksOpen(true)}
-                    className="h-11 rounded-md px-3 text-xs font-medium glass-card"
-                  >
-                    {t("Tasks")}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      openNewTask(selectedDate);
-                    }}
-                    className="h-11 rounded-md bg-primary-600 px-3 text-xs font-medium text-text-on-primary"
-                  >
-                    {t("New Task")}
-                  </button>
-                </div>
-              )}
-
               <div className="min-h-0 flex-1 overflow-hidden">
                 {isDesktop === false ? (
                   <MobileCalendar
                     onAddTask={() => openNewTask(selectedDate)}
+                    onOpenTasks={() => setTasksOpen(true)}
+                    monthOpen={mobileMonthOpen}
+                    onToggleMonth={() => setMobileMonthOpen((open) => !open)}
                     onRetry={() => {
                       void fetchAssignments();
                       const range = localDateKeyRangeToIso(
@@ -377,6 +372,7 @@ export default function CalendarPage() {
         courses={courses}
         initialDueAt={newTaskDueAt}
       />
+      <MobileBottomNavigation />
     </div>
   );
 }
