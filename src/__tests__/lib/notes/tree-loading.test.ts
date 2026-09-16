@@ -247,3 +247,85 @@ describe("note tree loading state", () => {
     );
   });
 });
+
+describe("restored expanded descendants", () => {
+  beforeEach(() => useNoteTreeStore.getState().resetForSession(null));
+
+  it.each(["initial", "open", "refresh"])("loads every expanded level during %s loading, leaving collapsed folders lazy", async (mode) => {
+    const fetchChildren = vi.fn(async (parentId: string | null) => {
+      switch (parentId) {
+        case null: return { items: [{ id: "course", isFolder: true, isExpanded: mode !== "open" }] };
+        case "course": return { items: [
+          { id: "module", isFolder: true, isExpanded: true },
+          { id: "closed", isFolder: true, isExpanded: false },
+        ] };
+        case "module": return { items: [{ id: "week", isFolder: true, isExpanded: true }] };
+        case "week": return { items: [{ id: "note", title: "Lecture notes" }] };
+        default: throw new Error(`Unexpected folder fetch: ${parentId}`);
+      }
+    });
+    const state = () => useNoteTreeStore.getState();
+    state().setDependencies({ fetch: () => fetchChildren(null), fetchChildren, mutate: vi.fn() }, vi.fn());
+    if (mode === "refresh") {
+      // The refresh discovers a new expanded branch under an existing root.
+      useNoteTreeStore.setState({ initLoaded: true });
+      await state().refreshTree();
+    } else {
+      await state().initTree();
+      if (mode === "open") {
+        expect(fetchChildren.mock.calls.map(([id]) => id)).toEqual([null]);
+        state().setExpandedIds(new Set(["course"]));
+        await state().loadChildren("course");
+      }
+    }
+    expect(fetchChildren.mock.calls.map(([id]) => id)).toEqual([null, "course", "module", "week"]);
+    expect(state().tree.items.week.children).toEqual(["note"]);
+    expect(state().expandedIds).toEqual(new Set(["course", "module", "week"]));
+    expect(state().tree.items.closed.childrenLoaded).not.toBe(true);
+  });
+
+  it("keeps an existing locally collapsed folder lazy despite its saved expansion", async () => {
+    const state = () => useNoteTreeStore.getState();
+    const fetchChildren = vi.fn().mockResolvedValue({ items: [
+      { id: "module", isFolder: true, isExpanded: true },
+    ] });
+    useNoteTreeStore.setState({ tree: {
+      rootId: ROOT_ID,
+      items: {
+        [ROOT_ID]: { id: ROOT_ID, children: ["course"] },
+        course: { id: "course", children: ["module"], isFolder: true },
+        module: { id: "module", children: [], isFolder: true, isExpanded: true },
+      },
+    }, expandedIds: new Set(["course"]) });
+    state().setDependencies({ fetch: vi.fn(), fetchChildren, mutate: vi.fn() }, vi.fn());
+    await state().loadChildren("course");
+    expect(fetchChildren).toHaveBeenCalledTimes(1);
+    expect(state().expandedIds.has("module")).toBe(false);
+    expect(state().tree.items.module.childrenLoaded).not.toBe(true);
+  });
+
+  it("retries an expanded descendant after a failed load without committing a partial branch", async () => {
+    const state = () => useNoteTreeStore.getState();
+    let fail = true;
+    const fetchChildren = vi.fn(async (parentId: string | null) => {
+      if (parentId === "course") return { items: [{ id: "module", isFolder: true, isExpanded: true }] };
+      if (fail) throw new Error("offline");
+      return { items: [{ id: "note" }] };
+    });
+    state().setDependencies({
+      fetch: async () => ({ items: [{ id: "course", isFolder: true }] }),
+      fetchChildren, mutate: vi.fn(),
+    }, vi.fn());
+    await state().initTree();
+    state().setExpandedIds(new Set(["course"]));
+    const before = state().tree;
+    await state().loadChildren("course");
+    expect(state().tree).toBe(before);
+    expect(state().loadingChildren.size).toBe(0);
+    fail = false;
+    await state().loadChildren("course");
+    expect(state().tree.items.module.children).toEqual(["note"]);
+    expect(state().error).toBeNull();
+  });
+
+});

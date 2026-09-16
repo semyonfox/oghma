@@ -142,10 +142,17 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => {
           for (const { id, items } of snapshots) {
             draft = replaceTreeBranch(draft, id, items);
             fetched.add(id);
-            if (allLoaded) {
-              const next = items.filter((item) => item.isFolder && loaded.has(item.id)).map((item) => item.id);
-              if (next.length) (levels[depth + 1] ??= []).push(...next);
-            }
+            const next = items.filter((item) => {
+              if (!item.isFolder) return false;
+              // Existing nodes follow the current UI state, which can differ
+              // from saved expansion. New nodes inherit their saved state.
+              const expanded = get().tree.items[item.id]
+                ? get().expandedIds.has(item.id)
+                : item.isExpanded === true;
+              return (allLoaded && loaded.has(item.id)) ||
+                (expanded && !draft.items[item.id].childrenLoaded);
+            }).map((item) => item.id);
+            if (next.length) (levels[depth + 1] ??= []).push(...next);
           }
         }
       }
