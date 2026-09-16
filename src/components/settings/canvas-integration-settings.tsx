@@ -553,18 +553,23 @@ export default function CanvasIntegrationSettings() {
               </div>
             </section>
           )}
-          {isImporting && <p className="text-xs text-text-tertiary">{t("Stops remaining work. Files already imported stay available.")}</p>}
-          {/* Action buttons */}
-          <div className="flex flex-wrap gap-3">
-            {isImporting && (
+          {isImporting && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
               <button
                 type="button"
                 onClick={handleCancel}
-                className="rounded-radius-md bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-400 ring-1 ring-red-500/20 hover:bg-red-500/20"
+                aria-describedby="canvas-stop-description"
+                className="shrink-0 rounded-radius-md bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-400 ring-1 ring-red-500/20 hover:bg-red-500/20"
               >
                 {t("Stop import")}
               </button>
-            )}
+              <p id="canvas-stop-description" className="text-xs text-text-secondary">
+                {t("Stops remaining work. Files already imported stay available.")}
+              </p>
+            </div>
+          )}
+          {/* Action buttons */}
+          <div className="flex flex-wrap gap-3">
             <button
                 type="button"
                 disabled={selectedImportableCourseCount === 0 || isSyncing}
