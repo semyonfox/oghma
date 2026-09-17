@@ -13,12 +13,15 @@ export interface SearchContextData {
  */
 export type MessagePart =
   | { type: "text"; text: string }
+  | { type: "reasoning"; text: string }
   | {
       type: "tool";
       name: string;
       label: string;
       callId?: string;
       detail?: string;
+      resultDetail?: string;
+      status?: "running" | "completed" | "failed" | "interrupted";
     }
   | { type: "error"; text: string };
 
@@ -61,8 +64,19 @@ export interface Message {
   rating?: number | null;
 }
 
+/** Accept rows written before the double-encoding fix without rewriting stored data. */
+export function decodeStoredChatJson(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
 /** Coerce arbitrary jsonb into a clean MessagePart[]; drops malformed entries. */
 export function normalizeMessageParts(value: unknown): MessagePart[] | null {
+  value = decodeStoredChatJson(value);
   if (!Array.isArray(value)) return null;
   const parts: MessagePart[] = [];
   for (const entry of value) {
@@ -74,9 +88,14 @@ export function normalizeMessageParts(value: unknown): MessagePart[] | null {
       label?: unknown;
       callId?: unknown;
       detail?: unknown;
+      resultDetail?: unknown;
+      status?: unknown;
     };
-    if (e.type === "text" && typeof e.text === "string") {
-      parts.push({ type: "text", text: e.text });
+    if (
+      (e.type === "text" || e.type === "reasoning") &&
+      typeof e.text === "string"
+    ) {
+      parts.push({ type: e.type, text: e.text });
     } else if (
       e.type === "tool" &&
       typeof e.name === "string" &&
@@ -88,6 +107,13 @@ export function normalizeMessageParts(value: unknown): MessagePart[] | null {
         label: e.label,
         ...(typeof e.callId === "string" && { callId: e.callId }),
         ...(typeof e.detail === "string" && { detail: e.detail }),
+        ...(typeof e.resultDetail === "string" && {
+          resultDetail: e.resultDetail,
+        }),
+        ...((e.status === "running" ||
+          e.status === "completed" ||
+          e.status === "failed" ||
+          e.status === "interrupted") && { status: e.status }),
       });
     } else if (e.type === "error" && typeof e.text === "string") {
       parts.push({ type: "error", text: e.text });
@@ -104,10 +130,9 @@ export interface MessagePresentationParts {
 }
 
 /**
- * Split execution activity from the final answer without changing the durable
- * message shape. Text is narration when another tool follows it; trailing text
- * is the answer. This intentionally converges to the same result for a fully
- * restored message and for the final state of an incrementally streamed one.
+ * Find the final answer for copying and generation validation. Earlier text is
+ * narration when reasoning or another tool follows it. Rendering keeps all parts
+ * in their original positions, including narration.
  */
 export function partitionMessageParts(
   parts: MessagePart[] | undefined,
@@ -115,9 +140,11 @@ export function partitionMessageParts(
   const clean = (parts ?? []).filter(
     (part) => part.type !== "text" || part.text.trim().length > 0,
   );
-  const lastToolIndex = clean.findLastIndex((part) => part.type === "tool");
-  const activity = lastToolIndex >= 0 ? clean.slice(0, lastToolIndex + 1) : [];
-  const answer = lastToolIndex >= 0 ? clean.slice(lastToolIndex + 1) : clean;
+  const lastActivityIndex = clean.findLastIndex(
+    (part) => part.type === "tool" || part.type === "reasoning",
+  );
+  const activity = lastActivityIndex >= 0 ? clean.slice(0, lastActivityIndex + 1) : [];
+  const answer = lastActivityIndex >= 0 ? clean.slice(lastActivityIndex + 1) : clean;
 
   return {
     activity,
@@ -136,4 +163,23 @@ export function partitionMessageParts(
 export interface ChatContextItem {
   id: string;
   title: string;
+}
+
+/** Preserve the position of provider reasoning alongside prose and tool calls. */
+export function appendReasoningPart(
+  parts: MessagePart[],
+  text: string,
+): MessagePart[] {
+  const last = parts.at(-1);
+  return last?.type === "reasoning"
+    ? [...parts.slice(0, -1), { type: "reasoning", text: last.text + text }]
+    : [...parts, { type: "reasoning", text }];
+}
+
+export function interruptRunningTools(parts: MessagePart[]): MessagePart[] {
+  return parts.map((part) =>
+    part.type === "tool" && part.status === "running"
+      ? { ...part, status: "interrupted" }
+      : part,
+  );
 }

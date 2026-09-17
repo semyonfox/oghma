@@ -2,7 +2,12 @@ import type { MessageUpdate } from "@/lib/chat/parse-sse-frame";
 import { parseSseFrame } from "@/lib/chat/parse-sse-frame";
 import { parseSseBlocks } from "@/lib/chat/sse";
 import { noteSearchDetail } from "@/lib/chat/tool-display";
-import type { Message, MessagePart } from "@/lib/chat/types";
+import {
+  appendReasoningPart,
+  interruptRunningTools,
+  type Message,
+  type MessagePart,
+} from "@/lib/chat/types";
 
 export function logChatStream(
   level: "debug" | "info" | "warn" | "error",
@@ -22,10 +27,7 @@ export function logChatStream(
 function appendTokenPart(parts: MessagePart[], text: string): MessagePart[] {
   const last = parts[parts.length - 1];
   if (last?.type === "text") {
-    return [
-      ...parts.slice(0, -1),
-      { type: "text", text: last.text + text },
-    ];
+    return [...parts.slice(0, -1), { type: "text", text: last.text + text }];
   }
   return [...parts, { type: "text", text }];
 }
@@ -77,6 +79,7 @@ export function applyUpdate(
       return {
         ...message,
         thinking: `${message.thinking ?? ""}${update.text}`,
+        parts: appendReasoningPart(message.parts ?? [], update.text),
       };
     case "token": {
       const duration = thinkingStartRef.current
@@ -101,6 +104,7 @@ export function applyUpdate(
             label: update.label,
             callId: update.toolCallId,
             detail: update.detail,
+            status: "running",
           },
         ],
       };
@@ -109,7 +113,11 @@ export function applyUpdate(
         ...message,
         parts: (message.parts ?? []).map((part) =>
           part.type === "tool" && part.callId === update.toolCallId
-            ? { ...part, detail: update.detail }
+            ? {
+                ...part,
+                resultDetail: update.detail,
+                status: update.status ?? "completed",
+              }
             : part,
         ),
       };
@@ -119,7 +127,7 @@ export function applyUpdate(
         partial: true,
         error: update.message,
         parts: [
-          ...(message.parts ?? []),
+          ...interruptRunningTools(message.parts ?? []),
           {
             type: "error",
             text: update.message || "Response interrupted.",
@@ -151,6 +159,8 @@ interface ConsumeStreamOptions {
   signal?: AbortSignal;
   isActive?: () => boolean;
 }
+
+export class ChatGenerationFailedError extends Error {}
 
 function abortError(): DOMException {
   return new DOMException("Chat stream detached", "AbortError");
@@ -191,9 +201,9 @@ export async function consumeChatStream({
       if (chunk) {
         for (const frame of parseSseBlocks(chunk, parseState)) {
           if (signal?.aborted || !isActive()) throw abortError();
-          if (frame.id) onEventId?.(frame.id);
           frameCount += 1;
           const update = parseSseFrame(frame);
+          if (frame.id) onEventId?.(frame.id);
           if (!update) continue;
           if (update.type === "done") {
             return { timeBlockChanged };
@@ -206,7 +216,7 @@ export async function consumeChatStream({
                   : message,
               ),
             );
-            throw new Error(
+            throw new ChatGenerationFailedError(
               update.message || translate("error.something_went_wrong"),
             );
           }
@@ -299,7 +309,8 @@ export async function consumeBackgroundGeneration(input: {
         );
         return;
       } catch (error) {
-        if (input.signal.aborted) throw error;
+        if (input.signal.aborted || error instanceof ChatGenerationFailedError)
+          throw error;
         attempts += 1;
         if (attempts >= 4) throw error;
         await waitForRetry(attempts * 500, input.signal);

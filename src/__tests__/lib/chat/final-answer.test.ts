@@ -128,12 +128,12 @@ describe("streamFinalAnswer", () => {
 });
 
 describe("shouldSynthesizeFinalAnswer", () => {
-  it("recovers only a completed response with no answer text", () => {
+  it("recovers an empty final step after reasoning or tool calls", () => {
     expect(shouldSynthesizeFinalAnswer("", "stop")).toBe(true);
     expect(shouldSynthesizeFinalAnswer("   ", undefined)).toBe(true);
     expect(shouldSynthesizeFinalAnswer("answer", "stop")).toBe(false);
     expect(shouldSynthesizeFinalAnswer("", "length")).toBe(false);
-    expect(shouldSynthesizeFinalAnswer("", "tool-calls")).toBe(false);
+    expect(shouldSynthesizeFinalAnswer("", "tool-calls")).toBe(true);
     expect(shouldSynthesizeFinalAnswer("", "error")).toBe(false);
   });
 });

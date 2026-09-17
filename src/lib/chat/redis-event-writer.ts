@@ -25,6 +25,7 @@ export function createBufferedSseWriter(
   let pendingEvents = 0;
   let deliveryError: Error | null = null;
   let stopped = false;
+  let writeFailed = false;
 
   const failDelivery = (error: unknown): void => {
     if (!deliveryError) deliveryError = asError(error);
@@ -49,10 +50,11 @@ export function createBufferedSseWriter(
 
       pendingEvents += 1;
       pending = pending
-        .then(() => append(sse))
+        .then(() => (writeFailed ? undefined : append(sse)))
         .then(
           () => undefined,
           (error) => {
+            writeFailed = true;
             failDelivery(error);
           },
         )

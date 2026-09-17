@@ -146,7 +146,7 @@ export async function updateSessionContext(
     const next = normalizeChatSessionContext(updater(current));
     await tx`
       UPDATE app.chat_sessions
-      SET context = ${JSON.stringify(next)}::jsonb,
+      SET context = ${JSON.stringify(next)}::text::jsonb,
           updated_at = NOW()
       WHERE id = ${sessionId}::uuid
     `;

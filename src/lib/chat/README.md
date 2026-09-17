@@ -1,6 +1,6 @@
 # Chat map
 
-> Current code map, verified 2026-09-13.
+> Current code map, verified 2026-09-17 against the working tree.
 
 Chat accepts a message, resolves its scope, and either responds inline
 or creates a durable background generation. PostgreSQL owns sessions, messages,
@@ -17,6 +17,9 @@ replay events, presence, and cancellation state.
   background generation. [`prepare-generation.ts`](prepare-generation.ts)
   builds retrieval and prompt inputs, while [`build-stream.ts`](build-stream.ts)
   configures the model and tools.
+- [`generation-result.ts`](generation-result.ts) accumulates ordered reasoning,
+  prose, and tools. [`paragraph-stream.ts`](paragraph-stream.ts) batches their
+  delivery while preserving structural event order.
 - [`routes.ts`](routes.ts), [`session.ts`](session.ts), and [`sse.ts`](sse.ts)
   support session APIs and reconnectable delivery. [`hooks/`](hooks/) owns
   browser persistence and streaming state.

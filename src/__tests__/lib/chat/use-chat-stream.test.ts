@@ -3,6 +3,7 @@ import type { MutableRefObject } from "react";
 import {
   applyUpdate,
   consumeChatStream,
+  consumeBackgroundGeneration,
   resolveResumeAssistantId,
 } from "@/lib/chat/client-stream";
 import {
@@ -63,7 +64,9 @@ describe("applyUpdate — token + tool-call parts", () => {
           query: "invalid HTML syntax",
           scopeSize: null,
           resultsFound: 1,
-          results: [{ noteId: "note-1", title: "Complete Syntax", distance: 0.2 }],
+          results: [
+            { noteId: "note-1", title: "Complete Syntax", distance: 0.2 },
+          ],
         },
       },
       ref(),
@@ -90,7 +93,11 @@ describe("applyUpdate — token + tool-call parts", () => {
   });
 
   it("inserts a tool part between text segments and keeps content as plain prose", () => {
-    let msg = applyUpdate(baseMsg(), { type: "token", text: "looking now." }, ref());
+    let msg = applyUpdate(
+      baseMsg(),
+      { type: "token", text: "looking now." },
+      ref(),
+    );
     msg = applyUpdate(
       msg,
       { type: "tool-call", toolName: "getChunks", label: "Searching notes" },
@@ -101,13 +108,22 @@ describe("applyUpdate — token + tool-call parts", () => {
     expect(msg.content).toBe("looking now.found three");
     expect(msg.parts).toEqual([
       { type: "text", text: "looking now." },
-      { type: "tool", name: "getChunks", label: "Searching notes" },
+      {
+        type: "tool",
+        name: "getChunks",
+        label: "Searching notes",
+        status: "running",
+      },
       { type: "text", text: "found three" },
     ]);
   });
 
   it("supports back-to-back tool calls without dropping prior text", () => {
-    let msg = applyUpdate(baseMsg(), { type: "token", text: "thinking…" }, ref());
+    let msg = applyUpdate(
+      baseMsg(),
+      { type: "token", text: "thinking…" },
+      ref(),
+    );
     msg = applyUpdate(
       msg,
       { type: "tool-call", toolName: "getChunks", label: "Searching notes" },
@@ -121,8 +137,18 @@ describe("applyUpdate — token + tool-call parts", () => {
 
     expect(msg.parts).toEqual([
       { type: "text", text: "thinking…" },
-      { type: "tool", name: "getChunks", label: "Searching notes" },
-      { type: "tool", name: "readNote", label: "Reading note" },
+      {
+        type: "tool",
+        name: "getChunks",
+        label: "Searching notes",
+        status: "running",
+      },
+      {
+        type: "tool",
+        name: "readNote",
+        label: "Reading note",
+        status: "running",
+      },
     ]);
     expect(msg.content).toBe("thinking…");
   });
@@ -136,7 +162,12 @@ describe("applyUpdate — token + tool-call parts", () => {
     msg = applyUpdate(msg, { type: "token", text: "ok" }, ref());
 
     expect(msg.parts).toEqual([
-      { type: "tool", name: "getChunks", label: "Searching notes" },
+      {
+        type: "tool",
+        name: "getChunks",
+        label: "Searching notes",
+        status: "running",
+      },
       { type: "text", text: "ok" },
     ]);
   });
@@ -160,7 +191,12 @@ describe("applyUpdate — token + tool-call parts", () => {
     );
 
     expect(completed.parts).toEqual([
-      expect.objectContaining({ type: "tool", detail: "Complete Syntax" }),
+      expect.objectContaining({
+        type: "tool",
+        detail: "154b1133-54df-4e0e-a154-9b637750f106",
+        resultDetail: "Complete Syntax",
+        status: "completed",
+      }),
     ]);
   });
 
@@ -232,6 +268,7 @@ describe("background chat restore", () => {
         role: "assistant",
         content: "Finished while away",
         parts: [
+          { type: "reasoning", text: "Checking the note" },
           { type: "tool", name: "readNote", label: "Reading note" },
           { type: "text", text: "Finished while away" },
         ],
@@ -244,27 +281,33 @@ describe("background chat restore", () => {
   it.each([
     ["an empty array", []],
     ["only malformed entries", [{ type: "tool", name: "missing-label" }, null]],
-  ])("falls back to canonical content when parts contain %s", (_label, parts) => {
-    expect(
-      mapStoredChatMessages([
-        {
-          id: "answer-1",
-          role: "assistant",
+  ])(
+    "falls back to canonical content when parts contain %s",
+    (_label, parts) => {
+      expect(
+        mapStoredChatMessages([
+          {
+            id: "answer-1",
+            role: "assistant",
+            content: "Durable answer",
+            parts,
+          },
+        ]),
+      ).toEqual([
+        expect.objectContaining({
           content: "Durable answer",
-          parts,
-        },
-      ]),
-    ).toEqual([
-      expect.objectContaining({
-        content: "Durable answer",
-        parts: [{ type: "text", text: "Durable answer" }],
-      }),
-    ]);
-  });
+          parts: [{ type: "text", text: "Durable answer" }],
+        }),
+      ]);
+    },
+  );
 
   it.each([
     ["blank text", [{ type: "text", text: "   " }]],
-    ["tool activity only", [{ type: "tool", name: "readNote", label: "Reading note" }]],
+    [
+      "tool activity only",
+      [{ type: "tool", name: "readNote", label: "Reading note" }],
+    ],
   ])("appends canonical content when parts contain %s", (_label, parts) => {
     const [message] = mapStoredChatMessages([
       {
@@ -308,7 +351,9 @@ describe("background chat restore", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(fetchChatSessionSnapshot("session-1", signal)).resolves.toEqual({
+    await expect(
+      fetchChatSessionSnapshot("session-1", signal),
+    ).resolves.toEqual({
       messages: [],
       generating: true,
       activeGenerationId: "generation-1",
@@ -375,19 +420,23 @@ describe("chat event stream consumption", () => {
     const cancel = vi.fn();
     const body = new ReadableStream<Uint8Array>({
       start(controller) {
-        controller.enqueue(new TextEncoder().encode("event: done\ndata: {}\n\n"));
+        controller.enqueue(
+          new TextEncoder().encode("event: done\ndata: {}\n\n"),
+        );
       },
       cancel,
     });
-    await expect(consumeChatStream({
-      body,
-      assistantId: "msg-1",
-      userText: "Question",
-      thinkingStartRef: ref(),
-      setMessages: () => undefined,
-      onSession: () => undefined,
-      translate: (key) => key,
-    })).resolves.toEqual({ timeBlockChanged: false });
+    await expect(
+      consumeChatStream({
+        body,
+        assistantId: "msg-1",
+        userText: "Question",
+        thinkingStartRef: ref(),
+        setMessages: () => undefined,
+        onSession: () => undefined,
+        translate: (key) => key,
+      }),
+    ).resolves.toEqual({ timeBlockChanged: false });
     expect(cancel).toHaveBeenCalledOnce();
   });
 
@@ -415,5 +464,81 @@ describe("chat event stream consumption", () => {
 
     await expect(consuming).rejects.toMatchObject({ name: "AbortError" });
     expect(cancel).toHaveBeenCalledOnce();
+  });
+});
+
+describe("chat failure recovery", () => {
+  it("recovers old double-encoded metadata, sources, and activity without duplicating narration", () => {
+    const [restored] = mapStoredChatMessages([
+      {
+        id: "saved",
+        role: "assistant",
+        content: "Let me check.",
+        parts: JSON.stringify([
+          { type: "text", text: "Let me check." },
+          { type: "tool", name: "readNote", label: "Reading note" },
+        ]),
+        metadata: JSON.stringify({
+          thinking: "Reasoning",
+          partial: true,
+          error: "Stopped",
+        }),
+        sources: JSON.stringify([{ id: "source", title: "Source" }]),
+      },
+    ]);
+    expect(restored).toMatchObject({
+      thinking: "Reasoning",
+      partial: true,
+      error: "Stopped",
+      sources: [{ id: "source", title: "Source" }],
+      parts: [
+        { type: "reasoning", text: "Reasoning" },
+        { type: "text", text: "Let me check." },
+        { type: "tool", name: "readNote", label: "Reading note" },
+      ],
+    });
+  });
+
+  it("does not reconnect to a terminal provider failure or append duplicate error rows", async () => {
+    let messages = [baseMsg()];
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          'id: 1-0\nevent: token\ndata: {"text":"Partial"}\n\nid: 2-0\nevent: error\ndata: {"message":"Interrupted"}\n\n',
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      await expect(
+        consumeBackgroundGeneration({
+          generationId: "generation",
+          assistantId: "msg-1",
+          userText: "Question",
+          signal: new AbortController().signal,
+          activeGenerationRef: { current: null },
+          consumeStream: (body, assistantId, userText, onEventId) =>
+            consumeChatStream({
+              body,
+              assistantId,
+              userText,
+              onEventId,
+              thinkingStartRef: ref(),
+              setMessages: (update) => {
+                messages =
+                  typeof update === "function" ? update(messages) : update;
+              },
+              onSession: () => {},
+              translate: (key) => key,
+            }),
+        }),
+      ).rejects.toThrow("Interrupted");
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(messages[0].content).toBe("Partial");
+      expect(
+        messages[0].parts?.filter((part) => part.type === "error"),
+      ).toHaveLength(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

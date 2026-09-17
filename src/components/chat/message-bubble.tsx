@@ -6,41 +6,87 @@ import {
   ClipboardDocumentIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
-import type { Message, MessagePart } from "./chat-interface";
+import type { Message } from "./chat-interface";
 import ChatMarkdown from "./chat-markdown";
 import { WorkLog } from "./tool-call-pill";
 import { partitionMessageParts } from "@/lib/chat/types";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
-/**
- * Render only final-answer parts. Process narration and tools are handled by
- * WorkLog above this surface.
- */
-const AssistantBody: FC<{ parts?: MessagePart[]; content: string }> = ({
-  parts,
-  content,
-}) => {
-  if (parts && parts.length > 0) {
-    return (
-      <>
-        {parts.map((part, i) =>
-          part.type === "text" ? (
-            <div key={i}>
-              <ChatMarkdown>{part.text}</ChatMarkdown>
-            </div>
-          ) : part.type === "error" ? (
-            <div
-              key={i}
-              className="my-1 rounded-radius-md border border-red-500/25 bg-red-500/10 px-2.5 py-2 text-xs text-red-200"
-            >
-              {part.text}
-            </div>
-          ) : null,
-        )}
-      </>
+/** Text keeps its position as later tools arrive. Only reasoning/tool groups collapse. */
+const AssistantBody: FC<{
+  message: Message;
+  active: boolean;
+  compact?: boolean;
+}> = ({ message, active, compact = false }) => {
+  const parts = message.parts?.length
+    ? message.parts
+    : message.content
+      ? [{ type: "text" as const, text: message.content }]
+      : [];
+  const legacyThinking = parts.some((part) => part.type === "reasoning")
+    ? undefined
+    : message.thinking;
+  const rows: React.ReactNode[] = [];
+  if (legacyThinking)
+    rows.push(
+      <WorkLog
+        key="legacy-thinking"
+        parts={[]}
+        thinking={legacyThinking}
+        thinkingDuration={message.thinkingDuration}
+        active={active && parts.length === 0}
+      />,
     );
+  for (let index = 0; index < parts.length;) {
+    const part = parts[index];
+    const key = index;
+    if (part.type === "tool" || part.type === "reasoning") {
+      const start = index;
+      while (
+        index < parts.length &&
+        (parts[index].type === "tool" || parts[index].type === "reasoning")
+      )
+        index++;
+      rows.push(
+        <WorkLog
+          key={key}
+          parts={parts.slice(start, index)}
+          active={active && index === parts.length}
+        />,
+      );
+      continue;
+    }
+    rows.push(
+      part.type === "text" ? (
+        <div
+          key={key}
+          className={
+            compact
+              ? "rounded-radius-md rounded-bl-[4px] border border-border-subtle bg-surface px-2 py-[5px] text-xs leading-relaxed text-text-secondary"
+              : "glass-card rounded-radius-xl rounded-bl-[4px] px-3 py-2.5 text-base leading-relaxed text-text"
+          }
+        >
+          <ChatMarkdown>{part.text}</ChatMarkdown>
+        </div>
+      ) : (
+        <div
+          key={key}
+          className="my-1 rounded-radius-md border border-red-500/25 bg-red-500/10 px-2.5 py-2 text-xs text-red-700 dark:text-red-200"
+        >
+          {part.text}
+        </div>
+      ),
+    );
+    index++;
   }
-  return <ChatMarkdown>{content}</ChatMarkdown>;
+  return (
+    <>
+      {rows}
+      {active && !message.error && parts.length === 0 && !legacyThinking && (
+        <TypingDots />
+      )}
+    </>
+  );
 };
 
 function presentAssistantMessage(message: Message) {
@@ -221,37 +267,15 @@ const FullMessageBubbleComponent: FC<{
   }
 
   const presentation = presentAssistantMessage(m);
-  const hasProcess = Boolean(m.thinking || presentation.activity.length > 0);
   const hasSources = Array.isArray(m.sources) && m.sources.length > 0;
   const hasPartError = m.parts?.some((part) => part.type === "error");
 
   return (
     <div className="group/msg space-y-2.5">
-      {hasProcess && (
-        <WorkLog
-          parts={presentation.activity}
-          thinking={m.thinking}
-          thinkingDuration={m.thinkingDuration}
-          active={isStreaming}
-          hasAnswer={presentation.hasAnswer}
-        />
-      )}
-
-      {(presentation.hasAnswer || (isStreaming && !m.error)) && (
-        <div className="glass-card rounded-radius-xl rounded-bl-[4px] px-3 py-2.5 text-base leading-relaxed text-text">
-          {presentation.hasAnswer ? (
-            <AssistantBody
-              parts={presentation.answer}
-              content={presentation.answerText}
-            />
-          ) : (
-            <TypingDots />
-          )}
-        </div>
-      )}
+      <AssistantBody message={m} active={isStreaming} />
 
       {m.error && !hasPartError && (
-        <div className="rounded-radius-md border border-red-500/25 bg-red-500/10 px-2.5 py-2 text-xs text-red-200">
+        <div className="rounded-radius-md border border-red-500/25 bg-red-500/10 px-2.5 py-2 text-xs text-red-700 dark:text-red-200">
           {m.error}
         </div>
       )}
@@ -298,45 +322,16 @@ const CompactMessageBubbleComponent: FC<{
       className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
     >
       <div className="group/msg min-w-0 max-w-[90%] space-y-1.5">
-        {m.role === "assistant" &&
-          presentation &&
-          (m.thinking || presentation.activity.length > 0) && (
-            <WorkLog
-              parts={presentation.activity}
-              thinking={m.thinking}
-              thinkingDuration={m.thinkingDuration}
-              active={isStreaming}
-              hasAnswer={presentation.hasAnswer}
-            />
-          )}
-
-        {(m.role === "user" ||
-          presentation?.hasAnswer ||
-          (isStreaming && !m.error)) && (
-          <div
-            className={`px-2 py-[5px] rounded-radius-md text-xs leading-relaxed ${
-              m.role === "user"
-                ? "border border-primary-500/25 bg-primary-500/10 text-text rounded-br-[4px]"
-                : "bg-surface border border-border-subtle text-text-secondary rounded-bl-[4px]"
-            }`}
-          >
-            {m.role === "assistant" ? (
-              presentation?.hasAnswer ? (
-                <AssistantBody
-                  parts={presentation.answer}
-                  content={presentation.answerText}
-                />
-              ) : (
-                <TypingDots />
-              )
-            ) : (
-              <ChatMarkdown>{m.content}</ChatMarkdown>
-            )}
+        {m.role === "assistant" ? (
+          <AssistantBody message={m} active={isStreaming} compact />
+        ) : (
+          <div className="rounded-radius-md rounded-br-[4px] border border-primary-500/25 bg-primary-500/10 px-2 py-[5px] text-xs leading-relaxed text-text">
+            <ChatMarkdown>{m.content}</ChatMarkdown>
           </div>
         )}
 
         {m.role === "assistant" && m.error && !hasPartError && (
-          <div className="rounded-radius-md border border-red-500/25 bg-red-500/10 px-2.5 py-2 text-xs text-red-200">
+          <div className="rounded-radius-md border border-red-500/25 bg-red-500/10 px-2.5 py-2 text-xs text-red-700 dark:text-red-200">
             {m.error}
           </div>
         )}

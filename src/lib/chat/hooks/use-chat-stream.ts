@@ -3,7 +3,11 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import type { LlmThinkingMode } from "@/lib/ai-config";
 import { toFriendlyChatError } from "@/lib/friendly-errors";
-import type { Message, ChatContextItem } from "@/lib/chat/types";
+import {
+  normalizeMessageParts,
+  type Message,
+  type ChatContextItem,
+} from "@/lib/chat/types";
 import { noteSearchDetail } from "@/lib/chat/tool-display";
 import { formatClientDateTime } from "@/lib/chat/client-date-time";
 import {
@@ -277,13 +281,7 @@ export function useChatStream(
         signal: operation.controller.signal,
         activeGenerationRef,
         consumeStream: (body, targetAssistantId, text, onEventId) =>
-          consumeStream(
-            operation,
-            body,
-            targetAssistantId,
-            text,
-            onEventId,
-          ),
+          consumeStream(operation, body, targetAssistantId, text, onEventId),
       }),
     [consumeStream, isCurrent],
   );
@@ -428,14 +426,23 @@ export function useChatStream(
                 ? {
                     ...m,
                     content: data.reply || "",
-                    parts: [
-                      ...(data.searchContext?.query ? [{
-                        type: "tool" as const,
-                        name: "ragSearch",
-                        label: "Searched notes",
-                        detail: noteSearchDetail(data.searchContext.query, data.searchContext.results ?? []),
-                      }] : []),
-                      ...(data.reply ? [{ type: "text" as const, text: data.reply }] : []),
+                    parts: normalizeMessageParts(data.parts) ?? [
+                      ...(data.searchContext?.query
+                        ? [
+                            {
+                              type: "tool" as const,
+                              name: "ragSearch",
+                              label: "Searched notes",
+                              detail: noteSearchDetail(
+                                data.searchContext.query,
+                                data.searchContext.results ?? [],
+                              ),
+                            },
+                          ]
+                        : []),
+                      ...(data.reply
+                        ? [{ type: "text" as const, text: data.reply }]
+                        : []),
                     ],
                     thinking: data.thinking || undefined,
                     sources: Array.isArray(data.sources) ? data.sources : [],

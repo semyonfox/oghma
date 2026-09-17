@@ -1,9 +1,6 @@
 #!/usr/bin/env node
 
-import http, {
-  type IncomingMessage,
-  type ServerResponse,
-} from "node:http";
+import http, { type IncomingMessage, type ServerResponse } from "node:http";
 
 const port = Number(process.env.PORT || 8081);
 
@@ -54,6 +51,63 @@ function streamChat(res: ServerResponse): void {
   res.end();
 }
 
+async function streamOrderedChat(
+  res: ServerResponse,
+  messages: unknown[],
+): Promise<void> {
+  const entries = messages.filter(isJsonObject);
+  const usedTool = entries.some((message) => message.role === "tool");
+  const interrupted = entries.some(
+    (message) =>
+      message.role === "user" &&
+      typeof message.content === "string" &&
+      message.content.includes("E2E ordered chat interrupt"),
+  );
+  res.writeHead(200, {
+    "content-type": "text/event-stream",
+    "cache-control": "no-cache",
+  });
+  const chunk = (delta: JsonObject, finishReason: string | null = null) =>
+    res.write(
+      `data: ${JSON.stringify({
+        id: "e2e-ordered",
+        object: "chat.completion.chunk",
+        choices: [{ index: 0, delta, finish_reason: finishReason }],
+      })}\n\n`,
+    );
+  if (!usedTool) {
+    chunk({ reasoning: "First I will consult the app guide." });
+    chunk({ content: "I am checking the guide.\n\n" });
+    chunk({
+      tool_calls: [
+        {
+          index: 0,
+          id: "guide-1",
+          type: "function",
+          function: { name: "getAppGuide", arguments: "{}" },
+        },
+      ],
+    });
+    chunk({}, "tool_calls");
+  } else {
+    chunk({ reasoning: "Now I can use the guide result." });
+    // Separate deltas exercise paragraph assembly rather than one-shot output.
+    chunk({ content: "The guide explains " });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    chunk({ content: "how chat works.\n\n" });
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    chunk({ content: "The final paragraph stays visible." });
+    if (interrupted) {
+      res.write(
+        `data: ${JSON.stringify({ error: { message: "Synthetic stream interruption", code: 500 } })}\n\n`,
+      );
+    } else {
+      chunk({}, "stop");
+    }
+  }
+  res.end("data: [DONE]\n\n");
+}
+
 const server = http.createServer(async (req, res) => {
   try {
     if (req.method === "GET" && req.url === "/health") {
@@ -80,7 +134,10 @@ const server = http.createServer(async (req, res) => {
       const body = await readJson(req);
       const documents = Array.isArray(body.documents) ? body.documents : [];
       json(res, 200, {
-        results: documents.map((_, index) => ({ index, relevance_score: 1 - index / 100 })),
+        results: documents.map((_, index) => ({
+          index,
+          relevance_score: 1 - index / 100,
+        })),
       });
       return;
     }
@@ -88,6 +145,19 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && req.url?.includes("/chat/completions")) {
       const body = await readJson(req);
       if (body.stream) {
+        if (
+          Array.isArray(body.messages) &&
+          body.messages.some(
+            (message) =>
+              isJsonObject(message) &&
+              message.role === "user" &&
+              typeof message.content === "string" &&
+              message.content.includes("E2E ordered chat"),
+          )
+        ) {
+          await streamOrderedChat(res, body.messages);
+          return;
+        }
         streamChat(res);
         return;
       }
