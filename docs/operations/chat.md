@@ -38,6 +38,58 @@ Both app and worker must use the same `DATABASE_URL`, `REDIS_HOST`,
 `REDIS_PORT`, `REDIS_TLS`, and `QUEUE_PREFIX`. Background chat currently
 requires `QUEUE_PROVIDER=bullmq`.
 
+## Streaming and restoration contract
+
+Verified against the working tree on 2026-09-17. These changes require an app
+and worker deployment; this section does not assert production rollout.
+
+`generation-result.ts` records reasoning, prose, and tool calls in one ordered
+`parts` array. Tool results update the matching call ID without moving its
+position or replacing its input detail. The browser uses the same ordering.
+Prose remains visible when a later tool arrives, and work-log groups retain
+manual expansion state through final reconciliation. Only text after the last
+reasoning/tool part qualifies as the final answer for copying and final-answer
+synthesis. Earlier narration cannot satisfy a missing final answer.
+
+`paragraph-stream.ts` buffers prose and reasoning before SSE/Redis delivery.
+It emits finished paragraphs, closed fenced code blocks, and completed list
+items. Deliveries are paced at 400 ms, with a timer to release a ready block
+when the provider pauses. A 24,000-character safety limit bounds pending text.
+Tool events, provider text/reasoning endings, completion, cancellation, and
+errors flush the pending tail before proceeding. Generation itself still
+consumes the provider's full stream.
+
+This follows the paragraph-delivery approach inspected in
+[T3 Code's ProviderRuntimeIngestion.ts at 0150c6a](https://github.com/pingdotgg/t3code/blob/0150c6a53b409ba3bcb45645709b649cf8708354/apps/server/src/orchestration/Layers/ProviderRuntimeIngestion.ts).
+OghmaNotes additionally tracks scanned lines incrementally and uses a delivery
+timer, rather than waiting for another provider delta to release ready text.
+
+A provider failure after output starts saves the partial message and failed
+generation status atomically. The worker does not retry that generation and
+repeat tools that may already have changed notes or calendar entries. Failures
+before any output retain the existing bounded retry policy. Explicit stop saves
+partial output as cancelled. A lost worker lease still fences all final writes.
+Abrupt process death remains subject to the existing lease/requeue recovery;
+this is not a checkpoint of model execution after every tool.
+
+Transport reconnects resume after the last successfully parsed event ID.
+Terminal generation errors are not reconnect attempts. A Redis append failure
+stops subsequent queued writes, preventing a later `done` event from passing a
+missing segment. PostgreSQL reconciliation supplies the saved message when
+Redis delivery is unavailable.
+
+Use `sql.json(value)` for parts, sources, and metadata. For an already serialized
+payload, bind it as text before casting to JSONB. Binding `JSON.stringify(value)`
+directly as JSONB lets postgres.js encode the string again. The reader accepts
+legacy JSON strings, validates their decoded fields, and recovers the trace
+without a data migration. Legacy aggregated reasoning has no original positions;
+it appears before the stored parts. New messages preserve the actual positions.
+
+Regression coverage includes `paragraph-stream.test.ts`,
+`generate-background.test.ts`, `use-chat-stream.test.ts`, the real-driver
+`tests/integration/db/chat-generation-json.test.ts`, and
+`tests/e2e/smoke/chat-stream-order.spec.ts`.
+
 ## Readiness checks
 
 The generic endpoint is an app and database liveness check. Redis degradation

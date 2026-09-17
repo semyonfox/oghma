@@ -59,21 +59,14 @@ describe("parseSseFrame — tool-call events", () => {
     });
   });
 
-  it("tolerates malformed JSON payload", () => {
+  it("rejects malformed JSON so replay cannot silently skip an event", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const metricSpy = vi.spyOn(Metrics, "sseParseError").mockResolvedValue();
 
     try {
-      const update = parseSseFrame({
-        event: "tool-call",
-        data: "not-json",
-      });
-
-      expect(update).toEqual({
-        type: "tool-call",
-        toolName: "",
-        label: "",
-      });
+      expect(() =>
+        parseSseFrame({ event: "tool-call", data: "not-json" }),
+      ).toThrow("Invalid response stream event");
       expect(metricSpy).toHaveBeenCalledOnce();
       expect(warnSpy).toHaveBeenCalledOnce();
       expect(warnSpy).toHaveBeenCalledWith(

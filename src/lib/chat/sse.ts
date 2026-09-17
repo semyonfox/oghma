@@ -12,15 +12,15 @@ export function parseSseBlocks(
   chunk: string,
   state: { buffer: string },
 ): SseFrame[] {
-  state.buffer += chunk.replace(/\r\n/g, "\n");
+  state.buffer += chunk;
   const frames: SseFrame[] = [];
 
-  let divider = state.buffer.indexOf("\n\n");
-  while (divider !== -1) {
-    const block = state.buffer.slice(0, divider);
-    state.buffer = state.buffer.slice(divider + 2);
+  let divider = /\r?\n\r?\n/.exec(state.buffer);
+  while (divider) {
+    const block = state.buffer.slice(0, divider.index);
+    state.buffer = state.buffer.slice(divider.index + divider[0].length);
 
-    const lines = block.split("\n");
+    const lines = block.split(/\r?\n/);
     const event = lines
       .find((line) => line.startsWith("event:"))
       ?.slice(6)
@@ -29,16 +29,16 @@ export function parseSseBlocks(
       .find((line) => line.startsWith("id:"))
       ?.slice(3)
       .trim();
-    const data = lines
-      .find((line) => line.startsWith("data:"))
-      ?.slice(5)
-      .trim();
+    const dataLines = lines.filter((line) => line.startsWith("data:"));
+    const data = dataLines
+      .map((line) => line.slice(5).replace(/^ /, ""))
+      .join("\n");
 
-    if (data !== undefined) {
+    if (dataLines.length > 0) {
       frames.push({ ...(id && { id }), event: event || "message", data });
     }
 
-    divider = state.buffer.indexOf("\n\n");
+    divider = /\r?\n\r?\n/.exec(state.buffer);
   }
 
   return frames;

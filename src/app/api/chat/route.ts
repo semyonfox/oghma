@@ -8,18 +8,21 @@ import {
   withErrorHandler,
 } from "@/lib/api-error";
 import { chatRequestSchema, validateBody } from "@/lib/validations/schemas";
-import { getLlmModel, getLlmThinkingMode, type LlmThinkingMode } from "@/lib/ai-config";
+import {
+  getLlmModel,
+  getLlmThinkingMode,
+  type LlmThinkingMode,
+} from "@/lib/ai-config";
 import logger from "@/lib/logger";
 import { streamText, generateText, type ModelMessage } from "ai";
 
-import {
-  markChatGenerationFailed,
-  persistMessage,
-} from "@/lib/chat/session";
+import { markChatGenerationFailed, persistMessage } from "@/lib/chat/session";
 import type { MessageMetadata } from "@/lib/chat/types";
 import { normalizeScope } from "@/lib/chat/normalize-scope";
 import { normalizeClientDateTime } from "@/lib/chat/client-date-time";
 import { buildLlmCall } from "@/lib/chat/build-stream";
+import { createParagraphSseWriter } from "@/lib/chat/paragraph-stream";
+import { interruptRunningTools } from "@/lib/chat/types";
 import { prepareChatGeneration } from "@/lib/chat/prepare-generation";
 import { streamFinalAnswer } from "@/lib/chat/final-answer";
 import { recordActivationMilestone } from "@/lib/marketing/events";
@@ -68,7 +71,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const limited = await checkRateLimit("chat", userId);
   if (limited) return limited;
 
-  const validation = validateBody(chatRequestSchema, await parseJsonObject(request));
+  const validation = validateBody(
+    chatRequestSchema,
+    await parseJsonObject(request),
+  );
   if (!validation.success) return validation.response;
   const body = validation.data;
   const {
@@ -182,7 +188,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       new ReadableStream({
         start(controller) {
           void (async () => {
-            const writer: SseWriter = {
+            const sink: SseWriter = {
               enqueue(chunk) {
                 if (clientDisconnected || streamClosed) return;
                 try {
@@ -203,6 +209,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 }
               },
             };
+            const writer = createParagraphSseWriter(sink);
+            let persistInterrupted: ((error: string) => Promise<void>) | null =
+              null;
             const heartbeatId = setInterval(() => {
               if (!streamClosed && !clientDisconnected) sendHeartbeat(writer);
             }, 15_000);
@@ -317,6 +326,28 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 });
                 assistantPersisted = true;
               };
+              persistInterrupted = async (message) => {
+                if (assistantPersisted) return;
+                generation = flushChatGenerationText(
+                  closeChatThinkingWindow(generation),
+                );
+                if (!generation.parts.length && !generation.reply.trim())
+                  return;
+                generation = {
+                  ...generation,
+                  parts: [
+                    ...interruptRunningTools(generation.parts),
+                    { type: "error", text: message },
+                  ],
+                };
+                await persistAssistant(
+                  generation.reply,
+                  buildChatGenerationMetadata(generation, {
+                    partial: true,
+                    error: message,
+                  }),
+                );
+              };
               try {
                 const result = streamText({
                   model: model!,
@@ -324,6 +355,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                   ...llmCallOptions,
                 });
                 for await (const part of result.fullStream) {
+                  if (
+                    part.type === "text-end" ||
+                    part.type === "reasoning-end" ||
+                    part.type === "finish-step"
+                  )
+                    writer.flushText();
                   const update = applyChatGenerationEvent(generation, part);
                   generation = update.result;
                   if (update.effect.type === "thinking") {
@@ -344,6 +381,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                       writer,
                       update.effect.toolCallId,
                       update.effect.detail,
+                      update.effect.status,
                     );
                   } else if (update.effect.type === "abort") {
                     throw new Error("Generation aborted: client disconnected");
@@ -373,34 +411,14 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                   finishReason: generation.finishReason,
                   rawFinishReason: generation.rawFinishReason,
                 });
-                if (
-                  !assistantPersisted &&
-                  (generation.reply.trim() ||
-                    generation.thinking.trim() ||
-                    generation.parts.length > 0)
-                ) {
-                  generation = {
-                    ...generation,
-                    parts: [
-                      ...generation.parts,
-                      { type: "error", text: interrupted },
-                    ],
-                  };
-                  await persistAssistant(
-                    generation.reply,
-                    buildChatGenerationMetadata(generation, {
-                      partial: true,
-                      error: detail,
-                    }),
-                  ).catch((persistError) => {
-                    logger.error("Failed to persist interrupted LLM stream", {
-                      error:
-                        persistError instanceof Error
-                          ? persistError.message
-                          : String(persistError),
-                    });
+                await persistInterrupted(interrupted).catch((persistError) => {
+                  logger.error("Failed to persist interrupted LLM stream", {
+                    error:
+                      persistError instanceof Error
+                        ? persistError.message
+                        : String(persistError),
                   });
-                }
+                });
                 sendError(writer, interrupted);
                 lastEvent = "error";
                 writer.close();
@@ -461,10 +479,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                   model: model!,
                   abortSignal: inlineAbort.signal,
                   instructions: llmCallOptions.instructions,
-                  messages: [
-                    ...llmCallOptions.messages,
-                    ...responseMessages,
-                  ],
+                  messages: [...llmCallOptions.messages, ...responseMessages],
                   maxOutputTokens: llmCallOptions.maxOutputTokens,
                   onTextDelta(text) {
                     generation = appendChatGenerationText(generation, text);
@@ -502,8 +517,14 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 buildChatGenerationMetadata(generation),
               );
               if (uniqueSources.length > 0) {
-                void recordActivationMilestone("first_cited_answer", userId, request).catch((eventError) =>
-                  logger.warn("failed to record first cited answer milestone", { error: eventError.message }),
+                void recordActivationMilestone(
+                  "first_cited_answer",
+                  userId,
+                  request,
+                ).catch((eventError) =>
+                  logger.warn("failed to record first cited answer milestone", {
+                    error: eventError.message,
+                  }),
                 );
               }
               sendDone(writer);
@@ -536,6 +557,16 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 clientDisconnected,
                 lastEvent,
               });
+              await persistInterrupted?.(
+                "Response interrupted while generating. Partial output was saved.",
+              ).catch((persistError) => {
+                logger.error("Failed to persist interrupted LLM stream", {
+                  error:
+                    persistError instanceof Error
+                      ? persistError.message
+                      : String(persistError),
+                });
+              });
               if (activeSessionId) {
                 await markChatGenerationFailed(activeSessionId).catch(
                   (statusError) =>
@@ -552,6 +583,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
               lastEvent = "error";
               writer.close();
             } finally {
+              writer.dispose();
               clearInterval(heartbeatId);
             }
           })();
@@ -637,14 +669,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         await canvasMcpClient?.close().catch(() => {});
       }
     })();
-    let generation = buildChatGenerationFromSteps(
-      initialParts,
-      result.steps,
-    );
-    let finalization = finalizeChatGenerationResult(
-      generation,
-      maxToolSteps,
-    );
+    let generation = buildChatGenerationFromSteps(initialParts, result.steps);
+    let finalization = finalizeChatGenerationResult(generation, maxToolSteps);
 
     if (finalization.kind === "synthesize-final-answer") {
       const finalAnswer = await streamFinalAnswer({
@@ -685,6 +711,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       });
       return NextResponse.json({
         reply: generation.reply,
+        parts: generation.parts,
         sources: uniqueSources,
         retrieval,
         llmAvailable: true,
@@ -702,12 +729,19 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       metadata: buildChatGenerationMetadata(generation),
     });
     if (uniqueSources.length > 0) {
-      void recordActivationMilestone("first_cited_answer", userId, request).catch((eventError) =>
-        logger.warn("failed to record first cited answer milestone", { error: eventError.message }),
+      void recordActivationMilestone(
+        "first_cited_answer",
+        userId,
+        request,
+      ).catch((eventError) =>
+        logger.warn("failed to record first cited answer milestone", {
+          error: eventError.message,
+        }),
       );
     }
     return NextResponse.json({
       reply: generation.reply,
+      parts: generation.parts,
       thinking: generation.thinking || undefined,
       sources: uniqueSources,
       retrieval,

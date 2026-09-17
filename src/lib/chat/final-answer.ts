@@ -19,7 +19,12 @@ export function shouldSynthesizeFinalAnswer(
   text: string,
   finishReason: FinishReason | undefined,
 ): boolean {
-  return !text.trim() && (finishReason == null || finishReason === "stop");
+  return (
+    !text.trim() &&
+    (finishReason == null ||
+      finishReason === "stop" ||
+      finishReason === "tool-calls")
+  );
 }
 
 export async function streamFinalAnswer(options: {

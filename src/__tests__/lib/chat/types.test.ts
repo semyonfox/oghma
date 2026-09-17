@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  normalizeMessageParts,
-  partitionMessageParts,
-} from "@/lib/chat/types";
+import { normalizeMessageParts, partitionMessageParts } from "@/lib/chat/types";
 
 describe("normalizeMessageParts", () => {
   it("accepts a well-formed parts array", () => {
@@ -116,5 +113,41 @@ describe("partitionMessageParts", () => {
         { type: "text", text: "answer" },
       ]).answerText,
     ).toBe("Final answer");
+  });
+});
+
+describe("legacy chat JSON recovery", () => {
+  it("decodes previously double-encoded parts without accepting malformed fields", () => {
+    expect(
+      normalizeMessageParts(
+        JSON.stringify([
+          { type: "reasoning", text: "First thought" },
+          {
+            type: "tool",
+            name: "readNote",
+            label: "Reading note",
+            status: "completed",
+            detail: "Input",
+            resultDetail: "Result",
+          },
+          { type: "reasoning", text: "Second thought" },
+          { type: "text", text: "Answer" },
+          { type: "tool", name: "bad" },
+        ]),
+      ),
+    ).toEqual([
+      { type: "reasoning", text: "First thought" },
+      {
+        type: "tool",
+        name: "readNote",
+        label: "Reading note",
+        status: "completed",
+        detail: "Input",
+        resultDetail: "Result",
+      },
+      { type: "reasoning", text: "Second thought" },
+      { type: "text", text: "Answer" },
+    ]);
+    expect(normalizeMessageParts('"broken')).toBeNull();
   });
 });

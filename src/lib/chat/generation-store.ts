@@ -86,7 +86,7 @@ export async function createChatGeneration(
         ${payload.sessionId}::uuid,
         'user',
         ${payload.message},
-        ${JSON.stringify([{ type: "text", text: payload.message }])}::jsonb,
+        ${sql.json([{ type: "text", text: payload.message }])},
         NULL,
         '{}'::jsonb
       )
@@ -99,7 +99,7 @@ export async function createChatGeneration(
         ${payload.sessionId}::uuid,
         ${payload.userId}::uuid,
         'queued',
-        ${JSON.stringify(payload)}::jsonb
+        ${JSON.stringify(payload)}::text::jsonb
       )
     )
     UPDATE app.chat_sessions
@@ -201,7 +201,7 @@ export async function heartbeatChatGeneration(
 export async function finalizeChatGeneration(
   generationId: string,
   leaseToken: string,
-  status: "completed" | "cancelled",
+  status: "completed" | "cancelled" | "failed",
   output: ChatGenerationAssistantOutput | null,
 ): Promise<boolean> {
   const messageId = generateUUID();
@@ -223,9 +223,9 @@ export async function finalizeChatGeneration(
         owned.session_id,
         'assistant',
         ${output?.content ?? ""},
-        ${JSON.stringify(output?.parts ?? [])}::jsonb,
-        ${output?.sources ? JSON.stringify(output.sources) : null}::jsonb,
-        ${JSON.stringify(output?.metadata ?? {})}::jsonb,
+        ${sql.json(output?.parts ?? [])},
+        ${output?.sources ? sql.json(output.sources) : null},
+        ${sql.json(output?.metadata ?? {})},
         owned.id
       FROM owned
       WHERE ${output !== null}
@@ -233,7 +233,8 @@ export async function finalizeChatGeneration(
       RETURNING id
     ), settled AS (
       UPDATE app.chat_generations generation
-      SET status = ${status}, completed_at = NOW(), error_message = NULL,
+      SET status = ${status}, completed_at = NOW(),
+          error_message = ${status === "failed" ? (output?.metadata?.error ?? "Failed to generate response") : null},
           lease_token = NULL, lease_expires_at = NULL, heartbeat_at = NULL,
           updated_at = NOW()
       FROM owned
@@ -257,7 +258,7 @@ export async function finalizeChatGeneration(
               AND active.id <> ${generationId}::uuid
               AND active.status IN ('queued', 'generating')
           ) THEN 'generating'
-          ELSE 'idle'
+          ELSE ${status === "failed" ? "failed" : "idle"}
         END,
         updated_at = NOW()
     FROM settled
@@ -425,7 +426,9 @@ export async function recoverStaleChatGenerations(
   return rows.map((row) => row.id);
 }
 
-export async function resetChatGenerationEvents(generationId: string): Promise<void> {
+export async function resetChatGenerationEvents(
+  generationId: string,
+): Promise<void> {
   await redis.del(eventKey(generationId));
 }
 
@@ -455,9 +458,7 @@ export interface StoredChatEvent {
 
 type RedisStreamReader = Pick<RedisConnection, "call">;
 
-function parseRedisEvents(
-  result: unknown,
-): StoredChatEvent[] {
+function parseRedisEvents(result: unknown): StoredChatEvent[] {
   if (!Array.isArray(result)) return [];
 
   // ioredis applies the XREAD reply transformer even through `.call()`, so

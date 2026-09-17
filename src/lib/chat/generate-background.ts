@@ -1,4 +1,6 @@
 import { streamText, type ModelMessage } from "ai";
+import { createParagraphSseWriter } from "@/lib/chat/paragraph-stream";
+import { interruptRunningTools } from "@/lib/chat/types";
 import logger from "@/lib/logger";
 import { Metrics } from "@/lib/metrics";
 import { buildLlmCall } from "@/lib/chat/build-stream";
@@ -59,13 +61,13 @@ export async function processChatGeneration(
   if (!payload) throw new Error("Chat generation replay inputs have expired");
   const { userId, sessionId, message, useRag, thinkingMode } = payload;
   const scope = payload.scope;
-  const writer = createBufferedSseWriter((sse) =>
+  const transport = createBufferedSseWriter((sse) =>
     appendChatGenerationEvent(generationId, sse),
   );
+  const writer = createParagraphSseWriter(transport);
   const startedAt = Date.now();
   let canvasMcpClient:
-    | Awaited<ReturnType<typeof buildLlmCall>>["canvasMcpClient"]
-    | undefined;
+    Awaited<ReturnType<typeof buildLlmCall>>["canvasMcpClient"] | undefined;
 
   // Watchdog: aborts the LLM stream on explicit stop or real disconnect.
   // A user who never had browser presence (pure API usage) is never
@@ -122,9 +124,11 @@ export async function processChatGeneration(
   let finalizeCancelled: (() => Promise<void>) | null = null;
   let cancelFinalized = false;
   let durablyFinalized = false;
+  let generation = createChatGenerationResult();
+  let sources: { id: string; title: string }[] = [];
 
   const settleGeneration = async (
-    status: "completed" | "cancelled",
+    status: "completed" | "cancelled" | "failed",
     output: Parameters<typeof finalizeChatGeneration>[3],
   ): Promise<boolean> => {
     const settled = await finalizeChatGeneration(
@@ -150,7 +154,7 @@ export async function processChatGeneration(
   const finishEventDelivery = async (): Promise<void> => {
     sendDone(writer);
     try {
-      await writer.flush();
+      await transport.flush();
     } catch (error) {
       // The answer is already committed. A Redis outage can interrupt replay,
       // but it must not run the model again or insert a second message.
@@ -203,6 +207,7 @@ export async function processChatGeneration(
       sessionContext,
     });
 
+    sources = uniqueSources;
     const llm = await buildLlmCall({
       userId,
       sessionId,
@@ -221,7 +226,14 @@ export async function processChatGeneration(
     });
     canvasMcpClient = llm.canvasMcpClient;
 
-    sendMeta(writer, sessionId, uniqueSources, retrieval, useRag, llm.llmAvailable);
+    sendMeta(
+      writer,
+      sessionId,
+      uniqueSources,
+      retrieval,
+      useRag,
+      llm.llmAvailable,
+    );
 
     if (!llm.model) {
       sendToken(writer, fallbackReply);
@@ -236,13 +248,15 @@ export async function processChatGeneration(
     }
 
     const t0 = Date.now();
-    let generation = createChatGenerationResult(initialParts);
+    generation = createChatGenerationResult(initialParts);
     let responseMessages: ModelMessage[] = [];
 
     finalizeCancelled = async () => {
-      generation = flushChatGenerationText(
-        closeChatThinkingWindow(generation),
-      );
+      generation = flushChatGenerationText(closeChatThinkingWindow(generation));
+      generation = {
+        ...generation,
+        parts: interruptRunningTools(generation.parts),
+      };
       const hasOutput =
         generation.reply.trim().length > 0 || generation.parts.length > 0;
       const settled = await settleGeneration(
@@ -285,6 +299,12 @@ export async function processChatGeneration(
       ...llm.llmCallOptions,
     });
     for await (const part of result.fullStream) {
+      if (
+        part.type === "text-end" ||
+        part.type === "reasoning-end" ||
+        part.type === "finish-step"
+      )
+        writer.flushText();
       const update = applyChatGenerationEvent(generation, part);
       generation = update.result;
       if (update.effect.type === "thinking") {
@@ -303,8 +323,11 @@ export async function processChatGeneration(
           writer,
           update.effect.toolCallId,
           update.effect.detail,
+          update.effect.status,
         );
       } else if (update.effect.type === "abort") {
+        if (!abortController.signal.aborted)
+          throw new Error("Provider stream aborted");
         break;
       } else if (update.effect.type === "error") {
         throw update.effect.error instanceof Error
@@ -382,7 +405,9 @@ export async function processChatGeneration(
       uniqueSources.length > 0 &&
       !payload.respectPrivacySignal
     ) {
-      void recordActivationMilestone("first_cited_answer", userId).catch(() => {});
+      void recordActivationMilestone("first_cited_answer", userId).catch(
+        () => {},
+      );
     }
     await finishEventDelivery();
     logger.info("Background chat generation completed", {
@@ -426,7 +451,42 @@ export async function processChatGeneration(
     }
     void Metrics.llmError();
     const detail = error instanceof Error ? error.message : String(error);
-    logger.error("Background chat generation failed", { generationId, sessionId, error: detail });
+    logger.error("Background chat generation failed", {
+      generationId,
+      sessionId,
+      error: detail,
+      elapsedMs: Date.now() - startedAt,
+      stepCount: generation.stepCount,
+      toolCallCount: generation.toolCallCount,
+      finishReason: generation.finishReason,
+      replyLength: generation.reply.length,
+      thinkingLength: generation.thinking.length,
+    });
+    generation = flushChatGenerationText(closeChatThinkingWindow(generation));
+    const hasOutput =
+      generation.parts.length > 0 ||
+      generation.reply.length > 0 ||
+      generation.thinking.length > 0;
+    if (hasOutput) {
+      const interrupted =
+        "Response interrupted while generating. Partial output was saved.";
+      const settled = await settleGeneration("failed", {
+        content: generation.reply,
+        parts: [
+          ...interruptRunningTools(generation.parts),
+          { type: "error", text: interrupted },
+        ],
+        sources,
+        metadata: buildChatGenerationMetadata(generation, {
+          partial: true,
+          error: interrupted,
+        }),
+      });
+      if (!settled) return;
+      sendError(writer, interrupted);
+      await transport.flush().catch(() => {});
+      return;
+    }
     if (attempt < maxAttempts) {
       const requeued = await requeueChatGeneration(
         generationId,
@@ -435,17 +495,14 @@ export async function processChatGeneration(
       );
       if (!requeued) return;
     } else {
-      const failed = await failChatGeneration(
-        generationId,
-        detail,
-        leaseToken,
-      );
+      const failed = await failChatGeneration(generationId, detail, leaseToken);
       if (!failed) return;
       sendError(writer, "Failed to generate response");
-      await writer.flush().catch(() => {});
+      await transport.flush().catch(() => {});
     }
     throw error;
   } finally {
+    writer.dispose();
     clearInterval(watchdog);
     await canvasMcpClient?.close().catch(() => {});
   }

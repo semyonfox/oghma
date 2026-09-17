@@ -1,7 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-  createBufferedSseWriter,
-} from "@/lib/chat/redis-event-writer";
+import { createBufferedSseWriter } from "@/lib/chat/redis-event-writer";
 
 const encoder = new TextEncoder();
 
@@ -53,7 +51,24 @@ describe("buffered Redis chat event writer", () => {
     writer.enqueue(encoder.encode('event: token\ndata: {"text":"two"}\n\n'));
     resolveAppend?.();
 
-    await expect(writer.flush()).rejects.toThrow("exceeded 1 pending Redis writes");
+    await expect(writer.flush()).rejects.toThrow(
+      "exceeded 1 pending Redis writes",
+    );
     expect(append).toHaveBeenCalledTimes(1);
   });
+});
+
+it("does not publish later events past a failed Redis append", async () => {
+  const append = vi
+    .fn()
+    .mockRejectedValueOnce(new Error("Lost write"))
+    .mockResolvedValue(undefined);
+  const writer = createBufferedSseWriter(append);
+  writer.enqueue(encoder.encode('event: token\ndata: {"text":"lost"}\n\n'));
+  writer.enqueue(
+    encoder.encode('event: token\ndata: {"text":"must not overtake"}\n\n'),
+  );
+  writer.enqueue(encoder.encode("event: done\ndata: {}\n\n"));
+  await expect(writer.flush()).rejects.toThrow("Lost write");
+  expect(append).toHaveBeenCalledTimes(1);
 });

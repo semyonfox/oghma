@@ -139,7 +139,7 @@ describe("message bubble copy actions", () => {
     );
   });
 
-  it("separates process narration and tools from the final answer", async () => {
+  it("keeps narration visible in order and copies only the final answer", async () => {
     const container = renderNode(
       React.createElement(FullMessageBubble, {
         message: makeMessage({
@@ -160,9 +160,13 @@ describe("message bubble copy actions", () => {
     ) as HTMLButtonElement;
     expect(workLogButton.textContent).toContain("Work log");
     expect(container.textContent).toContain("Final answer");
-    expect(container.textContent).not.toContain("Let me check.");
+    expect(container.textContent).toContain("Let me check.");
 
-    act(() => workLogButton.click());
+    act(() => {
+      container
+        .querySelectorAll<HTMLButtonElement>("button[aria-expanded=false]")
+        .forEach((button) => button.click());
+    });
     expect(container.textContent).toContain("Reasoning trace");
     expect(container.textContent).toContain("Let me check.");
     expect(container.textContent).toContain("Searching notes");
@@ -222,28 +226,32 @@ describe("message bubble copy actions", () => {
     roots.push(root);
 
     act(() => {
-      root.render(withI18n(
-        React.createElement(
-          React.Fragment,
-          undefined,
-          React.createElement(FullMessageBubble, { message: historical }),
-          React.createElement(FullMessageBubble, { message: streaming }),
+      root.render(
+        withI18n(
+          React.createElement(
+            React.Fragment,
+            undefined,
+            React.createElement(FullMessageBubble, { message: historical }),
+            React.createElement(FullMessageBubble, { message: streaming }),
+          ),
         ),
-      ));
+      );
     });
 
     const updatedStreaming = { ...streaming, content: "partial response" };
     act(() => {
-      root.render(withI18n(
-        React.createElement(
-          React.Fragment,
-          undefined,
-          React.createElement(FullMessageBubble, { message: historical }),
-          React.createElement(FullMessageBubble, {
-            message: updatedStreaming,
-          }),
+      root.render(
+        withI18n(
+          React.createElement(
+            React.Fragment,
+            undefined,
+            React.createElement(FullMessageBubble, { message: historical }),
+            React.createElement(FullMessageBubble, {
+              message: updatedStreaming,
+            }),
+          ),
         ),
-      ));
+      );
     });
 
     expect(markdownRender.mock.calls).toEqual([

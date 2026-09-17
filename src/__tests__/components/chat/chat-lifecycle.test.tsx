@@ -179,7 +179,9 @@ describe("chat session lifecycle", () => {
 
   it("shows retry when the initial history request fails and restores on retry", async () => {
     const network = setupNetwork();
-    network.fetchMock.mockRejectedValueOnce(new TypeError("History unavailable"));
+    network.fetchMock.mockRejectedValueOnce(
+      new TypeError("History unavailable"),
+    );
     render(<ChatInterface sessionId="session-1" />);
 
     const retry = await screen.findByRole("button", { name: "Try again" });
@@ -209,7 +211,8 @@ describe("chat session lifecycle", () => {
     await emitWorkLog(network);
     const answer = screen.getByText("New answer");
     const workLog = screen.getByRole("button", { name: /Work log/ });
-    fireEvent.click(workLog);
+    if (workLog.getAttribute("aria-expanded") === "false")
+      fireEvent.click(workLog);
     expect(workLog.getAttribute("aria-expanded")).toBe("true");
 
     await network.finish();
@@ -235,7 +238,9 @@ describe("chat session lifecycle", () => {
     await sendQuestion();
     await network.finish();
     expect(screen.getAllByText("New answer")).toHaveLength(1);
-    fireEvent.click(screen.getByRole("button", { name: /Work log/ }));
+    const workLog = screen.getByRole("button", { name: /Work log/ });
+    if (workLog.getAttribute("aria-expanded") === "false")
+      fireEvent.click(workLog);
     expect(screen.getByText("Checking the notes")).toBeTruthy();
   });
 
@@ -247,7 +252,8 @@ describe("chat session lifecycle", () => {
     await network.finish();
     const answer = screen.getByText("New answer");
     const workLog = screen.getByRole("button", { name: /Work log/ });
-    fireEvent.click(workLog);
+    if (workLog.getAttribute("aria-expanded") === "false")
+      fireEvent.click(workLog);
     view.rerender(<ChatInterface sessionId="session-1" />);
     await waitFor(() =>
       expect(
@@ -334,7 +340,8 @@ describe("chat session lifecycle", () => {
     await emitWorkLog(network);
     const answer = screen.getByText("New answer");
     const workLog = screen.getByRole("button", { name: /Work log/ });
-    fireEvent.click(workLog);
+    if (workLog.getAttribute("aria-expanded") === "false")
+      fireEvent.click(workLog);
     await network.disconnect();
     await waitFor(
       () => {
