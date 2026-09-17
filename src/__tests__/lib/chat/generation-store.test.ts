@@ -10,7 +10,9 @@ const redisMock = vi.hoisted(() => ({
   xadd: vi.fn(),
 }));
 
-vi.mock("@/database/pgsql", () => ({ default: sqlMock }));
+vi.mock("@/database/pgsql", () => ({
+  default: Object.assign(sqlMock, { json: (value: unknown) => JSON.stringify(value) }),
+}));
 vi.mock("@/lib/redis", () => ({ redis: redisMock }));
 vi.mock("@/lib/utils/uuid", () => ({
   generateUUID: () => "11111111-1111-1111-1111-111111111111",

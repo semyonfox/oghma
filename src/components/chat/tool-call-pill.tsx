@@ -1,11 +1,11 @@
 "use client";
 
-import { FC, useEffect, useId, useRef, useState } from "react";
+import { FC, useId, useState } from "react";
 import { ChevronDownIcon } from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import type { MessagePart } from "@/lib/chat/types";
 
-/** A single, T3-style process region above the final assistant answer. */
+/** A consecutive reasoning/tool group in the ordered response timeline. */
 export const WorkLog: FC<{
   parts: MessagePart[];
   thinking?: string;
@@ -22,34 +22,16 @@ export const WorkLog: FC<{
   const { t } = useI18n();
   const panelId = useId();
   const [expanded, setExpanded] = useState(active && !hasAnswer);
-  const manuallyToggledRef = useRef(false);
-  const wasActiveRef = useRef(active);
   const tools = parts.filter(
     (part): part is Extract<MessagePart, { type: "tool" }> =>
       part.type === "tool",
   );
 
-  useEffect(() => {
-    if (hasAnswer && expanded && !manuallyToggledRef.current) {
-      setExpanded(false);
-    }
-  }, [expanded, hasAnswer]);
-
-  useEffect(() => {
-    if (
-      active &&
-      !wasActiveRef.current &&
-      !hasAnswer &&
-      !manuallyToggledRef.current
-    ) {
-      setExpanded(true);
-    }
-    wasActiveRef.current = active;
-  }, [active, hasAnswer]);
-
   if (!thinking && parts.length === 0) return null;
 
-  const hasNarration = parts.some((part) => part.type === "text");
+  const hasNarration = parts.some(
+    (part) => part.type === "text" || part.type === "reasoning",
+  );
   const label =
     active && !hasAnswer
       ? t("Working…")
@@ -67,7 +49,6 @@ export const WorkLog: FC<{
         aria-expanded={expanded}
         aria-controls={expanded ? panelId : undefined}
         onClick={() => {
-          manuallyToggledRef.current = true;
           setExpanded((current) => !current);
         }}
       >
@@ -115,15 +96,44 @@ export const WorkLog: FC<{
                 key={`${part.callId ?? part.name}-${index}`}
                 className="flex items-start gap-2 py-1 text-xs text-text-tertiary"
               >
-                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary-500/40" />
+                <span
+                  className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${part.status === "failed" || part.status === "interrupted" ? "bg-red-400" : part.status === "running" && active ? "animate-pulse bg-primary-500" : "bg-primary-500/40"}`}
+                />
                 <span className="min-w-0">
                   <span>{part.label}</span>
-                  {part.detail && (
-                    <span className="ml-1 break-words text-text-secondary">
-                      · {part.detail}
+                  {part.status === "completed" && (
+                    <span className="ml-1 text-text-tertiary">· {t("Done")}</span>
+                  )}
+                  {part.status === "running" && active && (
+                    <span className="ml-1">{t("Working…")}</span>
+                  )}
+                  {part.status === "failed" && (
+                    <span className="ml-1 text-red-700 dark:text-red-300">{t("Failed")}</span>
+                  )}
+                  {part.detail &&
+                    (part.name !== "readNote" || !part.resultDetail) && (
+                      <span className="ml-1 break-words text-text-secondary">
+                        · {part.detail}
+                      </span>
+                    )}
+                  {part.resultDetail && (
+                    <span className="block break-words text-text-secondary">
+                      {part.resultDetail}
                     </span>
                   )}
                 </span>
+              </div>
+            ) : part.type === "reasoning" ? (
+              <div
+                key={`reasoning-${index}`}
+                className="border-l border-primary-500/25 py-1 pl-2.5"
+              >
+                <p className="mb-1 text-[11px] font-medium text-text-tertiary/75">
+                  {t("Thinking")}
+                </p>
+                <p className="whitespace-pre-wrap text-xs leading-relaxed text-text-tertiary">
+                  {part.text}
+                </p>
               </div>
             ) : part.type === "text" ? (
               <p
@@ -133,7 +143,7 @@ export const WorkLog: FC<{
                 {part.text}
               </p>
             ) : (
-              <p key={`error-${index}`} className="py-1 text-xs text-red-300">
+              <p key={`error-${index}`} className="py-1 text-xs text-red-700 dark:text-red-300">
                 {part.text}
               </p>
             ),

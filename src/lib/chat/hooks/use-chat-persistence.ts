@@ -2,14 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { Message } from "@/lib/chat/types";
-import {
-  normalizeMessageParts,
-  partitionMessageParts,
-} from "@/lib/chat/types";
-import {
-  nextLlmThinkingMode,
-  type LlmThinkingMode,
-} from "@/lib/ai-config";
+import { normalizeMessageParts, decodeStoredChatJson } from "@/lib/chat/types";
+import { nextLlmThinkingMode, type LlmThinkingMode } from "@/lib/ai-config";
 
 const THINKING_MODE_KEY = "chat-thinking-mode";
 const USE_RAG_KEY = "chat-use-rag";
@@ -116,9 +110,11 @@ function storedMessageFrom(value: unknown): StoredMessage | null {
     return null;
   }
 
-  const metadata = isRecord(value.metadata) ? value.metadata : undefined;
-  const sources = Array.isArray(value.sources)
-    ? value.sources.flatMap((source) =>
+  const decodedMetadata = decodeStoredChatJson(value.metadata);
+  const decodedSources = decodeStoredChatJson(value.sources);
+  const metadata = isRecord(decodedMetadata) ? decodedMetadata : undefined;
+  const sources = Array.isArray(decodedSources)
+    ? decodedSources.flatMap((source) =>
         isRecord(source) &&
         typeof source.id === "string" &&
         typeof source.title === "string"
@@ -177,30 +173,41 @@ export function mapStoredChatMessages(messages: unknown[]): Message[] {
   return messages.flatMap((value) => {
     const m = storedMessageFrom(value);
     if (!m) return [];
-    const normalizedParts = normalizeMessageParts(m.parts) ?? [];
-    const hasAnswerText =
-      partitionMessageParts(normalizedParts).answerText.trim().length > 0;
-    const parts = !hasAnswerText && m.content.trim().length > 0
-      ? [...normalizedParts, { type: "text" as const, text: m.content }]
-      : normalizedParts;
     const metadata = m.metadata ?? {};
-    return [{
-      id: m.id,
-      role: m.role,
-      content: m.content,
-      parts,
-      thinking:
-        typeof metadata.thinking === "string" ? metadata.thinking : undefined,
-      thinkingDuration:
-        typeof metadata.thinkingDuration === "number"
-          ? metadata.thinkingDuration
-          : undefined,
-      partial: metadata.partial === true,
-      error: typeof metadata.error === "string" ? metadata.error : undefined,
-      sources: Array.isArray(m.sources) ? m.sources : [],
-      timestamp: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
-      rating: m.rating ?? null,
-    }];
+    const restoredParts = normalizeMessageParts(m.parts) ?? [];
+    // Legacy rows kept one aggregated reasoning field with no positions.
+    const normalizedParts: Message["parts"] =
+      typeof metadata.thinking === "string" &&
+      metadata.thinking &&
+      !restoredParts.some((part) => part.type === "reasoning")
+        ? [{ type: "reasoning", text: metadata.thinking }, ...restoredParts]
+        : restoredParts;
+    const hasAnswerText = normalizedParts.some(
+      (part) => part.type === "text" && part.text.trim().length > 0,
+    );
+    const parts =
+      !hasAnswerText && m.content.trim().length > 0
+        ? [...normalizedParts, { type: "text" as const, text: m.content }]
+        : normalizedParts;
+    return [
+      {
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        parts,
+        thinking:
+          typeof metadata.thinking === "string" ? metadata.thinking : undefined,
+        thinkingDuration:
+          typeof metadata.thinkingDuration === "number"
+            ? metadata.thinkingDuration
+            : undefined,
+        partial: metadata.partial === true,
+        error: typeof metadata.error === "string" ? metadata.error : undefined,
+        sources: Array.isArray(m.sources) ? m.sources : [],
+        timestamp: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
+        rating: m.rating ?? null,
+      },
+    ];
   });
 }
 
@@ -256,11 +263,17 @@ export function useChatPersistence(
 
   // session restore
   const [restored, setRestored] = useState(false);
-  const [restoredSessionId, setRestoredSessionId] = useState<string | null>(null);
-  const [restoredMessages, setRestoredMessages] = useState<Message[] | null>(null);
+  const [restoredSessionId, setRestoredSessionId] = useState<string | null>(
+    null,
+  );
+  const [restoredMessages, setRestoredMessages] = useState<Message[] | null>(
+    null,
+  );
   const [restoredGenerating, setRestoredGenerating] = useState(false);
   const [backgroundLoading, setBackgroundLoading] = useState(false);
-  const [backgroundGenerationId, setBackgroundGenerationId] = useState<string | null>(null);
+  const [backgroundGenerationId, setBackgroundGenerationId] = useState<
+    string | null
+  >(null);
   const [restoreError, setRestoreError] = useState(false);
   const [restoreAttempt, setRestoreAttempt] = useState(0);
   const finishedGenerationRef = useRef<string | null>(null);

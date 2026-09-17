@@ -142,7 +142,8 @@ describe("chat generation result parity", () => {
 
     expect(generation.stepCount).toBe(3);
     expect(generation.toolCallCount).toBe(1);
-    expect(finalizeChatGenerationResult(generation, 2).kind).toBe("complete");
+    expect(finalizeChatGenerationResult(generation, 2).kind).toBe("synthesize-final-answer");
+    expect(finalizeChatGenerationResult(generation, 1).kind).toBe("tool-call-limit");
   });
 
   it("requires the same final-answer synthesis for reasoning-only results", () => {

@@ -6,6 +6,7 @@ import type { RetrievalInfo, SourceRef } from "@/lib/chat/rag-context";
 export interface SseWriter {
   enqueue(chunk: Uint8Array): void;
   close(): void;
+  appendText?(kind: "token" | "thinking", text: string): void;
 }
 
 const encoder = new TextEncoder();
@@ -41,23 +42,39 @@ export function sendSearch(
   scopedNoteIds: string[] | null,
   searchResults: SearchResult[],
 ): void {
-  send(writer, "search", buildSearchContext(query, scopedNoteIds, searchResults));
+  send(
+    writer,
+    "search",
+    buildSearchContext(query, scopedNoteIds, searchResults),
+  );
 }
 
 export function sendToken(writer: SseWriter, text: string): void {
-  send(writer, "token", { text });
+  if (writer.appendText) writer.appendText("token", text);
+  else send(writer, "token", { text });
 }
 
 export function sendThinking(writer: SseWriter, text: string): void {
-  send(writer, "thinking", { text });
+  if (writer.appendText) writer.appendText("thinking", text);
+  else send(writer, "thinking", { text });
 }
 
-export function sendToolCall(writer: SseWriter, toolName: string, toolCallId?: string, detail?: string): void {
+export function sendToolCall(
+  writer: SseWriter,
+  toolName: string,
+  toolCallId?: string,
+  detail?: string,
+): void {
   send(writer, "tool-call", { toolName, toolCallId, detail });
 }
 
-export function sendToolResult(writer: SseWriter, toolCallId: string, detail?: string): void {
-  if (detail) send(writer, "tool-result", { toolCallId, detail });
+export function sendToolResult(
+  writer: SseWriter,
+  toolCallId: string,
+  detail?: string,
+  status: "completed" | "failed" = "completed",
+): void {
+  send(writer, "tool-result", { toolCallId, detail, status });
 }
 
 export function sendDone(writer: SseWriter): void {

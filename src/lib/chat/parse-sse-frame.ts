@@ -8,12 +8,28 @@ export { humanizeToolName, labelForTool } from "@/lib/chat/tool-labels";
 /** a single mutation that should be applied to the assistant message */
 export type MessageUpdate =
   | { type: "reset" }
-  | { type: "meta"; sessionId?: string; sources?: { id: string; title: string }[]; retrieval?: Message["retrieval"] }
+  | {
+      type: "meta";
+      sessionId?: string;
+      sources?: { id: string; title: string }[];
+      retrieval?: Message["retrieval"];
+    }
   | { type: "search"; searchContext: SearchContextData }
   | { type: "thinking"; text: string }
   | { type: "token"; text: string }
-  | { type: "tool-call"; label: string; toolName: string; toolCallId?: string; detail?: string }
-  | { type: "tool-result"; toolCallId: string; detail: string }
+  | {
+      type: "tool-call";
+      label: string;
+      toolName: string;
+      toolCallId?: string;
+      detail?: string;
+    }
+  | {
+      type: "tool-result";
+      toolCallId: string;
+      detail?: string;
+      status?: "completed" | "failed";
+    }
   | { type: "done" }
   | { type: "error"; message: string };
 
@@ -22,17 +38,20 @@ export type MessageUpdate =
  * Pure function -- no React state, no side effects.
  */
 export function parseSseFrame(frame: SseFrame): MessageUpdate | null {
-  let payload: Record<string, unknown> = {};
+  let payload: Record<string, unknown>;
   try {
-    payload = JSON.parse(frame.data);
+    const decoded: unknown = JSON.parse(frame.data);
+    if (!decoded || typeof decoded !== "object" || Array.isArray(decoded)) {
+      throw new Error("Expected a chat event object");
+    }
+    payload = decoded as Record<string, unknown>;
   } catch {
     console.warn("Malformed SSE frame payload", {
       event: frame.event,
-      payloadPreview: frame.data.slice(0, 120),
       payloadLength: frame.data.length,
     });
     void Metrics.sseParseError();
-    payload = {};
+    throw new Error("Invalid response stream event");
   }
 
   switch (frame.event) {
@@ -91,13 +110,22 @@ export function parseSseFrame(frame: SseFrame): MessageUpdate | null {
     }
 
     case "tool-result": {
-      const toolCallId = typeof payload.toolCallId === "string" ? payload.toolCallId : "";
+      const toolCallId =
+        typeof payload.toolCallId === "string" ? payload.toolCallId : "";
       const detail = typeof payload.detail === "string" ? payload.detail : "";
-      return toolCallId && detail ? { type: "tool-result", toolCallId, detail } : null;
+      return toolCallId
+        ? {
+            type: "tool-result",
+            toolCallId,
+            detail: detail || undefined,
+            status: payload.status === "failed" ? "failed" : "completed",
+          }
+        : null;
     }
 
     case "error": {
-      const message = typeof payload.message === "string" ? payload.message : "";
+      const message =
+        typeof payload.message === "string" ? payload.message : "";
       return { type: "error", message };
     }
 

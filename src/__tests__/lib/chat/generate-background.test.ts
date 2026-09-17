@@ -1,4 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { simulateReadableStream, stepCountIs, tool } from "ai";
+import { MockLanguageModelV3 } from "ai/test";
+import type { LanguageModelV3StreamPart } from "@ai-sdk/provider";
+import { z } from "zod";
 
 const mocks = vi.hoisted(() => ({
   appendEvent: vi.fn(),
@@ -13,7 +17,6 @@ const mocks = vi.hoisted(() => ({
   requeue: vi.fn(),
 }));
 
-vi.mock("ai", () => ({ streamText: vi.fn() }));
 vi.mock("@/lib/logger", () => ({
   default: {
     error: mocks.loggerError,
@@ -168,5 +171,127 @@ describe("background chat durability", () => {
         String(sse).includes("event: search"),
       ),
     ).toBe(false);
+  });
+
+  it("saves reasoning, tool results, and partial prose without rerunning executed tools", async () => {
+    const execute = vi.fn(async () => ({
+      title: "Synthetic note",
+      content: "Test",
+    }));
+    let calls = 0;
+    const model = new MockLanguageModelV3({
+      doStream: async () => {
+        calls++;
+        return {
+          stream: simulateReadableStream<LanguageModelV3StreamPart>({
+            chunks:
+              calls === 1
+                ? [
+                    { type: "stream-start", warnings: [] },
+                    { type: "reasoning-start", id: "reason-1" },
+                    {
+                      type: "reasoning-delta",
+                      id: "reason-1",
+                      delta: "Check the note",
+                    },
+                    { type: "reasoning-end", id: "reason-1" },
+                    { type: "text-start", id: "text-1" },
+                    {
+                      type: "text-delta",
+                      id: "text-1",
+                      delta: "Reading it now.",
+                    },
+                    { type: "text-end", id: "text-1" },
+                    {
+                      type: "tool-call",
+                      toolCallId: "read-1",
+                      toolName: "readNote",
+                      input: "{}",
+                    },
+                    {
+                      type: "finish",
+                      finishReason: {
+                        unified: "tool-calls",
+                        raw: "tool_calls",
+                      },
+                      usage: {
+                        inputTokens: {
+                          total: 1,
+                          noCache: 1,
+                          cacheRead: 0,
+                          cacheWrite: 0,
+                        },
+                        outputTokens: { total: 1, text: 1, reasoning: 0 },
+                      },
+                    },
+                  ]
+                : [
+                    { type: "stream-start", warnings: [] },
+                    { type: "reasoning-start", id: "reason-2" },
+                    {
+                      type: "reasoning-delta",
+                      id: "reason-2",
+                      delta: "Use the result",
+                    },
+                    { type: "reasoning-end", id: "reason-2" },
+                    { type: "text-start", id: "text-2" },
+                    {
+                      type: "text-delta",
+                      id: "text-2",
+                      delta: "Partial answer",
+                    },
+                    {
+                      type: "error",
+                      error: new Error("Provider connection terminated"),
+                    },
+                  ],
+          }),
+        };
+      },
+    });
+    mocks.buildLlmCall.mockResolvedValue({
+      model,
+      llmAvailable: true,
+      maxToolSteps: 3,
+      llmCallOptions: {
+        messages: [{ role: "user", content: "Synthetic question" }],
+        onError: () => {},
+        tools: { readNote: tool({ inputSchema: z.object({}), execute }) },
+        stopWhen: stepCountIs(3),
+      },
+    });
+    mocks.finalize.mockResolvedValue(true);
+    mocks.appendEvent.mockResolvedValue(undefined);
+    mocks.requeue.mockClear();
+    await processChatGeneration("11111111-1111-1111-1111-111111111111", 1, 3);
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(mocks.requeue).not.toHaveBeenCalled();
+    expect(mocks.finalize).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.any(String),
+      "failed",
+      expect.objectContaining({
+        content: "Reading it now.Partial answer",
+        parts: [
+          { type: "reasoning", text: "Check the note" },
+          { type: "text", text: "Reading it now." },
+          expect.objectContaining({
+            type: "tool",
+            callId: "read-1",
+            status: "completed",
+          }),
+          { type: "reasoning", text: "Use the result" },
+          { type: "text", text: "Partial answer" },
+          expect.objectContaining({ type: "error" }),
+        ],
+        metadata: expect.objectContaining({ partial: true }),
+      }),
+    );
+    const delivery = mocks.appendEvent.mock.calls
+      .map(([, event]) => String(event))
+      .join("");
+    expect(delivery.indexOf("Partial answer")).toBeLessThan(
+      delivery.indexOf("event: error"),
+    );
   });
 });

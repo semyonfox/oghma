@@ -29,7 +29,10 @@ describe("chat SSE utils", () => {
   it("preserves Redis stream ids for resumable delivery", () => {
     const state = { buffer: "" };
     expect(
-      parseSseBlocks('id: 1720000000000-3\nevent: token\ndata: {"text":"hi"}\n\n', state),
+      parseSseBlocks(
+        'id: 1720000000000-3\nevent: token\ndata: {"text":"hi"}\n\n',
+        state,
+      ),
     ).toEqual([
       {
         id: "1720000000000-3",
@@ -52,4 +55,20 @@ describe("chat SSE utils", () => {
       { event: "done", data: "{}" },
     ]);
   });
+});
+
+it("parses CRLF event delimiters split at every possible transport boundary", () => {
+  const source =
+    'id: 1-0\r\nevent: token\r\ndata: {"text":"one"}\r\n\r\nid: 2-0\r\nevent: done\r\ndata: {}\r\n\r\n';
+  for (let split = 0; split <= source.length; split++) {
+    const state = { buffer: "" };
+    const frames = [
+      ...parseSseBlocks(source.slice(0, split), state),
+      ...parseSseBlocks(source.slice(split), state),
+    ];
+    expect(frames).toEqual([
+      { id: "1-0", event: "token", data: '{"text":"one"}' },
+      { id: "2-0", event: "done", data: "{}" },
+    ]);
+  }
 });
