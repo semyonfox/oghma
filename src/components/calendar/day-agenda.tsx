@@ -14,6 +14,7 @@ import usePomodoroStore from "@/lib/notes/state/pomodoro.zustand";
 import { isoToDateKey, parseLocalDateKey } from "@/lib/notes/utils/calendar-date";
 import { getEffectiveAssignmentStatus } from "@/lib/notes/utils/assignment-status";
 import useI18n from "@/lib/notes/hooks/use-i18n";
+import AssignmentDetailsTrigger from "@/components/assignments/assignment-details-trigger";
 import AssignmentTypeIcon from "@/components/assignments/assignment-type-icon";
 
 interface DayAgendaProps {
@@ -274,7 +275,10 @@ export default function DayAgenda({
                                   : "text-text-secondary"
                               }`}
                             >
-                              {assignment.title}
+                              <AssignmentDetailsTrigger
+                                assignment={assignment}
+                                className="min-h-11 w-full cursor-pointer text-left underline decoration-border-subtle underline-offset-4 hover:decoration-current"
+                              />
                             </h4>
                           </div>
                           <p className="mt-1 text-xs text-text-tertiary">
