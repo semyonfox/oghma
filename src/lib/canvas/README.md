@@ -31,6 +31,17 @@ Some specialized import paths still make direct note and tree writes, including
 Canvas extraction and folder creation, vault import, and vault tree building.
 Do not assume every imported note uses `notes/storage/create-note.ts`.
 
+## Assignment materials
+
+Added 2026-09-21. [`/api/assignments/[id]/materials`](../../app/api/assignments/[id]/materials/route.ts)
+lists Canvas attachments and same-course file links from assignment instructions.
+Its POST queues an assignment-only import through `startCanvasRun`, preserving
+`assignmentId` in the job's course selection. Discovery skips other assignments,
+modules, and the course file inventory for this scope. It uses the normal file
+processing, deduplication, and cancellation paths and never replaces an active
+import. The assignment modal links completed imports to their notes. Files in
+Trash must be restored; unsupported or restricted files open in Canvas.
+
 ## Tests and runbooks
 
 - [`canvas-job-dispatch.test.ts`](../../__tests__/lib/canvas-job-dispatch.test.ts)

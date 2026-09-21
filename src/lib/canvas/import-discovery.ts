@@ -1,4 +1,5 @@
 import { CanvasClaimLostError, withCanvasExecution, withCanvasPublication, CANVAS_CLAIM_SECONDS } from "./execution";
+import { discoverAssignmentMaterials } from "./assignment-materials";
 import { randomUUID } from "node:crypto";
 /**
  * Canvas Import — Discovery Phase
@@ -57,6 +58,7 @@ interface ImportContext {
   jobId: string;
   storage?: StoreS3;
   skippedFileIds?: Set<string>;
+  assignmentId?: string;
 }
 
 interface DiscoveredCanvasFile extends CanvasFile {
@@ -359,7 +361,13 @@ async function eachAssignmentWithFiles(
 ) {
   const { client, jobId } = ctx;
   const { data: assignments, forbidden } = await fetchResource(
-    (id) => client.getAssignments(id),
+    async (id) => {
+      if (!ctx.assignmentId) return client.getAssignments(id);
+      const result = await client.getAssignment(id, ctx.assignmentId);
+      if (!result.data || result.error) throw new Error(result.error ?? "Assignment unavailable");
+      const materials = await discoverAssignmentMaterials(client, id, result.data);
+      return { ...result, data: [{ ...result.data, attachments: materials.flatMap(material => material.file && !material.unavailable ? [material.file] : []) }] };
+    },
     courseId,
     userId,
     courseTitle,
@@ -514,7 +522,7 @@ async function discoverCourse(
   userId: string,
   ctx: ImportContext,
 ) {
-  ctx = { ...ctx, skippedFileIds: new Set<string>() };
+  ctx = { ...ctx, skippedFileIds: new Set<string>(), assignmentId: course.assignmentId };
   const courseId = String(course.id);
   const { title: courseTitle, academicYear } = cleanCourseName(
     course.course_code,
@@ -528,6 +536,12 @@ async function discoverCourse(
       canvasCourseId: canvasIdForBigintColumn(course.id, "Canvas course ID"),
       canvasAcademicYear: academicYear,
     });
+
+    if (course.assignmentId) {
+      await discoveryStage(ctx.jobId, "assignments");
+      await discoverAssignmentFiles(courseId, userId, courseTitle, courseFolderId, ctx);
+      return;
+    }
 
     // Canvas dynamically charges request cost and penalizes parallel calls.
     // Keep top-level resource discovery serial; its inner operations are also

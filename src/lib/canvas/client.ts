@@ -547,6 +547,13 @@ export class CanvasClient {
    * Returns all assignments for a course.
    * include[]=submission pulls in the student's own submission attachments.
    */
+  async getAssignment(courseId: string, assignmentId: string) {
+    return this.#get(
+      `/courses/${encodeURIComponent(courseId)}/assignments/${encodeURIComponent(assignmentId)}?include[]=submission`,
+      isCanvasAssignment,
+    );
+  }
+
   async getAssignments(courseId: string) {
     const result = await this.#getPaginated(
       `/courses/${courseId}/assignments?include[]=submission`,

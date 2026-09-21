@@ -7,6 +7,8 @@ import { CanvasClaimLostError, withCanvasExecution, withCanvasPublication, withC
  * Also houses the per-file queue handler, direct extraction, and retry logic.
  */
 
+export { PROCESSABLE_TYPES, resolveMimeType } from "./file-types";
+import { PROCESSABLE_TYPES, resolveMimeType } from "./file-types";
 import { createHash } from "node:crypto";
 import type postgres from "postgres";
 
@@ -166,28 +168,6 @@ interface MarkerJobRow {
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
-export const PROCESSABLE_TYPES = new Set([
-  "application/pdf",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  "application/vnd.ms-powerpoint",
-  "text/markdown",
-  "text/x-markdown",
-  "text/plain",
-]);
-
-const EXT_MIME: Record<string, string> = {
-  pdf: "application/pdf",
-  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  doc: "application/msword",
-  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  ppt: "application/vnd.ms-powerpoint",
-  md: "text/markdown",
-  markdown: "text/markdown",
-  txt: "text/plain",
-};
-
 export const FILE_TIMEOUT_MS = Math.max(
   60_000,
   Number.parseInt(process.env.CANVAS_FILE_TIMEOUT_MS ?? "", 10) ||
@@ -222,19 +202,6 @@ const CANVAS_GLOBAL_FILE_CONCURRENCY = parseEnvConcurrency(
 );
 
 const globalFileLimiter = createAsyncLimiter(CANVAS_GLOBAL_FILE_CONCURRENCY);
-
-// ── MIME type resolution ────────────────────────────────────────────────────
-
-export function resolveMimeType(
-  filename?: string | null,
-  canvasMimeType?: string | null,
-): string | undefined {
-  if (canvasMimeType && PROCESSABLE_TYPES.has(canvasMimeType))
-    return canvasMimeType;
-  const ext = filename?.toLowerCase().split(".").pop();
-  if (ext && EXT_MIME[ext]) return EXT_MIME[ext];
-  return canvasMimeType ?? undefined;
-}
 
 // ── Note helpers ────────────────────────────────────────────────────────────
 
