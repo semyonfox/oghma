@@ -1,5 +1,7 @@
 "use client";
 
+import AssignmentDetailsTrigger from "@/components/assignments/assignment-details-trigger";
+
 import { useMemo } from "react";
 import { XMarkIcon, CheckCircleIcon } from "@heroicons/react/20/solid";
 import { CheckCircleIcon as CheckCircleOutline } from "@heroicons/react/24/outline";
@@ -126,7 +128,9 @@ export default function MonthView({ onSelectDate }: MonthViewProps) {
 
               {/* events */}
               <div className="pointer-events-none relative z-10 mt-7 space-y-0.5">
-                {day.assignments.slice(0, 2).map((a) => (
+                {day.assignments.slice(0, 2).map((a) => {
+                  const assignment = assignments.find(item => item.id === a.id);
+                  return (
                   <div
                     key={a.id}
                     className="group/a pointer-events-none relative flex items-center gap-1 rounded-radius-sm pl-2 pr-1 py-0.5 text-xs leading-snug bg-surface-elevated"
@@ -159,11 +163,15 @@ export default function MonthView({ onSelectDate }: MonthViewProps) {
                         <CheckCircleOutline className="h-3 w-3 text-text-tertiary hover:text-primary-500 transition-colors" />
                       )}
                     </button>
-                    <span className={`truncate text-text-secondary ${a.status === "done" ? "line-through opacity-60" : ""}`}>
-                      {a.title}
-                    </span>
+                    {assignment && (
+                      <AssignmentDetailsTrigger
+                        assignment={assignment}
+                        className={`pointer-events-auto min-w-0 flex-1 cursor-pointer truncate text-left text-text-secondary underline decoration-border-subtle underline-offset-4 ${a.status === "done" ? "line-through opacity-60" : ""}`}
+                      />
+                    )}
                   </div>
-                ))}
+                  );
+                })}
                 {day.timeBlocks
                   .slice(0, Math.max(0, 2 - day.assignments.length))
                   .map((tb) => (
