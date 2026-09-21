@@ -39,6 +39,7 @@ import {
   type CourseVisibilityItem,
 } from "@/components/course-visibility/course-visibility-manager";
 import NewTaskModal from "./new-task-modal";
+import AssignmentDetails from "./assignment-details";
 import AssignmentTypeIcon from "./assignment-type-icon";
 
 interface AssignmentTrackerProps {
@@ -201,6 +202,7 @@ export default function AssignmentTracker({
   } = useAssignmentStore();
   const pomodoroStart = usePomodoroStore((state) => state.start);
   const [showNewTask, setShowNewTask] = useState(false);
+  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
   const [showCourseManager, setShowCourseManager] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [now, setNow] = useState(() => new Date());
@@ -447,7 +449,9 @@ export default function AssignmentTracker({
             <h3
               className={`min-w-0 text-sm font-medium leading-snug ${completed ? "text-text-tertiary line-through" : "text-text-secondary"}`}
             >
-              {assignment.title}
+              <button type="button" onClick={() => setSelectedAssignment(assignment)} className="text-left underline decoration-border-subtle underline-offset-4 hover:decoration-current focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+                {assignment.title}
+              </button>
             </h3>
           </div>
 
@@ -630,6 +634,7 @@ export default function AssignmentTracker({
         </button>
       </div>
 
+      {selectedAssignment && <AssignmentDetails key={selectedAssignment.id} assignment={selectedAssignment} onClose={() => setSelectedAssignment(null)} />}
       <NewTaskModal
         open={showNewTask}
         onClose={() => setShowNewTask(false)}
