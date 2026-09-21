@@ -1173,5 +1173,21 @@
   "This assignment is locked in Canvas.": "This assignment is locked in Canvas.",
   "This sends your work to your lecturer in Canvas. Check the content above before submitting.": "This sends your work to your lecturer in Canvas. Check the content above before submitting.",
   "Website URL": "Website URL",
-  "Your submission": "Your submission"
+  "Your submission": "Your submission",
+  "Another Canvas import is running. Wait for it to finish, then try again.": "Another Canvas import is running. Wait for it to finish, then try again.",
+  "Could not import materials. Try again.": "Could not import materials. Try again.",
+  "Could not load assignment materials. Try again.": "Could not load assignment materials. Try again.",
+  "Import materials": "Import materials",
+  "Loading materials...": "Loading materials...",
+  "Materials": "Materials",
+  "Materials queued for import. You can close this assignment while they process. Refresh materials to check progress.": "Materials queued for import. You can close this assignment while they process. Refresh materials to check progress.",
+  "No attached Canvas files found. Other links remain in the instructions above.": "No attached Canvas files found. Other links remain in the instructions above.",
+  "Open in OghmaNotes": "Open in OghmaNotes",
+  "Open this file in Canvas": "Open this file in Canvas",
+  "Ready to import": "Ready to import",
+  "Refresh materials": "Refresh materials",
+  "Restore from Trash to open": "Restore from Trash to open",
+  "Restore this course's folders from Trash before importing materials.": "Restore this course's folders from Trash before importing materials.",
+  "Starting import...": "Starting import...",
+  "Unavailable in Canvas": "Unavailable in Canvas"
 }

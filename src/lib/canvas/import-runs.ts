@@ -24,8 +24,12 @@ export function canonicalCanvasCourses(values: unknown[]): CanvasCourseSelection
   for (const value of values) {
     const course = normalizeCanvasCourseSelection(value);
     const existing = courses.get(course.id);
+    if (existing && existing.assignmentId !== course.assignmentId) {
+      throw new Error("Cannot combine different assignment scopes for one course");
+    }
     courses.set(course.id, existing ? {
       id: course.id,
+      ...(course.assignmentId ? { assignmentId: course.assignmentId } : {}),
       name: existing.name === existing.id ? course.name : existing.name,
       course_code: existing.course_code || course.course_code,
       term: existing.term ?? course.term,
@@ -39,7 +43,7 @@ export function canvasRequestFingerprint(
   courses: CanvasCourseSelection[], mode: string,
 ): string {
   return createHash("sha256")
-    .update(JSON.stringify([mode, canonicalCanvasCourses(courses).map(({ id }) => id)]))
+    .update(JSON.stringify([mode, canonicalCanvasCourses(courses).map(({ id, assignmentId }) => assignmentId ? [id, assignmentId] : id)]))
     .digest("hex");
 }
 

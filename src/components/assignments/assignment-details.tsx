@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from "@headlessui/react";
 import DOMPurify from "dompurify";
+import AssignmentMaterials from "./assignment-materials";
 import { z } from "zod";
 import { type Assignment } from "@/lib/notes/state/assignments.zustand";
 import useI18n from "@/lib/notes/hooks/use-i18n";
@@ -121,6 +122,7 @@ export default function AssignmentDetails({ assignment, onClose }: { assignment:
             {loading && <p role="status" className="text-sm text-text-tertiary">{t("Loading...")}</p>}
             {details && <a href={details.url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center rounded-radius-md border border-border-subtle px-4 text-sm text-primary-400">{t("Open in Canvas")} ↗</a>}
             {details?.locked && <p className="text-sm text-text-secondary">{t("This assignment is locked in Canvas.")}</p>}
+            {details && <AssignmentMaterials assignmentId={assignment.id} />}
             {(details?.submittedAt || assignment.submitted_at) && <p className="text-sm text-text-secondary">{t("Previously submitted")} · {new Date(details?.submittedAt ?? assignment.submitted_at!).toLocaleString()}</p>}
             {submitted ? <p role="status" className="text-sm text-primary-400">{t("Submitted to Canvas. Open Canvas to view your submission.")}</p> : canSubmit ? (
               <form className="space-y-3 border-t border-border-subtle pt-5" onSubmit={event => { event.preventDefault(); setReview(true); }}>
