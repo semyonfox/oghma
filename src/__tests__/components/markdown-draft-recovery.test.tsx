@@ -35,7 +35,7 @@ beforeEach(() => {
   mocks.cache.clear();
   vi.clearAllMocks();
   finishDraftCacheReset(beginDraftCacheReset());
-  useSettingsStore.getState().setSettings({ editorsize: "medium" });
+  useSettingsStore.getState().setSettings({ editorsize: "large" });
   mocks.fetchNote.mockResolvedValue({ content: "Saved", updatedAt: "2026-09-15T12:00:00Z" });
   mocks.mutateNote.mockResolvedValue(undefined);
 });
