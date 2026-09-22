@@ -1,16 +1,14 @@
-export const EDITOR_WIDTH_VALUES = ["small", "medium", "large", "full"] as const;
+export const EDITOR_WIDTH_VALUES = ["large", "full"] as const;
 
 export type EditorSize = (typeof EDITOR_WIDTH_VALUES)[number];
 
-export const DEFAULT_EDITOR_SIZE: EditorSize = "medium";
+export const DEFAULT_EDITOR_SIZE: EditorSize = "large";
 
 export const EDITOR_WIDTH_OPTIONS: Array<{
   value: EditorSize;
   label: string;
   detail: string;
 }> = [
-  { value: "small", label: "Small", detail: "58ch" },
-  { value: "medium", label: "Medium", detail: "72ch" },
   { value: "large", label: "Large", detail: "62rem" },
   { value: "full", label: "Full", detail: "Full width" },
 ];
@@ -22,14 +20,6 @@ export const EDITOR_WIDTH_STYLES: Record<
     previewMaxWidth: string;
   }
 > = {
-  small: {
-    sourceMaxWidth: "58ch",
-    previewMaxWidth: "40rem",
-  },
-  medium: {
-    sourceMaxWidth: "72ch",
-    previewMaxWidth: "48rem",
-  },
   large: {
     sourceMaxWidth: "62rem",
     previewMaxWidth: "62rem",
