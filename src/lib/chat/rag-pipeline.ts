@@ -103,9 +103,9 @@ export function buildSystemPrompt(results: SearchResult[]): string {
     byNote.get(key)!.chunks.push(r.chunk_text);
   }
 
-  const blocks = [...byNote.entries()].map(([, { title, chunks }], i) => {
+  const blocks = [...byNote.entries()].map(([noteId, { title, chunks }], i) => {
     const body = chunks.join("\n").replace(/\s+/g, " ").trim();
-    return `--- Note ${i + 1}: "${title}" ---\n${body}`;
+    return `--- Note ${i + 1}: "${title}" (id: ${noteId}) ---\n${body}`;
   });
 
   return `You are a helpful study assistant with access to the user's notes.

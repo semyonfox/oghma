@@ -52,11 +52,13 @@ describe("MarkdownRenderer variants", () => {
   it("keeps internal note references in-app while external links open separately", () => {
     const noteId = "01962eb7-3571-7a2b-9c4d-5e6f7a8b9c0d";
     const html = renderMarkdown(
-      `[Internal](/notes/${noteId}) [External](https://example.com)`,
+      `[Internal](/notes/${noteId}) [Page](/calendar) [External](https://example.com)`,
     );
 
     expect(html).toContain(`href="/notes/${noteId}"`);
     expect(html).not.toContain(`href="/notes/${noteId}" target="_blank"`);
+    expect(html).toContain('href="/calendar"');
+    expect(html).not.toContain('href="/calendar" target="_blank"');
     expect(html).toContain('href="https://example.com" target="_blank"');
   });
 

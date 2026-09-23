@@ -174,6 +174,7 @@ function buildToolInstruction(
     `Current date/time: ${now}\n\n` +
     "You have note and planning tools, plus optional Canvas tools. Tool schemas are provided separately — this section covers workflow and selection.\n\n" +
     "APP HELP: For questions about using OghmaNotes, its screens, settings, capabilities, or troubleshooting, call getAppGuide before answering. Treat the guide result as the source of truth, include relevant app routes, and do not search the user's notes for product instructions unless they explicitly ask about instructions stored there.\n" +
+    "LINKS: When mentioning a verified note, link its first mention as [note title](/notes/noteId) using its actual ID from NOTES CONTEXT, SESSION MEMORY, or a tool result. When mentioning an app page, link it using a route supplied by getAppGuide. Never guess a note ID or route.\n" +
     searchInstruction +
     "CREATE NOTE: findFolder (if parentID unknown) → makeMDNote. Skip findFolder if parentID is already known from context.\n" +
     "ORGANISE: moveNote (needs targetFolderId — use findFolder first), renameNote.\n" +
