@@ -27,6 +27,28 @@ describe("assignment details", () => {
     expect(fetch).toHaveBeenCalledTimes(2);
     expect(fetch.mock.calls[1][1]).toMatchObject({ method: "POST", body: JSON.stringify({ type: "online_text_entry", content: "My essay" }) });
   });
+  it("ignores swipe-to-dismiss while a submission is saving", async () => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 390 });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(new Response(JSON.stringify(details))).mockReturnValueOnce(new Promise(() => {})));
+    const close = vi.fn();
+    render(<AssignmentDetails assignment={assignment} onClose={close} />);
+    await screen.findByText("Write an essay");
+    const title = screen.getByRole("heading", { name: "Essay" });
+    const drag = () => {
+      const at = (y: number) => ({ touches: [{ identifier: 0, clientX: 100, clientY: y }], cancelable: true });
+      fireEvent.touchStart(title, at(100));
+      fireEvent.touchMove(title, at(190));
+      fireEvent.touchEnd(title, { touches: [], changedTouches: at(190).touches, cancelable: true });
+    };
+    drag();
+    expect(close).toHaveBeenCalledOnce();
+    fireEvent.change(screen.getByLabelText("Your submission"), { target: { value: "My essay" } });
+    fireEvent.click(screen.getByRole("button", { name: "Review submission" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm submission" }));
+    await screen.findByRole("button", { name: "Submitting..." });
+    drag();
+    expect(close).toHaveBeenCalledOnce();
+  });
   it("sanitizes imported HTML and links unsupported submission types to Canvas", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ ...details, types: ["online_upload"], description: '<p>Instructions</p><a href="/courses/1/files/3">Reading</a><script>alert(1)</script><a href="javascript:alert(1)">Bad link</a>' }))));
     const { container } = render(<AssignmentDetails assignment={assignment} onClose={vi.fn()} />);

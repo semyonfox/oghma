@@ -63,7 +63,7 @@ const AssistantBody: FC<{
           className={
             compact
               ? "rounded-radius-md rounded-bl-[4px] border border-border-subtle bg-surface px-2 py-[5px] text-base leading-relaxed text-text-secondary lg:text-sm"
-              : "glass-card rounded-radius-xl rounded-bl-[4px] px-3 py-2.5 text-base leading-relaxed text-text"
+              : "glass-card rounded-radius-xl rounded-bl-[4px] px-3 py-2.5 text-base leading-relaxed text-text lg:text-sm"
           }
         >
           <ChatMarkdown>{part.text}</ChatMarkdown>
@@ -245,7 +245,7 @@ const FullMessageBubbleComponent: FC<{
     return (
       <div className="flex justify-end">
         <div className="group/msg min-w-0 max-w-[90%]">
-          <div className="rounded-radius-xl rounded-br-[4px] border border-primary-500/25 bg-primary-500/10 px-3 py-2.5 text-base leading-relaxed text-text">
+          <div className="rounded-radius-xl rounded-br-[4px] border border-primary-500/25 bg-primary-500/10 px-3 py-2.5 text-base leading-relaxed text-text lg:text-sm">
             <ChatMarkdown>{m.content}</ChatMarkdown>
           </div>
           <div className="mt-0.5 flex items-center justify-end gap-1.5 text-xs text-text-tertiary">

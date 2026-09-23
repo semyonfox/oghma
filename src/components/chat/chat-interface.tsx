@@ -603,7 +603,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               aria-label={t("chat.ask_placeholder")}
               disabled={composerDisabled}
               rows={1}
-              className="min-h-11 max-h-24 min-w-0 flex-1 resize-none bg-transparent py-2 text-base leading-relaxed text-text placeholder:text-text-tertiary focus:outline-none disabled:opacity-50 lg:min-h-5 lg:py-0"
+              className="min-h-11 max-h-24 min-w-0 flex-1 resize-none bg-transparent py-2 text-base leading-relaxed text-text placeholder:text-text-tertiary focus:outline-none disabled:opacity-50 lg:min-h-5 lg:py-0 lg:text-sm"
             />
             {busy ? (
               <button

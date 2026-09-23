@@ -57,7 +57,7 @@ export const WorkLog: FC<{
         ) : (
           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary-500/55" />
         )}
-        <span className="flex-1 text-xs font-medium text-text-tertiary">
+        <span className="flex-1 text-base font-medium lg:text-sm text-text-tertiary">
           {label}
         </span>
         {tools.length > 0 && (active || thinking || hasNarration) && (
@@ -84,7 +84,7 @@ export const WorkLog: FC<{
                   ? t("Thought for {duration}s", { duration: thinkingDuration })
                   : t("Thinking")}
               </p>
-              <p className="max-h-48 overflow-y-auto whitespace-pre-wrap text-xs italic leading-relaxed text-text-tertiary obsidian-scrollbar">
+              <p className="max-h-48 overflow-y-auto whitespace-pre-wrap text-base italic leading-relaxed lg:text-sm text-text-tertiary obsidian-scrollbar">
                 {thinking}
               </p>
             </div>
@@ -94,7 +94,7 @@ export const WorkLog: FC<{
             part.type === "tool" ? (
               <div
                 key={`${part.callId ?? part.name}-${index}`}
-                className="flex items-start gap-2 py-1 text-xs text-text-tertiary"
+                className="flex items-start gap-2 py-1 text-base text-text-tertiary lg:text-sm"
               >
                 <span
                   className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${part.status === "failed" || part.status === "interrupted" ? "bg-red-400" : part.status === "running" && active ? "animate-pulse bg-primary-500" : "bg-primary-500/40"}`}
@@ -131,14 +131,14 @@ export const WorkLog: FC<{
                 <p className="mb-1 text-[11px] font-medium text-text-tertiary/75">
                   {t("Thinking")}
                 </p>
-                <p className="whitespace-pre-wrap text-xs leading-relaxed text-text-tertiary">
+                <p className="whitespace-pre-wrap text-base leading-relaxed text-text-tertiary lg:text-sm">
                   {part.text}
                 </p>
               </div>
             ) : part.type === "text" ? (
               <p
                 key={`narration-${index}`}
-                className="border-l border-border-subtle py-1 pl-2.5 text-xs italic leading-relaxed text-text-tertiary"
+                className="border-l border-border-subtle py-1 pl-2.5 text-base italic leading-relaxed lg:text-sm text-text-tertiary"
               >
                 {part.text}
               </p>

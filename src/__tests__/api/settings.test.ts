@@ -110,6 +110,27 @@ describe("POST /api/settings", () => {
     });
   });
 
+  it.each([
+    ["medium", "large"],
+    ["full", "full"],
+    ["large", "large"],
+  ])("stores editor width %s as %s", async (editorsize, stored) => {
+    const request = new NextRequest("http://localhost/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ editorsize }),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(200);
+    expect(saveSettingsToS3).toHaveBeenCalledWith(
+      "user-123",
+      expect.objectContaining({ editorsize: stored }),
+    );
+    expect(await response.json()).toMatchObject({ editorsize: stored });
+  });
+
   it("persists the Canvas AI access flag", async () => {
     const request = new NextRequest("http://localhost/api/settings", {
       method: "POST",
