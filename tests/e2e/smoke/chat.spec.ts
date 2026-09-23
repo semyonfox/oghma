@@ -82,6 +82,8 @@ test.describe("chat responsive smoke", () => {
           type: "touchMove",
           touchPoints: [{ x: x + dx * step / 8, y: y + dy * step / 8 }],
         });
+        // Pace the touch path like a finger, rather than coalescing it into one frame.
+        await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
       }
       await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
     };

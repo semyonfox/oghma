@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 /** Only claims an outward, single-finger drag that no child scroller needs. */
 export default function useSwipeDismiss({
@@ -16,6 +16,9 @@ export default function useSwipeDismiss({
 }) {
   const [panel, setPanel] = useState<HTMLElement | null>(null);
   const [offset, setOffset] = useState(0);
+  // Parent updates, including streamed replies, must not reset an active drag.
+  const closeRef = useRef(onClose);
+  useEffect(() => { closeRef.current = onClose; }, [onClose]);
 
   useEffect(() => {
     setOffset(0);
@@ -82,7 +85,7 @@ export default function useSwipeDismiss({
       // Avoid a synthetic click on an action underneath the departing panel.
       if (gesture.claimed && event.cancelable) event.preventDefault();
       reset();
-      if (dismiss) onClose();
+      if (dismiss) closeRef.current();
     };
     panel.addEventListener("touchstart", start, { passive: true });
     // React's delegated touch handlers are passive in Android WebView.
@@ -96,7 +99,7 @@ export default function useSwipeDismiss({
       panel.removeEventListener("touchend", end);
       panel.removeEventListener("touchcancel", reset);
     };
-  }, [panel, open, onClose, direction, breakpoint]);
+  }, [panel, open, direction, breakpoint]);
 
   const style: CSSProperties | undefined = offset ? {
     transform: direction === "down" ? `translateY(${offset}px)` : `translateX(${offset}px)`,

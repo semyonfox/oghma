@@ -44,6 +44,20 @@ describe("mobile panel gestures", () => {
     expect(close).toHaveBeenCalledOnce();
   });
 
+  it("keeps an in-progress swipe when the parent updates its close callback", () => {
+    const firstClose = vi.fn();
+    const latestClose = vi.fn();
+    const view = render(<Panel onClose={firstClose} />);
+    const title = screen.getByText("Panel title");
+    touch(title, "touchStart", 100, 100);
+    touch(title, "touchMove", 100, 130);
+    view.rerender(<Panel onClose={latestClose} />);
+    touch(title, "touchMove", 100, 190);
+    touch(title, "touchEnd", 100, 190);
+    expect(firstClose).not.toHaveBeenCalled();
+    expect(latestClose).toHaveBeenCalledOnce();
+  });
+
   it("cancels short, reversed, multi-touch, and interrupted gestures", () => {
     const close = vi.fn();
     render(<Panel onClose={close} />);
