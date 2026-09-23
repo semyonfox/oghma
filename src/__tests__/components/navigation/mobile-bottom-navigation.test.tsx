@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -134,6 +134,53 @@ describe("MobileBottomNavigation", () => {
     ).toBe("page");
   });
 
+  it("contracts on downward scrolling and expands on upward scroll, focus, and navigation", () => {
+    const view = render(
+      <div>
+        <main data-testid="scroll-panel" />
+        <MobileBottomNavigation />
+      </div>,
+    );
+    const panel = screen.getByTestId("scroll-panel");
+    const nav = screen.getByRole("navigation");
+    const scrollTo = (top: number) => {
+      panel.scrollTop = top;
+      fireEvent.scroll(panel);
+    };
+    expect(nav.getAttribute("data-expanded")).toBe("true");
+    scrollTo(80);
+    expect(nav.getAttribute("data-expanded")).toBe("false");
+    expect(screen.getByRole("link", { name: "AI Chat" })).toBeTruthy();
+    scrollTo(75);
+    expect(nav.getAttribute("data-expanded")).toBe("true");
+    scrollTo(120);
+    const notesLink = screen.getByRole("link", { name: "Notes" });
+    // jsdom does not model keyboard-driven :focus-visible matching.
+    vi.spyOn(notesLink, "matches").mockReturnValueOnce(true);
+    act(() => notesLink.focus());
+    expect(nav.getAttribute("data-expanded")).toBe("true");
+    scrollTo(160);
+    mocks.pathname = "/chat";
+    view.rerender(<div><main data-testid="scroll-panel" /><MobileBottomNavigation /></div>);
+    expect(nav.getAttribute("data-expanded")).toBe("true");
+    expect(screen.getByRole("link", { name: "AI Chat" }).getAttribute("aria-current")).toBe("page");
+  });
+
+  it("ignores scrolling in text inputs and open sheets", () => {
+    render(
+      <div>
+        <textarea aria-label="Draft" />
+        <section role="dialog" aria-label="Other sheet"><div data-testid="sheet-scroll" /></section>
+        <MobileBottomNavigation />
+      </div>,
+    );
+    for (const element of [screen.getByRole("textbox"), screen.getByTestId("sheet-scroll")]) {
+      element.scrollTop = 100;
+      fireEvent.scroll(element);
+    }
+    expect(screen.getByRole("navigation").getAttribute("data-expanded")).toBe("true");
+  });
+
   it("closes More before opening search or following a More destination", () => {
     render(<MobileBottomNavigation />);
 
@@ -162,10 +209,10 @@ describe("MobileBottomNavigation", () => {
     )?.[1] as EventListener;
     resize(new Event("resize"));
 
-    expect(container.querySelector("nav")?.className).toContain("hidden");
+    expect(container.querySelector("nav")?.parentElement?.className).toContain("hidden");
 
     input.blur();
-    expect(container.querySelector("nav")?.className).toContain("flex");
+    expect(container.querySelector("nav")?.parentElement?.className).toContain("block");
     unmount();
     input.remove();
 

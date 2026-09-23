@@ -9,6 +9,7 @@ import {
 } from "@headlessui/react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import useAssignmentStore from "@/lib/notes/state/assignments.zustand";
+import useSwipeDismiss from "@/components/navigation/use-swipe-dismiss";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
 interface NewTaskModalProps {
@@ -24,6 +25,7 @@ export default function NewTaskModal({
   courses,
   initialDueAt,
 }: NewTaskModalProps) {
+  const swipe = useSwipeDismiss({ open, onClose });
   const { t } = useI18n();
   const createAssignment = useAssignmentStore((s) => s.createAssignment);
   const formId = useId();
@@ -89,6 +91,7 @@ export default function NewTaskModal({
       <DialogBackdrop className="fixed inset-0 bg-black/50 backdrop-blur-[1px]" />
       <div className="fixed inset-0 flex items-end justify-center sm:items-center sm:p-4">
         <DialogPanel
+          {...swipe}
           data-testid="new-task-panel"
           className="flex max-h-[calc(100dvh-0.5rem)] w-full flex-col overflow-hidden rounded-t-radius-lg border border-border-subtle bg-surface shadow-xl sm:max-w-sm sm:rounded-radius-lg"
         >

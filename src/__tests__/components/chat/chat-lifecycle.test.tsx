@@ -177,6 +177,40 @@ describe("chat session lifecycle", () => {
     vi.unstubAllGlobals();
   });
 
+  it.each([false, true])("sends once from a focused composer, compact=%s", async (compact) => {
+    const network = setupNetwork({ existing: false });
+    render(<ChatInterface compact={compact} />);
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, { target: { value: "New question" } });
+    input.focus();
+    const button = screen.getByRole("button", { name: "Send message" });
+    const down = new MouseEvent("pointerdown", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+    });
+    fireEvent(button, down);
+    expect(down.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(input);
+    expect(network.fetchMock).not.toHaveBeenCalled();
+    fireEvent.click(button);
+    await screen.findByText("New question");
+    expect(network.fetchMock.mock.calls.filter(([url]) => url === "/api/chat")).toHaveLength(1);
+  });
+
+  it("keeps composition and Shift+Enter in the draft, then sends on Enter", async () => {
+    const network = setupNetwork({ existing: false });
+    render(<ChatInterface />);
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, { target: { value: "New question" } });
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
+    expect(network.fetchMock).not.toHaveBeenCalled();
+    fireEvent.keyDown(input, { key: "Enter" });
+    await screen.findByText("New question");
+    expect(network.fetchMock.mock.calls.filter(([url]) => url === "/api/chat")).toHaveLength(1);
+  });
+
   it("shows retry when the initial history request fails and restores on retry", async () => {
     const network = setupNetwork();
     network.fetchMock.mockRejectedValueOnce(

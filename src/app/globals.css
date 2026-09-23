@@ -521,8 +521,8 @@ select option:disabled {
   --md-heading-1-size: 1.45rem;
   --md-heading-2-size: 1.25rem;
   --md-heading-3-size: 1.08rem;
-  font-size: 0.875rem;
-  line-height: 1.65;
+  font-size: inherit;
+  line-height: inherit;
 }
 
 .md-rendered > :first-child,
