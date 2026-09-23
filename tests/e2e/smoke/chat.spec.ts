@@ -58,7 +58,7 @@ test.describe("chat responsive smoke", () => {
     if (isMobile) await send.tap();
     else await send.click();
     await expect.poll(() => sends).toBe(1);
-    const message = page.getByText("Keep this text the same size after sending.", { exact: true });
+    const message = page.locator('[data-markdown-variant="chat"]').getByText("Keep this text the same size after sending.", { exact: true });
     await expect(message).toBeVisible();
     await expect(message).toHaveCSS("font-size", typography.fontSize);
     await expect(message).toHaveCSS("line-height", typography.lineHeight);
@@ -99,8 +99,8 @@ test.describe("chat responsive smoke", () => {
       await expect(title).not.toBeVisible();
 
       await page.getByRole("button", { name: "Chat history", exact: true }).tap();
-      const drawer = page.getByRole("dialog", { name: "Chat history", exact: true });
-      const historyTitle = drawer.getByRole("heading", { name: "Chat history", exact: true });
+      const drawer = page.getByRole("dialog", { name: "AI Chat", exact: true });
+      const historyTitle = drawer.getByRole("heading", { name: "AI Chat", exact: true });
       await expect(historyTitle).toBeVisible();
       await drawer.evaluate(async (element) => {
         await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished));

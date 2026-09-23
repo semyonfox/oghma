@@ -6,10 +6,6 @@ test.describe("background chat generation", () => {
   }) => {
     await page.goto("/chat");
 
-    const isMobile = (page.viewportSize()?.width ?? 1280) < 1024;
-    if (isMobile) {
-      await page.locator("summary").filter({ hasText: "Chat options" }).click();
-    }
     const useNotes = page.getByRole("button", { name: "Search my notes" });
     if ((await useNotes.getAttribute("aria-pressed")) === "true") {
       await useNotes.click();
