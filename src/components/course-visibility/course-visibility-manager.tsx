@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { MagnifyingGlassIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
+import useSwipeDismiss from "@/components/navigation/use-swipe-dismiss";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import type { CourseSetting } from "@/lib/notes/state/courses.zustand";
 
@@ -298,13 +299,14 @@ export function CourseVisibilityDialog({
   onClose,
   ...props
 }: CourseVisibilityDialogProps) {
+  const swipe = useSwipeDismiss({ open, onClose });
   const { t } = useI18n();
 
   return (
     <Dialog open={open} onClose={onClose} className="relative z-[70]">
       <div className="fixed inset-0 bg-black/50 backdrop-blur-[1px]" aria-hidden="true" />
       <div className="fixed inset-0 flex items-end justify-center sm:items-center sm:p-4">
-        <DialogPanel className="flex max-h-[calc(100dvh-0.5rem)] w-full flex-col overflow-hidden rounded-t-radius-lg border border-border-subtle bg-app-page shadow-2xl sm:max-w-2xl sm:rounded-radius-lg">
+        <DialogPanel {...swipe} className="flex max-h-[calc(100dvh-0.5rem)] w-full flex-col overflow-hidden rounded-t-radius-lg border border-border-subtle bg-app-page shadow-2xl sm:max-w-2xl sm:rounded-radius-lg">
           <div className="flex items-start justify-between border-b border-border-subtle px-5 py-4">
             <div>
               <DialogTitle className="text-base font-semibold text-text-secondary">

@@ -10,6 +10,7 @@ import {
   useCallback,
   KeyboardEvent,
   FormEvent,
+  PointerEvent,
 } from "react";
 import { PaperAirplaneIcon, StopCircleIcon, DocumentTextIcon, FolderIcon } from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
@@ -331,7 +332,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
 
     setInput("");
     if (inputRef.current) {
-      (inputRef.current as HTMLTextAreaElement).style.height = "20px";
+      inputRef.current.style.height = "auto";
       inputRef.current.scrollTop = 0;
     }
 
@@ -342,8 +343,16 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     void send(text, history);
   };
 
+  const preserveComposerFocus = (e: PointerEvent<HTMLButtonElement>) => {
+    // Blurring on pointer-down can close the keyboard and move Send before
+    // pointer-up. Keep focus until the normal click/submit has dispatched.
+    if (e.button === 0 && document.activeElement === inputRef.current) {
+      e.preventDefault();
+    }
+  };
+
   const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       handleSend();
     }
@@ -416,9 +425,10 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               placeholder={t("chat.ask_about_note")}
               aria-label={t("chat.ask_about_note")}
               disabled={composerDisabled}
-              className="min-w-0 flex-1 bg-transparent text-base text-text-secondary placeholder:text-text-tertiary focus:outline-none disabled:opacity-50 lg:text-sm"
+              className="min-w-0 flex-1 bg-transparent text-base leading-relaxed text-text-secondary placeholder:text-text-tertiary focus:outline-none disabled:opacity-50 lg:text-sm"
             />
             <button
+              onPointerDown={preserveComposerFocus}
               onClick={handleSend}
               disabled={composerDisabled || !input.trim()}
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-sm bg-primary-600 text-text-on-primary transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-40 lg:h-9 lg:w-9"
@@ -554,7 +564,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               ))}
             </div>
           )}
-          <div className="mb-1.5 hidden flex-wrap items-center gap-1.5 px-1 lg:flex">
+          <div className="mb-1.5 flex flex-wrap items-center gap-1.5 px-1">
             <TogglePill
               active={useRag}
               onClick={toggleRag}
@@ -573,36 +583,6 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               tooltipAlign="right"
             />
           </div>
-          <details className="group mb-1.5 rounded-radius-md border border-border-subtle bg-surface/60 px-1 lg:hidden">
-            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 px-2 text-xs font-medium text-text-tertiary marker:content-none">
-              {t("Chat options")}
-              <span
-                className="text-text-tertiary transition-transform group-open:rotate-180"
-                aria-hidden="true"
-              >
-                ⌄
-              </span>
-            </summary>
-            <div className="flex flex-wrap items-center gap-1.5 border-t border-border-subtle px-2 py-2">
-              <TogglePill
-                active={useRag}
-                onClick={toggleRag}
-                icon={<DocumentTextIcon className="h-3 w-3" />}
-                label={t("chat.use_notes")}
-                tooltipTitle={t("chat.rag_title")}
-                tooltipText={t("chat.rag_tooltip")}
-              />
-              <TogglePill
-                active={thinkingActive}
-                onClick={toggleThinking}
-                icon={<span aria-hidden="true">◆</span>}
-                label={thinkingLabel}
-                tooltipTitle={t("chat.thinking_title")}
-                tooltipText={t("chat.thinking_tooltip")}
-                tooltipAlign="right"
-              />
-            </div>
-          </details>
           <form
             onSubmit={(e: FormEvent) => {
               e.preventDefault();
@@ -623,7 +603,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               aria-label={t("chat.ask_placeholder")}
               disabled={composerDisabled}
               rows={1}
-              className="min-h-11 max-h-24 min-w-0 flex-1 resize-none bg-transparent py-2 text-base leading-snug text-text placeholder:text-text-tertiary focus:outline-none disabled:opacity-50 lg:min-h-5 lg:py-0"
+              className="min-h-11 max-h-24 min-w-0 flex-1 resize-none bg-transparent py-2 text-base leading-relaxed text-text placeholder:text-text-tertiary focus:outline-none disabled:opacity-50 lg:min-h-5 lg:py-0"
             />
             {busy ? (
               <button
@@ -640,6 +620,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
             ) : (
               <button
                 type="submit"
+                onPointerDown={preserveComposerFocus}
                 disabled={composerDisabled || !input.trim()}
                 className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-radius-md bg-primary-600 text-text-on-primary transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-40 lg:h-8 lg:w-8"
                 aria-label={t("Send message")}

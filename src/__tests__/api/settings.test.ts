@@ -78,7 +78,7 @@ describe("GET /api/settings", () => {
 });
 
 describe("POST /api/settings", () => {
-  it("persists profile and editor keys", async () => {
+  it("persists profile keys and normalizes legacy editor width", async () => {
     const request = new NextRequest("http://localhost/api/settings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -99,13 +99,13 @@ describe("POST /api/settings", () => {
       firstName: "Ada",
       lastName: "Lovelace",
       timezone: "Europe/Dublin",
-      editorsize: "small",
+      editorsize: "large",
     });
     expect(body).toMatchObject({
       firstName: "Ada",
       lastName: "Lovelace",
       timezone: "Europe/Dublin",
-      editorsize: "small",
+      editorsize: "large",
       ai_model: "deepseek/deepseek-v4-flash",
     });
   });

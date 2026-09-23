@@ -62,7 +62,7 @@ const AssistantBody: FC<{
           key={key}
           className={
             compact
-              ? "rounded-radius-md rounded-bl-[4px] border border-border-subtle bg-surface px-2 py-[5px] text-xs leading-relaxed text-text-secondary"
+              ? "rounded-radius-md rounded-bl-[4px] border border-border-subtle bg-surface px-2 py-[5px] text-base leading-relaxed text-text-secondary lg:text-sm"
               : "glass-card rounded-radius-xl rounded-bl-[4px] px-3 py-2.5 text-base leading-relaxed text-text"
           }
         >
@@ -325,7 +325,7 @@ const CompactMessageBubbleComponent: FC<{
         {m.role === "assistant" ? (
           <AssistantBody message={m} active={isStreaming} compact />
         ) : (
-          <div className="rounded-radius-md rounded-br-[4px] border border-primary-500/25 bg-primary-500/10 px-2 py-[5px] text-xs leading-relaxed text-text">
+          <div className="rounded-radius-md rounded-br-[4px] border border-primary-500/25 bg-primary-500/10 px-2 py-[5px] text-base leading-relaxed text-text lg:text-sm">
             <ChatMarkdown>{m.content}</ChatMarkdown>
           </div>
         )}

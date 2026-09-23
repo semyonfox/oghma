@@ -4,6 +4,7 @@ import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from "@headlessui/re
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import clsx from "clsx";
 import type { ReactNode } from "react";
+import useSwipeDismiss from "./use-swipe-dismiss";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
 interface MobileDrawerProps {
@@ -28,6 +29,7 @@ export default function MobileDrawer({
   panelClassName,
 }: MobileDrawerProps) {
   const { t } = useI18n();
+  const swipe = useSwipeDismiss({ open, onClose, direction: side, breakpoint: 1024 });
 
   return (
     <Dialog
@@ -48,6 +50,7 @@ export default function MobileDrawer({
           )}
         >
           <DialogPanel
+            {...swipe}
             transition
             className={clsx(
               "flex h-dvh w-[calc(100vw-1rem)] max-w-sm flex-col bg-background pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] shadow-2xl ring-1 ring-border-subtle transition duration-200 ease-out data-closed:opacity-0 motion-reduce:transition-none",

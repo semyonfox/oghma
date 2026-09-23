@@ -2,7 +2,7 @@
 
 > **Status:** Active reference
 >
-> **Last reviewed:** 2026-09-16
+> **Last reviewed:** 2026-09-23
 >
 > **Source of truth:** [`src/app/globals.css`](../../src/app/globals.css), [`tailwind.config.js`](../../tailwind.config.js), and this usage guide
 
@@ -83,7 +83,11 @@ Shared compact icon controls use `.ui-icon-button`: 44px below 1024px and 32px o
 
 Phone and tablet app shells below 1024px place the page header above a scrollable main region and the five-destination bottom navigation below it: Notes, AI Chat, Calendar, Quiz, and More. The More sheet holds secondary destinations such as search, settings, focus, Trash, and the native offline reader when it is available. Keep the footer in normal flex layout so content never sits behind it.
 
+The navigation uses a floating pill within that reserved footer: 64px tall with labels, 52px with icons when scrolling down. Scrolling up, changing routes, or focusing a destination expands it. Keep 44px touch targets in both states, respect reduced motion, and hide the dock while the keyboard is open. Single-line mobile headers start at 56px rather than 80px.
+
 Below 1024px, Notes opens in a library-first view. Folder navigation drills into the selected folder and exposes a clear return path; opening a note moves to its compact editor. Do not render the desktop file tree on a phone. Editor actions sit below the filename, where they remain reachable without crowding the header. From 768px to 1023px, the inspector uses a drawer so it cannot squeeze the editor below its minimum width.
+
+Mobile drawers dismiss toward their opening edge; bottom sheets dismiss downward. Only claim a single-finger outward gesture. Preserve form controls, text selection, multi-touch, and nested scrolling. Bottom-sheet content can start a dismissal only at the top of its scroll region. Keep close buttons and Escape/backdrop dismissal available.
 
 Calendar is agenda-first on phones. A compact week strip selects the day and the month grid expands only when needed; the page header owns the month, Today, and period controls. This avoids duplicate mobile toolbars while retaining the full month view.
 

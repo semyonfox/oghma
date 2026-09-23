@@ -21,13 +21,13 @@ export default function MobileAppHeader({
   return (
     <header
       className={clsx(
-        "flex min-h-20 shrink-0 items-center gap-3 bg-background px-5 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] lg:hidden",
+        "flex min-h-14 shrink-0 items-center gap-2 bg-background px-4 py-1.5 pt-[max(0.375rem,env(safe-area-inset-top))] lg:hidden",
         className,
       )}
     >
       {leading}
       <div className="min-w-0 flex-1">
-        <h1 className="truncate text-2xl font-semibold tracking-tight text-text">
+        <h1 className="truncate text-lg font-semibold tracking-tight text-text">
           {title}
         </h1>
         {subtitle && (
