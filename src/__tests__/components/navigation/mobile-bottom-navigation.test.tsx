@@ -181,6 +181,54 @@ describe("MobileBottomNavigation", () => {
     expect(screen.getByRole("navigation").getAttribute("data-expanded")).toBe("true");
   });
 
+  it("stays expanded near the top and contracts only after enough downward travel", () => {
+    render(<div><main data-testid="scroll-panel" /><MobileBottomNavigation /></div>);
+    const panel = screen.getByTestId("scroll-panel");
+    const nav = screen.getByRole("navigation");
+    for (const top of [30, 40, 50, 59]) {
+      panel.scrollTop = top;
+      fireEvent.scroll(panel);
+      expect(nav.getAttribute("data-expanded")).toBe("true");
+    }
+    panel.scrollTop = 62;
+    fireEvent.scroll(panel);
+    expect(nav.getAttribute("data-expanded")).toBe("false");
+  });
+
+  it("ignores scrolling outside its workspace and in editable content", () => {
+    const outside = document.createElement("div");
+    document.body.append(outside);
+    render(
+      <div>
+        <div contentEditable data-testid="editor" />
+        <MobileBottomNavigation />
+      </div>,
+    );
+    for (const element of [outside, screen.getByTestId("editor")]) {
+      element.scrollTop = 200;
+      fireEvent.scroll(element);
+    }
+    expect(screen.getByRole("navigation").getAttribute("data-expanded")).toBe("true");
+    outside.remove();
+  });
+
+  it("expands when a destination or More is pressed", () => {
+    render(<div><main data-testid="scroll-panel" /><MobileBottomNavigation /></div>);
+    const panel = screen.getByTestId("scroll-panel");
+    const nav = screen.getByRole("navigation");
+    const contract = () => {
+      panel.scrollTop += 100;
+      fireEvent.scroll(panel);
+      expect(nav.getAttribute("data-expanded")).toBe("false");
+    };
+    contract();
+    fireEvent.click(screen.getByRole("link", { name: "Calendar" }));
+    expect(nav.getAttribute("data-expanded")).toBe("true");
+    contract();
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
+    expect(nav.getAttribute("data-expanded")).toBe("true");
+  });
+
   it("closes More before opening search or following a More destination", () => {
     render(<MobileBottomNavigation />);
 

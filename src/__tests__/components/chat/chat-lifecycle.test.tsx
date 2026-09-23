@@ -198,6 +198,37 @@ describe("chat session lifecycle", () => {
     expect(network.fetchMock.mock.calls.filter(([url]) => url === "/api/chat")).toHaveLength(1);
   });
 
+  it("only holds focus for a primary press from the focused composer", () => {
+    setupNetwork({ existing: false });
+    render(<ChatInterface />);
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, { target: { value: "New question" } });
+    const button = screen.getByRole("button", { name: "Send message" });
+    const press = (buttonIndex: number) => {
+      const down = new MouseEvent("pointerdown", { bubbles: true, cancelable: true, button: buttonIndex });
+      fireEvent(button, down);
+      return down.defaultPrevented;
+    };
+    input.blur();
+    expect(press(0)).toBe(false);
+    input.focus();
+    expect(press(2)).toBe(false);
+    expect(press(0)).toBe(true);
+  });
+
+  it("resets the composer height after sending", async () => {
+    setupNetwork({ existing: false });
+    render(<ChatInterface />);
+    const input = screen.getByRole("textbox") as HTMLTextAreaElement;
+    fireEvent.change(input, { target: { value: "New question" } });
+    input.style.height = "80px";
+    input.scrollTop = 40;
+    fireEvent.keyDown(input, { key: "Enter" });
+    await screen.findByText("New question");
+    expect(input.style.height).toBe("auto");
+    expect(input.scrollTop).toBe(0);
+  });
+
   it("keeps composition and Shift+Enter in the draft, then sends on Enter", async () => {
     const network = setupNetwork({ existing: false });
     render(<ChatInterface />);
