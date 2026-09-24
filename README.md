@@ -39,7 +39,7 @@ Use **npm** for this repository.
 
 ## Quick start: disposable mock environment
 
-This path starts local PostgreSQL, Redis, Qdrant, MinIO, Mailpit and a deterministic fake-AI provider. It is intended for development, not representative AI quality.
+This path starts local PostgreSQL, Redis, Qdrant, RustFS, Mailpit and a deterministic fake-AI provider. It is intended for development, not representative AI quality.
 
 ```bash
 npm ci
