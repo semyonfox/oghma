@@ -158,7 +158,8 @@ describe("message bubble copy actions", () => {
     const workLogButton = container.querySelector(
       "button[aria-expanded]",
     ) as HTMLButtonElement;
-    expect(workLogButton.textContent).toContain("Work log");
+    expect(workLogButton.textContent).toContain("Thinking");
+    expect(workLogButton.getAttribute("aria-label")).toContain("Work log:");
     expect(container.textContent).toContain("Final answer");
     expect(container.textContent).toContain("Let me check.");
 
