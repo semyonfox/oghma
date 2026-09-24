@@ -9,6 +9,7 @@ These records preserve decisions and provenance. They are not current runbooks, 
 |---|---|
 | [Handovers](handovers.md) | Durable outcomes and remaining gaps from completed 2026 handovers |
 | [Implementation records](implementation-records.md) | Consolidated plans/specs and their verified completion gaps |
+| [First-use HCI follow-up](2026-09-24-hci-first-use-followup.md) | September first-use changes and two unconfirmed incident causes |
 | [April import optimisation](import-optimization-2026-04-01.md) | Dated AWS-era deployment evidence retained after the live stack changed |
 | [Canvas export CLI handoff](canvas-export-cli-handoff.md) | Unbuilt, scoped CLI design based on the in-app exporter |
 | [March project report](project-report-2026-03-30.md) | University-project evidence report frozen in time |
