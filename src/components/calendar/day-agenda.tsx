@@ -294,7 +294,7 @@ export default function DayAgenda({
                             <CheckCircleIcon className="h-5 w-5" />
                           )}
                         </button>
-                        <div className="min-w-0 flex-1 pt-1">
+                        <div className="min-w-0 flex-1">
                           <div className="flex min-w-0 items-start gap-1.5">
                             <AssignmentTypeIcon type={assignment.assignment_type} />
                             <h4
@@ -306,7 +306,7 @@ export default function DayAgenda({
                             >
                               <AssignmentDetailsTrigger
                                 assignment={assignment}
-                                className="min-h-11 w-full cursor-pointer text-left underline decoration-border-subtle underline-offset-4 hover:decoration-current"
+                                className="flex min-h-11 w-full items-center rounded-radius-sm px-1 text-left underline decoration-border-subtle underline-offset-4 transition-colors hover:bg-subtle hover:decoration-current focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/60"
                               />
                             </h4>
                           </div>

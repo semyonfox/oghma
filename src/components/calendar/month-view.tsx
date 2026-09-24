@@ -5,6 +5,7 @@ import AssignmentDetailsTrigger from "@/components/assignments/assignment-detail
 import { useMemo } from "react";
 import { XMarkIcon, CheckCircleIcon } from "@heroicons/react/20/solid";
 import { CheckCircleIcon as CheckCircleOutline } from "@heroicons/react/24/outline";
+import { toast } from "sonner";
 import useCalendarStore from "@/lib/notes/state/calendar.zustand";
 import useAssignmentStore from "@/lib/notes/state/assignments.zustand";
 import useI18n from "@/lib/notes/hooks/use-i18n";
@@ -79,6 +80,22 @@ export default function MonthView({ onSelectDate }: MonthViewProps) {
     if (!completed) void triggerCelebration("assignment", origin);
   };
 
+  const handleToggleAssignment = async (
+    id: string,
+    completed: boolean,
+    control: HTMLElement,
+  ) => {
+    const origin = completed ? undefined : getCelebrationOrigin(control);
+    const updated = await updateAssignment(id, {
+      status: completed ? "upcoming" : "done",
+    });
+    if (!updated) {
+      toast.error(t("Something went wrong"));
+      return;
+    }
+    if (!completed) void triggerCelebration("assignment", origin);
+  };
+
   return (
     <div
       className="h-full overflow-x-auto overscroll-x-contain"
@@ -144,7 +161,7 @@ export default function MonthView({ onSelectDate }: MonthViewProps) {
                   return (
                   <div
                     key={a.id}
-                    className="group/a pointer-events-none relative flex items-center gap-1 rounded-radius-sm pl-2 pr-1 py-0.5 text-xs leading-snug bg-surface-elevated"
+                    className="group/a pointer-events-none relative flex min-h-7 items-center gap-1 rounded-radius-sm bg-surface-elevated py-0.5 pl-2 pr-1 text-xs leading-snug"
                   >
                     <span
                       aria-hidden="true"
@@ -154,18 +171,21 @@ export default function MonthView({ onSelectDate }: MonthViewProps) {
                       }}
                     />
                     <button
+                      type="button"
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        void updateAssignment(a.id, {
-                          status: a.status === "done" ? "upcoming" : "done",
-                        });
+                        void handleToggleAssignment(
+                          a.id,
+                          a.status === "done",
+                          e.currentTarget,
+                        );
                       }}
-                      className="touch-target-44 pointer-events-auto relative shrink-0"
+                      className="pointer-events-auto relative flex h-6 w-6 shrink-0 items-center justify-center rounded-radius-sm hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/60"
                       aria-label={
                         a.status === "done"
-                          ? t("Mark incomplete")
-                          : t("Mark complete")
+                          ? t("Mark as upcoming")
+                          : t("Mark as done")
                       }
                     >
                       {a.status === "done" ? (
@@ -177,7 +197,7 @@ export default function MonthView({ onSelectDate }: MonthViewProps) {
                     {assignment && (
                       <AssignmentDetailsTrigger
                         assignment={assignment}
-                        className={`pointer-events-auto min-w-0 flex-1 cursor-pointer truncate text-left text-text-secondary underline decoration-border-subtle underline-offset-4 ${a.status === "done" ? "line-through opacity-60" : ""}`}
+                        className={`pointer-events-auto min-h-6 min-w-0 flex-1 cursor-pointer truncate rounded-radius-sm px-1 text-left text-text-secondary underline decoration-border-subtle underline-offset-4 transition-colors hover:bg-subtle hover:decoration-current focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/60 ${a.status === "done" ? "line-through opacity-60" : ""}`}
                       />
                     )}
                   </div>
@@ -188,7 +208,7 @@ export default function MonthView({ onSelectDate }: MonthViewProps) {
                   .map((tb) => (
                     <div
                       key={tb.id}
-                      className="group/tb pointer-events-none relative flex items-center gap-1 rounded-radius-sm pl-2 pr-1 py-0.5 text-xs leading-snug bg-surface-elevated"
+                      className="group/tb pointer-events-none relative flex min-h-7 items-center gap-1 rounded-radius-sm bg-surface-elevated py-0.5 pl-2 pr-1 text-xs leading-snug"
                     >
                       <span
                         aria-hidden="true"
@@ -198,6 +218,7 @@ export default function MonthView({ onSelectDate }: MonthViewProps) {
                         }}
                       />
                       <button
+                        type="button"
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
@@ -207,7 +228,7 @@ export default function MonthView({ onSelectDate }: MonthViewProps) {
                             e.currentTarget,
                           );
                         }}
-                        className="touch-target-44 pointer-events-auto relative shrink-0"
+                        className="pointer-events-auto relative flex h-6 w-6 shrink-0 items-center justify-center rounded-radius-sm hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/60"
                         aria-label={
                           tb.completed
                             ? t("Mark incomplete")

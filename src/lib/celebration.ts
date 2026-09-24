@@ -1,3 +1,5 @@
+import confetti from "canvas-confetti";
+
 export type CelebrationType =
   | "default"
   | "assignment"
@@ -15,8 +17,14 @@ export interface CelebrationOrigin {
 export function getCelebrationOrigin(source: HTMLElement): CelebrationOrigin {
   const bounds = source.getBoundingClientRect();
   return {
-    x: (bounds.left + bounds.width / 2) / window.innerWidth,
-    y: (bounds.top + bounds.height / 2) / window.innerHeight,
+    x: Math.min(
+      1,
+      Math.max(0, (bounds.left + bounds.width / 2) / window.innerWidth),
+    ),
+    y: Math.min(
+      1,
+      Math.max(0, (bounds.top + bounds.height / 2) / window.innerHeight),
+    ),
   };
 }
 
@@ -28,8 +36,6 @@ export async function triggerCelebration(
   if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return;
 
   try {
-    const { default: confetti } = await import("canvas-confetti");
-
     if (type === "quiz_perfect") {
       confetti({
         particleCount: 120,
@@ -106,14 +112,15 @@ export async function triggerCelebration(
 
     if (type === "assignment") {
       confetti({
-        particleCount: 20,
-        spread: 38,
-        startVelocity: 20,
-        scalar: 0.75,
-        ticks: 90,
+        particleCount: 42,
+        spread: 50,
+        startVelocity: 28,
+        scalar: 1,
+        ticks: 110,
         gravity: 0.8,
         colors: ["#818cf8", "#5eead4", "#fbbf24"],
         origin: origin ?? { y: 0.6 },
+        zIndex: 2000,
       });
       return;
     }
