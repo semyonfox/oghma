@@ -7,10 +7,25 @@ export type CelebrationType =
   | "streak"
   | "streak_milestone";
 
+export interface CelebrationOrigin {
+  x: number;
+  y: number;
+}
+
+export function getCelebrationOrigin(source: HTMLElement): CelebrationOrigin {
+  const bounds = source.getBoundingClientRect();
+  return {
+    x: (bounds.left + bounds.width / 2) / window.innerWidth,
+    y: (bounds.top + bounds.height / 2) / window.innerHeight,
+  };
+}
+
 export async function triggerCelebration(
   type: CelebrationType = "default",
+  origin?: CelebrationOrigin,
 ): Promise<void> {
   if (typeof window === "undefined") return;
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return;
 
   try {
     const { default: confetti } = await import("canvas-confetti");
@@ -91,9 +106,14 @@ export async function triggerCelebration(
 
     if (type === "assignment") {
       confetti({
-        particleCount: 70,
-        spread: 58,
-        origin: { y: 0.6 },
+        particleCount: 20,
+        spread: 38,
+        startVelocity: 20,
+        scalar: 0.75,
+        ticks: 90,
+        gravity: 0.8,
+        colors: ["#818cf8", "#5eead4", "#fbbf24"],
+        origin: origin ?? { y: 0.6 },
       });
       return;
     }

@@ -12,6 +12,8 @@ import type { Components, ExtraProps } from "react-markdown";
 import type { Pluggable, PluggableList } from "unified";
 import CodeBlock from "./components/code-block";
 import { markdownSanitizeSchema } from "./sanitize-schema";
+import { parseInternalNoteHref } from "@/lib/notes/internal-links";
+import { DocumentTextIcon } from "@heroicons/react/24/outline";
 
 export type MarkdownRendererVariant = "note" | "chat" | "quiz";
 
@@ -165,16 +167,20 @@ function MarkdownCode({
 }
 
 const baseComponents: Partial<Components> = {
-  a: ({ href, children, ...props }) => {
+  a: ({ href, children, node: _node, ...props }) => {
     const isInternal = Boolean(href?.startsWith("/") && !href.startsWith("//"));
+    const isNote = Boolean(parseInternalNoteHref(href));
     return (
       <a
         href={href}
         target={isInternal ? undefined : "_blank"}
         rel={isInternal ? undefined : "noopener noreferrer"}
-        className="text-[var(--md-link)] underline underline-offset-2 hover:text-[var(--md-link-hover)] transition-colors"
         {...props}
+        className={isNote
+          ? "oghma-note-reference"
+          : "text-[var(--md-link)] underline underline-offset-2 hover:text-[var(--md-link-hover)] transition-colors"}
       >
+        {isNote && <DocumentTextIcon aria-hidden="true" className="oghma-note-reference-icon" />}
         {children}
       </a>
     );

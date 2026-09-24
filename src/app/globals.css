@@ -620,6 +620,38 @@ select option:disabled {
   color: var(--md-link-hover);
 }
 
+.md-rendered a.oghma-note-reference {
+  padding: 0.08em 0.4em;
+  border: 1px solid color-mix(in srgb, var(--md-link) 22%, transparent);
+  border-radius: var(--radius-radius-md);
+  background: color-mix(in srgb, var(--md-link) 7%, transparent);
+  font-size: 0.9em;
+  font-weight: 500;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  transition: background-color 150ms, border-color 150ms;
+}
+
+.md-rendered a.oghma-note-reference:hover {
+  border-color: color-mix(in srgb, var(--md-link) 42%, transparent);
+  background: color-mix(in srgb, var(--md-link) 13%, transparent);
+}
+
+.md-rendered a.oghma-note-reference:focus-visible {
+  outline: 2px solid var(--md-link);
+  outline-offset: 3px;
+}
+
+.oghma-note-reference-icon {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-inline-end: 0.25em;
+  vertical-align: -0.15em;
+}
+
 .markdown-preview strong,
 .md-rendered strong {
   color: var(--md-strong);
