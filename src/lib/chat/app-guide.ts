@@ -1,3 +1,5 @@
+import { Locale } from "@/locales";
+
 export const APP_GUIDE_TOPIC_IDS = [
   "getting-started",
   "notes-and-folders",
@@ -242,7 +244,40 @@ export function getAppGuide(input: { topic?: AppGuideTopicId; question?: string 
   };
 }
 
-export function renderGettingStartedNote(): string {
+export function gettingStartedNoteTitle(locale: Locale): string {
+  return locale === Locale.de_DE ? "Erste Schritte" : "Getting Started";
+}
+
+export function renderGettingStartedNote(locale: Locale = Locale.EN): string {
+  if (locale === Locale.de_DE) {
+    return `# Erste Schritte
+
+Ein kurzer Weg vom leeren Arbeitsbereich zum Lernen mit Ihren Kursmaterialien.
+
+Öffnen:
+- /notes
+- /settings#canvas
+- /chat
+
+Schritte:
+- Erstellen Sie in Notizen eine Notiz oder einen Ordner für jeden Kurs.
+- Öffnen Sie Einstellungen → Canvas, verbinden Sie Ihr Konto und wählen Sie die Kurse aus, die Sie importieren möchten.
+- Öffnen Sie den KI-Chat und fügen Sie eine passende Notiz oder einen Ordner hinzu, wenn sich die Antwort auf bestimmtes Material beziehen soll.
+- Nutzen Sie Quizze, Lernkarten und den Kalender, um aus Material Übungen und einen Lernplan zu machen.
+
+Tipp:
+- Beginnen Sie mit einem aktuellen Kurs. So bleiben der Arbeitsbereich und die Suchergebnisse übersichtlich.
+
+Hinweis:
+- Importierte Dateien brauchen möglicherweise etwas Zeit, bevor ihr Text in Suche und Chat verfügbar ist.
+
+## Wer ist Oghma?
+
+In der irischen Mythologie ist Oghma (oder Ogma) mit Beredsamkeit, Sprache und Lernen verbunden. Der Name erinnert auch an die Ogham-Schrift.
+
+Sie können jetzt mit Ihrem Lernbereich beginnen.`;
+  }
+
   const topic = TOPICS_BY_ID.get("getting-started")!;
   return `${renderTopic(topic)}
 

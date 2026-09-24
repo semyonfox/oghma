@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+const mocks = vi.hoisted(() => ({ insertNoteWithTree: vi.fn() }));
+
 // mock the database module before importing the module under test
 vi.mock("@/database/pgsql", () => {
   const mockSql = vi.fn() as ReturnType<typeof vi.fn> & {
@@ -19,6 +21,9 @@ vi.mock("crypto", () => ({
 vi.mock("@/lib/logger", () => ({
   default: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
 }));
+vi.mock("@/lib/notes/storage/create-note", () => ({
+  insertNoteWithTree: mocks.insertNoteWithTree,
+}));
 
 import {
   isEmailVerifiedByProvider,
@@ -30,12 +35,15 @@ import {
   resolveVerifiedOAuthEmail,
 } from "@/lib/auth-oauth";
 import sql from "@/database/pgsql";
+import { Locale } from "@/locales";
 
 const mockSql = sql as unknown as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
   vi.unstubAllGlobals();
+  (sql as typeof sql & { begin: ReturnType<typeof vi.fn> }).begin.mockReset();
+  mocks.insertNoteWithTree.mockResolvedValue(undefined);
 });
 
 describe("isEmailVerifiedByProvider", () => {
@@ -208,14 +216,41 @@ describe("findOrCreateOAuthUser", () => {
     mockSql.mockResolvedValueOnce([]);
     // login lookup by email: not found
     mockSql.mockResolvedValueOnce([]);
-    // INSERT login: returns new user_id
-    mockSql.mockResolvedValueOnce([{ user_id: "u-new" }]);
+    const tx = vi.fn().mockResolvedValue([{ user_id: "u-new" }]);
+    (sql as typeof sql & { begin: ReturnType<typeof vi.fn> }).begin.mockImplementation(
+      async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+    );
     // linkOAuthAccount
     mockSql.mockResolvedValueOnce([]);
     const result = await findOrCreateOAuthUser(googleProfile, {
       email_verified: true,
-    });
+    }, Locale.de_DE);
     expect(result).toBe("u-new");
+    expect(mocks.insertNoteWithTree).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        userId: "u-new",
+        title: "Erste Schritte",
+        content: expect.stringContaining("Einstellungen → Canvas"),
+      }),
+    );
+  });
+
+  it("does not seed a second welcome note when a concurrent request created the account", async () => {
+    mockSql.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    const tx = vi.fn().mockResolvedValue([]);
+    (sql as typeof sql & { begin: ReturnType<typeof vi.fn> }).begin.mockImplementation(
+      async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+    );
+    mockSql.mockResolvedValueOnce([{ user_id: "u-race" }]);
+    mockSql.mockResolvedValueOnce([]);
+
+    const result = await findOrCreateOAuthUser(googleProfile, {
+      email_verified: true,
+    });
+
+    expect(result).toBe("u-race");
+    expect(mocks.insertNoteWithTree).not.toHaveBeenCalled();
   });
 
   it("rejects an unverified provider email", async () => {

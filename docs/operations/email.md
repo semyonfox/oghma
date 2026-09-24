@@ -101,6 +101,7 @@ A successful REST response can contain:
   "result": {
     "delivered": ["recipient@example.com"],
     "permanent_bounces": [],
+    "suppressed_recipients": [],
     "queued": []
   }
 }
@@ -110,13 +111,15 @@ HTTP success does not mean every recipient reached an inbox:
 
 - `delivered` means accepted for immediate delivery;
 - `queued` means delivery is pending;
-- `permanent_bounces` means the recipient failed permanently.
+- `permanent_bounces` means the recipient failed permanently;
+- `suppressed_recipients` means the provider dropped the recipient.
 
-The current app checks the HTTP status and top-level `success` value but does
-not persist or classify these result arrays. Treat delivery-outcome
-observability as an implementation gap. Future logging should record counts
-and provider identifiers where useful, not full message bodies or unnecessary
-recipient data.
+The app now checks the recipient in these result arrays. Registration reports
+`delivered`, `queued`, or `failed`; a bounce or suppression is a failure even when
+the HTTP response succeeds. This status cannot show whether an immediately
+delivered message reached the inbox or a spam folder. Verification-send errors
+log a fixed reason, HTTP status, and numeric provider code without the provider
+message or recipient address.
 
 Validation/authentication errors are configuration failures, not retry
 candidates. Rate limits and server failures may support bounded backoff, but

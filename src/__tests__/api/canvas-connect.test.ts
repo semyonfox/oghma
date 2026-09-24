@@ -78,6 +78,69 @@ describe("GET /api/canvas/connect", () => {
     });
   });
 
+  it("identifies an account that has never configured Canvas", async () => {
+    vi.mocked(loadCanvasCredentials).mockResolvedValue(null);
+
+    const response = await GET(
+      new NextRequest("http://localhost/api/canvas/connect"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      connected: false,
+      connectionState: "not-configured",
+    });
+    expect(canvas.getDiscoverableCourses).not.toHaveBeenCalled();
+  });
+
+  it("identifies a stored token rejected by Canvas", async () => {
+    canvas.getDiscoverableCourses.mockResolvedValue({
+      data: [],
+      unauthorized: true,
+      error: "Invalid or expired Canvas token",
+    });
+    canvas.getSelfEnrollments.mockResolvedValue({
+      data: [],
+      unauthorized: true,
+      error: "Invalid or expired Canvas token",
+    });
+    vi.mocked(sql).mockResolvedValue([] as never);
+
+    const response = await GET(
+      new NextRequest("http://localhost/api/canvas/connect"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      connected: false,
+      domain: "example.instructure.com",
+      connectionState: "needs-reconnection",
+    });
+  });
+
+  it("does not call a temporary Canvas failure an invalid token", async () => {
+    canvas.getDiscoverableCourses.mockResolvedValue({
+      data: [],
+      error: "Canvas API error: 503",
+    });
+    canvas.getSelfEnrollments.mockResolvedValue({
+      data: [],
+      error: "Canvas API error: 503",
+    });
+    vi.mocked(sql).mockResolvedValue([] as never);
+
+    const response = await GET(
+      new NextRequest("http://localhost/api/canvas/connect"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      connected: false,
+      domain: "example.instructure.com",
+      connectionState: "temporarily-unavailable",
+    });
+  });
+
   it("serializes Canvas IDs without eagerly loading every course's modules", async () => {
     canvas.getDiscoverableCourses.mockResolvedValue({
       data: [{ id: "9007199254740993", name: "Algorithms" }],
@@ -92,6 +155,7 @@ describe("GET /api/canvas/connect", () => {
     const body = await response.json();
 
     expect(canvas.getModules).not.toHaveBeenCalled();
+    expect(body.connectionState).toBe("connected");
     expect(body.courses).toMatchObject([
       {
         id: "9007199254740993",

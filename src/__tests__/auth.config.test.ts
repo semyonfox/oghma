@@ -24,6 +24,9 @@ vi.mock("@/lib/auth-oauth", () => ({
   findOrCreateOAuthUser: vi.fn(),
   resolveVerifiedOAuthEmail: vi.fn(),
 }));
+vi.mock("@/lib/i18n/server", () => ({
+  getRequestLocale: vi.fn().mockResolvedValue("en"),
+}));
 
 const originalEnv = { ...process.env };
 

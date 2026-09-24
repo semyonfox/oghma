@@ -10,6 +10,7 @@ import {
   renderGettingStartedNote,
 } from "@/lib/chat/app-guide";
 import { createChatTools } from "@/lib/chat/build-stream";
+import { Locale } from "@/locales";
 
 describe("app guide", () => {
   it("defines complete, unique topics with internal routes", () => {
@@ -54,6 +55,15 @@ describe("app guide", () => {
     expect(note.startsWith(guide)).toBe(true);
     expect(note).toContain("/settings#canvas");
     expect(note).toContain("Who is Oghma?");
+  });
+
+  it("seeds the German starter note in German with the same Canvas route", () => {
+    const note = renderGettingStartedNote(Locale.de_DE);
+
+    expect(note).toContain("# Erste Schritte");
+    expect(note).toContain("Einstellungen → Canvas");
+    expect(note).toContain("/settings#canvas");
+    expect(note).not.toContain("## Fun fact");
   });
 
   it("has non-empty translations for every suggested app-help prompt", () => {

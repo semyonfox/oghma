@@ -52,7 +52,7 @@ export const loginSchema = z.object({
 
 export const registerSchema = z.object({
   email: z.string().email().max(255).trim(),
-  password: z.string().min(8).max(128),
+  password: z.string(),
   agentClaimToken: z.string().length(64).optional(),
   agentUserCode: z.string().regex(/^\d{6}$/).optional(),
 }).refine(

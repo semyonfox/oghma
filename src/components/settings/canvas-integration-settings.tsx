@@ -115,19 +115,26 @@ export default function CanvasIntegrationSettings() {
     const checkConnection = async () => {
       try {
         const res = await fetch("/api/canvas/connect");
+        if (res.status === 401) {
+          setConnectionWarning(
+            t("Your session has expired. Please log in again."),
+          );
+          return;
+        }
         const data = await res.json() as {
           connected?: boolean;
+          connectionState?:
+            | "connected"
+            | "not-configured"
+            | "needs-reconnection"
+            | "temporarily-unavailable";
           domain?: string;
           courses?: Course[];
           forbiddenCourseIds?: Array<string | number>;
           courseDiscoveryDegraded?: boolean;
         };
 
-        if (res.status === 401) {
-          setConnectionWarning(
-            t("Your session has expired. Please log in again."),
-          );
-        } else if (res.ok && data.connected) {
+        if (res.ok && data.connected) {
           setIsConnected(true);
           setConnectedDomain(data.domain ?? "");
           setCourses(data.courses ?? []);
@@ -174,13 +181,23 @@ export default function CanvasIntegrationSettings() {
             .catch(() => {})
             .finally(() => setSyncChecked(true));
 
-        } else if (res.ok && !data.connected) {
+        } else if (res.ok && data.connectionState === "needs-reconnection") {
+          setDomain(data.domain ?? "");
           setConnectionWarning(
             t("Your Canvas token is invalid or expired. Please reconnect."),
           );
+        } else if (res.ok && data.connectionState === "not-configured") {
+          setConnectionWarning(null);
+        } else {
+          setDomain(data.domain ?? "");
+          setConnectionWarning(
+            t("Could not check Canvas right now. Reload this page to try again."),
+          );
         }
       } catch {
-        // network error — show the form
+        setConnectionWarning(
+          t("Could not check Canvas right now. Reload this page to try again."),
+        );
       } finally {
         setIsCheckingConnection(false);
       }
@@ -193,8 +210,9 @@ export default function CanvasIntegrationSettings() {
 
   // ── Persist selected courses whenever they change ────────────────────────
   useEffect(() => {
+    if (isCheckingConnection) return;
     localStorage.setItem(LS_SELECTED, JSON.stringify(selectedCourseIds));
-  }, [selectedCourseIds]);
+  }, [isCheckingConnection, selectedCourseIds]);
 
   const handleConnect = async () => {
     const rawToken = tokenInputRef.current?.value?.trim() ?? "";
@@ -241,6 +259,7 @@ export default function CanvasIntegrationSettings() {
 
       // Successful connection is recorded once by the server as a canonical milestone.
       setIsConnected(true);
+      setConnectionWarning(null);
       setConnectedDomain(domain);
       setCourses(data.courses ?? []);
       setCourseDiscoveryDegraded(Boolean(data.courseDiscoveryDegraded));
@@ -283,6 +302,7 @@ export default function CanvasIntegrationSettings() {
     } finally {
       resetStatus();
       setIsConnected(false);
+      setConnectionWarning(null);
       setConnectedDomain("");
       setCourses([]);
       setCourseDiscoveryDegraded(false);

@@ -10,28 +10,56 @@ function isValidEmail(value: unknown): value is string {
   );
 }
 
+const PASSWORD_REQUIREMENTS = [
+  {
+    id: "minimumLength",
+    label: "At least 8 characters",
+    error: "Password must be at least 8 characters long",
+    check: (password: string) => password.length >= 8,
+  },
+  {
+    id: "maximumLength",
+    label: "No more than 128 characters",
+    error: "Password must be 128 characters or fewer",
+    check: (password: string) => password.length <= 128,
+  },
+  {
+    id: "uppercase",
+    label: "One uppercase letter",
+    error: "Password must contain at least one uppercase letter",
+    check: (password: string) => /[A-Z]/.test(password),
+  },
+  {
+    id: "lowercase",
+    label: "One lowercase letter",
+    error: "Password must contain at least one lowercase letter",
+    check: (password: string) => /[a-z]/.test(password),
+  },
+  {
+    id: "number",
+    label: "One number",
+    error: "Password must contain at least one number",
+    check: (password: string) => /[0-9]/.test(password),
+  },
+] as const;
+
+export function getPasswordRequirements(password: string) {
+  return PASSWORD_REQUIREMENTS.map(({ id, label, error, check }) => ({
+    id,
+    label,
+    error,
+    met: check(password),
+  }));
+}
+
 function passwordErrors(password: unknown): string[] {
   if (typeof password !== "string" || password.length === 0) {
     return ["Password is required"];
   }
 
-  const errors: string[] = [];
-  if (password.length < 8) {
-    errors.push("Password must be at least 8 characters long");
-  }
-  if (password.length > 128) {
-    errors.push("Password must be 128 characters or fewer");
-  }
-  if (!/[A-Z]/.test(password)) {
-    errors.push("Password must contain at least one uppercase letter");
-  }
-  if (!/[a-z]/.test(password)) {
-    errors.push("Password must contain at least one lowercase letter");
-  }
-  if (!/[0-9]/.test(password)) {
-    errors.push("Password must contain at least one number");
-  }
-  return errors;
+  return getPasswordRequirements(password)
+    .filter((requirement) => !requirement.met)
+    .map((requirement) => requirement.error);
 }
 
 export function validateAuthCredentials(

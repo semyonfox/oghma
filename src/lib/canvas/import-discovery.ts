@@ -827,7 +827,12 @@ export async function processDiscoverJob(jobId: string, _attempt = 0) {
 
     const transitioned = await withCanvasPublication(() => sql`
       UPDATE app.canvas_import_jobs
-      SET status = 'processing', expected_total = ${total}, updated_at = NOW()
+      SET status = 'processing', expected_total = ${total},
+          discovery_progress = jsonb_set(
+            COALESCE(discovery_progress, '{}'::jsonb),
+            '{processingStartedAt}', to_jsonb(NOW())
+          ),
+          updated_at = NOW()
       WHERE id = ${jobId} AND status = 'discovering' AND claim_token = ${claimToken}::uuid
       RETURNING id
     `);

@@ -7,6 +7,7 @@ import {
   ChevronRightIcon,
   ChevronDownIcon,
   ClipboardDocumentListIcon,
+  PlusIcon,
 } from "@heroicons/react/20/solid";
 import { Menu, MenuButton, MenuItem, MenuItems } from "@headlessui/react";
 import {
@@ -327,10 +328,21 @@ export default function CalendarPage() {
               className="flex min-w-0"
             >
               <aside className="glass-panel flex h-full w-full flex-col">
-                <div className="flex h-12 shrink-0 items-center border-b border-border-subtle px-3">
+                <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-3">
                   <h2 className="text-sm font-semibold text-text-secondary">
                     {t("Tasks")}
                   </h2>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewTaskDueAt(undefined);
+                      setNewTaskOpen(true);
+                    }}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-radius-md bg-primary-600 px-3 text-xs font-medium text-text-on-primary transition-colors hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50"
+                  >
+                    <PlusIcon className="h-4 w-4" aria-hidden="true" />
+                    {t("New Task")}
+                  </button>
                 </div>
                 <div className="flex min-h-0 flex-1 flex-col">
                   <AssignmentTracker surface="compact" />

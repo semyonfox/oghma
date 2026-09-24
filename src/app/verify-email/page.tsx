@@ -13,12 +13,38 @@ function VerifyEmailContent() {
 
   const token = searchParams.get("token");
   const email = searchParams.get("email") || "";
+  const deliveryParam = searchParams.get("delivery");
+  const delivery =
+    deliveryParam === "delivered" ||
+    deliveryParam === "queued" ||
+    deliveryParam === "failed"
+      ? deliveryParam
+      : null;
 
   const [verifying, setVerifying] = useState(false);
   const [verified, setVerified] = useState(false);
   const [error, setError] = useState("");
   const [resendMessage, setResendMessage] = useState("");
   const [resendLoading, setResendLoading] = useState(false);
+  const initialSendFailed = delivery === "failed" && !resendMessage;
+  let instructions = email
+    ? t(
+        "We sent a verification link to {email}. Click the link to verify your account.",
+        { email },
+      )
+    : t(
+        "We sent a verification link to your email. Click the link to verify your account.",
+      );
+  if (delivery === "queued" && !resendMessage) {
+    instructions = t(
+      "Your verification email is queued. It may take a few minutes to arrive.",
+    );
+  }
+  if (initialSendFailed) {
+    instructions = t(
+      "We couldn't send the verification email. Your account was created. Try resending once or contact support.",
+    );
+  }
 
   // auto-verify if token is in URL
   useEffect(() => {
@@ -60,14 +86,14 @@ function VerifyEmailContent() {
         body: JSON.stringify({ email }),
       });
 
-      const data = await res.json();
-
       if (res.ok) {
         setResendMessage(
-          data.message || t("Verification email sent. Check your inbox."),
+          t(
+            "If this address needs verification, a new link has been requested. Check your inbox and spam folder.",
+          ),
         );
       } else {
-        setError(data.error || t("Failed to resend verification email."));
+        setError(t("We couldn't resend the link. Try again later."));
       }
     } catch {
       setError(t("An error occurred. Please try again."));
@@ -114,17 +140,12 @@ function VerifyEmailContent() {
     <div className="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8 bg-app-page">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <h2 className="mt-6 text-center font-serif text-2xl font-semibold tracking-tight text-text">
-          {t("Check your email")}
+          {initialSendFailed
+            ? t("Verification email not sent")
+            : t("Check your email")}
         </h2>
         <p className="mt-2 text-center text-sm text-text-tertiary">
-          {email
-            ? t(
-                "We sent a verification link to {email}. Click the link to verify your account.",
-                { email },
-              )
-            : t(
-                "We sent a verification link to your email. Click the link to verify your account.",
-              )}
+          {instructions}
         </p>
       </div>
 
@@ -146,7 +167,10 @@ function VerifyEmailContent() {
           )}
 
           <p className="text-center text-sm text-text-tertiary">
-            {t("Didn't receive the email? Check your spam folder.")}
+            {t("Didn't receive the email? Check your spam folder.")} {" "}
+            <Link href="/contact" className="font-semibold text-primary-400 hover:text-primary-300">
+              {t("Contact support")}
+            </Link>
           </p>
         </div>
 

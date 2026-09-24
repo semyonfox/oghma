@@ -4,26 +4,26 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Suspense } from "react";
 import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
-
-const ERROR_MESSAGES: Record<string, string> = {
-  OAuthSignin: "Could not start the sign-in flow. Please try again.",
-  OAuthCallback:
-    "Something went wrong handling the OAuth callback. The redirect URI may be misconfigured.",
-  OAuthCreateAccount: "Could not create your account. Please try again.",
-  OAuthAccountNotLinked:
-    "This email is already registered with a different sign-in method. Please sign in using the original method and link accounts in settings.",
-  Callback: "An error occurred during sign-in. Please try again.",
-  AccessDenied: "Access was denied. You may not have permission to sign in.",
-  Configuration:
-    "There is a server configuration problem. Please contact support.",
-  Verification: "The sign-in link has expired or already been used.",
-  Default: "An unexpected error occurred. Please try again.",
-};
+import useI18n from "@/lib/notes/hooks/use-i18n";
 
 function AuthErrorContent() {
+  const { t } = useI18n();
   const params = useSearchParams();
   const error = params.get("error") ?? "Default";
-  const message = ERROR_MESSAGES[error] ?? ERROR_MESSAGES.Default;
+  const messages: Record<string, string> = {
+    OAuthSignin: t("Could not start sign-in. Try again."),
+    OAuthCallback: t("Sign-in did not finish. Try again from the sign-in page."),
+    OAuthCreateAccount: t("Could not create your account. Try again."),
+    OAuthAccountNotLinked: t(
+      "This email is already registered with another sign-in method. Use that method, then link accounts in settings.",
+    ),
+    Callback: t("Sign-in did not finish. Try again."),
+    AccessDenied: t("Access was denied. Try another sign-in method."),
+    Configuration: t("Sign-in is unavailable. Please contact support."),
+    Verification: t("The sign-in link expired or was already used. Try again."),
+    Default: t("An unexpected sign-in error occurred. Try again."),
+  };
+  const message = messages[error] ?? messages.Default;
 
   return (
     <div className="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8 bg-app-page">
@@ -37,7 +37,7 @@ function AuthErrorContent() {
               />
             </div>
             <h2 className="text-xl font-semibold text-text mb-2">
-              Sign-in failed
+              {t("Sign-in failed")}
             </h2>
             <p className="text-sm text-text-tertiary mb-1">{message}</p>
             {process.env.NODE_ENV === "development" && (
@@ -51,13 +51,13 @@ function AuthErrorContent() {
               href="/login"
               className="flex w-full justify-center rounded-radius-md bg-primary-600 px-3 py-1.5 text-sm font-semibold text-text-on-primary hover:bg-primary-700"
             >
-              Back to sign in
+              {t("Try signing in again")}
             </Link>
             <Link
-              href="/"
+              href="/contact"
               className="flex w-full justify-center rounded-radius-md glass-card-interactive px-3 py-1.5 text-sm font-semibold text-text-secondary"
             >
-              Go home
+              {t("Contact support")}
             </Link>
           </div>
         </div>

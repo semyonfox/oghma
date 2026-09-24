@@ -1,16 +1,17 @@
 import sql from "@/database/pgsql";
 import { createErrorResponse, parseJsonBody } from "@/lib/auth";
 import { generateSecureToken, hashToken } from "@/lib/tokens";
-import { sendVerificationEmail } from "@/lib/email";
+import { EmailSendError, sendVerificationEmail } from "@/lib/email";
 import { checkRateLimit } from "@/lib/rateLimiter";
 import logger from "@/lib/logger";
-import { assertTrustedOrigin } from "@/lib/api-error";
+import { ApiError, assertTrustedOrigin } from "@/lib/api-error";
+import { Locale, normalizeLocale } from "@/locales";
 import type { NextRequest } from "next/server";
 
 function ackResponse(): Response {
   return new Response(
     JSON.stringify({
-      message: "If that email needs verification, we sent a new link.",
+      message: "If that email needs verification, a new link has been requested.",
     }),
     { status: 200, headers: { "Content-Type": "application/json" } },
   );
@@ -32,9 +33,9 @@ export async function POST(request: NextRequest): Promise<Response> {
     if (limited) return limited;
 
     const users = await sql<
-      { user_id: string; email: string; email_verified: boolean }[]
+      { user_id: string; email: string; email_verified: boolean; locale: string | null }[]
     >`
-            SELECT user_id, email, email_verified
+            SELECT user_id, email, email_verified, locale
             FROM app.login
             WHERE email = ${email.trim()}
         `;
@@ -66,7 +67,11 @@ export async function POST(request: NextRequest): Promise<Response> {
             WHERE user_id = ${user.user_id}
         `;
 
-    await sendVerificationEmail(email.trim(), verificationToken);
+    await sendVerificationEmail(
+      email.trim(),
+      verificationToken,
+      normalizeLocale(user.locale) ?? Locale.EN,
+    );
 
     const elapsed = Date.now() - start;
     if (elapsed < MIN_RESPONSE_MS) {
@@ -74,7 +79,19 @@ export async function POST(request: NextRequest): Promise<Response> {
     }
     return ackResponse();
   } catch (error) {
-    logger.error("resend verification error", { error });
-    return createErrorResponse("Failed to resend verification email", 500);
+    if (error instanceof ApiError) {
+      return createErrorResponse(error.userMessage, error.statusCode);
+    }
+    logger.error("resend verification error", {
+      reason: error instanceof EmailSendError ? error.reason : "unexpected",
+      httpStatus:
+        error instanceof EmailSendError ? error.httpStatus : undefined,
+      providerCode:
+        error instanceof EmailSendError ? error.providerCode : undefined,
+    });
+    return createErrorResponse(
+      "Could not request a verification link. Please try again later.",
+      error instanceof EmailSendError ? 503 : 500,
+    );
   }
 }

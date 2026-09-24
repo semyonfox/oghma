@@ -2,6 +2,13 @@ import sql from "@/database/pgsql";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import logger from "@/lib/logger";
+import {
+  gettingStartedNoteTitle,
+  renderGettingStartedNote,
+} from "@/lib/chat/app-guide";
+import { insertNoteWithTree } from "@/lib/notes/storage/create-note";
+import { generateUUID } from "@/lib/utils/uuid";
+import { Locale, normalizeLocale } from "@/locales";
 
 export interface OAuthProfile {
   provider: string;
@@ -170,12 +177,14 @@ export async function getLinkedProviders(
 export async function findOrCreateOAuthUser(
   profile: OAuthProfile,
   providerProfile: Record<string, unknown>,
+  signupLocale?: Locale,
 ): Promise<string> {
   const emailVerified = isEmailVerifiedByProvider(
     profile.provider,
     providerProfile,
   );
-  if (!emailVerified || !profile.email) {
+  const verifiedEmail = profile.email;
+  if (!emailVerified || !verifiedEmail) {
     throw new Error("OAuth provider did not supply a verified email");
   }
 
@@ -223,7 +232,6 @@ export async function findOrCreateOAuthUser(
       `;
       logger.info("oauth account linked to existing user", {
         provider: profile.provider,
-        userId,
       });
       return userId;
     }
@@ -233,21 +241,38 @@ export async function findOrCreateOAuthUser(
   // generate an unguessable random password hash for the NOT NULL constraint
   const randomPassword = crypto.randomBytes(32).toString("hex");
   const hashedPassword = await bcrypt.hash(randomPassword, 10);
+  const locale = signupLocale ?? normalizeLocale(profile.locale) ?? Locale.EN;
+  const gettingStartedNoteId = generateUUID();
 
   // ON CONFLICT handles race condition: if another request just created the same email
-  const insertResult = await sql<UserIdRow[]>`
-        INSERT INTO app.login (email, hashed_password, display_name, avatar_url, locale, email_verified)
-        VALUES (
-            ${profile.email},
-            ${hashedPassword},
-            ${profile.name ?? null},
-            ${profile.image ?? null},
-            ${profile.locale ?? null},
-            ${emailVerified}
-        )
-        ON CONFLICT (email) DO NOTHING
-        RETURNING user_id
+  const insertResult = await sql.begin(async (tx) => {
+    const created = await tx<UserIdRow[]>`
+      INSERT INTO app.login (email, hashed_password, display_name, avatar_url, locale, email_verified, welcome_note_id)
+      VALUES (
+        ${verifiedEmail},
+        ${hashedPassword},
+        ${profile.name ?? null},
+        ${profile.image ?? null},
+        ${locale},
+        ${emailVerified},
+        ${gettingStartedNoteId}::uuid
+      )
+      ON CONFLICT (email) DO NOTHING
+      RETURNING user_id
     `;
+
+    if (created[0]) {
+      await insertNoteWithTree(tx, {
+        noteId: gettingStartedNoteId,
+        userId: created[0].user_id,
+        title: gettingStartedNoteTitle(locale),
+        content: renderGettingStartedNote(locale),
+        isFolder: false,
+      });
+    }
+
+    return created;
+  });
 
   let userId: string;
   if (insertResult.length > 0) {
@@ -267,7 +292,6 @@ export async function findOrCreateOAuthUser(
   await linkOAuthAccount(userId, profile);
   logger.info("new oauth user created", {
     provider: profile.provider,
-    userId,
   });
   return userId;
 }

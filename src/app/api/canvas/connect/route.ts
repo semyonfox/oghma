@@ -41,7 +41,9 @@ export const GET = withErrorHandler(async () => {
   const user = await requireAuth();
 
   const credentials = await loadCanvasCredentials(user.user_id);
-  if (!credentials) return noStoreJson({ connected: false });
+  if (!credentials) {
+    return noStoreJson({ connected: false, connectionState: "not-configured" });
+  }
 
   const client = new CanvasClient(credentials.domain, credentials.token);
 
@@ -68,7 +70,15 @@ export const GET = withErrorHandler(async () => {
       client,
       (previousCourseRows ?? []).map((row) => String(row.canvas_course_id)),
     );
-    if (discovery.error) return noStoreJson({ connected: false });
+    if (discovery.error) {
+      return noStoreJson({
+        connected: false,
+        domain: credentials.domain,
+        connectionState: discovery.unauthorized
+          ? "needs-reconnection"
+          : "temporarily-unavailable",
+      });
+    }
     courses = discovery.data;
     courseDiscoveryDegraded = Boolean(discovery.degraded);
   } catch (error) {
@@ -78,6 +88,7 @@ export const GET = withErrorHandler(async () => {
 
   return noStoreJson({
     connected: true,
+    connectionState: "connected",
     domain: credentials.domain,
     // Module/file discovery happens only once the user starts an import. A
     // settings-page refresh must not fan out one Canvas request per course.

@@ -30,9 +30,11 @@ export default function CanvasConnectionForm({
 
   return (
     <>
-      {/* expired / invalid token warning */}
       {connectionWarning && (
-        <div className="flex items-center gap-2 rounded-radius-md bg-yellow-500/10 px-3 py-2 text-sm text-yellow-400 ring-1 ring-yellow-500/20">
+        <div
+          role="alert"
+          className="flex items-center gap-2 rounded-radius-md bg-yellow-500/10 px-3 py-2 text-sm text-yellow-400 ring-1 ring-yellow-500/20"
+        >
           <ExclamationTriangleIcon
             className="size-4 shrink-0"
             aria-hidden="true"
@@ -41,17 +43,13 @@ export default function CanvasConnectionForm({
         </div>
       )}
 
-      {/* how to get your token */}
       <div className="glass-card rounded-radius-lg p-4">
         <h3 className="text-sm font-semibold text-text-secondary mb-2">
           {t("How to generate your Canvas API token")}
         </h3>
         <ol className="list-decimal list-inside space-y-1 text-sm text-text-tertiary">
           <li>{t("Log into your Canvas account")}</li>
-          <li>
-            {t("Click your profile picture →")}{" "}
-            <span className="text-text-secondary">{t("Settings")}</span>
-          </li>
+          <li>{t("Open Account → Settings in Canvas")}</li>
           <li>
             {t("Scroll down to")}{" "}
             <span className="text-text-secondary">
@@ -61,22 +59,27 @@ export default function CanvasConnectionForm({
           <li>
             {t("Click")}{" "}
             <span className="text-text-secondary">
-              {t("+ New Access Token")}
+              {t("Add New Access Token")}
             </span>
           </li>
+          <li>{t("Name the token OghmaNotes")}</li>
           <li>
-            {t('Give it a name (e.g. "OghmaNotes") and click')}{" "}
+            {t(
+              "Choose an expiration date and time. Canvas requires a date for students.",
+            )}
+          </li>
+          <li>
+            {t("Click")}{" "}
             <span className="text-text-secondary">{t("Generate Token")}</span>
           </li>
           <li>
             {t(
-              "Copy the token and paste it below — Canvas will only show it once",
+              "Copy the token into API Token below. Canvas only shows it once.",
             )}
           </li>
         </ol>
       </div>
 
-      {/* connection form */}
       <div>
         <label
           htmlFor="canvas-domain"
@@ -85,16 +88,16 @@ export default function CanvasConnectionForm({
           {t("Canvas Domain")}
         </label>
         <p className="mt-1 text-xs text-text-tertiary">
-          {t("Your institution's Canvas URL e.g.")}{" "}
+          {t("Enter the host from your Canvas URL, for example")}{" "}
           <span className="text-text-secondary">
-            universityofgalway.instructure.com
+            example.instructure.com
           </span>
         </p>
         <div className="mt-2">
           <input
             id="canvas-domain"
             type="text"
-            placeholder="universityofgalway.instructure.com"
+            placeholder="example.instructure.com"
             value={domain}
             onChange={(e: ChangeEvent<HTMLInputElement>) => setDomain(e.target.value)}
             className="block w-full rounded-radius-md bg-surface border border-border-subtle px-3 py-1.5 text-sm text-text placeholder:text-text-tertiary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50 focus:outline-none"
@@ -123,8 +126,14 @@ export default function CanvasConnectionForm({
         </div>
       </div>
 
+      <p className="text-xs text-text-tertiary">
+        {t(
+          "Use your Canvas account's token. Your OghmaNotes email can be different from your Canvas email.",
+        )}
+      </p>
+
       {connectionError && (
-        <div className="flex items-center gap-2 text-sm text-red-400">
+        <div role="alert" className="flex items-center gap-2 text-sm text-red-400">
           <ExclamationCircleIcon className="size-4 shrink-0" />
           {connectionError}
         </div>

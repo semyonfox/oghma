@@ -8,7 +8,9 @@ import {
   DialogTitle,
 } from "@headlessui/react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
+import { toast } from "sonner";
 import useAssignmentStore from "@/lib/notes/state/assignments.zustand";
+import type { Assignment } from "@/lib/notes/state/assignments.zustand";
 import useSwipeDismiss from "@/components/navigation/use-swipe-dismiss";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
@@ -17,6 +19,14 @@ interface NewTaskModalProps {
   onClose: () => void;
   courses: string[];
   initialDueAt?: string;
+  assignment?: Assignment | null;
+}
+
+function toLocalDateTimeValue(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (number: number) => String(number).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 export default function NewTaskModal({
@@ -24,10 +34,12 @@ export default function NewTaskModal({
   onClose,
   courses,
   initialDueAt,
+  assignment,
 }: NewTaskModalProps) {
   const swipe = useSwipeDismiss({ open, onClose });
-  const { t } = useI18n();
+  const { t, activeLocale } = useI18n();
   const createAssignment = useAssignmentStore((s) => s.createAssignment);
+  const updateAssignment = useAssignmentStore((s) => s.updateAssignment);
   const formId = useId();
   const titleId = `${formId}-title`;
   const courseId = `${formId}-course`;
@@ -45,13 +57,19 @@ export default function NewTaskModal({
 
   useEffect(() => {
     if (!open) return;
-    setTitle("");
-    setCourseName("");
-    setDueAt(initialDueAt ?? "");
-    setEstimatedHours("");
-    setDescription("");
+    setTitle(assignment?.title ?? "");
+    setCourseName(assignment?.course_name ?? "");
+    setDueAt(
+      assignment?.due_at
+        ? toLocalDateTimeValue(assignment.due_at)
+        : (initialDueAt ?? ""),
+    );
+    setEstimatedHours(
+      assignment?.estimated_hours == null ? "" : String(assignment.estimated_hours),
+    );
+    setDescription(assignment?.description ?? "");
     setError(null);
-  }, [initialDueAt, open]);
+  }, [assignment, initialDueAt, open]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -60,23 +78,41 @@ export default function NewTaskModal({
     setSaving(true);
     setError(null);
     try {
-      const created = await createAssignment({
+      const data = {
         title: title.trim(),
-        course_name: courseName || null,
-        due_at: dueAt ? new Date(dueAt).toISOString() : null,
+        course_name: courseName.trim() || null,
+        due_at: dueAt
+          ? assignment?.due_at &&
+            dueAt === toLocalDateTimeValue(assignment.due_at)
+            ? assignment.due_at
+            : new Date(dueAt).toISOString()
+          : null,
         estimated_hours: estimatedHours ? Number(estimatedHours) : null,
         description: description || null,
-      });
-      if (!created) {
+      };
+      const saved = assignment
+        ? await updateAssignment(assignment.id, data)
+        : await createAssignment(data);
+      if (!saved) {
         setError(t("Something went wrong"));
         return;
       }
 
-      setTitle("");
-      setCourseName("");
-      setDueAt("");
-      setEstimatedHours("");
-      setDescription("");
+      const due = saved.due_at
+        ? `${t("Due Date")}: ${new Intl.DateTimeFormat(activeLocale, {
+            dateStyle: "medium",
+            timeStyle: "short",
+          }).format(new Date(saved.due_at))}`
+        : t("No due date");
+      const status =
+        saved.status === "done"
+          ? t("Done")
+          : saved.status === "late"
+            ? t("Overdue")
+            : t("Upcoming");
+      toast.success(
+        `${assignment ? t("Task updated") : t("Task created")} · ${status} · ${due}`,
+      );
       onClose();
     } finally {
       setSaving(false);
@@ -97,7 +133,7 @@ export default function NewTaskModal({
         >
           <div className="flex h-12 shrink-0 items-center justify-between border-b border-border-subtle px-4">
             <DialogTitle className="text-sm font-medium text-text-secondary">
-              {t("New Task")}
+              {assignment ? t("Edit task") : t("New Task")}
             </DialogTitle>
             <button
               type="button"
@@ -223,7 +259,13 @@ export default function NewTaskModal({
               disabled={saving || !title.trim()}
               className="min-h-11 w-full rounded-radius-md bg-primary-600 py-2 text-sm font-medium text-text-on-primary transition-colors hover:bg-primary-700 disabled:opacity-50"
             >
-              {saving ? t("Creating...") : t("Create Task")}
+              {saving
+                ? assignment
+                  ? t("Updating...")
+                  : t("Creating...")
+                : assignment
+                  ? t("Save changes")
+                  : t("Create Task")}
             </button>
           </form>
         </DialogPanel>

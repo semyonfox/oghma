@@ -28,6 +28,7 @@ interface LoginResponse {
 interface RegisterResponse {
   success?: boolean;
   requiresVerification: boolean;
+  emailDelivery: "delivered" | "queued" | "failed";
   message?: string;
 }
 

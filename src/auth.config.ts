@@ -11,6 +11,7 @@ import {
   resolveVerifiedOAuthEmail,
 } from "@/lib/auth-oauth";
 import type { OAuthProfile } from "@/lib/auth-oauth";
+import { getRequestLocale } from "@/lib/i18n/server";
 
 const providers: NextAuthConfig["providers"] = [];
 
@@ -43,6 +44,24 @@ interface AppSessionUser extends NonNullable<Session["user"]> {
 
 interface AppSession extends Session {
   user?: AppSessionUser;
+}
+
+function authErrorDetails(error: unknown) {
+  const code =
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof error.code === "string" &&
+    /^[A-Z0-9_]{1,24}$/.test(error.code)
+      ? error.code
+      : undefined;
+  return {
+    errorType:
+      error instanceof Error && /^[A-Za-z]{1,32}$/.test(error.name)
+        ? error.name
+        : "unknown",
+    code,
+  };
 }
 
 if (process.env.GOOGLE_ID && process.env.GOOGLE_SECRET) {
@@ -112,14 +131,17 @@ if (process.env.ENABLE_CREDENTIALS_AUTH !== "false") {
 
             return { id: user.user_id, email: user.email };
           } catch (error) {
-            logger.error("credentials auth error", { error });
+            logger.error("credentials auth error", authErrorDetails(error));
             return null;
           }
         },
       }),
     );
   } catch (error) {
-    logger.warn("failed to initialize credentials provider", { error });
+    logger.warn(
+      "failed to initialize credentials provider",
+      authErrorDetails(error),
+    );
   }
 }
 
@@ -165,9 +187,12 @@ export const authConfig: NextAuthConfig = {
           rawProfile,
         };
 
+        // locale detection must not prevent sign-in if request context is unavailable
+        const signupLocale = await getRequestLocale().catch(() => undefined);
         const userId = await findOrCreateOAuthUser(
           oauthProfile,
           rawProfile,
+          signupLocale,
         );
         // attach user_id so jwt callback can pick it up
         (user as User & { id: string }).id = userId;
@@ -175,7 +200,7 @@ export const authConfig: NextAuthConfig = {
         return true;
       } catch (error) {
         logger.error("oauth sign-in failed", {
-          error,
+          ...authErrorDetails(error),
           provider: account.provider,
         });
         return false;
@@ -203,8 +228,7 @@ export const authConfig: NextAuthConfig = {
           }
         } catch (error) {
           logger.error("jwt callback db query failed", {
-            error,
-            userId: user.id,
+            ...authErrorDetails(error),
           });
         }
       }
@@ -225,9 +249,8 @@ export const authConfig: NextAuthConfig = {
     },
   },
   events: {
-    async signIn({ user, account }) {
+    async signIn({ account }) {
       logger.info("user signed in", {
-        email: user.email,
         provider: account?.provider,
       });
     },

@@ -1,10 +1,25 @@
 // @vitest-environment jsdom
 
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   pdfData: Uint8Array.from([37, 80, 68, 70]),
+  desktop: true,
+  push: vi.fn(),
+  refreshTree: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: mocks.push }),
+}));
+
+vi.mock("@/lib/hooks/use-media-query", () => ({
+  default: () => mocks.desktop,
+}));
+
+vi.mock("@/lib/notes/state/tree", () => ({
+  default: { getState: () => ({ refreshTree: mocks.refreshTree }) },
 }));
 
 vi.mock("@/lib/notes/pdf-cache/use-pdf-cache", () => ({
@@ -120,9 +135,18 @@ class ResizeObserverStub {
 }
 
 import PDFViewer from "@/components/editor/pdf-viewer";
+import useLayoutStore from "@/lib/notes/state/layout.zustand";
 
 describe("PDFViewer page rendering", () => {
   beforeEach(() => {
+    mocks.desktop = true;
+    mocks.push.mockReset();
+    mocks.refreshTree.mockClear();
+    useLayoutStore.getState().setPaneB(undefined);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: "none" }),
+    }));
     observers.clear();
     resizeObservers.clear();
     vi.stubGlobal("IntersectionObserver", IntersectionObserverStub);
@@ -131,6 +155,11 @@ describe("PDFViewer page rendering", () => {
       configurable: true,
       value: 3,
     });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
   it("keeps canvases near the viewport and caps their pixel density", async () => {
@@ -240,6 +269,43 @@ describe("PDFViewer page rendering", () => {
     expect(firstSlot.style.width).toBe("240px");
     expect(thirdSlot.style.width).toBe("240px");
     expect(screen.getByText("39%")).toBeTruthy();
+  });
+
+  it("shows extraction in progress, then opens the editable note beside the PDF", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: "processing" }) })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: "done",
+          extractedNote: { id: "extracted-1", title: "lecture.md" },
+        }),
+      }));
+    vi.useFakeTimers();
+
+    render(<PDFViewer pane="A" file={{ fileId: "source-1", fileType: "pdf", sourcePath: "notes/lecture.pdf" }} />);
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.getByText(/Creating an editable note/)).toBeTruthy();
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
+    expect(screen.getByText(/Editable extracted text is ready/)).toBeTruthy();
+    expect(mocks.refreshTree).toHaveBeenCalledOnce();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open extracted note beside PDF" }));
+    expect(useLayoutStore.getState().paneB?.fileId).toBe("extracted-1");
+    expect(useLayoutStore.getState().paneA.fileId).not.toBe("extracted-1");
+  });
+
+  it("keeps the original PDF available when extraction fails", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: "failed", extractedNote: null }),
+    }));
+
+    render(<PDFViewer pane="A" file={{ fileId: "source-1", fileType: "pdf", sourcePath: "notes/lecture.pdf" }} />);
+    await waitFor(() => expect(screen.getByText(/Text extraction failed/)).toBeTruthy());
+    expect(screen.getByTestId("rendered-pdf-page-1")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Open extracted note/ })).toBeNull();
   });
 
 });

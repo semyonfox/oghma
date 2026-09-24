@@ -51,41 +51,49 @@ export default function CanvasCourseSelector({
 
   return (
     <div className="glass-card rounded-radius-md">
-      <button
-        type="button"
-        onClick={() => setCourseListOpen(!courseListOpen)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-subtle transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          <h3 className="text-sm font-medium text-text-secondary">
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
+        <h3 className="text-sm font-medium text-text-secondary">
+          <button
+            type="button"
+            aria-expanded={courseListOpen}
+            onClick={() => setCourseListOpen(!courseListOpen)}
+            className="flex items-center gap-2 hover:text-text"
+          >
             {t("Courses")}
-          </h3>
-          {selectedImportableCount > 0 && (
-            <span className="text-xs bg-primary-500/20 text-primary-400 px-2 py-0.5 rounded-full">
-              {selectedImportableCount} {t("selected")}
-            </span>
-          )}
-        </div>
-        <ChevronDownIcon
-          className="size-4 text-text-tertiary"
-          open={courseListOpen}
-        />
-      </button>
+            <ChevronDownIcon
+              className="size-4 text-text-tertiary"
+              open={courseListOpen}
+            />
+          </button>
+        </h3>
+        {importableCourses.length > 0 && (
+          <span className="text-xs text-text-tertiary" aria-live="polite">
+            {t("{selected} of {total} available courses selected", {
+              selected: selectedImportableCount,
+              total: importableCourses.length,
+            })}
+          </span>
+        )}
+        {courseListOpen && importableCourses.length > 0 && (
+          <button
+            type="button"
+            onClick={onToggleSelectAll}
+            className="ml-auto rounded-radius-sm px-1 py-0.5 text-xs font-medium text-primary-400 hover:text-primary-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-400"
+          >
+            {allSelected ? t("Deselect all") : t("Select all")}
+          </button>
+        )}
+      </header>
 
       {courseListOpen && (
         <div className="border-t border-border-subtle px-4 py-3 space-y-3 bg-subtle">
-          {importableCourses.length > 0 && (
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={onToggleSelectAll}
-                className="text-xs text-primary-400 hover:text-primary-300 font-medium"
-              >
-                {allSelected ? t("Deselect all") : t("Select all")}
-              </button>
-            </div>
-          )}
-          <div className="space-y-2 max-h-64 overflow-y-auto">
+          <div
+            id="canvas-course-list"
+            role="region"
+            aria-label={t("Course list")}
+            tabIndex={courses.length > 5 ? 0 : undefined}
+            className="obsidian-scrollbar max-h-64 space-y-2 overflow-y-auto pr-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-400"
+          >
             {courses.map((course) => {
               const { status, error } = getCourseStatus(course.id);
               const unavailable = ["inaccessible", "unavailable"].includes(
@@ -152,6 +160,11 @@ export default function CanvasCourseSelector({
               );
             })}
           </div>
+          {courses.length > 5 && (
+            <p className="text-xs text-text-tertiary">
+              {t("Scroll to see more courses")}
+            </p>
+          )}
         </div>
       )}
     </div>

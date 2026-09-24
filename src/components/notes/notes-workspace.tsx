@@ -19,6 +19,7 @@ import MobileAppHeader from "@/components/navigation/mobile-app-header";
 import MobileDrawer from "@/components/navigation/mobile-drawer";
 import MobileBottomNavigation from "@/components/navigation/mobile-bottom-navigation";
 import MobileLibrary from "@/components/notes/mobile-library";
+import FirstLoginWelcome from "@/components/notes/first-login-welcome";
 
 import { resolveNoteRoute } from "@/lib/notes/utils/note-route";
 import { buildFileSpec } from "@/lib/notes/utils/file-spec";
@@ -155,6 +156,7 @@ export default function NotesWorkspace({
 
   return (
     <div className="relative flex h-dvh w-screen flex-col bg-background">
+      {!isTrashView && <FirstLoginWelcome />}
       {isTrashView && (
         <MobileAppHeader title={isTrashView ? t("Trash") : t("Notes")} />
       )}

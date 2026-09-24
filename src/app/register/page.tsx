@@ -4,6 +4,10 @@ import { type FormEvent, useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { getProviders, signIn } from "next-auth/react";
 import { register, getErrorMessage } from "@/lib/apiClient";
+import {
+  getPasswordRequirements,
+  validateAuthCredentials,
+} from "@/lib/auth-credentials";
 import { Alert } from "@/components/alert";
 import Link from "next/link";
 import BrandLogo from "@/components/brand-logo";
@@ -25,6 +29,8 @@ export default function RegisterPage() {
   const [pwd, setPwd] = useState("");
   const [confirmPwd, setConfirmPwd] = useState("");
   const [errMsg, setErrMsg] = useState("");
+  const [retryEmail, setRetryEmail] = useState("");
+  const [showFieldErrors, setShowFieldErrors] = useState(false);
   const [loading, setLoading] = useState(false);
   const [oauthProviders, setOauthProviders] = useState<Awaited<ReturnType<typeof getProviders>>>(null);
   const [agentClaimToken, setAgentClaimToken] = useState("");
@@ -32,6 +38,21 @@ export default function RegisterPage() {
   const errRef = useRef<HTMLDivElement>(null);
   const startedRef = useRef(false);
   const router = useRouter();
+  const passwordRequirements = getPasswordRequirements(pwd);
+  const credentialErrors = validateAuthCredentials(email, pwd, true).errors;
+  const emailError = showFieldErrors ? credentialErrors.email : undefined;
+  const passwordError = showFieldErrors
+    ? pwd
+      ? passwordRequirements.find((requirement) => !requirement.met)?.error
+      : "Password is required"
+    : undefined;
+  const confirmError = showFieldErrors
+    ? !confirmPwd
+      ? "Confirm your password"
+      : pwd !== confirmPwd
+        ? "Passwords do not match"
+        : undefined
+    : undefined;
 
   useEffect(() => {
     let mounted = true;
@@ -85,30 +106,26 @@ export default function RegisterPage() {
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setErrMsg("");
+    setRetryEmail("");
+    setShowFieldErrors(true);
 
-    if (pwd !== confirmPwd) {
+    if (
+      credentialErrors.email ||
+      credentialErrors.password ||
+      !confirmPwd ||
+      pwd !== confirmPwd
+    ) {
       trackMarketingEvent("registration_error", {
         source: "register_form",
         properties: {
           method: "email",
-          error_type: "password_mismatch",
+          error_type: credentialErrors.email
+            ? "email_invalid"
+            : credentialErrors.password
+              ? "password_invalid"
+              : "password_mismatch",
         },
       });
-      setErrMsg(t("Passwords do not match"));
-      errRef.current?.focus();
-      return;
-    }
-
-    if (pwd.length < 8) {
-      trackMarketingEvent("registration_error", {
-        source: "register_form",
-        properties: {
-          method: "email",
-          error_type: "password_too_short",
-        },
-      });
-      setErrMsg(t("Password must be at least 8 characters"));
-      errRef.current?.focus();
       return;
     }
 
@@ -130,9 +147,12 @@ export default function RegisterPage() {
       );
       // Account creation is recorded once by the server as the canonical milestone.
       if (result.requiresVerification) {
-        router.replace(`/verify-email?email=${encodeURIComponent(email)}`);
+        const query = new URLSearchParams({ email });
+        if (result.emailDelivery) query.set("delivery", result.emailDelivery);
+        const destination = `/verify-email?${query}`;
+        router.replace(destination);
         setTimeout(() => {
-          window.location.href = `/verify-email?email=${encodeURIComponent(email)}`;
+          window.location.href = destination;
         }, 1000);
       } else {
         router.replace("/notes");
@@ -148,7 +168,17 @@ export default function RegisterPage() {
           error_type: "api_error",
         },
       });
-      setErrMsg(getErrorMessage(err));
+      const existingAccount =
+        err instanceof Error &&
+        "status" in err &&
+        err.status === 409 &&
+        err.message === "User already exists";
+      if (existingAccount) {
+        setRetryEmail(email.trim());
+      }
+      setErrMsg(
+        existingAccount ? t("Already have an account?") : getErrorMessage(err),
+      );
       setPwd("");
       setConfirmPwd("");
       errRef.current?.focus();
@@ -239,6 +269,7 @@ export default function RegisterPage() {
         <div className="glass-card rounded-radius-xl px-6 py-10 sm:px-10">
           <form
             onSubmit={handleSubmit}
+            noValidate
             onFocusCapture={trackFormStart}
             onChangeCapture={trackFormStart}
             method="POST"
@@ -251,6 +282,14 @@ export default function RegisterPage() {
                   title={t("Registration failed")}
                   description={errMsg}
                 />
+                {retryEmail && (
+                  <Link
+                    href={`/verify-email?${new URLSearchParams({ email: retryEmail })}`}
+                    className="mt-2 inline-block text-sm font-semibold text-primary-400 hover:text-primary-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
+                  >
+                    {t("Resend verification email")}
+                  </Link>
+                )}
               </div>
             )}
 
@@ -270,9 +309,16 @@ export default function RegisterPage() {
                   autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  aria-invalid={Boolean(emailError)}
+                  aria-describedby={emailError ? "email-error" : undefined}
                   className="block w-full rounded-radius-md bg-input border border-border-subtle px-3 py-2 text-sm text-text placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500/60"
                 />
               </div>
+              {emailError && (
+                <p id="email-error" role="alert" className="mt-1 text-xs text-error-300">
+                  {t(emailError)}
+                </p>
+              )}
             </div>
 
             {agentClaimToken && (
@@ -319,12 +365,35 @@ export default function RegisterPage() {
                   autoComplete="new-password"
                   value={pwd}
                   onChange={(e) => setPwd(e.target.value)}
+                  aria-invalid={Boolean(passwordError)}
+                  aria-describedby={`password-requirements${passwordError ? " password-error" : ""}`}
                   className="block w-full rounded-radius-md bg-input border border-border-subtle px-3 py-2 text-sm text-text placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500/60"
                 />
               </div>
-              <p className="mt-1 text-xs text-text-tertiary">
-                {t("Minimum 8 characters")}
-              </p>
+              {passwordError && (
+                <p id="password-error" role="alert" className="mt-2 text-xs text-error-300">
+                  {t(passwordError)}
+                </p>
+              )}
+              <ul id="password-requirements" className="mt-2 grid gap-1 text-xs sm:grid-cols-2">
+                {passwordRequirements.map((requirement) => (
+                  <li
+                    key={requirement.id}
+                    className={
+                      requirement.met
+                        ? "text-emerald-400"
+                        : showFieldErrors
+                          ? "text-error-300"
+                          : "text-text-tertiary"
+                    }
+                  >
+                    <span aria-hidden="true" className="mr-1.5">
+                      {requirement.met ? "✓" : "○"}
+                    </span>
+                    {t(requirement.label)}
+                  </li>
+                ))}
+              </ul>
             </div>
 
             <div>
@@ -343,9 +412,16 @@ export default function RegisterPage() {
                   autoComplete="new-password"
                   value={confirmPwd}
                   onChange={(e) => setConfirmPwd(e.target.value)}
+                  aria-invalid={Boolean(confirmError)}
+                  aria-describedby={confirmError ? "confirm-password-error" : undefined}
                   className="block w-full rounded-radius-md bg-input border border-border-subtle px-3 py-2 text-sm text-text placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500/60"
                 />
               </div>
+              {confirmError && (
+                <p id="confirm-password-error" role="alert" className="mt-1 text-xs text-error-300">
+                  {t(confirmError)}
+                </p>
+              )}
             </div>
 
             <div>

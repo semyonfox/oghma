@@ -7,6 +7,7 @@ import {
   ArrowPathIcon,
   CheckCircleIcon,
   ChevronRightIcon,
+  PencilSquareIcon,
 } from "@heroicons/react/24/outline";
 import { CheckCircleIcon as CheckCircleSolid } from "@heroicons/react/24/solid";
 import {
@@ -213,8 +214,10 @@ export default function AssignmentTracker({
   } = useAssignmentStore();
   const pomodoroStart = usePomodoroStore((state) => state.start);
   const [showNewTask, setShowNewTask] = useState(false);
+  const [taskToEdit, setTaskToEdit] = useState<Assignment | null>(null);
   const [showCourseManager, setShowCourseManager] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
   const previousIncludeArchived = useRef(includeArchived);
   const {
@@ -320,14 +323,34 @@ export default function AssignmentTracker({
   };
 
   const handleToggleDone = async (assignment: Assignment, control: HTMLElement) => {
+    if (updatingTaskId === assignment.id) return;
     const status = assignment.status === "done" ? "upcoming" : "done";
     const origin = status === "done" ? getCelebrationOrigin(control) : undefined;
-    const updated = await updateAssignment(assignment.id, { status });
-    if (!updated) {
-      toast.error(t("Something went wrong"));
-      return;
+    setUpdatingTaskId(assignment.id);
+    try {
+      const updated = await updateAssignment(assignment.id, { status });
+      if (!updated) {
+        toast.error(t("Something went wrong"));
+        return;
+      }
+      if (status === "done") {
+        void triggerCelebration("assignment", origin);
+        toast.success(t("Task marked done"), {
+          action: {
+            label: t("Undo"),
+            onClick: () => {
+              void updateAssignment(assignment.id, { status: assignment.status }).then(
+                (restored) => {
+                  if (!restored) toast.error(t("Something went wrong"));
+                },
+              );
+            },
+          },
+        });
+      }
+    } finally {
+      setUpdatingTaskId(null);
     }
-    if (status === "done") void triggerCelebration("assignment", origin);
   };
 
   const refreshAssignmentsAndSettings = async () => {
@@ -413,14 +436,17 @@ export default function AssignmentTracker({
             <button
               type="button"
               onClick={(event) => void handleToggleDone(assignment, event.currentTarget)}
-              className={`relative z-20 flex ${actionSize} shrink-0 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-primary-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50`}
-              aria-label={completed ? t("Mark as upcoming") : t("Mark as done")}
+              disabled={updatingTaskId === assignment.id}
+              className={`relative z-20 flex ${completed ? "h-8 min-w-16 max-lg:h-11" : actionSize} shrink-0 items-center justify-center gap-1 rounded-radius-md px-1 text-text-tertiary transition-colors hover:bg-subtle hover:text-primary-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 disabled:opacity-50`}
+              aria-label={completed ? t("Undo") : t("Mark as done")}
+              aria-pressed={completed}
             >
               {completed ? (
                 <CheckCircleSolid className="h-4 w-4 text-primary-400" />
               ) : (
                 <CheckCircleIcon className="h-4 w-4" />
               )}
+              {completed && <span className="text-xs font-medium">{t("Undo")}</span>}
             </button>
 
             <div className="min-w-0 flex-1">
@@ -446,6 +472,18 @@ export default function AssignmentTracker({
               </div>
             </div>
 
+            {assignment.source === "manual" && (
+              <button
+                type="button"
+                onClick={() => setTaskToEdit(assignment)}
+                className={`relative z-20 flex ${actionSize} shrink-0 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-primary-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50`}
+                aria-label={`${t("Edit task")}: ${assignment.title}`}
+                title={t("Edit task")}
+              >
+                <PencilSquareIcon className="h-4 w-4" />
+              </button>
+            )}
+
             {!completed && (
               <button
                 type="button"
@@ -465,7 +503,7 @@ export default function AssignmentTracker({
             )}
           </div>
 
-          {(assignment.course_name || due.text || assignment.points_possible != null) && (
+          {(assignment.course_name || due.text || assignment.points_possible != null || completed) && (
             <div className={`mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs leading-4 ${detailsIndent}`}>
               {assignment.course_name && (
                 <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 text-text-tertiary">
@@ -480,6 +518,9 @@ export default function AssignmentTracker({
                 </span>
               )}
               {due.text && <span className={toneClasses[due.tone]}>{due.text}</span>}
+              {completed && (
+                <span className="font-medium text-primary-400">{t("Done")}</span>
+              )}
               {assignment.points_possible != null && (
                 <span className="text-text-tertiary">
                   {assignment.score != null ? `${assignment.score}/` : ""}
@@ -514,6 +555,18 @@ export default function AssignmentTracker({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
+      {!compact && (
+        <div className="px-3 pt-3">
+          <button
+            type="button"
+            onClick={() => setShowNewTask(true)}
+            className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-radius-md bg-primary-600 px-3 text-sm font-medium text-text-on-primary transition-colors hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50"
+          >
+            <PlusIcon className="h-4 w-4" aria-hidden="true" />
+            {t("New Task")}
+          </button>
+        </div>
+      )}
       <div className="space-y-2 px-3 pb-2 pt-3">
         <Listbox value={courseFilter} onChange={setCourseFilter}>
           <div className="relative z-40 min-w-0">
@@ -647,21 +700,16 @@ export default function AssignmentTracker({
         </TabPanels>
       </TabGroup>
 
-      <div className="p-3">
-        <button
-          type="button"
-          onClick={() => setShowNewTask(true)}
-          className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-radius-lg border border-dashed border-border-subtle py-2 text-xs text-text-tertiary transition-colors hover:border-border hover:text-text-secondary"
-        >
-          <PlusIcon className="h-3.5 w-3.5" />
-          {t("New Task")}
-        </button>
-      </div>
-
       <NewTaskModal
         open={showNewTask}
         onClose={() => setShowNewTask(false)}
         courses={courses}
+      />
+      <NewTaskModal
+        open={taskToEdit !== null}
+        onClose={() => setTaskToEdit(null)}
+        courses={courses}
+        assignment={taskToEdit}
       />
       <CourseVisibilityDialog
         open={showCourseManager}

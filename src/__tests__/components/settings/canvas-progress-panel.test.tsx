@@ -15,6 +15,46 @@ vi.mock("@/lib/notes/hooks/use-i18n", () => ({
 import CanvasProgressPanel from "@/components/settings/canvas/canvas-progress-panel";
 
 describe("CanvasProgressPanel", () => {
+  it("shows course discovery without an ETA", () => {
+    render(
+      <CanvasProgressPanel
+        isImporting
+        isDiscovering
+        isSyncing={false}
+        progress={{ percent: 0, completed: 0, total: 0 }}
+        importSummary={null}
+        recentLogs={[]}
+        markerColdStarting={false}
+        estimatedSecsRemaining={120}
+        discovery={{ completedCourses: 2, totalCourses: 5, stage: "files", filesFound: 8 }}
+      />,
+    );
+
+    expect(screen.getByText("Finding files...")).toBeTruthy();
+    expect(screen.getByText("2 of 5 courses checked")).toBeTruthy();
+    expect(screen.queryByText("2m left")).toBeNull();
+    expect(screen.getByText(/continues in the background/)).toBeTruthy();
+  });
+
+  it("keeps one failed file separate from an active import", () => {
+    render(
+      <CanvasProgressPanel
+        isImporting
+        isDiscovering={false}
+        isSyncing={false}
+        progress={{ percent: 33, completed: 1, total: 3 }}
+        importSummary={null}
+        recentLogs={[{ status: "error", filename: "restricted.pdf", errorMessage: "File unavailable" }]}
+        markerColdStarting={false}
+        estimatedSecsRemaining={null}
+      />,
+    );
+
+    expect(screen.getByText("Importing... (1/3)")).toBeTruthy();
+    expect(screen.getByText("One failed or restricted file does not stop the other files.")).toBeTruthy();
+    expect(screen.queryByText("Import stopped")).toBeNull();
+  });
+
   it("reports a terminal run with failures as failed", () => {
     const { container } = render(
       <CanvasProgressPanel

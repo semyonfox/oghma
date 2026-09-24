@@ -8,7 +8,11 @@ import {
   useEffect,
   useMemo,
 } from "react";
+import { useRouter } from "next/navigation";
 import { FileSpec } from "@/lib/notes/state/layout.zustand";
+import useLayoutStore from "@/lib/notes/state/layout.zustand";
+import useNoteTreeStore from "@/lib/notes/state/tree";
+import useMediaQuery from "@/lib/hooks/use-media-query";
 import { Document, Page, pdfjs } from "react-pdf";
 import {
   MagnifyingGlassMinusIcon,
@@ -37,6 +41,34 @@ const A4_WIDTH_POINTS = 595.28;
 const A4_ASPECT_RATIO = Math.SQRT2;
 const PAGE_OVERSCAN = "100% 0px";
 export const MAX_PDF_DEVICE_PIXEL_RATIO = 2;
+
+interface PdfExtractionState {
+  status: "none" | "pending" | "processing" | "done" | "failed";
+  extractedNote: { id: string; title: string } | null;
+}
+
+function parsePdfExtraction(value: unknown): PdfExtractionState | null {
+  if (!value || typeof value !== "object") return null;
+  const status = "status" in value ? value.status : null;
+  if (
+    status !== "none" &&
+    status !== "pending" &&
+    status !== "processing" &&
+    status !== "done" &&
+    status !== "failed"
+  ) return null;
+  const extracted = "extractedNote" in value ? value.extractedNote : null;
+  const extractedNote =
+    extracted &&
+    typeof extracted === "object" &&
+    "id" in extracted &&
+    "title" in extracted &&
+    typeof extracted.id === "string" &&
+    typeof extracted.title === "string"
+      ? { id: extracted.id, title: extracted.title }
+      : null;
+  return { status, extractedNote };
+}
 
 interface LazyPdfPageProps {
   pageNumber: number;
@@ -113,8 +145,14 @@ const LazyPdfPage: FC<LazyPdfPageProps> = ({
   );
 };
 
-const PDFViewer: FC<PDFViewerProps> = ({ file, pane: _pane }) => {
+const PDFViewer: FC<PDFViewerProps> = ({ file, pane }) => {
   const { t } = useI18n();
+  const router = useRouter();
+  const isDesktop = useMediaQuery("(min-width: 1024px)");
+  const setPaneA = useLayoutStore((state) => state.setPaneA);
+  const setPaneB = useLayoutStore((state) => state.setPaneB);
+  const [extraction, setExtraction] = useState<PdfExtractionState | null>(null);
+  const previousExtractionStatus = useRef<PdfExtractionState["status"] | null>(null);
   const [numPages, setNumPages] = useState<number | null>(null);
   const [scale, setScale] = useState(1);
   const [fitMode, setFitMode] = useState(true);
@@ -138,6 +176,64 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane: _pane }) => {
     () => (pdfData ? { data: pdfData } : null),
     [pdfData],
   );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    previousExtractionStatus.current = null;
+    setExtraction(null);
+
+    const poll = async () => {
+      try {
+        const response = await fetch(
+          `/api/ingestion-status?noteId=${encodeURIComponent(file.fileId)}`,
+          { cache: "no-store", signal: controller.signal },
+        );
+        if (!response.ok) throw new Error(`Extraction status: ${response.status}`);
+        const payload: unknown = await response.json();
+        const next = parsePdfExtraction(payload);
+        if (!next || controller.signal.aborted) return;
+
+        if (
+          next.status === "done" &&
+          next.extractedNote &&
+          previousExtractionStatus.current !== null &&
+          previousExtractionStatus.current !== "done"
+        ) {
+          void useNoteTreeStore.getState().refreshTree().catch(() => {});
+        }
+        previousExtractionStatus.current = next.status;
+        setExtraction(next);
+
+        if (next.status === "pending" || next.status === "processing") {
+          timer = setTimeout(poll, 4000);
+        }
+      } catch {
+        if (!controller.signal.aborted) timer = setTimeout(poll, 4000);
+      }
+    };
+
+    if (file.fileId) void poll();
+    return () => {
+      controller.abort();
+      if (timer) clearTimeout(timer);
+    };
+  }, [file.fileId]);
+
+  const openExtractedNote = () => {
+    if (!extraction?.extractedNote) return;
+    const extractedFile: FileSpec = {
+      fileId: extraction.extractedNote.id,
+      fileType: "note",
+      title: extraction.extractedNote.title,
+    };
+    if (isDesktop === true) {
+      if (pane === "A") setPaneB(extractedFile);
+      else setPaneA(extractedFile);
+    } else {
+      router.push(`/notes/${extractedFile.fileId}`);
+    }
+  };
 
   // keep containerWidth in sync with pane resizes
   useEffect(() => {
@@ -259,6 +355,37 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane: _pane }) => {
           </button>
         </div>
       </div>
+
+      {extraction && extraction.status !== "none" && (
+        <div className="border-b border-border-subtle bg-background px-4 py-2 text-xs text-text-secondary" role="status">
+          {extraction.status === "pending" || extraction.status === "processing" ? (
+            <p>
+              {t("Creating an editable note from this PDF. It will appear in a folder with the original PDF.")}
+            </p>
+          ) : extraction.extractedNote ? (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p>
+                {t("Editable extracted text is ready. Check it against the original PDF.")}
+              </p>
+              <button
+                type="button"
+                onClick={openExtractedNote}
+                className="rounded-radius-sm font-medium text-primary-400 underline underline-offset-2 hover:text-primary-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-400"
+              >
+                {isDesktop === true
+                  ? t("Open extracted note beside PDF")
+                  : t("Open extracted note")}
+              </button>
+            </div>
+          ) : (
+            <p>
+              {extraction.status === "failed"
+                ? t("Text extraction failed. The original PDF is still available.")
+                : t("No editable note is available. The original PDF is still available.")}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* PDF canvas — scrollable */}
       <div

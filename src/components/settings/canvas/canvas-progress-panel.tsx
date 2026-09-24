@@ -115,7 +115,7 @@ export default function CanvasProgressPanel({
           <span className="text-sm font-medium text-text-secondary">
             {isImporting
               ? isDiscovering
-                ? t("Discovering files...")
+                ? t("Finding files...")
                 : `${isSyncing ? t("Checking for updates...") : t("Importing...")} (${progress.completed}/${progress.total || "?"})`
               : terminalStatus === "cancelled" ? t("Import stopped")
                 : terminalStatus === "failed" || isTerminalFailure ? t("Import failed")
@@ -158,6 +158,18 @@ export default function CanvasProgressPanel({
         </div>
       </div>
 
+      {isImporting && (
+        <p className="px-4 pb-3 text-xs text-text-tertiary" role="status">
+          {t("You can leave this page. The import continues in the background.")}
+        </p>
+      )}
+
+      {isImporting && failedLogs.length > 0 && !isDiscovering && (
+        <p className="px-4 pb-3 text-xs text-orange-400" role="status">
+          {t("One failed or restricted file does not stop the other files.")}
+        </p>
+      )}
+
       {Boolean(skippedFolders.length) && (
         <p className="px-4 py-3 text-xs text-orange-400" role="status">
           {t("Some Canvas folders were skipped because they are in Trash. Restore them to include them in a future import.")}
@@ -169,7 +181,7 @@ export default function CanvasProgressPanel({
         <div className="space-y-2 px-4 pb-4 text-sm text-text-secondary" role="status" aria-atomic="true">
           <p>
             {discovery.stage === "modules" ? t("Checking modules") : discovery.stage === "assignments"
-              ? t("Checking assignments") : discovery.stage === "files" ? t("Checking files") : t("Discovering files...")}
+              ? t("Checking assignments") : discovery.stage === "files" ? t("Checking files") : t("Finding files...")}
           </p>
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs tabular-nums">
             <span>{t("{completed} of {total} courses checked", { completed: discovery.completedCourses, total: discovery.totalCourses })}</span>

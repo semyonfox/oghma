@@ -110,4 +110,44 @@ describe("CanvasCourseSelector", () => {
     fireEvent.click(screen.getByRole("button", { name: "Select all" }));
     expect(onToggleSelectAll).toHaveBeenCalledTimes(1);
   });
+
+  it("keeps the bulk control visible with a long, keyboard-accessible course list", () => {
+    const longCourses = Array.from({ length: 12 }, (_, index) => ({
+      id: String(index + 1),
+      name: `Course ${index + 1}`,
+      course_code: `CT${index + 1}`,
+      canvasStatus: index === 11 ? "unavailable" : "current",
+    }));
+    const { onToggleSelectAll } = renderSelector({
+      courses: longCourses,
+      selectedCourseIds: ["1", "2"],
+      t: (key: string, params?: Record<string, unknown>) =>
+        key.replace(/\{(\w+)\}/g, (_, name: string) => String(params?.[name] ?? "")),
+    });
+
+    expect(screen.getByText("2 of 11 available courses selected")).toBeTruthy();
+    expect(screen.getByText("Scroll to see more courses")).toBeTruthy();
+
+    const list = screen.getByRole("region", { name: "Course list" });
+    expect(list.getAttribute("tabindex")).toBe("0");
+    expect(list.querySelectorAll('input[type="checkbox"]')).toHaveLength(12);
+    expect((screen.getByRole("checkbox", { name: /Course 12/i }) as HTMLInputElement).disabled)
+      .toBe(true);
+
+    const selectAll = screen.getByRole("button", { name: "Select all" });
+    expect(selectAll.closest("header")).toBeTruthy();
+    selectAll.focus();
+    expect(document.activeElement).toBe(selectAll);
+    fireEvent.click(selectAll);
+    expect(onToggleSelectAll).toHaveBeenCalledOnce();
+  });
+
+  it("offers Deselect all when every available course is selected", () => {
+    const { onToggleSelectAll } = renderSelector({
+      selectedCourseIds: ["current-restricted", "past-synced"],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Deselect all" }));
+    expect(onToggleSelectAll).toHaveBeenCalledOnce();
+  });
 });
