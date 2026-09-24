@@ -6,6 +6,7 @@ import type { Assignment } from "@/lib/notes/state/assignments.zustand";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { XMarkIcon, CheckCircleIcon } from "@heroicons/react/20/solid";
 import { CheckCircleIcon as CheckCircleOutline } from "@heroicons/react/24/outline";
+import { toast } from "sonner";
 import useCalendarStore from "@/lib/notes/state/calendar.zustand";
 import useAssignmentStore from "@/lib/notes/state/assignments.zustand";
 import useI18n from "@/lib/notes/hooks/use-i18n";
@@ -72,7 +73,7 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
     toggleTimeBlockCompleted,
     setSelectedDate,
   } = useCalendarStore();
-  const { assignments } = useAssignmentStore();
+  const { assignments, updateAssignment } = useAssignmentStore();
   const scrollRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -93,6 +94,22 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
   ) => {
     const origin = completed ? undefined : getCelebrationOrigin(control);
     if (!(await toggleTimeBlockCompleted(id))) return;
+    if (!completed) void triggerCelebration("assignment", origin);
+  };
+
+  const handleToggleAssignment = async (
+    assignment: Assignment,
+    control: HTMLElement,
+  ) => {
+    const completed = assignment.status === "done";
+    const origin = completed ? undefined : getCelebrationOrigin(control);
+    const updated = await updateAssignment(assignment.id, {
+      status: completed ? "upcoming" : "done",
+    });
+    if (!updated) {
+      toast.error(t("Something went wrong"));
+      return;
+    }
     if (!completed) void triggerCelebration("assignment", origin);
   };
 
@@ -369,7 +386,7 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
                 .map((marker, index) => (
                   <div
                     key={`due-${index}`}
-                    className="pointer-events-none absolute left-0 right-0 z-10 border-t-2 border-dashed"
+                    className={`pointer-events-none absolute left-0 right-0 z-10 border-t-2 border-dashed ${marker.assignment.status === "done" ? "opacity-60" : ""}`}
                     style={{
                       top: marker.top,
                       borderColor: marker.color,
@@ -379,15 +396,41 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
                     })}
                   >
                     <span
-                      className="absolute right-0 top-0 flex max-w-[calc(100%-0.25rem)] -translate-y-full items-center gap-1 truncate rounded-t-radius-sm px-1 py-0.5 text-[10px] font-medium text-white shadow-sm"
+                      className="pointer-events-auto absolute right-0 top-0 flex max-w-[calc(100%-0.25rem)] -translate-y-full items-center gap-0.5 rounded-t-radius-sm px-1 py-0.5 text-[10px] font-medium text-white shadow-sm"
                       style={{ backgroundColor: marker.color }}
                     >
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          void handleToggleAssignment(
+                            marker.assignment,
+                            event.currentTarget,
+                          );
+                        }}
+                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-radius-sm transition-colors hover:bg-black/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
+                        aria-label={
+                          marker.assignment.status === "done"
+                            ? t("Mark as upcoming")
+                            : t("Mark as done")
+                        }
+                      >
+                        {marker.assignment.status === "done" ? (
+                          <CheckCircleIcon className="h-3.5 w-3.5" />
+                        ) : (
+                          <CheckCircleOutline className="h-3.5 w-3.5" />
+                        )}
+                      </button>
                       <AssignmentTypeIcon
                         type={marker.type}
-                        className="h-3 w-3 text-white"
+                        className="h-3 w-3 shrink-0 text-white"
                         label={marker.typeLabel}
                       />
-                      <AssignmentDetailsTrigger assignment={marker.assignment} className="pointer-events-auto cursor-pointer truncate text-left underline underline-offset-2" />
+                      <AssignmentDetailsTrigger
+                        assignment={marker.assignment}
+                        className={`min-h-5 min-w-0 cursor-pointer truncate rounded-radius-sm px-0.5 text-left underline underline-offset-2 transition-colors hover:bg-black/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 ${marker.assignment.status === "done" ? "line-through opacity-70" : ""}`}
+                      />
                     </span>
                   </div>
                 ))}

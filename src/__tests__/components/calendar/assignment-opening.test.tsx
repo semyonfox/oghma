@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { Assignment } from "@/lib/notes/state/assignments.zustand";
 import AssignmentTracker from "@/components/assignments/assignment-tracker";
 import MonthView from "@/components/calendar/month-view";
 import WeekView from "@/components/calendar/week-view";
 import DayAgendaDialog from "@/components/calendar/day-agenda-dialog";
-const mocks = vi.hoisted(() => ({ update: vi.fn(), selectDate: vi.fn(), fetch: vi.fn().mockResolvedValue(undefined), settings: {} }));
+const mocks = vi.hoisted(() => ({ update: vi.fn(), selectDate: vi.fn(), fetch: vi.fn().mockResolvedValue(undefined), celebrate: vi.fn(), settings: {} }));
 const assignment: Assignment = {
   id: "task-1", title: "Database project", description: "Design a relational schema.",
   source: "manual", assignment_type: "manual", canvas_course_id: null, canvas_assignment_id: null,
@@ -15,6 +15,10 @@ const assignment: Assignment = {
   created_at: "2026-09-21", updated_at: "2026-09-21",
 };
 vi.mock("@/lib/notes/hooks/use-i18n", () => ({ default: () => ({ t: (key: string) => key, activeLocale: "en" }) }));
+vi.mock("@/lib/celebration", () => ({
+  getCelebrationOrigin: () => ({ x: 0.5, y: 0.5 }),
+  triggerCelebration: mocks.celebrate,
+}));
 vi.mock("@/lib/notes/state/assignments.zustand", () => ({ default: () => ({ assignments: [assignment], updateAssignment: mocks.update, hasLoaded: true, activeTab: "done", includeAll: true, includeArchived: false, courseFilter: null, fetchAssignments: mocks.fetch }) }));
 vi.mock("@/lib/notes/state/calendar.zustand", () => ({ default: () => ({
   currentDate: "2026-09-21T12:00:00", selectedDate: "2026-09-21", timeBlocks: [], reviewDates: new Set(),
@@ -26,6 +30,8 @@ vi.mock("@/components/assignments/new-task-modal", () => ({ default: () => null 
 vi.mock("@/components/course-visibility/course-visibility-manager", () => ({ CourseVisibilityDialog: () => null, mergeCourseVisibilityItems: () => [] }));
 beforeEach(() => {
   vi.clearAllMocks();
+  assignment.status = "done";
+  mocks.update.mockResolvedValue(assignment);
   vi.stubGlobal("ResizeObserver", class { observe() {} disconnect() {} });
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
@@ -43,5 +49,21 @@ describe("calendar assignment opening", () => {
     expect(mocks.selectDate).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("dialog", { name: "Database project" })).toBeNull();
+  });
+
+  it.each([
+    ["month", () => <MonthView />],
+    ["week", () => <WeekView />],
+    ["day", () => <DayAgendaDialog open dateKey="2026-09-21" onClose={vi.fn()} onAddTask={vi.fn()} onRetry={vi.fn()} />],
+  ])("completes from the %s view and celebrates after the update succeeds", async (_view, renderView) => {
+    assignment.status = "upcoming";
+    render(renderView());
+
+    fireEvent.click(screen.getByRole("button", { name: "Mark as done" }));
+
+    await waitFor(() =>
+      expect(mocks.update).toHaveBeenCalledWith("task-1", { status: "done" }),
+    );
+    await waitFor(() => expect(mocks.celebrate).toHaveBeenCalledWith("assignment", { x: 0.5, y: 0.5 }));
   });
 });

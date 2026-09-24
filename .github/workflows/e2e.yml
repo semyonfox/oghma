@@ -74,7 +74,7 @@ env:
   QDRANT_COLLECTION: oghma_e2e_chunks
   QDRANT_IMAGE: qdrant/qdrant:latest
   MARKER_API_URL: ""
-  MINIO_IMAGE: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+  STORAGE_IMAGE: ghcr.io/rustfs/rustfs:1.0.0@sha256:8cc9801755448b71a786705ce76692c77e14936cccd87cf2fc31842e58f4d1ff
 
 jobs:
   # Keep this check name stable for branch protection. Full invocations run it
@@ -139,20 +139,21 @@ jobs:
 
       - name: Start S3-compatible storage
         run: |
-          docker run -d --name oghma-e2e-minio \
+          docker run -d --name oghma-e2e-rustfs \
             -p 9000:9000 -p 9001:9001 \
-            -e MINIO_ROOT_USER="${STORAGE_ACCESS_KEY}" \
-            -e MINIO_ROOT_PASSWORD="${STORAGE_SECRET_KEY}" \
-            "${MINIO_IMAGE}" server /data --console-address ":9001"
+            -e RUSTFS_ACCESS_KEY="${STORAGE_ACCESS_KEY}" \
+            -e RUSTFS_SECRET_KEY="${STORAGE_SECRET_KEY}" \
+            -e RUSTFS_CORS_ALLOWED_ORIGINS="${E2E_BASE_URL}" \
+            "${STORAGE_IMAGE}" /data
 
           for attempt in {1..30}; do
-            if curl -fsS "${STORAGE_ENDPOINT}/minio/health/ready" >/dev/null; then
+            if curl -fsS "${STORAGE_ENDPOINT}/health/ready" >/dev/null; then
               break
             fi
             sleep 2
           done
 
-          curl -fsS "${STORAGE_ENDPOINT}/minio/health/ready" >/dev/null
+          curl -fsS "${STORAGE_ENDPOINT}/health/ready" >/dev/null
           node --experimental-strip-types scripts/e2e/create-storage-bucket.ts
 
       - name: Start Qdrant
@@ -230,7 +231,7 @@ jobs:
         run: |
           if [ -f worker.pid ]; then kill "$(cat worker.pid)" 2>/dev/null || true; fi
           if [ -f fake-ai.pid ]; then kill "$(cat fake-ai.pid)" 2>/dev/null || true; fi
-          docker rm -f oghma-e2e-minio 2>/dev/null || true
+          docker rm -f oghma-e2e-rustfs 2>/dev/null || true
           docker rm -f oghma-e2e-qdrant 2>/dev/null || true
 
   full:
@@ -294,20 +295,21 @@ jobs:
 
       - name: Start S3-compatible storage
         run: |
-          docker run -d --name oghma-e2e-minio \
+          docker run -d --name oghma-e2e-rustfs \
             -p 9000:9000 -p 9001:9001 \
-            -e MINIO_ROOT_USER="${STORAGE_ACCESS_KEY}" \
-            -e MINIO_ROOT_PASSWORD="${STORAGE_SECRET_KEY}" \
-            "${MINIO_IMAGE}" server /data --console-address ":9001"
+            -e RUSTFS_ACCESS_KEY="${STORAGE_ACCESS_KEY}" \
+            -e RUSTFS_SECRET_KEY="${STORAGE_SECRET_KEY}" \
+            -e RUSTFS_CORS_ALLOWED_ORIGINS="${E2E_BASE_URL}" \
+            "${STORAGE_IMAGE}" /data
 
           for attempt in {1..30}; do
-            if curl -fsS "${STORAGE_ENDPOINT}/minio/health/ready" >/dev/null; then
+            if curl -fsS "${STORAGE_ENDPOINT}/health/ready" >/dev/null; then
               break
             fi
             sleep 2
           done
 
-          curl -fsS "${STORAGE_ENDPOINT}/minio/health/ready" >/dev/null
+          curl -fsS "${STORAGE_ENDPOINT}/health/ready" >/dev/null
           node --experimental-strip-types scripts/e2e/create-storage-bucket.ts
 
       - name: Start Qdrant
@@ -370,5 +372,5 @@ jobs:
         run: |
           if [ -f worker.pid ]; then kill "$(cat worker.pid)" 2>/dev/null || true; fi
           if [ -f fake-ai.pid ]; then kill "$(cat fake-ai.pid)" 2>/dev/null || true; fi
-          docker rm -f oghma-e2e-minio 2>/dev/null || true
+          docker rm -f oghma-e2e-rustfs 2>/dev/null || true
           docker rm -f oghma-e2e-qdrant 2>/dev/null || true

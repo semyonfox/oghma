@@ -26,26 +26,31 @@ export const WorkLog: FC<{
     (part): part is Extract<MessagePart, { type: "tool" }> =>
       part.type === "tool",
   );
+  const runningTool = tools.findLast((tool) => tool.status === "running");
 
   if (!thinking && parts.length === 0) return null;
 
   const hasNarration = parts.some(
     (part) => part.type === "text" || part.type === "reasoning",
   );
-  const label =
+  const summary =
     active && !hasAnswer
-      ? t("Working…")
-      : thinking || hasNarration
-        ? t("Work log")
-        : t(tools.length === 1 ? "1 action" : "{count} actions", {
+      ? runningTool?.label || (thinking ? t("Thinking") : t("Working…"))
+      : tools.length > 0
+        ? t(tools.length === 1 ? "1 step" : "{count} steps", {
             count: tools.length,
-          });
+          })
+        : hasNarration || thinking
+          ? t("Thinking")
+          : t("Work log");
+  const workLogLabel = `${t("Work log")}: ${summary}`;
 
   return (
-    <div className="overflow-hidden rounded-radius-lg border border-border-subtle bg-surface/20">
+    <div className="space-y-0.5">
       <button
         type="button"
-        className="flex min-h-11 w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-subtle/30 lg:min-h-0"
+        className="flex min-h-11 w-full items-center gap-2 rounded-radius-md px-3 py-2 text-left transition-colors hover:bg-subtle/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-primary-500/50 lg:min-h-0"
+        aria-label={workLogLabel}
         aria-expanded={expanded}
         aria-controls={expanded ? panelId : undefined}
         onClick={() => {
@@ -53,38 +58,42 @@ export const WorkLog: FC<{
         }}
       >
         {active && !hasAnswer ? (
-          <span className="h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-text-tertiary/30 border-t-text-tertiary/70" />
+          <span
+            aria-hidden="true"
+            className="h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-primary-500/25 border-t-primary-500/75 motion-reduce:animate-none"
+          />
         ) : (
-          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary-500/55" />
+          <span
+            aria-hidden="true"
+            className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary-500/55"
+          />
         )}
-        <span className="flex-1 text-base font-medium lg:text-sm text-text-tertiary">
-          {label}
+        <span
+          aria-live={active && !hasAnswer ? "polite" : undefined}
+          aria-atomic="true"
+          className="min-w-0 flex-1 truncate text-sm font-medium text-text-secondary"
+        >
+          {summary}
         </span>
-        {tools.length > 0 && (active || thinking || hasNarration) && (
-          <span className="text-[11px] text-text-tertiary/60">
-            {t(tools.length === 1 ? "1 action" : "{count} actions", {
-              count: tools.length,
-            })}
-          </span>
-        )}
         <ChevronDownIcon
-          className={`h-3 w-3 shrink-0 text-text-tertiary/60 transition-transform ${expanded ? "rotate-180" : ""}`}
+          aria-hidden="true"
+          className={`h-3.5 w-3.5 shrink-0 text-text-tertiary transition-transform motion-reduce:transition-none ${expanded ? "rotate-180" : ""}`}
         />
       </button>
 
       {expanded && (
         <div
           id={panelId}
-          className="space-y-px border-t border-border-subtle px-3 py-2"
+          className="ml-5 space-y-1 rounded-radius-md bg-subtle/35 px-3 py-2.5"
         >
           {thinking && (
-            <div className="mb-1.5 border-l border-primary-500/25 pl-2.5">
-              <p className="mb-1 text-[11px] font-medium text-text-tertiary/75">
+            <div className="mb-1.5 border-l-2 border-primary-500/20 pl-2.5">
+              <p className="mb-0.5 text-xs font-medium text-text-tertiary">
                 {thinkingDuration && thinkingDuration > 0
                   ? t("Thought for {duration}s", { duration: thinkingDuration })
                   : t("Thinking")}
               </p>
-              <p className="max-h-48 overflow-y-auto whitespace-pre-wrap text-base italic leading-relaxed lg:text-sm text-text-tertiary obsidian-scrollbar">
+              <p className="max-h-48 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-text-secondary obsidian-scrollbar">
                 {thinking}
               </p>
             </div>
@@ -94,30 +103,28 @@ export const WorkLog: FC<{
             part.type === "tool" ? (
               <div
                 key={`${part.callId ?? part.name}-${index}`}
-                className="flex items-start gap-2 py-1 text-base text-text-tertiary lg:text-sm"
+                className="flex items-start gap-2 py-1 text-sm leading-relaxed text-text-secondary"
               >
                 <span
+                  aria-hidden="true"
                   className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${part.status === "failed" || part.status === "interrupted" ? "bg-red-400" : part.status === "running" && active ? "animate-pulse bg-primary-500" : "bg-primary-500/40"}`}
                 />
                 <span className="min-w-0">
-                  <span>{part.label}</span>
-                  {part.status === "completed" && (
-                    <span className="ml-1 text-text-tertiary">· {t("Done")}</span>
-                  )}
+                  <span className="font-medium text-text-secondary">{part.label}</span>
                   {part.status === "running" && active && (
-                    <span className="ml-1">{t("Working…")}</span>
+                    <span className="ml-1 text-text-tertiary">· {t("Working…")}</span>
                   )}
                   {part.status === "failed" && (
                     <span className="ml-1 text-red-700 dark:text-red-300">{t("Failed")}</span>
                   )}
                   {part.detail &&
                     (part.name !== "readNote" || !part.resultDetail) && (
-                      <span className="ml-1 break-words text-text-secondary">
+                      <span className="ml-1 break-words text-text-tertiary">
                         · {part.detail}
                       </span>
                     )}
                   {part.resultDetail && (
-                    <span className="block break-words text-text-secondary">
+                    <span className="block break-words text-text-tertiary">
                       {part.resultDetail}
                     </span>
                   )}
@@ -126,24 +133,24 @@ export const WorkLog: FC<{
             ) : part.type === "reasoning" ? (
               <div
                 key={`reasoning-${index}`}
-                className="border-l border-primary-500/25 py-1 pl-2.5"
+                className="border-l-2 border-primary-500/20 py-1 pl-2.5"
               >
-                <p className="mb-1 text-[11px] font-medium text-text-tertiary/75">
+                <p className="mb-0.5 text-xs font-medium text-text-tertiary">
                   {t("Thinking")}
                 </p>
-                <p className="whitespace-pre-wrap text-base leading-relaxed text-text-tertiary lg:text-sm">
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-text-secondary">
                   {part.text}
                 </p>
               </div>
             ) : part.type === "text" ? (
               <p
                 key={`narration-${index}`}
-                className="border-l border-border-subtle py-1 pl-2.5 text-base italic leading-relaxed lg:text-sm text-text-tertiary"
+                className="border-l-2 border-border-subtle py-1 pl-2.5 text-sm leading-relaxed text-text-tertiary"
               >
                 {part.text}
               </p>
             ) : (
-              <p key={`error-${index}`} className="py-1 text-xs text-red-700 dark:text-red-300">
+              <p key={`error-${index}`} className="py-1 text-xs leading-relaxed text-red-700 dark:text-red-300">
                 {part.text}
               </p>
             ),

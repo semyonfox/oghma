@@ -55,7 +55,7 @@ describe("MonthView", () => {
     const { container } = render(React.createElement(MonthView));
 
     expect(container.querySelector("button button")).toBeNull();
-    expect(container.querySelector('button[aria-label="Mark complete"]')).not.toBeNull();
+    expect(container.querySelector('button[aria-label="Mark as done"]')).not.toBeNull();
     expect(container.querySelector('button[aria-label^="Select "]')).not.toBeNull();
   });
 });

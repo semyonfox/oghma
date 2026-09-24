@@ -44,23 +44,23 @@ services:
     volumes:
       - e2e-qdrant:/qdrant/storage
 
-  minio:
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
-    command: server /data --console-address ":9001"
+  rustfs:
+    image: ghcr.io/rustfs/rustfs:1.0.0@sha256:8cc9801755448b71a786705ce76692c77e14936cccd87cf2fc31842e58f4d1ff
+    command: /data
     environment:
-      MINIO_ROOT_USER: oghmae2e
-      MINIO_ROOT_PASSWORD: oghmae2e-secret
-      MINIO_API_CORS_ALLOW_ORIGIN: ${MINIO_API_CORS_ALLOW_ORIGIN:-http://127.0.0.1:3310,http://127.0.0.1:3311}
+      RUSTFS_ACCESS_KEY: oghmae2e
+      RUSTFS_SECRET_KEY: oghmae2e-secret
+      RUSTFS_CORS_ALLOWED_ORIGINS: ${RUSTFS_CORS_ALLOWED_ORIGINS:-http://127.0.0.1:3310,http://127.0.0.1:3311}
     ports:
       - "59100:9000"
       - "59101:9001"
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/health/ready"]
       interval: 5s
       timeout: 5s
       retries: 30
     volumes:
-      - e2e-minio:/data
+      - e2e-rustfs:/data
 
   mailpit:
     image: axllent/mailpit:v1.27
@@ -91,5 +91,5 @@ services:
 
 volumes:
   e2e-postgres:
-  e2e-minio:
+  e2e-rustfs:
   e2e-qdrant:
