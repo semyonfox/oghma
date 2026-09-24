@@ -11,4 +11,16 @@ describe("chat system prompt", () => {
     expect(prompt).not.toContain("No relevant note content was retrieved");
     expect(prompt).not.toContain("Only after checking tools should you answer");
   });
+
+  it("includes verified note IDs beside retrieved titles for links", () => {
+    const noteId = "01962eb7-3571-7a2b-9c4d-5e6f7a8b9c0d";
+    const prompt = buildSystemPrompt([{
+      note_id: noteId,
+      title: "Lecture 1",
+      chunk_text: "The course introduction",
+      distance: 0.1,
+    }]);
+
+    expect(prompt).toContain(`"Lecture 1" (id: ${noteId})`);
+  });
 });
