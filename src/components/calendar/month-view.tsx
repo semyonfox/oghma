@@ -9,6 +9,7 @@ import useCalendarStore from "@/lib/notes/state/calendar.zustand";
 import useAssignmentStore from "@/lib/notes/state/assignments.zustand";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { buildMonthCells } from "@/components/calendar/month-view-utils";
+import { getCelebrationOrigin, triggerCelebration } from "@/lib/celebration";
 
 function dayOfMonth(dateStr: string): string {
   return String(Number(dateStr.split("-")[2]));
@@ -67,6 +68,16 @@ export default function MonthView({ onSelectDate }: MonthViewProps) {
       }),
     [anchor, assignments, timeBlocks, selectedDate],
   );
+
+  const handleToggleBlock = async (
+    id: string,
+    completed: boolean,
+    control: HTMLElement,
+  ) => {
+    const origin = completed ? undefined : getCelebrationOrigin(control);
+    if (!(await toggleTimeBlockCompleted(id))) return;
+    if (!completed) void triggerCelebration("assignment", origin);
+  };
 
   return (
     <div
@@ -190,7 +201,11 @@ export default function MonthView({ onSelectDate }: MonthViewProps) {
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          void toggleTimeBlockCompleted(tb.id);
+                          void handleToggleBlock(
+                            tb.id,
+                            tb.completed,
+                            e.currentTarget,
+                          );
                         }}
                         className="touch-target-44 pointer-events-auto relative shrink-0"
                         aria-label={

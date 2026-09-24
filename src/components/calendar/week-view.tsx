@@ -9,6 +9,7 @@ import { CheckCircleIcon as CheckCircleOutline } from "@heroicons/react/24/outli
 import useCalendarStore from "@/lib/notes/state/calendar.zustand";
 import useAssignmentStore from "@/lib/notes/state/assignments.zustand";
 import useI18n from "@/lib/notes/hooks/use-i18n";
+import { getCelebrationOrigin, triggerCelebration } from "@/lib/celebration";
 import {
   formatDateKey,
 } from "@/lib/notes/utils/calendar-date";
@@ -84,6 +85,16 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
     () => new Intl.DateTimeFormat(activeLocale, { hour: "numeric" }),
     [activeLocale],
   );
+
+  const handleToggleBlock = async (
+    id: string,
+    completed: boolean,
+    control: HTMLElement,
+  ) => {
+    const origin = completed ? undefined : getCelebrationOrigin(control);
+    if (!(await toggleTimeBlockCompleted(id))) return;
+    if (!completed) void triggerCelebration("assignment", origin);
+  };
 
   useEffect(() => {
     const update = () => setNow(new Date());
@@ -321,7 +332,11 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
                         onClick={(event) => {
                           event.preventDefault();
                           event.stopPropagation();
-                          void toggleTimeBlockCompleted(block.id);
+                          void handleToggleBlock(
+                            block.id,
+                            block.completed,
+                            event.currentTarget,
+                          );
                         }}
                         className="touch-target-44 relative shrink-0"
                         aria-label={

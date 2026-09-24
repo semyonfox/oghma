@@ -32,7 +32,7 @@ import {
   getEffectiveAssignmentStatus,
 } from "@/lib/notes/utils/assignment-status";
 import useI18n from "@/lib/notes/hooks/use-i18n";
-import { triggerCelebration } from "@/lib/celebration";
+import { getCelebrationOrigin, triggerCelebration } from "@/lib/celebration";
 import {
   CourseVisibilityDialog,
   mergeCourseVisibilityItems,
@@ -308,14 +308,15 @@ export default function AssignmentTracker({
     }
   };
 
-  const handleToggleDone = async (assignment: Assignment) => {
+  const handleToggleDone = async (assignment: Assignment, control: HTMLElement) => {
     const status = assignment.status === "done" ? "upcoming" : "done";
+    const origin = status === "done" ? getCelebrationOrigin(control) : undefined;
     const updated = await updateAssignment(assignment.id, { status });
     if (!updated) {
       toast.error(t("Something went wrong"));
       return;
     }
-    if (status === "done") void triggerCelebration("assignment");
+    if (status === "done") void triggerCelebration("assignment", origin);
   };
 
   const refreshAssignmentsAndSettings = async () => {
@@ -401,7 +402,7 @@ export default function AssignmentTracker({
             <div className="flex min-w-0 items-center gap-1.5">
               <button
                 type="button"
-                onClick={() => void handleToggleDone(assignment)}
+                onClick={(event) => void handleToggleDone(assignment, event.currentTarget)}
                 className={`flex ${compact ? "h-7 w-7" : "h-11 w-11"} shrink-0 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-primary-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50`}
                 aria-label={completed ? t("Mark as upcoming") : t("Mark as done")}
               >
