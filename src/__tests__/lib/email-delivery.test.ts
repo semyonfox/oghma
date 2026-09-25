@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { EmailSendError, sendVerificationEmail } from "@/lib/email";
+import { EmailSendError, sendEmail, sendVerificationEmail } from "@/lib/email";
 import { Locale } from "@/locales";
 
 const recipient = "student@example.com";
@@ -14,6 +14,7 @@ function cloudflareResponse(result: {
 }
 
 beforeEach(() => {
+  vi.stubEnv("EMAIL_PROVIDER", "cloudflare");
   vi.stubEnv("CLOUDFLARE_ACCOUNT_ID", "test-account");
   vi.stubEnv("CLOUDFLARE_EMAIL_API_TOKEN", "test-token");
   vi.stubEnv("EMAIL_FROM", "noreply@example.com");
@@ -23,6 +24,91 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
+});
+
+describe("Resend email delivery", () => {
+  const message = {
+    from: "noreply@example.com",
+    to: recipient,
+    replyTo: "support@example.com",
+    subject: "Verify your address",
+    text: "Use the verification link.",
+    html: "<p>Use the verification link.</p>",
+  };
+
+  it("reports an accepted message as queued", async () => {
+    vi.stubEnv("EMAIL_PROVIDER", "resend");
+    vi.stubEnv("RESEND_API_KEY", "test-resend-key");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(Response.json({ id: "test-message-id" })),
+    );
+
+    await expect(sendEmail(message)).resolves.toBe("queued");
+    expect(fetch).toHaveBeenCalledWith(
+      "https://api.resend.com/emails",
+      expect.objectContaining({
+        method: "POST",
+        headers: {
+          Authorization: "Bearer test-resend-key",
+          "Content-Type": "application/json",
+        },
+      }),
+    );
+    const requestBody: unknown = JSON.parse(
+      String(vi.mocked(fetch).mock.calls[0]?.[1]?.body),
+    );
+    expect(requestBody).toMatchObject({
+      from: message.from,
+      to: message.to,
+      reply_to: message.replyTo,
+      subject: message.subject,
+      text: message.text,
+      html: message.html,
+    });
+  });
+
+  it("rejects provider failures without exposing the response body", async () => {
+    vi.stubEnv("EMAIL_PROVIDER", "resend");
+    vi.stubEnv("RESEND_API_KEY", "test-resend-key");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        Response.json(
+          { name: "validation_error", message: "private provider detail" },
+          { status: 403 },
+        ),
+      ),
+    );
+
+    const error: unknown = await sendEmail(message).catch((cause: unknown) => cause);
+    expect(error).toBeInstanceOf(EmailSendError);
+    if (error instanceof EmailSendError) {
+      expect(error).toMatchObject({ reason: "provider_rejected", httpStatus: 403 });
+      expect(error.message).not.toContain("private provider detail");
+    }
+  });
+
+  it("rejects an incomplete success response", async () => {
+    vi.stubEnv("EMAIL_PROVIDER", "resend");
+    vi.stubEnv("RESEND_API_KEY", "test-resend-key");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({})));
+
+    await expect(sendEmail(message)).rejects.toMatchObject({
+      reason: "unclassified_response",
+    });
+  });
+
+  it("requires a Resend API key when selected", async () => {
+    vi.stubEnv("EMAIL_PROVIDER", "resend");
+    vi.stubEnv("RESEND_API_KEY", "");
+    vi.stubGlobal("fetch", vi.fn());
+
+    await expect(sendEmail(message)).rejects.toMatchObject({
+      reason: "configuration",
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
 });
 
 describe("verification email delivery", () => {

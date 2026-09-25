@@ -33,7 +33,7 @@ describe("Canvas institution picker", () => {
     vi.unstubAllGlobals();
   });
 
-  it("searches Canvas after typing and selects only a supported host", async () => {
+  it("searches Canvas after typing and selects a supported host", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => [
@@ -57,7 +57,7 @@ describe("Canvas institution picker", () => {
     const [url, options] = fetchMock.mock.calls[0];
     expect(new URL(url).searchParams.get("name")).toBe("Galway");
     expect(options.credentials).toBe("omit");
-    expect(screen.getByRole("button", { name: /Custom School/ }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("button", { name: /Custom School/ }).hasAttribute("disabled")).toBe(false);
     expect(screen.getByRole("button", { name: /Lookalike/ }).hasAttribute("disabled")).toBe(true);
 
     fireEvent.click(screen.getByRole("button", { name: /University of Galway/ }));
@@ -90,6 +90,26 @@ describe("Canvas institution picker", () => {
     });
     expect(screen.getByTestId("selected-domain").textContent).toBe("");
     expect(screen.getByRole("alert").textContent).toContain(".instructure.com");
+  });
+
+  it("uses a typed custom Canvas URL when the school search has no match", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [],
+    }));
+    render(<Picker />);
+
+    fireEvent.change(screen.getByLabelText("Find your school on Canvas"), {
+      target: { value: "https://canvas.school.edu" },
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(800);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Use your Canvas URL instead/ }));
+    expect(screen.getByTestId("selected-domain").textContent).toBe(
+      "canvas.school.edu",
+    );
   });
 
   it("ignores a late result from an earlier search", async () => {
@@ -142,13 +162,17 @@ describe("Canvas institution domains", () => {
     expect(canvasHostFromInput("https://School.instructure.com/courses/1")).toBe(
       "school.instructure.com",
     );
+    expect(canvasHostFromInput("https://canvas.custom.edu")).toBe(
+      "canvas.custom.edu",
+    );
+    expect(canvasHostFromInput("https://sub.school.instructure.com")).toBe(
+      "sub.school.instructure.com",
+    );
     for (const value of [
       "https://school.instructure.com@attacker.test",
       "school.instructure.com.attacker.test",
       "https://school.instructure.com:8443",
       "https://localhost",
-      "https://canvas.custom.edu",
-      "https://sub.school.instructure.com",
     ]) {
       expect(canvasHostFromInput(value)).toBeNull();
     }

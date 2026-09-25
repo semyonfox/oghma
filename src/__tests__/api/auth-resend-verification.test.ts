@@ -60,8 +60,10 @@ describe("verification resend", () => {
         email: "student@example.com",
         email_verified: false,
         locale: "de-DE",
+        verification_token: "previous-hash",
+        verification_token_expires: new Date("2026-09-26T00:00:00Z"),
       },
-    ]);
+    ]).mockResolvedValueOnce([{ user_id: "user-1" }]);
 
     const response = await POST(request());
 
@@ -77,14 +79,18 @@ describe("verification resend", () => {
     expect(statements.some((statement) => statement.includes("INSERT"))).toBe(false);
   });
 
-  it("gives a retry action when the provider rejects the resend", async () => {
+  it("preserves the previous link when the provider rejects the resend", async () => {
+    const previousExpiry = new Date("2026-09-26T00:00:00Z");
     mockSql.mockResolvedValueOnce([
       {
         user_id: "user-1",
         email: "student@example.com",
         email_verified: false,
+        locale: null,
+        verification_token: "previous-hash",
+        verification_token_expires: previousExpiry,
       },
-    ]);
+    ]).mockResolvedValueOnce([{ user_id: "user-1" }]);
     vi.mocked(sendVerificationEmail).mockRejectedValue(
       new EmailSendError("provider_rejected", 503, 10002),
     );
@@ -95,6 +101,29 @@ describe("verification resend", () => {
     await expect(response.json()).resolves.toMatchObject({
       error: expect.stringContaining("try again later"),
     });
+    expect(mockSql).toHaveBeenCalledTimes(3);
+    const restoreCall = mockSql.mock.calls[2];
+    expect(String(restoreCall[0])).toContain("SET verification_token = ");
+    expect(restoreCall.slice(1)).toContain("previous-hash");
+    expect(restoreCall.slice(1)).toContain(previousExpiry);
     expect(mockSql.mock.calls.some(([strings]) => String(strings).includes("INSERT"))).toBe(false);
+  });
+
+  it("does not send a link if the account changed during resend", async () => {
+    mockSql.mockResolvedValueOnce([
+      {
+        user_id: "user-1",
+        email: "student@example.com",
+        email_verified: false,
+        locale: null,
+        verification_token: "previous-hash",
+        verification_token_expires: null,
+      },
+    ]).mockResolvedValueOnce([]);
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(200);
+    expect(sendVerificationEmail).not.toHaveBeenCalled();
   });
 });

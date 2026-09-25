@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { ApiError, parseJson, withErrorHandler, type RouteParamsContext } from "@/lib/api-error";
 import { loadCanvasAssignment } from "@/lib/canvas/load-assignment";
+import { safeCanvasFetch } from "@/lib/canvas/safe-fetch";
 
 const submissionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("online_text_entry"), content: z.string().trim().min(1).max(100_000) }),
@@ -33,14 +34,14 @@ export const POST = withErrorHandler(async (request, context: RouteParamsContext
     ? { submission_type: parsed.data.type, url: content }
     : { submission_type: parsed.data.type, body: `<p>${content.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>")}</p>` };
   // Never retry a submission automatically: a lost response may still mean Canvas accepted it.
-  let response: Response;
+  let response: { ok: boolean };
   try {
-    response = await fetch(`${client.baseUrl}${path}/submissions`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${client.token}`, Accept: "application/json+canvas-string-ids", "Content-Type": "application/json" },
-      body: JSON.stringify({ submission }),
-      signal: AbortSignal.timeout(30_000),
-    });
+    response = await safeCanvasFetch(
+      `${client.baseUrl}${path}/submissions`,
+      { Authorization: `Bearer ${client.token}`, Accept: "application/json+canvas-string-ids", "Content-Type": "application/json" },
+      false,
+      { method: "POST", body: JSON.stringify({ submission }), signal: AbortSignal.timeout(30_000) },
+    );
   } catch {
     throw new ApiError(502, "Submission could not be confirmed. Check Canvas before trying again.");
   }

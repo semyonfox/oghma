@@ -61,8 +61,36 @@ Canonical environment variables:
 configuration should use `EMAIL_FROM`. The tracked production template
 currently uses `noreply@oghmanotes.ie`.
 
-Before sending, confirm that the domain portion of `EMAIL_FROM` is onboarded
-for Cloudflare Email Sending in the same account as the API token. If the sender
+### Optional Resend transport for the closed pilot
+
+> **Status:** Optional transport as of 2026-09-25; Cloudflare remains the default.
+
+Resend's free plan currently includes 3,000 outbound emails per month and a
+100-email daily limit. A verified sending domain lets the app send to ordinary
+recipient addresses. Test addresses do not need to be registered one by one.
+The app uses Resend's REST API directly, so no additional package is needed.
+
+To use it on dev, verify the intended sending domain in the Resend account. Add
+only the DNS records Resend provides for that domain. Check the
+existing MX, SPF, DKIM, and DMARC records before editing DNS; preserve inbound
+mail routing. Then set these in the dev runtime environment:
+
+| Variable | Value |
+|---|---|
+| `EMAIL_PROVIDER` | `resend` |
+| `RESEND_API_KEY` | Sending-access key; prefer a separate key restricted to the OghmaNotes domain |
+| `EMAIL_FROM` | Address at the verified sending domain |
+
+Leave `EMAIL_PROVIDER` unset or set it to `cloudflare` to keep the existing
+Cloudflare path. Do not put the API key in this repository. Resend returning an
+email ID means it accepted the request, so the app reports it as `queued`.
+Check the Resend delivery log and a controlled inbox for the final outcome.
+To rotate the key, create a replacement in Resend, update the private env file,
+redeploy the dev containers, confirm delivery, and then revoke the old key.
+Changing the env file alone does not update a running container.
+
+For Cloudflare sending, confirm that the domain portion of `EMAIL_FROM` is onboarded
+in the same account as the API token. If the sender
 moves to a transactional subdomain such as `notifications.oghmanotes.ie`,
 onboard that subdomain first and update `EMAIL_FROM` deliberately.
 
@@ -179,6 +207,9 @@ damage sender reputation.
 - [Email deliverability](https://developers.cloudflare.com/email-service/concepts/deliverability/)
 - [Suppression lists](https://developers.cloudflare.com/email-service/concepts/suppressions/)
 - [Email Sending API schema](https://developers.cloudflare.com/api/resources/email_sending/methods/send/)
+- [Resend pricing](https://resend.com/pricing)
+- [Resend send-email API](https://resend.com/docs/api-reference/emails/send-email)
+- [Resend sending-domain setup](https://resend.com/docs/dashboard/domains/introduction)
 
 Provider behavior changes. Recheck these official sources before changing DNS,
 authentication, retry behavior, limits, or billing assumptions.

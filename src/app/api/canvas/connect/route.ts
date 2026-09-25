@@ -14,8 +14,8 @@ import logger from "@/lib/logger";
 import { recordMarketingEvent } from "@/lib/marketing/events";
 import { discoverCanvasCourses } from "@/lib/canvas/sync-courses";
 import { cleanAttribution } from "@/lib/marketing/attribution";
+import { canvasHostFromInput } from "@/lib/canvas/institution-search";
 
-const INSTRUCTURE_DOMAIN = /^[\w-]+\.instructure\.com$/i;
 const CANVAS_TOKEN_MAX_LENGTH = 4096;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -24,11 +24,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-function isValidCanvasDomain(domain: unknown): domain is string {
-  if (!domain || typeof domain !== "string") return false;
-  return INSTRUCTURE_DOMAIN.test(domain.trim());
 }
 
 function noStoreJson(body: unknown, init?: ResponseInit): NextResponse {
@@ -120,10 +115,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   const { token, domain, marketing } = await parseJsonObject(request);
   const normalizedToken = typeof token === "string" ? token.trim() : "";
-  const normalizedDomain =
-    typeof domain === "string" ? domain.trim().toLowerCase() : "";
+  const enteredDomain = typeof domain === "string" ? domain.trim() : "";
 
-  if (!normalizedToken || !normalizedDomain) {
+  if (!normalizedToken || !enteredDomain) {
     throw new ApiError(400, "Token and domain are required");
   }
 
@@ -131,8 +125,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     throw new ApiError(400, "Canvas token is too long");
   }
 
-  if (!isValidCanvasDomain(normalizedDomain)) {
-    throw new ApiError(400, "Domain must be a valid *.instructure.com address");
+  const normalizedDomain = canvasHostFromInput(enteredDomain);
+  if (!normalizedDomain) {
+    throw new ApiError(400, "Enter a valid HTTPS Canvas address without a port");
   }
 
   // Validate the token against Canvas before storing. The enrollment ledger is

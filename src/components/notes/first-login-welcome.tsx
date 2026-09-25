@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from "@headlessui/react";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { useWorkspaceSession } from "@/components/providers/workspace-lifecycle-provider";
@@ -10,6 +10,7 @@ import { isValidUUID } from "@/lib/utils/uuid";
 export default function FirstLoginWelcome() {
   const { t } = useI18n();
   const router = useRouter();
+  const pathname = usePathname();
   const { userId, ready } = useWorkspaceSession();
   const descriptionId = useId();
   const [noteId, setNoteId] = useState<string | null>(null);
@@ -38,6 +39,12 @@ export default function FirstLoginWelcome() {
 
     return () => controller.abort();
   }, [ready, userId]);
+
+  useEffect(() => {
+    if (noteId && pathname === "/notes") {
+      router.replace(`/notes/${noteId}`);
+    }
+  }, [noteId, pathname, router]);
 
   const choose = async (destination?: "note" | "canvas") => {
     if (!noteId || saving) return;
@@ -79,7 +86,7 @@ export default function FirstLoginWelcome() {
             {t("Welcome to OghmaNotes")}
           </DialogTitle>
           <p id={descriptionId} className="mt-3 text-sm leading-6 text-text-secondary">
-            {t("Your Getting Started note is ready. Open it to see your study workspace.")}
+            {t("Your Getting Started note is open. Connect Canvas to add your courses and files.")}
           </p>
           {error && (
             <p role="alert" className="mt-3 text-sm text-error-300">
@@ -91,18 +98,18 @@ export default function FirstLoginWelcome() {
               type="button"
               autoFocus
               disabled={saving}
-              onClick={() => void choose("note")}
+              onClick={() => void choose("canvas")}
               className="min-h-11 rounded-radius-md bg-primary-600 px-4 text-sm font-medium text-text-on-primary transition-colors hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 disabled:opacity-50"
             >
-              {t("Open Getting Started")}
+              {t("Connect Canvas")}
             </button>
             <button
               type="button"
               disabled={saving}
-              onClick={() => void choose("canvas")}
+              onClick={() => void choose("note")}
               className="min-h-11 rounded-radius-md border border-border-subtle px-4 text-sm font-medium text-text-secondary transition-colors hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 disabled:opacity-50"
             >
-              {t("Connect Canvas")}
+              {t("Read Getting Started")}
             </button>
             <button
               type="button"
