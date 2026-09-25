@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CanvasClient } from "@/lib/canvas/client";
 
+vi.mock("@/lib/canvas/safe-fetch", () => ({
+  safeCanvasFetch: (url: string, headers: Record<string, string>) =>
+    fetch(url, { headers, redirect: "manual" }),
+}));
+
 const STRING_IDS_ACCEPT = "application/json+canvas-string-ids";
 
 afterEach(() => {
@@ -451,5 +456,6 @@ describe("CanvasClient string-ID requests", () => {
       forbidden: false,
       error: expect.stringContaining("CANVAS_MAX_FILE_BYTES"),
     });
+    expect(fetchMock.mock.calls[0][1].headers).not.toHaveProperty("Authorization");
   });
 });

@@ -1,7 +1,15 @@
 import { CanvasError } from "./errors.ts";
 import { parseNextLink } from "./pagination.ts";
 
-export type FetchLike = typeof fetch;
+type CanvasResponse = {
+    status: number;
+    statusText: string;
+    ok: boolean;
+    headers: { get(name: string): string | null };
+    json(): Promise<unknown>;
+};
+
+export type FetchLike = (input: string, init?: RequestInit) => Promise<CanvasResponse>;
 
 export interface CanvasClientOptions {
     domain: string;
@@ -49,7 +57,7 @@ export class CanvasClient {
         return (await res.json()) as T;
     }
 
-    async getRaw(path: string, query?: Query): Promise<Response> {
+    async getRaw(path: string, query?: Query): Promise<CanvasResponse> {
         return this.request(path, { method: "GET", ...(query !== undefined ? { query } : {}) });
     }
 
@@ -70,9 +78,12 @@ export class CanvasClient {
         return all;
     }
 
-    private async requestAbsolute(url: string): Promise<Response> {
+    private async requestAbsolute(url: string): Promise<CanvasResponse> {
+        if (new URL(url).origin !== this.baseUrl) {
+            throw new CanvasError(400, "Canvas pagination URL points to another host");
+        }
         const headers = new Headers({ authorization: `Bearer ${this.token}`, accept: CANVAS_JSON_ACCEPT });
-        const init = (): RequestInit => ({ method: "GET", headers, signal: AbortSignal.timeout(this.timeoutMs) });
+        const init = (): RequestInit => ({ method: "GET", headers, redirect: "manual", signal: AbortSignal.timeout(this.timeoutMs) });
         let res = await this.fetchImpl(url, init());
         if (res.status >= 500) {
             await new Promise((r) => setTimeout(r, 200));
@@ -84,7 +95,7 @@ export class CanvasClient {
         return res;
     }
 
-    private async request(path: string, opts: { method: string; query?: Query; body?: unknown }): Promise<Response> {
+    private async request(path: string, opts: { method: string; query?: Query; body?: unknown }): Promise<CanvasResponse> {
         const url = this.buildUrl(path, opts.query);
         const headers = new Headers({
             authorization: `Bearer ${this.token}`,
@@ -95,6 +106,7 @@ export class CanvasClient {
         const init: RequestInit = {
             method: opts.method,
             headers,
+            redirect: "manual",
             signal: AbortSignal.timeout(this.timeoutMs),
             ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
         };
@@ -115,6 +127,9 @@ export class CanvasClient {
 
     private buildUrl(path: string, query?: Query): string {
         const url = new URL(path.startsWith("/") ? path : `/${path}`, this.baseUrl);
+        if (url.origin !== this.baseUrl) {
+            throw new CanvasError(400, "Canvas path points to another host");
+        }
         if (query) {
             for (const [k, v] of Object.entries(query)) {
                 if (v === undefined || v === null) continue;
@@ -129,7 +144,7 @@ export class CanvasClient {
     }
 }
 
-async function safeJson(res: Response): Promise<unknown> {
+async function safeJson(res: CanvasResponse): Promise<unknown> {
     try {
         return await res.json();
     } catch {

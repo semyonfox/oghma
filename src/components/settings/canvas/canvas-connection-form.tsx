@@ -83,7 +83,7 @@ export default function CanvasConnectionForm({
           <li>{t("Name the token OghmaNotes")}</li>
           <li>
             {t(
-              "Choose an expiration date and time. Canvas requires a date for students.",
+              "Set an expiration date and time for how long you plan to use this connection. Canvas limits student tokens to 30 days.",
             )}
           </li>
           <li>
@@ -92,7 +92,7 @@ export default function CanvasConnectionForm({
           </li>
           <li>
             {t(
-              "Copy the token into API Token below. Canvas only shows it once.",
+              "Copy the whole long code under Access Token Details into API Token below. It may include letters, numbers, and symbols.",
             )}
           </li>
         </ol>
@@ -109,6 +109,7 @@ export default function CanvasConnectionForm({
           <input
             ref={tokenInputRef}
             id="canvas-token"
+            aria-describedby="canvas-token-help"
             type="password"
             autoComplete="off"
             autoCapitalize="none"
@@ -119,9 +120,9 @@ export default function CanvasConnectionForm({
         </div>
       </div>
 
-      <p className="text-xs text-text-tertiary">
+      <p id="canvas-token-help" className="text-xs text-text-tertiary">
         {t(
-          "Use your Canvas account's token. Your OghmaNotes email can be different from your Canvas email.",
+          "The token is the long code Canvas generated, not your email, the name OghmaNotes, or your Canvas address.",
         )}
       </p>
 

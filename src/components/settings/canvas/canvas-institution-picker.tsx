@@ -26,6 +26,15 @@ export default function CanvasInstitutionPicker({
   const [selectedSchool, setSelectedSchool] = useState<string | null>(null);
   const [manualOpen, setManualOpen] = useState(Boolean(domain));
   const [manualValue, setManualValue] = useState(domain);
+  const typedCanvasHost = canvasHostFromInput(query);
+  const searchFinished = status === "ready" || status === "error";
+  const showTypedHost = Boolean(
+    searchFinished &&
+      typedCanvasHost &&
+      !results.some((school) => school.domain === typedCanvasHost),
+  );
+  const looksLikeAddress =
+    query.includes("://") || /^\S+\.\S+$/.test(query.trim());
 
   useEffect(() => {
     if (domain && !selectedSchool && !manualValue) {
@@ -95,6 +104,10 @@ export default function CanvasInstitutionPicker({
         </label>
         <p className="mt-1 text-xs text-text-tertiary">
           {t("Search by school or institution name.")}
+          <span className="block">
+            {t("Paste your Canvas URL or enter its address, for example")}{" "}
+            <span className="text-text-secondary">example.instructure.com</span>
+          </span>
         </p>
         <input
           id="canvas-school-search"
@@ -128,6 +141,15 @@ export default function CanvasInstitutionPicker({
           {status === "ready" && results.length === 0 && (
             <p>{t("No schools found. Try your Canvas URL instead.")}</p>
           )}
+          {searchFinished &&
+            results.length === 0 &&
+            looksLikeAddress &&
+            !typedCanvasHost && (
+              <p role="alert" className="mt-1 text-xs text-red-400">
+                {t("Paste your Canvas URL or enter its address, for example")}{" "}
+                <span>example.instructure.com</span>
+              </p>
+            )}
           {status === "ready" && results.length > 0 && (
             <ul className="max-h-56 space-y-1 overflow-y-auto rounded-radius-md border border-border-subtle bg-surface p-1">
               {results.map((school, index) => (
@@ -154,26 +176,47 @@ export default function CanvasInstitutionPicker({
               ))}
             </ul>
           )}
+          {showTypedHost && typedCanvasHost && (
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedSchool(t("Canvas URL"));
+                setDomain(typedCanvasHost);
+                setManualOpen(false);
+                setManualValue("");
+              }}
+              className="mt-2 w-full rounded-radius-md border border-primary-500/30 bg-primary-500/10 px-3 py-2 text-left text-sm text-text hover:bg-primary-500/20 focus:outline-none focus:ring-1 focus:ring-primary-500/50"
+            >
+              <span className="block font-medium">
+                {t("Use your Canvas URL instead")}
+              </span>
+              <span className="block text-xs text-text-tertiary">
+                {typedCanvasHost}
+              </span>
+            </button>
+          )}
         </div>
       )}
 
-      <button
-        type="button"
-        aria-expanded={manualOpen}
-        aria-controls="canvas-manual-domain"
-        onClick={() => {
-          setManualOpen(!manualOpen);
-          setManualValue("");
-          setDomain("");
-          setSelectedSchool(null);
-          setQuery("");
-          setResults([]);
-          setStatus("idle");
-        }}
-        className="text-sm font-medium text-primary-400 underline underline-offset-2"
-      >
-        {manualOpen ? t("Hide Canvas URL") : t("Use your Canvas URL instead")}
-      </button>
+      {(!showTypedHost || manualOpen) && (
+        <button
+          type="button"
+          aria-expanded={manualOpen}
+          aria-controls="canvas-manual-domain"
+          onClick={() => {
+            setManualOpen(!manualOpen);
+            setManualValue("");
+            setDomain("");
+            setSelectedSchool(null);
+            setQuery("");
+            setResults([]);
+            setStatus("idle");
+          }}
+          className="text-sm font-medium text-primary-400 underline underline-offset-2"
+        >
+          {manualOpen ? t("Hide Canvas URL") : t("Use your Canvas URL instead")}
+        </button>
+      )}
 
       {manualOpen && (
         <div id="canvas-manual-domain">
@@ -201,7 +244,8 @@ export default function CanvasInstitutionPicker({
           />
           {manualValue.trim() && !domain && (
             <p role="alert" className="mt-1 text-xs text-red-400">
-              {t("Use a Canvas address ending in .instructure.com")}
+              {t("Paste your Canvas URL or enter its address, for example")}{" "}
+              <span>example.instructure.com</span>
             </p>
           )}
         </div>

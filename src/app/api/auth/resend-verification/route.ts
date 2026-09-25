@@ -33,9 +33,17 @@ export async function POST(request: NextRequest): Promise<Response> {
     if (limited) return limited;
 
     const users = await sql<
-      { user_id: string; email: string; email_verified: boolean; locale: string | null }[]
+      {
+        user_id: string;
+        email: string;
+        email_verified: boolean;
+        locale: string | null;
+        verification_token: string | null;
+        verification_token_expires: Date | null;
+      }[]
     >`
-            SELECT user_id, email, email_verified, locale
+            SELECT user_id, email, email_verified, locale,
+              verification_token, verification_token_expires
             FROM app.login
             WHERE email = ${email.trim()}
         `;
@@ -61,17 +69,37 @@ export async function POST(request: NextRequest): Promise<Response> {
     const tokenHash = hashToken(verificationToken);
     const tokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
-    await sql`
+    const updated = await sql<{ user_id: string }[]>`
             UPDATE app.login
             SET verification_token = ${tokenHash}, verification_token_expires = ${tokenExpires}
             WHERE user_id = ${user.user_id}
+              AND email_verified = false
+              AND verification_token IS NOT DISTINCT FROM ${user.verification_token}
+            RETURNING user_id
         `;
+    if (updated.length === 0) return ackResponse();
 
-    await sendVerificationEmail(
-      email.trim(),
-      verificationToken,
-      normalizeLocale(user.locale) ?? Locale.EN,
-    );
+    try {
+      await sendVerificationEmail(
+        email.trim(),
+        verificationToken,
+        normalizeLocale(user.locale) ?? Locale.EN,
+      );
+    } catch (sendError) {
+      try {
+        await sql`
+          UPDATE app.login
+          SET verification_token = ${user.verification_token},
+            verification_token_expires = ${user.verification_token_expires}
+          WHERE user_id = ${user.user_id}
+            AND email_verified = false
+            AND verification_token = ${tokenHash}
+        `;
+      } catch {
+        logger.error("failed to restore verification token after resend failure");
+      }
+      throw sendError;
+    }
 
     const elapsed = Date.now() - start;
     if (elapsed < MIN_RESPONSE_MS) {

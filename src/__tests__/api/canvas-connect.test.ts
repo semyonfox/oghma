@@ -54,6 +54,7 @@ vi.mock("@/lib/rateLimiter", () => ({
 import sql from "@/database/pgsql";
 import { parseJsonObject, requireAuth } from "@/lib/api-error";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
+import { CanvasClient } from "@/lib/canvas/client";
 import { GET, POST } from "@/app/api/canvas/connect/route";
 
 describe("GET /api/canvas/connect", () => {
@@ -248,9 +249,10 @@ describe("GET /api/canvas/connect", () => {
   });
 
   it.each([
-    "canvas.custom.edu",
     "school.instructure.com.attacker.test",
     "localhost",
+    "169.254.169.254",
+    "https://canvas.school.edu:3000",
   ])("rejects unsupported Canvas host %s before using the token", async (domain) => {
     const response = await POST(
       new NextRequest("http://localhost/api/canvas/connect", {
@@ -263,6 +265,35 @@ describe("GET /api/canvas/connect", () => {
     expect(response.status).toBe(400);
     expect(sql).not.toHaveBeenCalled();
     expect(canvas.getDiscoverableCourses).not.toHaveBeenCalled();
+  });
+
+  it("accepts a custom school Canvas address before checking the token", async () => {
+    vi.mocked(sql).mockResolvedValue([] as never);
+    canvas.getDiscoverableCourses.mockResolvedValue({
+      data: [],
+      unauthorized: true,
+      error: "Invalid or expired Canvas token",
+    });
+    canvas.getSelfEnrollments.mockResolvedValue({
+      data: [],
+      unauthorized: true,
+      error: "Invalid or expired Canvas token",
+    });
+
+    const response = await POST(
+      new NextRequest("http://localhost/api/canvas/connect", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          domain: "https://canvas.school.edu/courses/123",
+          token: "token",
+        }),
+      }),
+    );
+
+    expect(vi.mocked(CanvasClient)).toHaveBeenCalledWith("canvas.school.edu", "token");
+    expect(canvas.getDiscoverableCourses).toHaveBeenCalled();
+    expect(response.status).toBe(400);
   });
 
   it("returns 502 before storing credentials when connect receives an invalid upstream ID", async () => {

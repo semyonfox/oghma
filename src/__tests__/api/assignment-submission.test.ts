@@ -6,6 +6,14 @@ vi.mock("@/database/pgsql", () => ({ default: mocks.sql }));
 vi.mock("@/lib/auth", () => ({ validateSession: mocks.auth, validateSessionLite: mocks.auth }));
 vi.mock("@/lib/logger", () => ({ default: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
 vi.mock("@/lib/canvas/credentials", () => ({ loadCanvasCredentials: mocks.credentials }));
+vi.mock("@/lib/canvas/safe-fetch", () => ({
+  safeCanvasFetch: (
+    url: string,
+    headers: Record<string, string>,
+    _followFileRedirects: boolean,
+    request: RequestInit,
+  ) => fetch(url, { ...request, headers, redirect: "manual" }),
+}));
 vi.mock("@/lib/canvas/client", () => ({ CanvasClient: class {
   baseUrl = "https://school.instructure.com/api/v1";
   token = "test-token";
@@ -61,6 +69,7 @@ describe("Canvas assignment submissions", () => {
   it("submits text as escaped HTML to the stored assignment", async () => {
     expect((await POST(request({ type: "online_text_entry", content: "a < b\n& c" }), context)).status).toBe(200);
     expect(mocks.fetch).toHaveBeenCalledWith("https://school.instructure.com/api/v1/courses/123/assignments/456/submissions", expect.objectContaining({ method: "POST", body: JSON.stringify({ submission: { submission_type: "online_text_entry", body: "<p>a &lt; b<br>&amp; c</p>" } }) }));
+    expect(mocks.fetch.mock.calls[0][1].redirect).toBe("manual");
   });
   it("submits a website URL", async () => {
     expect((await POST(request({ type: "online_url", content: "https://example.com/work" }), context)).status).toBe(200);

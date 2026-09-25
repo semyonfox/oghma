@@ -10,6 +10,8 @@
  *   const { data, forbidden, error } = await client.getCourses();
  */
 
+import { safeCanvasFetch } from "./safe-fetch";
+
 // transient errors worth retrying (network blips, server hiccups)
 const RETRYABLE_CODES = new Set([
   "ECONNRESET",
@@ -220,7 +222,7 @@ async function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
-function retryDelayMs(response: Response, attempt: number) {
+function retryDelayMs(response: { headers: { get(name: string): string | null } }, attempt: number) {
   const retryAfterSeconds = Number(response.headers.get("retry-after"));
   if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds >= 0) {
     return Math.min(60_000, Math.round(retryAfterSeconds * 1_000));
@@ -228,7 +230,10 @@ function retryDelayMs(response: Response, attempt: number) {
   return RETRY_BASE_MS * 2 ** attempt;
 }
 
-function isRateLimitedResponse(response: Response) {
+function isRateLimitedResponse(response: {
+  status: number;
+  headers: { get(name: string): string | null };
+}) {
   if (response?.status === 429) return true;
   if (response?.status !== 403) return false;
 
@@ -282,11 +287,9 @@ export class CanvasClient {
   async #get<T>(path: string, isExpected: (value: unknown) => value is T): Promise<CanvasApiResult<T>> {
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
-        const response = await fetch(`${this.baseUrl}${path}`, {
-          headers: {
-            Authorization: `Bearer ${this.token}`,
-            Accept: CANVAS_JSON_ACCEPT,
-          },
+        const response = await safeCanvasFetch(`${this.baseUrl}${path}`, {
+          Authorization: `Bearer ${this.token}`,
+          Accept: CANVAS_JSON_ACCEPT,
         });
 
         if (isRateLimitedResponse(response)) {
@@ -359,7 +362,7 @@ export class CanvasClient {
   }
 
   // Pause if the Canvas X-Rate-Limit-Remaining header shows that the quota is low.
-  async #respectRateLimit(response: Response) {
+  async #respectRateLimit(response: { headers: { get(name: string): string | null } }) {
     const remaining = response.headers.get("x-rate-limit-remaining");
     if (remaining !== null && parseFloat(remaining) < 10) {
       await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -381,11 +384,9 @@ export class CanvasClient {
       let pageSuccess = false;
       for (let attempt = 0; attempt <= MAX_RETRIES && !pageSuccess; attempt++) {
         try {
-          const response = await fetch(pageUrl, {
-            headers: {
-              Authorization: `Bearer ${this.token}`,
-              Accept: CANVAS_JSON_ACCEPT,
-            },
+          const response = await safeCanvasFetch(pageUrl, {
+            Authorization: `Bearer ${this.token}`,
+            Accept: CANVAS_JSON_ACCEPT,
           });
 
           if (isRateLimitedResponse(response)) {
@@ -664,11 +665,10 @@ export class CanvasClient {
   async downloadFile(url: string) {
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${this.token}`,
-          },
-        });
+        const headers: Record<string, string> = new URL(url).origin === new URL(this.baseUrl).origin
+          ? { Authorization: `Bearer ${this.token}` }
+          : {};
+        const response = await safeCanvasFetch(url, headers, true);
 
         if (isRateLimitedResponse(response)) {
           if (attempt < MAX_RETRIES) {

@@ -36,17 +36,17 @@ export const APP_GUIDE_TOPICS: readonly AppGuideTopic[] = [
   {
     id: "getting-started",
     title: "Getting started",
-    summary: "A short path from an empty workspace to useful course-aware study.",
-    routes: ["/notes", "/settings#canvas", "/chat"],
+    summary: "Connect Canvas, bring in a course, and start working with its material.",
+    routes: ["/settings#canvas", "/notes", "/chat"],
     keywords: ["start", "begin", "new user", "tour", "first", "setup", "onboarding"],
     steps: [
-      "Create a note or a folder for each course in Notes.",
-      "Open Settings → Canvas to connect Canvas and import the courses you want.",
-      "Open AI Chat and attach a relevant note or folder when you want a tightly scoped answer.",
-      "Use quizzes, flashcards, and Calendar to turn material into practice and scheduled study.",
+      "Open Settings → Canvas and find your school, or enter the Canvas address you use to sign in.",
+      "Create an access token in Canvas under Account → Settings → Approved Integrations. Set an expiration date and time, then paste the token into OghmaNotes' API Token field.",
+      "Connect Canvas, choose your courses, and start the import. The course list scrolls, and Select all is available.",
+      "Open an imported PDF and its extracted note when ready, then add your own notes or ask Chat about the material.",
     ],
-    tips: ["Start with one current course so the workspace and search results stay easy to understand."],
-    limitations: ["Imported files may need processing time before their text is available to search and chat."],
+    tips: ["Try one current course first. You can add more courses later."],
+    limitations: ["The import continues in the background. PDF text may take longer to appear in notes, search, and chat."],
   },
   {
     id: "notes-and-folders",
@@ -192,7 +192,29 @@ export const APP_GUIDE_TOPICS: readonly AppGuideTopic[] = [
 
 const TOPICS_BY_ID = new Map(APP_GUIDE_TOPICS.map((topic) => [topic.id, topic]));
 
+const GETTING_STARTED_GUIDE = `# Getting Started
+
+Connect Canvas to bring your courses into OghmaNotes. Start with one course you are using now; you can add more later.
+
+## Connect Canvas
+
+1. [Open Canvas settings](/settings#canvas). Search for your school. If it is not listed, enter the Canvas address you normally use to sign in.
+2. In Canvas, open **Account → Settings**. Scroll to **Approved Integrations** and choose **Add New Access Token**. Name it OghmaNotes, then set an expiration date and time for how long you plan to use this connection. Canvas limits student tokens to 30 days. Choose **Generate Token**.
+3. Under **Access Token Details**, copy the whole long code. It may contain letters, numbers, and symbols. Back in OghmaNotes, paste it into **API Token** and choose **Connect Canvas**. The school field is for your Canvas site, not the code or your email. When the token expires, you will need to connect again with a new one.
+
+## Bring in a course
+
+Choose the courses you want to import. Scroll the list to see them all, or use **Select all**. The import runs in the background, so you can leave the page while it works. A PDF may appear before its text is ready in search or chat.
+
+## Try it with a note
+
+Open an imported PDF in Notes. When its extracted note is ready, open it beside the PDF, correct anything the extraction missed, and add your own explanation. You can then ask Chat a question about that note.
+
+This is your note too. Edit or remove these instructions whenever you like.`;
+
 function renderTopic(topic: AppGuideTopic): string {
+  if (topic.id === "getting-started") return GETTING_STARTED_GUIDE;
+
   const section = (title: string, entries: string[]) =>
     entries.length > 0
       ? `\n\n${title}:\n${entries.map((entry) => `- ${entry}`).join("\n")}`
@@ -252,38 +274,33 @@ export function renderGettingStartedNote(locale: Locale = Locale.EN): string {
   if (locale === Locale.de_DE) {
     return `# Erste Schritte
 
-Ein kurzer Weg vom leeren Arbeitsbereich zum Lernen mit Ihren Kursmaterialien.
+Verbinden Sie Canvas, damit Ihre Kurse in OghmaNotes erscheinen. Beginnen Sie mit einem Kurs, den Sie gerade nutzen. Weitere Kurse können Sie später hinzufügen.
 
-Öffnen:
-- /notes
-- /settings#canvas
-- /chat
+## Canvas verbinden
 
-Schritte:
-- Erstellen Sie in Notizen eine Notiz oder einen Ordner für jeden Kurs.
-- Öffnen Sie Einstellungen → Canvas, verbinden Sie Ihr Konto und wählen Sie die Kurse aus, die Sie importieren möchten.
-- Öffnen Sie den KI-Chat und fügen Sie eine passende Notiz oder einen Ordner hinzu, wenn sich die Antwort auf bestimmtes Material beziehen soll.
-- Nutzen Sie Quizze, Lernkarten und den Kalender, um aus Material Übungen und einen Lernplan zu machen.
+1. Öffnen Sie [Einstellungen → Canvas](/settings#canvas). Suchen Sie Ihre Schule oder Hochschule. Wenn sie nicht angezeigt wird, geben Sie die Canvas-Adresse ein, mit der Sie sich normalerweise anmelden.
+2. Öffnen Sie in Canvas **Konto → Einstellungen**. Scrollen Sie zu **Genehmigte Integrationen** und wählen Sie **Neues Zugriffstoken hinzufügen**. Geben Sie dem Token den Namen OghmaNotes. Legen Sie Ablaufdatum und Uhrzeit für Ihre geplante Nutzung fest. Canvas begrenzt Tokens für Studierende auf 30 Tage. Wählen Sie **Token generieren**.
+3. Kopieren Sie unter **Zugriffstoken-Details** den gesamten langen Code. Er kann Buchstaben, Zahlen und Sonderzeichen enthalten. Fügen Sie ihn in OghmaNotes in **API-Token** ein und wählen Sie **Canvas verbinden**. Das Feld für die Schule ist für Ihre Canvas-Seite gedacht, nicht für den Code oder Ihre E-Mail-Adresse. Wenn das Token abläuft, müssen Sie sich mit einem neuen erneut verbinden.
 
-Tipp:
-- Beginnen Sie mit einem aktuellen Kurs. So bleiben der Arbeitsbereich und die Suchergebnisse übersichtlich.
+## Einen Kurs importieren
 
-Hinweis:
-- Importierte Dateien brauchen möglicherweise etwas Zeit, bevor ihr Text in Suche und Chat verfügbar ist.
+Wählen Sie die Kurse aus, die Sie brauchen. Scrollen Sie in der Liste, um alle Kurse zu sehen, oder nutzen Sie **Alles auswählen**. Der Import läuft im Hintergrund weiter. Eine PDF-Datei kann schon sichtbar sein, bevor ihr Text in der Suche oder im Chat verfügbar ist.
+
+## Mit einer Notiz anfangen
+
+Öffnen Sie eine importierte PDF-Datei in Notizen. Sobald die extrahierte Notiz bereit ist, öffnen Sie sie neben der PDF-Datei. Korrigieren Sie Fehler bei der Texterkennung und ergänzen Sie Ihre eigene Erklärung. Danach können Sie im Chat eine Frage zu dieser Notiz stellen.
+
+Auch diese Anleitung ist eine normale Notiz. Sie können sie ändern oder löschen, wenn Sie sie nicht mehr brauchen.
 
 ## Wer ist Oghma?
 
-In der irischen Mythologie ist Oghma (oder Ogma) mit Beredsamkeit, Sprache und Lernen verbunden. Der Name erinnert auch an die Ogham-Schrift.
-
-Sie können jetzt mit Ihrem Lernbereich beginnen.`;
+In der irischen Mythologie ist Oghma mit Sprache und Lernen verbunden. Auch die Ogham-Schrift trägt seinen Namen.`;
   }
 
   const topic = TOPICS_BY_ID.get("getting-started")!;
   return `${renderTopic(topic)}
 
-## Fun fact: Who is Oghma?
+## Who is Oghma?
 
-In Irish mythology, Oghma (or Ogma) is linked with eloquence, language, and learning, and is traditionally associated with the Ogham script.
-
-You're ready to start building your study vault.`;
+In Irish mythology, Oghma is linked with language and learning. The Ogham script also bears his name.`;
 }

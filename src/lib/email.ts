@@ -1,6 +1,7 @@
 import { Locale } from "@/locales";
 
 const CLOUDFLARE_EMAIL_ENDPOINT = "https://api.cloudflare.com/client/v4";
+const RESEND_EMAIL_ENDPOINT = "https://api.resend.com/emails";
 
 export type EmailDelivery = "delivered" | "queued";
 
@@ -36,6 +37,12 @@ function getCloudflareEmailConfig(): { accountId: string; apiToken: string } {
   return { accountId, apiToken };
 }
 
+function getEmailProvider(): "cloudflare" | "resend" {
+  const provider = process.env.EMAIL_PROVIDER || "cloudflare";
+  if (provider === "cloudflare" || provider === "resend") return provider;
+  throw new EmailSendError("configuration");
+}
+
 function assertEmailValue(value: string, fieldName: string): string {
   if (!value || /[\r\n]/.test(value)) {
     throw new Error(`Invalid ${fieldName}`);
@@ -59,6 +66,9 @@ interface VaultImportSummary {
 }
 
 function errorMessage(error: unknown): string {
+  if (error instanceof EmailSendError && error.httpStatus) {
+    return `${error.message} (HTTP ${error.httpStatus})`;
+  }
   return error instanceof Error ? error.message : String(error);
 }
 
@@ -90,6 +100,52 @@ function hasRecipient(value: unknown, recipient: string): boolean {
   );
 }
 
+async function sendWithResend({
+  from,
+  to,
+  replyTo,
+  subject,
+  text,
+  html,
+}: EmailMessage): Promise<EmailDelivery> {
+  const apiToken = process.env.RESEND_API_KEY;
+  if (!apiToken) throw new EmailSendError("configuration");
+
+  const body = JSON.stringify({
+    from: assertEmailValue(from, "from email"),
+    to: assertEmailValue(to, "recipient email"),
+    ...(replyTo
+      ? { reply_to: assertEmailValue(replyTo, "reply-to email") }
+      : {}),
+    subject,
+    text,
+    html,
+  });
+  let response: Response;
+  try {
+    response = await fetch(RESEND_EMAIL_ENDPOINT, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        "Content-Type": "application/json",
+      },
+      signal: AbortSignal.timeout(15_000),
+      body,
+    });
+  } catch {
+    throw new EmailSendError("transport");
+  }
+
+  const result: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new EmailSendError("provider_rejected", response.status);
+  }
+  if (!isRecord(result) || typeof result.id !== "string" || !result.id) {
+    throw new EmailSendError("unclassified_response", response.status);
+  }
+  return "queued";
+}
+
 export async function sendEmail({
   from,
   to,
@@ -98,6 +154,10 @@ export async function sendEmail({
   text,
   html,
 }: EmailMessage): Promise<EmailDelivery> {
+  if (getEmailProvider() === "resend") {
+    return sendWithResend({ from, to, replyTo, subject, text, html });
+  }
+
   const { accountId, apiToken } = getCloudflareEmailConfig();
   const body = JSON.stringify({
     from: assertEmailValue(from, "from email"),
