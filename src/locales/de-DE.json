@@ -1247,5 +1247,18 @@
   "Confirm your password": "Bitte bestätigen Sie Ihr Passwort",
   "Email is required": "E-Mail-Adresse ist erforderlich",
   "Invalid email format": "Ungültiges E-Mail-Format",
-  "No editable note is available. The original PDF is still available.": "Es ist keine bearbeitbare Notiz verfügbar. Das Original-PDF ist weiterhin verfügbar."
+  "No editable note is available. The original PDF is still available.": "Es ist keine bearbeitbare Notiz verfügbar. Das Original-PDF ist weiterhin verfügbar.",
+  "Find your school on Canvas": "Ihre Schule oder Hochschule auf Canvas finden",
+  "Search by school or institution name.": "Suchen Sie nach dem Namen Ihrer Schule oder Hochschule.",
+  "Start typing your school name": "Geben Sie den Namen Ihrer Schule oder Hochschule ein",
+  "Type at least 3 characters to search": "Geben Sie mindestens 3 Zeichen ein, um zu suchen",
+  "Searching Canvas schools...": "Canvas-Einrichtungen werden gesucht ...",
+  "School search is unavailable. Use your Canvas URL instead.": "Die Suche ist gerade nicht verfügbar. Verwenden Sie stattdessen Ihre Canvas-URL.",
+  "No schools found. Try your Canvas URL instead.": "Keine Einrichtungen gefunden. Versuchen Sie es mit Ihrer Canvas-URL.",
+  "This Canvas URL is not supported yet": "Diese Canvas-URL wird noch nicht unterstützt",
+  "Use your Canvas URL instead": "Stattdessen Canvas-URL verwenden",
+  "Hide Canvas URL": "Canvas-URL ausblenden",
+  "Canvas URL": "Canvas-URL",
+  "Paste your Canvas URL or enter its address, for example": "Fügen Sie Ihre Canvas-URL ein oder geben Sie die Adresse ein, zum Beispiel",
+  "Use a Canvas address ending in .instructure.com": "Verwenden Sie eine Canvas-Adresse, die auf .instructure.com endet"
 }
