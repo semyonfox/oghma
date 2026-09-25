@@ -1,4 +1,26 @@
+import { Locale } from "@/locales";
+
 const CLOUDFLARE_EMAIL_ENDPOINT = "https://api.cloudflare.com/client/v4";
+const RESEND_EMAIL_ENDPOINT = "https://api.resend.com/emails";
+
+export type EmailDelivery = "delivered" | "queued";
+
+export class EmailSendError extends Error {
+  constructor(
+    readonly reason:
+      | "configuration"
+      | "transport"
+      | "provider_rejected"
+      | "permanent_bounce"
+      | "suppressed_recipient"
+      | "unclassified_response",
+    readonly httpStatus?: number,
+    readonly providerCode?: number,
+  ) {
+    super(`Email sending failed: ${reason.replaceAll("_", " ")}`);
+    this.name = "EmailSendError";
+  }
+}
 
 function getFromEmail(): string | undefined {
   return process.env.EMAIL_FROM || process.env.CLOUDFLARE_EMAIL_FROM;
@@ -9,12 +31,16 @@ function getCloudflareEmailConfig(): { accountId: string; apiToken: string } {
   const apiToken = process.env.CLOUDFLARE_EMAIL_API_TOKEN;
 
   if (!accountId || !apiToken) {
-    throw new Error(
-      "Cloudflare Email Service not configured (set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_EMAIL_API_TOKEN)",
-    );
+    throw new EmailSendError("configuration");
   }
 
   return { accountId, apiToken };
+}
+
+function getEmailProvider(): "cloudflare" | "resend" {
+  const provider = process.env.EMAIL_PROVIDER || "cloudflare";
+  if (provider === "cloudflare" || provider === "resend") return provider;
+  throw new EmailSendError("configuration");
 }
 
 function assertEmailValue(value: string, fieldName: string): string {
@@ -40,6 +66,9 @@ interface VaultImportSummary {
 }
 
 function errorMessage(error: unknown): string {
+  if (error instanceof EmailSendError && error.httpStatus) {
+    return `${error.message} (HTTP ${error.httpStatus})`;
+  }
   return error instanceof Error ? error.message : String(error);
 }
 
@@ -47,23 +76,74 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function providerErrorMessage(body: unknown): string | undefined {
+function providerErrorCode(body: unknown): number | undefined {
   if (!isRecord(body)) return undefined;
-  for (const field of ["errors", "messages"] as const) {
-    const values = body[field];
-    if (!Array.isArray(values) || !isRecord(values[0])) {
-      continue;
-    }
-    const message = values[0].message;
-    if (typeof message === "string") return message;
-  }
-  return undefined;
+  const errors = body.errors;
+  if (!Array.isArray(errors) || !isRecord(errors[0])) return undefined;
+  return typeof errors[0].code === "number" ? errors[0].code : undefined;
 }
 
 function providerReportedFailure(body: unknown): boolean {
   return Boolean(
     isRecord(body) && body.success === false,
   );
+}
+
+function hasRecipient(value: unknown, recipient: string): boolean {
+  return (
+    Array.isArray(value) &&
+    value.some(
+      (entry) =>
+        typeof entry === "string" &&
+        entry.toLowerCase() === recipient.toLowerCase(),
+    )
+  );
+}
+
+async function sendWithResend({
+  from,
+  to,
+  replyTo,
+  subject,
+  text,
+  html,
+}: EmailMessage): Promise<EmailDelivery> {
+  const apiToken = process.env.RESEND_API_KEY;
+  if (!apiToken) throw new EmailSendError("configuration");
+
+  const body = JSON.stringify({
+    from: assertEmailValue(from, "from email"),
+    to: assertEmailValue(to, "recipient email"),
+    ...(replyTo
+      ? { reply_to: assertEmailValue(replyTo, "reply-to email") }
+      : {}),
+    subject,
+    text,
+    html,
+  });
+  let response: Response;
+  try {
+    response = await fetch(RESEND_EMAIL_ENDPOINT, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        "Content-Type": "application/json",
+      },
+      signal: AbortSignal.timeout(15_000),
+      body,
+    });
+  } catch {
+    throw new EmailSendError("transport");
+  }
+
+  const result: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new EmailSendError("provider_rejected", response.status);
+  }
+  if (!isRecord(result) || typeof result.id !== "string" || !result.id) {
+    throw new EmailSendError("unclassified_response", response.status);
+  }
+  return "queued";
 }
 
 export async function sendEmail({
@@ -73,37 +153,61 @@ export async function sendEmail({
   subject,
   text,
   html,
-}: EmailMessage): Promise<void> {
-  const { accountId, apiToken } = getCloudflareEmailConfig();
-  const response = await fetch(
-    `${CLOUDFLARE_EMAIL_ENDPOINT}/accounts/${accountId}/email/sending/send`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiToken}`,
-        "Content-Type": "application/json",
-      },
-      signal: AbortSignal.timeout(15_000),
-      body: JSON.stringify({
-        from: assertEmailValue(from, "from email"),
-        to: assertEmailValue(to, "recipient email"),
-        ...(replyTo
-          ? { reply_to: assertEmailValue(replyTo, "reply-to email") }
-          : {}),
-        subject,
-        text,
-        html,
-      }),
-    },
-  );
-
-  const body = await response.json().catch(() => null);
-  if (!response.ok || providerReportedFailure(body)) {
-    const message =
-      providerErrorMessage(body) ||
-      `Cloudflare Email Service returned HTTP ${response.status}`;
-    throw new Error(message);
+}: EmailMessage): Promise<EmailDelivery> {
+  if (getEmailProvider() === "resend") {
+    return sendWithResend({ from, to, replyTo, subject, text, html });
   }
+
+  const { accountId, apiToken } = getCloudflareEmailConfig();
+  const body = JSON.stringify({
+    from: assertEmailValue(from, "from email"),
+    to: assertEmailValue(to, "recipient email"),
+    ...(replyTo
+      ? { reply_to: assertEmailValue(replyTo, "reply-to email") }
+      : {}),
+    subject,
+    text,
+    html,
+  });
+  let response: Response;
+  try {
+    response = await fetch(
+      `${CLOUDFLARE_EMAIL_ENDPOINT}/accounts/${accountId}/email/sending/send`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiToken}`,
+          "Content-Type": "application/json",
+        },
+        signal: AbortSignal.timeout(15_000),
+        body,
+      },
+    );
+  } catch {
+    throw new EmailSendError("transport");
+  }
+
+  const result = await response.json().catch(() => null);
+  if (!response.ok || providerReportedFailure(result)) {
+    throw new EmailSendError(
+      "provider_rejected",
+      response.status,
+      providerErrorCode(result),
+    );
+  }
+  if (!isRecord(result) || result.success !== true || !isRecord(result.result)) {
+    throw new EmailSendError("unclassified_response", response.status);
+  }
+  const delivery = result.result;
+  if (hasRecipient(delivery.permanent_bounces, to)) {
+    throw new EmailSendError("permanent_bounce", response.status);
+  }
+  if (hasRecipient(delivery.suppressed_recipients, to)) {
+    throw new EmailSendError("suppressed_recipient", response.status);
+  }
+  if (hasRecipient(delivery.delivered, to)) return "delivered";
+  if (hasRecipient(delivery.queued, to)) return "queued";
+  throw new EmailSendError("unclassified_response", response.status);
 }
 
 export async function sendPasswordResetEmail(
@@ -163,41 +267,58 @@ export async function sendPasswordResetEmail(
 export async function sendVerificationEmail(
   email: string,
   verificationToken: string,
-): Promise<void> {
+  locale: Locale = Locale.EN,
+): Promise<EmailDelivery> {
   const fromEmail = getFromEmail();
   if (!fromEmail) {
-    throw new Error("Email from-address not configured (set EMAIL_FROM)");
+    throw new EmailSendError("configuration");
   }
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const verifyUrl = `${baseUrl}/verify-email?token=${encodeURIComponent(verificationToken)}`;
+  const copy =
+    locale === Locale.de_DE
+      ? {
+          subject: "Bestätigen Sie Ihre E-Mail-Adresse",
+          heading: "Bestätigen Sie Ihre E-Mail-Adresse",
+          prompt:
+            "Danke für Ihre Anmeldung! Klicken Sie auf die Schaltfläche, um Ihre E-Mail-Adresse zu bestätigen:",
+          action: "E-Mail bestätigen",
+          expires: "Dieser Link ist 24 Stunden gültig.",
+          ignore:
+            "Falls Sie kein Konto erstellt haben, können Sie diese E-Mail ignorieren.",
+        }
+      : {
+          subject: "Verify your email address",
+          heading: "Verify Your Email",
+          prompt:
+            "Thanks for signing up! Click the button below to verify your email address:",
+          action: "Verify Email",
+          expires: "This link expires in 24 hours.",
+          ignore: "If you didn't create an account, ignore this email.",
+        };
 
   const mailOptions = {
     from: fromEmail,
     to: email,
-    subject: "Verify your email address",
+    subject: copy.subject,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2>Verify Your Email</h2>
-        <p>Thanks for signing up! Click the button below to verify your email address:</p>
+        <h2>${copy.heading}</h2>
+        <p>${copy.prompt}</p>
         <a href="${verifyUrl}"
            style="background-color: #4299e1; color: white; padding: 12px 24px;
                   text-decoration: none; border-radius: 5px; display: inline-block;">
-          Verify Email
+          ${copy.action}
         </a>
-        <p style="margin-top: 20px; color: #666;">This link expires in 24 hours.</p>
-        <p style="color: #999; font-size: 12px;">If you didn't create an account, ignore this email.</p>
+        <p style="margin-top: 20px; color: #666;">${copy.expires}</p>
+        <p style="color: #999; font-size: 12px;">${copy.ignore}</p>
       </div>
     `,
-    text: `Verify your email: ${verifyUrl}\n\nThis link expires in 24 hours.`,
+    text: `${copy.action}: ${verifyUrl}\n\n${copy.expires}`,
   };
 
-  try {
-    await sendEmail(mailOptions);
-  } catch (err) {
-    console.error("[email] failed to send verification email:", errorMessage(err));
-    throw new Error("Failed to send verification email");
-  }
+  return sendEmail(mailOptions);
 }
 
 export async function sendVaultImportCompleteEmail(
