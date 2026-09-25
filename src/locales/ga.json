@@ -1247,5 +1247,18 @@
   "Confirm your password": "Confirm your password",
   "Email is required": "Email is required",
   "Invalid email format": "Invalid email format",
-  "No editable note is available. The original PDF is still available.": "No editable note is available. The original PDF is still available."
+  "No editable note is available. The original PDF is still available.": "No editable note is available. The original PDF is still available.",
+  "Find your school on Canvas": "Aimsigh do scoil ar Canvas",
+  "Search by school or institution name.": "Cuardaigh de réir ainm na scoile nó na hinstitiúide.",
+  "Start typing your school name": "Tosaigh ag clóscríobh ainm do scoile",
+  "Type at least 3 characters to search": "Clóscríobh 3 charachtar ar a laghad chun cuardach a dhéanamh",
+  "Searching Canvas schools...": "Ag cuardach scoileanna ar Canvas...",
+  "School search is unavailable. Use your Canvas URL instead.": "Níl cuardach scoileanna ar fáil faoi láthair. Úsáid URL do Canvas ina áit.",
+  "No schools found. Try your Canvas URL instead.": "Níor aimsíodh aon scoil. Bain triail as URL do Canvas ina áit.",
+  "This Canvas URL is not supported yet": "Ní thacaítear leis an URL Canvas seo fós",
+  "Use your Canvas URL instead": "Úsáid URL do Canvas ina áit",
+  "Hide Canvas URL": "Folaigh URL Canvas",
+  "Canvas URL": "URL Canvas",
+  "Paste your Canvas URL or enter its address, for example": "Greamaigh URL Canvas do scoile nó cuir isteach a sheoladh, mar shampla",
+  "Use a Canvas address ending in .instructure.com": "Úsáid seoladh Canvas a chríochnaíonn le .instructure.com"
 }

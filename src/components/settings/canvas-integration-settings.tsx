@@ -445,7 +445,7 @@ export default function CanvasIntegrationSettings() {
 
   if (isCheckingConnection) {
     return (
-      <div className="text-sm text-text-tertiary animate-pulse">
+      <div role="status" className="text-sm text-text-tertiary animate-pulse">
         {t("Checking Canvas connection...")}
       </div>
     );

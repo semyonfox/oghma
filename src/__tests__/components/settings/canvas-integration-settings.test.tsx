@@ -2,7 +2,7 @@
 
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import CanvasIntegrationSettings from "@/components/settings/canvas-integration-settings";
 
@@ -60,6 +60,32 @@ describe("CanvasIntegrationSettings connection check", () => {
     vi.restoreAllMocks();
   });
 
+  it("waits for the saved connection check before showing the school picker", async () => {
+    let finishCheck: ((value: unknown) => void) | undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(
+        () => new Promise((resolve) => { finishCheck = resolve; }),
+      ),
+    );
+
+    render(<CanvasIntegrationSettings />);
+
+    expect(screen.getByRole("status").textContent).toContain(
+      "Checking Canvas connection...",
+    );
+    expect(screen.queryByLabelText("Find your school on Canvas")).toBeNull();
+
+    await act(async () => {
+      finishCheck?.({
+        ok: true,
+        status: 200,
+        json: async () => ({ connected: false, connectionState: "not-configured" }),
+      });
+    });
+    expect(screen.getByLabelText("Find your school on Canvas")).toBeTruthy();
+  });
+
   it("opens setup without an expired-token warning for a first connection", async () => {
     mockConnectionResponse({
       connected: false,
@@ -93,8 +119,12 @@ describe("CanvasIntegrationSettings connection check", () => {
       ),
     ).toBeTruthy();
     expect(
-      (screen.getByLabelText("Canvas Domain") as HTMLInputElement).value,
+      (screen.getByLabelText("Canvas URL") as HTMLInputElement).value,
     ).toBe("example.instructure.com");
+    expect(
+      screen.getByRole("link", { name: "Log into your Canvas account" })
+        .getAttribute("href"),
+    ).toBe("https://example.instructure.com");
   });
 
   it("keeps a temporary Canvas failure separate from invalid credentials", async () => {

@@ -5,7 +5,9 @@ import {
   ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
-import type { ChangeEvent, RefObject } from "react";
+import { canvasHostFromInput } from "@/lib/canvas/institution-search";
+import type { RefObject } from "react";
+import CanvasInstitutionPicker from "./canvas-institution-picker";
 
 type CanvasConnectionFormProps = {
   domain: string;
@@ -27,6 +29,7 @@ export default function CanvasConnectionForm({
   onConnect,
 }: CanvasConnectionFormProps) {
   const { t } = useI18n();
+  const canvasHost = canvasHostFromInput(domain);
 
   return (
     <>
@@ -43,12 +46,27 @@ export default function CanvasConnectionForm({
         </div>
       )}
 
+      <CanvasInstitutionPicker domain={domain} setDomain={setDomain} />
+
       <div className="glass-card rounded-radius-lg p-4">
         <h3 className="text-sm font-semibold text-text-secondary mb-2">
           {t("How to generate your Canvas API token")}
         </h3>
         <ol className="list-decimal list-inside space-y-1 text-sm text-text-tertiary">
-          <li>{t("Log into your Canvas account")}</li>
+          <li>
+            {canvasHost ? (
+              <a
+                href={`https://${canvasHost}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary-400 underline underline-offset-2"
+              >
+                {t("Log into your Canvas account")}
+              </a>
+            ) : (
+              t("Log into your Canvas account")
+            )}
+          </li>
           <li>{t("Open Account → Settings in Canvas")}</li>
           <li>
             {t("Scroll down to")}{" "}
@@ -78,31 +96,6 @@ export default function CanvasConnectionForm({
             )}
           </li>
         </ol>
-      </div>
-
-      <div>
-        <label
-          htmlFor="canvas-domain"
-          className="block text-sm/6 font-medium text-text-secondary"
-        >
-          {t("Canvas Domain")}
-        </label>
-        <p className="mt-1 text-xs text-text-tertiary">
-          {t("Enter the host from your Canvas URL, for example")}{" "}
-          <span className="text-text-secondary">
-            example.instructure.com
-          </span>
-        </p>
-        <div className="mt-2">
-          <input
-            id="canvas-domain"
-            type="text"
-            placeholder="example.instructure.com"
-            value={domain}
-            onChange={(e: ChangeEvent<HTMLInputElement>) => setDomain(e.target.value)}
-            className="block w-full rounded-radius-md bg-surface border border-border-subtle px-3 py-1.5 text-sm text-text placeholder:text-text-tertiary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50 focus:outline-none"
-          />
-        </div>
       </div>
 
       <div>
@@ -141,7 +134,7 @@ export default function CanvasConnectionForm({
 
       <button
         type="button"
-        disabled={!domain || isConnecting}
+        disabled={!canvasHost || isConnecting}
         onClick={onConnect}
         className="rounded-radius-md bg-primary-600 px-3 py-2 text-sm font-semibold text-text-on-primary hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
       >

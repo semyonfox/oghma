@@ -247,6 +247,24 @@ describe("GET /api/canvas/connect", () => {
     expect(response.status).toBe(400);
   });
 
+  it.each([
+    "canvas.custom.edu",
+    "school.instructure.com.attacker.test",
+    "localhost",
+  ])("rejects unsupported Canvas host %s before using the token", async (domain) => {
+    const response = await POST(
+      new NextRequest("http://localhost/api/canvas/connect", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ domain, token: "token" }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(sql).not.toHaveBeenCalled();
+    expect(canvas.getDiscoverableCourses).not.toHaveBeenCalled();
+  });
+
   it("returns 502 before storing credentials when connect receives an invalid upstream ID", async () => {
     canvas.getDiscoverableCourses.mockResolvedValue({
       data: [{ id: "9223372036854775808", name: "Invalid" }],
