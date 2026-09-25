@@ -1,8 +1,8 @@
 # Android alpha
 
-> Status: full web workspace in a React Native Android shell, version 0.1.3
+> Status: 0.1.4 released; 0.1.5 EAS Update APK built locally, unreleased
 >
-> Last reviewed: 2026-09-14
+> Last reviewed: 2026-09-25
 
 The Android application lives in [`apps/mobile`](../../apps/mobile/README.md), with its own npm package and lockfile. Version 0.1.3 replaces the limited native notes/chat screens with the existing Next.js website in React Native WebView. The website remains at the repository root. Its responsive navigation, Milkdown rich editor, PDF.js renderer, chat, calendar, quizzes and settings are used directly inside the app.
 
@@ -91,6 +91,33 @@ Physical-device follow-up for this alpha: save a note, use airplane mode, force-
 remove it, reconnect, sign out and switch accounts. Confirm that the native
 reader does not interrupt an open editor or make network requests for note
 images. Keyboard, OAuth-return and APK-installer behaviour remain unverified on a physical phone for this update.
+
+## 0.1.5 EAS Update preparation
+
+Status: unreleased source target as of 2026-09-25. Version 0.1.5 adds the
+`expo-updates` native module to the existing signed APK build. It will use the
+public project ID of [foxscope/oghmanotes-alpha](https://expo.dev/accounts/foxscope/projects/oghmanotes-alpha), the `production` update channel
+for the production website origin, and the app version as its runtime version.
+The current 0.1.4 APK has no EAS Update client and cannot receive these updates.
+The Expo project is linked in `apps/mobile/app.config.ts`. No OTA update or 0.1.5
+APK has been published. The Expo `production` channel is linked to its
+`production` branch, with no updates published yet. The [mobile README](../../apps/mobile/README.md)
+owns the build and publishing steps.
+
+Local verification on 2026-09-25: the signed 0.1.5 APK built successfully with
+package `ie.oghmanotes.alpha` and versionCode 6. Its signing certificate matches
+the published 0.1.4 APK. The packaged Android manifest contains the Expo update
+URL, `production` channel and runtime version `0.1.5`. The APK verifies, is not
+debuggable and passes 16 KB ZIP alignment. The only permission added since 0.1.4
+is `ACCESS_NETWORK_STATE`. Mobile type checking, 32 contract tests, Expo dependency
+compatibility and Android JavaScript export passed. Installation on a device and
+OTA delivery still need verification.
+
+EAS Update covers bundled React Native JavaScript and assets compatible with
+the installed native runtime. The WebView still loads website changes from the
+deployed site. Native capability changes continue through the signed APK
+release flow and the existing verified APK updater. A separate Dev app and
+update channel are outside this preparation.
 
 ## References
 

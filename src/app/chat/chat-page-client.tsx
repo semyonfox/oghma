@@ -563,7 +563,7 @@ export default function ChatPageClient() {
           <ConversationHistory {...historyProps} showHeader={false} />
         </MobileDrawer>
       )}
-      <MobileBottomNavigation />
+      <MobileBottomNavigation className="-mt-6" />
     </div>
   );
 }
