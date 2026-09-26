@@ -97,6 +97,20 @@ describe("assignment tracker", () => {
     expect(screen.getByRole("dialog", { name: "New Task" })).toBeTruthy();
   });
 
+  it("keeps task creation available in the compact notes inspector", () => {
+    render(<AssignmentTracker surface="compact" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "New Task" }));
+
+    expect(screen.getByRole("dialog", { name: "New Task" })).toBeTruthy();
+  });
+
+  it("hides its New Task control when the parent supplies one", () => {
+    render(<AssignmentTracker surface="compact" showNewTaskButton={false} />);
+
+    expect(screen.queryByRole("button", { name: "New Task" })).toBeNull();
+  });
+
   it("opens editing only for manual tasks", () => {
     render(<AssignmentTracker surface="compact" />);
     fireEvent.click(screen.getByRole("button", { name: "Edit task: Database report" }));

@@ -1224,7 +1224,7 @@
   "Open Account → Settings in Canvas": "Open Account → Settings in Canvas",
   "Add New Access Token": "Add New Access Token",
   "Name the token OghmaNotes": "Name the token OghmaNotes",
-  "Set an expiration date and time for how long you plan to use this connection. Canvas limits student tokens to 30 days.": "请选择符合计划使用时间的到期日期和时间。Canvas 将学生令牌的有效期限制为 30 天。",
+  "Set an expiration date and time for how long you plan to use this connection.": "请选择符合计划使用时间的到期日期和时间。",
   "Copy the whole long code under Access Token Details into API Token below. It may include letters, numbers, and symbols.": "将“访问令牌详情”中的整段长代码复制到下方的“API 令牌”字段。它可能包含字母、数字和符号。",
   "Enter the host from your Canvas URL, for example": "Enter the host from your Canvas URL, for example",
   "The token is the long code Canvas generated, not your email, the name OghmaNotes, or your Canvas address.": "令牌是 Canvas 生成的长代码，不是你的电子邮件地址、名称 OghmaNotes 或 Canvas 网址。",

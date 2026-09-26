@@ -345,7 +345,7 @@ export default function CalendarPage() {
                   </button>
                 </div>
                 <div className="flex min-h-0 flex-1 flex-col">
-                  <AssignmentTracker surface="compact" />
+                  <AssignmentTracker surface="compact" showNewTaskButton={false} />
                 </div>
               </aside>
             </Panel>

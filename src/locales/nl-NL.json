@@ -1224,7 +1224,7 @@
   "Open Account → Settings in Canvas": "Open Account → Settings in Canvas",
   "Add New Access Token": "Add New Access Token",
   "Name the token OghmaNotes": "Name the token OghmaNotes",
-  "Set an expiration date and time for how long you plan to use this connection. Canvas limits student tokens to 30 days.": "Kies een vervaldatum en -tijd voor de periode waarin je de koppeling wilt gebruiken. Canvas beperkt studententokens tot 30 dagen.",
+  "Set an expiration date and time for how long you plan to use this connection.": "Kies een vervaldatum en -tijd voor de periode waarin je de koppeling wilt gebruiken.",
   "Copy the whole long code under Access Token Details into API Token below. It may include letters, numbers, and symbols.": "Kopieer de volledige lange code uit de toegangstokengegevens naar het veld API-token hieronder. De code kan letters, cijfers en symbolen bevatten.",
   "Enter the host from your Canvas URL, for example": "Enter the host from your Canvas URL, for example",
   "The token is the long code Canvas generated, not your email, the name OghmaNotes, or your Canvas address.": "Het token is de lange code die Canvas heeft gemaakt, niet je e-mailadres, de naam OghmaNotes of je Canvas-adres.",

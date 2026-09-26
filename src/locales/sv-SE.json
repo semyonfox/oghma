@@ -1224,7 +1224,7 @@
   "Open Account → Settings in Canvas": "Open Account → Settings in Canvas",
   "Add New Access Token": "Add New Access Token",
   "Name the token OghmaNotes": "Name the token OghmaNotes",
-  "Set an expiration date and time for how long you plan to use this connection. Canvas limits student tokens to 30 days.": "Välj ett utgångsdatum och en tid för den period du tänker använda anslutningen. Canvas begränsar studenttoken till 30 dagar.",
+  "Set an expiration date and time for how long you plan to use this connection.": "Välj ett utgångsdatum och en tid för den period du tänker använda anslutningen.",
   "Copy the whole long code under Access Token Details into API Token below. It may include letters, numbers, and symbols.": "Kopiera hela den långa koden från informationen om åtkomsttoken till fältet API-token nedan. Den kan innehålla bokstäver, siffror och symboler.",
   "Enter the host from your Canvas URL, for example": "Enter the host from your Canvas URL, for example",
   "The token is the long code Canvas generated, not your email, the name OghmaNotes, or your Canvas address.": "Token är den långa kod som Canvas skapade, inte din e-postadress, namnet OghmaNotes eller din Canvas-adress.",

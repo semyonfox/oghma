@@ -1224,7 +1224,7 @@
   "Open Account → Settings in Canvas": "Open Account → Settings in Canvas",
   "Add New Access Token": "Add New Access Token",
   "Name the token OghmaNotes": "Name the token OghmaNotes",
-  "Set an expiration date and time for how long you plan to use this connection. Canvas limits student tokens to 30 days.": "Roghnaigh dáta agus am éaga don tréimhse a bheartaíonn tú an nasc seo a úsáid. Cuireann Canvas teorainn 30 lá le comharthaí na mac léinn.",
+  "Set an expiration date and time for how long you plan to use this connection.": "Roghnaigh dáta agus am éaga don tréimhse a bheartaíonn tú an nasc seo a úsáid. Cuireann",
   "Copy the whole long code under Access Token Details into API Token below. It may include letters, numbers, and symbols.": "Cóipeáil an cód fada ina iomláine ó Shonraí an Chomhartha Rochtana isteach sa réimse Comhartha API thíos. D’fhéadfadh litreacha, uimhreacha agus siombailí a bheith ann.",
   "Enter the host from your Canvas URL, for example": "Enter the host from your Canvas URL, for example",
   "The token is the long code Canvas generated, not your email, the name OghmaNotes, or your Canvas address.": "Is é an comhartha an cód fada a chruthaigh Canvas, ní do sheoladh ríomhphoist, an t-ainm OghmaNotes ná do sheoladh Canvas.",

@@ -272,21 +272,58 @@ export default function SettingsPage() {
 
   useEffect(() => {
     const handleScroll = () => {
+      let visibleSection: string | null = null;
       for (const id of SECTION_IDS) {
         const el = document.getElementById(id);
         if (el) {
           const rect = el.getBoundingClientRect();
           if (rect.top <= 200 && rect.bottom >= 0) {
-            setActiveSection(id);
-            break;
+            visibleSection = id;
           }
         }
       }
+      if (visibleSection) setActiveSection(visibleSection);
     };
     const content = contentRef.current;
     if (!content) return;
     content.addEventListener("scroll", handleScroll);
     return () => content.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  useEffect(() => {
+    const content = contentRef.current;
+    if (!content) return;
+
+    let observer: MutationObserver | null = null;
+    const scrollToHash = () => {
+      observer?.disconnect();
+      observer = null;
+
+      const id = window.location.hash.slice(1);
+      if (!SECTION_IDS.includes(id)) return;
+
+      const scrollWhenReady = () => {
+        const section = document.getElementById(id);
+        if (!section) return;
+        observer?.disconnect();
+        observer = null;
+        section.scrollIntoView({ behavior: "auto" });
+        setActiveSection(id);
+      };
+
+      scrollWhenReady();
+      if (!document.getElementById(id)) {
+        observer = new MutationObserver(scrollWhenReady);
+        observer.observe(content, { childList: true, subtree: true });
+      }
+    };
+
+    scrollToHash();
+    window.addEventListener("hashchange", scrollToHash);
+    return () => {
+      window.removeEventListener("hashchange", scrollToHash);
+      observer?.disconnect();
+    };
   }, []);
 
   useEffect(() => {

@@ -1224,7 +1224,7 @@
   "Open Account → Settings in Canvas": "Open Account → Settings in Canvas",
   "Add New Access Token": "Add New Access Token",
   "Name the token OghmaNotes": "Name the token OghmaNotes",
-  "Set an expiration date and time for how long you plan to use this connection. Canvas limits student tokens to 30 days.": "Choisissez une date et une heure d'expiration adaptées à la durée d'utilisation prévue. Canvas limite les jetons étudiants à 30 jours.",
+  "Set an expiration date and time for how long you plan to use this connection.": "Choisissez une date et une heure d'expiration adaptées à la durée d'utilisation prévue.",
   "Copy the whole long code under Access Token Details into API Token below. It may include letters, numbers, and symbols.": "Copiez le code long entier depuis les détails du jeton d'accès dans le champ Jeton API ci-dessous. Il peut contenir des lettres, des chiffres et des symboles.",
   "Enter the host from your Canvas URL, for example": "Enter the host from your Canvas URL, for example",
   "The token is the long code Canvas generated, not your email, the name OghmaNotes, or your Canvas address.": "Le jeton est le long code généré par Canvas, pas votre adresse e-mail, le nom OghmaNotes ni l'adresse de votre site Canvas.",

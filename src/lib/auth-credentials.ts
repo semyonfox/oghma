@@ -48,7 +48,7 @@ export function getPasswordRequirements(password: string) {
     id,
     label,
     error,
-    met: check(password),
+    met: password.length > 0 && check(password),
   }));
 }
 

@@ -98,7 +98,14 @@ export async function POST(request: NextRequest): Promise<Response> {
       } catch {
         logger.error("failed to restore verification token after resend failure");
       }
-      throw sendError;
+      logger.error("resend verification email failed", {
+        reason:
+          sendError instanceof EmailSendError ? sendError.reason : "unexpected",
+        httpStatus:
+          sendError instanceof EmailSendError ? sendError.httpStatus : undefined,
+        providerCode:
+          sendError instanceof EmailSendError ? sendError.providerCode : undefined,
+      });
     }
 
     const elapsed = Date.now() - start;
@@ -110,16 +117,10 @@ export async function POST(request: NextRequest): Promise<Response> {
     if (error instanceof ApiError) {
       return createErrorResponse(error.userMessage, error.statusCode);
     }
-    logger.error("resend verification error", {
-      reason: error instanceof EmailSendError ? error.reason : "unexpected",
-      httpStatus:
-        error instanceof EmailSendError ? error.httpStatus : undefined,
-      providerCode:
-        error instanceof EmailSendError ? error.providerCode : undefined,
-    });
+    logger.error("resend verification error", { reason: "unexpected" });
     return createErrorResponse(
       "Could not request a verification link. Please try again later.",
-      error instanceof EmailSendError ? 503 : 500,
+      500,
     );
   }
 }

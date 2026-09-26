@@ -14,33 +14,33 @@ const alertVariants = {
   warning: {
     bgColor: "bg-yellow-500/10",
     outlineColor: "outline-yellow-500/15",
-    iconColor: "text-yellow-300",
-    titleColor: "text-yellow-100",
-    descColor: "text-yellow-100/80",
+    iconColor: "text-yellow-700 dark:text-yellow-300",
+    titleColor: "text-yellow-900 dark:text-yellow-100",
+    descColor: "text-yellow-900 dark:text-yellow-100/80",
     icon: ExclamationTriangleIcon,
   },
   error: {
     bgColor: "bg-red-500/15",
     outlineColor: "outline-red-500/25",
-    iconColor: "text-red-400",
-    titleColor: "text-red-200",
-    descColor: "text-red-200/80",
+    iconColor: "text-red-700 dark:text-red-400",
+    titleColor: "text-red-900 dark:text-red-200",
+    descColor: "text-red-900 dark:text-red-200/80",
     icon: XCircleIcon,
   },
   success: {
     bgColor: "bg-green-500/10",
     outlineColor: "outline-green-500/20",
-    iconColor: "text-green-400",
-    titleColor: "text-green-200",
-    descColor: "text-green-200/85",
+    iconColor: "text-green-700 dark:text-green-400",
+    titleColor: "text-green-900 dark:text-green-200",
+    descColor: "text-green-900 dark:text-green-200/85",
     icon: CheckCircleIcon,
   },
   info: {
     bgColor: "bg-blue-500/10",
     outlineColor: "outline-blue-500/20",
-    iconColor: "text-blue-400",
-    titleColor: "text-blue-300",
-    descColor: "text-blue-300/85",
+    iconColor: "text-blue-700 dark:text-blue-400",
+    titleColor: "text-blue-900 dark:text-blue-300",
+    descColor: "text-blue-900 dark:text-blue-300/85",
     icon: InformationCircleIcon,
   },
 };
@@ -54,6 +54,7 @@ type AlertProps = {
   dismissible?: boolean;
   onDismiss?: () => void;
   className?: string;
+  role?: "alert" | "status";
 };
 
 export function Alert({
@@ -64,6 +65,7 @@ export function Alert({
   dismissible = false,
   onDismiss,
   className = "",
+  role,
 }: AlertProps) {
   const { t } = useI18n();
   const [isOpen, setIsOpen] = useState(true);
@@ -80,6 +82,7 @@ export function Alert({
 
   return (
     <div
+      role={role}
       className={`rounded-md ${styles.bgColor} p-4 outline ${styles.outlineColor} ${className}`}
     >
       <div className="flex">

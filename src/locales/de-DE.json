@@ -1224,7 +1224,7 @@
   "Open Account → Settings in Canvas": "Öffnen Sie in Canvas Konto → Einstellungen",
   "Add New Access Token": "Neues Zugriffstoken hinzufügen",
   "Name the token OghmaNotes": "Benennen Sie das Token OghmaNotes",
-  "Set an expiration date and time for how long you plan to use this connection. Canvas limits student tokens to 30 days.": "Legen Sie Ablaufdatum und Uhrzeit für die geplante Nutzung fest. Canvas begrenzt Tokens für Studierende auf 30 Tage.",
+  "Set an expiration date and time for how long you plan to use this connection.": "Legen Sie Ablaufdatum und Uhrzeit für die geplante Nutzung fest.",
   "Copy the whole long code under Access Token Details into API Token below. It may include letters, numbers, and symbols.": "Kopieren Sie den vollständigen langen Code aus den Zugriffstoken-Details in das Feld API-Token unten. Er kann Buchstaben, Zahlen und Sonderzeichen enthalten.",
   "Enter the host from your Canvas URL, for example": "Geben Sie den Host Ihrer Canvas-URL ein, zum Beispiel",
   "The token is the long code Canvas generated, not your email, the name OghmaNotes, or your Canvas address.": "Das Token ist der lange Code, den Canvas erstellt hat, nicht Ihre E-Mail-Adresse, der Name OghmaNotes oder Ihre Canvas-Adresse.",

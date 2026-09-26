@@ -46,6 +46,7 @@ import AssignmentTypeIcon from "./assignment-type-icon";
 
 interface AssignmentTrackerProps {
   surface?: "compact" | "full";
+  showNewTaskButton?: boolean;
 }
 
 interface CourseRingData {
@@ -184,6 +185,7 @@ function isVisibleInTab(assignment: Assignment, tab: AssignmentTab, now: Date) {
 
 export default function AssignmentTracker({
   surface = "compact",
+  showNewTaskButton = true,
 }: AssignmentTrackerProps) {
   const { t, activeLocale } = useI18n();
   const compact = surface === "compact";
@@ -555,7 +557,7 @@ export default function AssignmentTracker({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {!compact && (
+      {!compact && showNewTaskButton && (
         <div className="px-3 pt-3">
           <button
             type="button"
@@ -699,6 +701,19 @@ export default function AssignmentTracker({
           ))}
         </TabPanels>
       </TabGroup>
+
+      {compact && showNewTaskButton && (
+        <div className="p-3">
+          <button
+            type="button"
+            onClick={() => setShowNewTask(true)}
+            className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-radius-lg border border-dashed border-border-subtle py-2 text-xs text-text-tertiary transition-colors hover:border-border hover:text-text-secondary"
+          >
+            <PlusIcon className="h-3.5 w-3.5" aria-hidden="true" />
+            {t("New Task")}
+          </button>
+        </div>
+      )}
 
       <NewTaskModal
         open={showNewTask}

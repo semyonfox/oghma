@@ -83,7 +83,7 @@ export default function CanvasConnectionForm({
           <li>{t("Name the token OghmaNotes")}</li>
           <li>
             {t(
-              "Set an expiration date and time for how long you plan to use this connection. Canvas limits student tokens to 30 days.",
+              "Set an expiration date and time for how long you plan to use this connection.",
             )}
           </li>
           <li>

@@ -210,9 +210,9 @@ export default function CanvasIntegrationSettings() {
 
   // ── Persist selected courses whenever they change ────────────────────────
   useEffect(() => {
-    if (isCheckingConnection) return;
+    if (isCheckingConnection || !isConnected) return;
     localStorage.setItem(LS_SELECTED, JSON.stringify(selectedCourseIds));
-  }, [isCheckingConnection, selectedCourseIds]);
+  }, [isCheckingConnection, isConnected, selectedCourseIds]);
 
   const handleConnect = async () => {
     const rawToken = tokenInputRef.current?.value?.trim() ?? "";

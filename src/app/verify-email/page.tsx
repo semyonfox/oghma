@@ -35,7 +35,7 @@ function VerifyEmailContent() {
     : t(
         "We sent a verification link to your email. Click the link to verify your account.",
       );
-  if (delivery === "queued" && !resendMessage) {
+  if (delivery === "queued") {
     instructions = t(
       "Your verification email is queued. It may take a few minutes to arrive.",
     );
@@ -44,6 +44,9 @@ function VerifyEmailContent() {
     instructions = t(
       "We couldn't send the verification email. Your account was created. Try resending once or contact support.",
     );
+  }
+  if (resendMessage) {
+    instructions = "";
   }
 
   // auto-verify if token is in URL
@@ -144,16 +147,18 @@ function VerifyEmailContent() {
             ? t("Verification email not sent")
             : t("Check your email")}
         </h2>
-        <p className="mt-2 text-center text-sm text-text-tertiary">
-          {instructions}
-        </p>
+        {instructions && (
+          <p className="mt-2 text-center text-sm text-text-tertiary">
+            {instructions}
+          </p>
+        )}
       </div>
 
       <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-[480px]">
         <div className="glass-card px-6 py-12 rounded-radius-xl sm:px-12 space-y-6">
-          {error && <Alert variant="error" description={error} />}
+          {error && <Alert role="alert" variant="error" description={error} />}
           {resendMessage && (
-            <Alert variant="success" description={resendMessage} />
+            <Alert role="status" variant="info" description={resendMessage} />
           )}
 
           {email && (
@@ -168,7 +173,7 @@ function VerifyEmailContent() {
 
           <p className="text-center text-sm text-text-tertiary">
             {t("Didn't receive the email? Check your spam folder.")} {" "}
-            <Link href="/contact" className="font-semibold text-primary-400 hover:text-primary-300">
+            <Link href="/contact" className="font-semibold text-primary-700 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300">
               {t("Contact support")}
             </Link>
           </p>
@@ -177,7 +182,7 @@ function VerifyEmailContent() {
         <p className="mt-10 text-center text-sm/6 text-text-tertiary">
           <Link
             href="/login"
-            className="font-semibold text-primary-400 hover:text-primary-300"
+            className="font-semibold text-primary-700 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300"
           >
             {t("Back to Login")}
           </Link>

@@ -82,7 +82,7 @@ describe("I18nRootProvider account reconciliation", () => {
         expect.objectContaining({ message: "settings API returned 503" }),
       ),
     );
-    expect(screen.getByText(Locale.GA)).toBeTruthy();
+    await waitFor(() => expect(screen.getByText(Locale.GA)).toBeTruthy());
   });
 
   it("applies a stored account language over the browser preference", async () => {

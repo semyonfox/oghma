@@ -190,6 +190,7 @@ async function renderSettingsPage() {
 describe("SettingsPage", () => {
   beforeEach(() => {
     document.body.innerHTML = "";
+    window.history.replaceState(null, "", "/settings");
     vi.clearAllMocks();
     mocks.lastManagerProps = null;
     mocks.treeState.ownerUserId = "user-1";
@@ -277,6 +278,45 @@ describe("SettingsPage", () => {
         hasDueItems: true,
       },
     ]);
+  });
+
+  it("opens the Canvas section from the URL hash after it loads", async () => {
+    window.history.replaceState(null, "", "/settings#canvas");
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(Element.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView,
+    });
+
+    const { container } = await renderSettingsPage();
+
+    await vi.waitFor(() => {
+      expect(container.querySelector("#canvas")).not.toBeNull();
+      expect(scrollIntoView).toHaveBeenCalled();
+    });
+    const canvasButton = Array.from(container.querySelectorAll("nav button")).find(
+      (button) => button.textContent?.trim() === "Canvas",
+    );
+    expect(canvasButton?.getAttribute("aria-current")).toBe("location");
+
+    for (const element of container.querySelectorAll("main [id]")) {
+      Object.defineProperty(element, "getBoundingClientRect", {
+        configurable: true,
+        value: () => ({ top: 1000, bottom: 1100 }),
+      });
+    }
+    Object.defineProperty(container.querySelector("#password"), "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ top: -100, bottom: 65 }),
+    });
+    Object.defineProperty(container.querySelector("#canvas"), "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ top: 65, bottom: 600 }),
+    });
+    await act(async () => {
+      container.querySelector(".overflow-y-auto")?.dispatchEvent(new Event("scroll"));
+    });
+    expect(canvasButton?.getAttribute("aria-current")).toBe("location");
   });
 
   it("publishes a server-confirmed logout when local cleanup fails", async () => {

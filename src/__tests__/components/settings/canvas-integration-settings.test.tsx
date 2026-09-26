@@ -127,6 +127,35 @@ describe("CanvasIntegrationSettings connection check", () => {
     ).toBe("https://example.instructure.com");
   });
 
+  it.each(["needs-reconnection", "temporarily-unavailable"] as const)(
+    "preserves saved course selection when connection is %s",
+    async (connectionState) => {
+      localStorage.setItem("canvas_selected_courses", '["42"]');
+      mockConnectionResponse({
+        connected: false,
+        connectionState,
+        domain: "example.instructure.com",
+      });
+
+      render(<CanvasIntegrationSettings />);
+
+      await screen.findByLabelText("Canvas URL");
+      expect(localStorage.getItem("canvas_selected_courses")).toBe('["42"]');
+    },
+  );
+
+  it("preserves saved course selection when the connection check fails", async () => {
+    localStorage.setItem("canvas_selected_courses", '["42"]');
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network")));
+
+    render(<CanvasIntegrationSettings />);
+
+    await screen.findByText(
+      "Could not check Canvas right now. Reload this page to try again.",
+    );
+    expect(localStorage.getItem("canvas_selected_courses")).toBe('["42"]');
+  });
+
   it("keeps a temporary Canvas failure separate from invalid credentials", async () => {
     mockConnectionResponse({
       connected: false,
@@ -236,6 +265,8 @@ describe("CanvasIntegrationSettings connection check", () => {
     expect(
       await screen.findByText("1 of 1 available courses selected"),
     ).toBeTruthy();
-    expect(localStorage.getItem("canvas_selected_courses")).toBe('["1"]');
+    await waitFor(() => {
+      expect(localStorage.getItem("canvas_selected_courses")).toBe('["1"]');
+    });
   });
 });

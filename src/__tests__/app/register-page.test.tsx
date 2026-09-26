@@ -64,6 +64,14 @@ describe("registration password feedback", () => {
     window.history.replaceState(null, "", "/register");
   });
 
+  it("does not mark any password rule complete before typing", () => {
+    render(<RegisterPage />);
+
+    expect(
+      screen.getByText("No more than 128 characters").parentElement?.textContent,
+    ).toContain("○");
+  });
+
   it.each([
     ["Short1", "Password must be at least 8 characters long"],
     ["alllowercase1", "Password must contain at least one uppercase letter"],
@@ -114,6 +122,8 @@ describe("registration password feedback", () => {
       "/verify-email?email=student%40example.com",
     );
     expect(mocks.register).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText("Password", { exact: true }).getAttribute("aria-invalid")).toBe("false");
+    expect(screen.queryByText("Password is required")).toBeNull();
   });
 
   it("shows the active rules and error in German", () => {

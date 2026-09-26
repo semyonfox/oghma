@@ -34,6 +34,7 @@ vi.mock("@/lib/logger", () => ({
 
 import sql from "@/database/pgsql";
 import { EmailSendError, sendVerificationEmail } from "@/lib/email";
+import logger from "@/lib/logger";
 import { POST } from "@/app/api/auth/resend-verification/route";
 
 const mockSql = vi.mocked(sql);
@@ -97,9 +98,9 @@ describe("verification resend", () => {
 
     const response = await POST(request());
 
-    expect(response.status).toBe(503);
+    expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
-      error: expect.stringContaining("try again later"),
+      message: "If that email needs verification, a new link has been requested.",
     });
     expect(mockSql).toHaveBeenCalledTimes(3);
     const restoreCall = mockSql.mock.calls[2];
@@ -107,6 +108,34 @@ describe("verification resend", () => {
     expect(restoreCall.slice(1)).toContain("previous-hash");
     expect(restoreCall.slice(1)).toContain(previousExpiry);
     expect(mockSql.mock.calls.some(([strings]) => String(strings).includes("INSERT"))).toBe(false);
+    expect(logger.error).toHaveBeenCalledWith(
+      "resend verification email failed",
+      { reason: "provider_rejected", httpStatus: 503, providerCode: 10002 },
+    );
+  });
+
+  it("uses the same public response for an unknown address and a failed resend", async () => {
+    const unknownResponse = await POST(request());
+    const unknownBody = await unknownResponse.json();
+
+    mockSql.mockResolvedValueOnce([
+      {
+        user_id: "user-1",
+        email: "student@example.com",
+        email_verified: false,
+        locale: null,
+        verification_token: "previous-hash",
+        verification_token_expires: null,
+      },
+    ]).mockResolvedValueOnce([{ user_id: "user-1" }]);
+    vi.mocked(sendVerificationEmail).mockRejectedValue(
+      new EmailSendError("transport"),
+    );
+
+    const failedResponse = await POST(request());
+
+    expect(failedResponse.status).toBe(unknownResponse.status);
+    await expect(failedResponse.json()).resolves.toEqual(unknownBody);
   });
 
   it("does not send a link if the account changed during resend", async () => {

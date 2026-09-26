@@ -308,4 +308,27 @@ describe("PDFViewer page rendering", () => {
     expect(screen.queryByRole("button", { name: /Open extracted note/ })).toBeNull();
   });
 
+  it.each([400, 401, 404])(
+    "stops polling and clears stale extraction progress after HTTP %i",
+    async (status) => {
+      const fetchMock = vi.fn()
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ status: "processing" }) })
+        .mockResolvedValue({ ok: false, status });
+      vi.stubGlobal("fetch", fetchMock);
+      vi.useFakeTimers();
+
+      render(<PDFViewer pane="A" file={{ fileId: "source-1", fileType: "pdf", sourcePath: "notes/lecture.pdf" }} />);
+      await act(async () => { await Promise.resolve(); });
+      expect(screen.getByText(/Creating an editable note/)).toBeTruthy();
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(screen.queryByText(/Creating an editable note/)).toBeNull();
+      expect(screen.getByTestId("rendered-pdf-page-1")).toBeTruthy();
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(8000); });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    },
+  );
+
 });

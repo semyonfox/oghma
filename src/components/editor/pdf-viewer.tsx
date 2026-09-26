@@ -189,7 +189,18 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane }) => {
           `/api/ingestion-status?noteId=${encodeURIComponent(file.fileId)}`,
           { cache: "no-store", signal: controller.signal },
         );
-        if (!response.ok) throw new Error(`Extraction status: ${response.status}`);
+        if (!response.ok) {
+          if (
+            response.status >= 400 &&
+            response.status < 500 &&
+            response.status !== 408 &&
+            response.status !== 429
+          ) {
+            if (!controller.signal.aborted) setExtraction(null);
+            return;
+          }
+          throw new Error(`Extraction status: ${response.status}`);
+        }
         const payload: unknown = await response.json();
         const next = parsePdfExtraction(payload);
         if (!next || controller.signal.aborted) return;

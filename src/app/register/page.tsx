@@ -181,6 +181,7 @@ export default function RegisterPage() {
       );
       setPwd("");
       setConfirmPwd("");
+      setShowFieldErrors(false);
       errRef.current?.focus();
       setLoading(false);
     }
@@ -285,7 +286,7 @@ export default function RegisterPage() {
                 {retryEmail && (
                   <Link
                     href={`/verify-email?${new URLSearchParams({ email: retryEmail })}`}
-                    className="mt-2 inline-block text-sm font-semibold text-primary-400 hover:text-primary-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
+                    className="mt-2 inline-block text-sm font-semibold text-primary-700 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
                   >
                     {t("Resend verification email")}
                   </Link>
@@ -315,7 +316,7 @@ export default function RegisterPage() {
                 />
               </div>
               {emailError && (
-                <p id="email-error" role="alert" className="mt-1 text-xs text-error-300">
+                <p id="email-error" role="alert" className="mt-1 text-xs text-error-700 dark:text-error-300">
                   {t(emailError)}
                 </p>
               )}
@@ -371,7 +372,7 @@ export default function RegisterPage() {
                 />
               </div>
               {passwordError && (
-                <p id="password-error" role="alert" className="mt-2 text-xs text-error-300">
+                <p id="password-error" role="alert" className="mt-2 text-xs text-error-700 dark:text-error-300">
                   {t(passwordError)}
                 </p>
               )}
@@ -381,9 +382,9 @@ export default function RegisterPage() {
                     key={requirement.id}
                     className={
                       requirement.met
-                        ? "text-emerald-400"
+                        ? "text-success-700 dark:text-emerald-400"
                         : showFieldErrors
-                          ? "text-error-300"
+                          ? "text-error-700 dark:text-error-300"
                           : "text-text-tertiary"
                     }
                   >
@@ -418,7 +419,7 @@ export default function RegisterPage() {
                 />
               </div>
               {confirmError && (
-                <p id="confirm-password-error" role="alert" className="mt-1 text-xs text-error-300">
+                <p id="confirm-password-error" role="alert" className="mt-1 text-xs text-error-700 dark:text-error-300">
                   {t(confirmError)}
                 </p>
               )}
@@ -503,7 +504,7 @@ export default function RegisterPage() {
           {t("Already have an account?")}{" "}
           <Link
             href="/login"
-            className="font-semibold text-primary-400 hover:text-primary-300"
+            className="font-semibold text-primary-700 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300"
           >
             {t("Sign in")}
           </Link>

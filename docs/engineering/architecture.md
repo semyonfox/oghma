@@ -58,13 +58,12 @@ without recreating derived state; it restores only the matching cohort and
 falls back to the root when the original parent is no longer an active folder.
 
 Permanent trash deletion is intentionally different: it removes relational
-dependents atomically, then makes best-effort Qdrant and private-object cleanup.
+dependents atomically and records Qdrant and private-object cleanup in a durable task.
 Independently trashed descendants are retained and reparented before their
 ancestor is removed. Index replacement locks the active note through its vector
 write, so deletion either prevents new chunks/vectors or removes the exact set
 written by the in-flight indexer. See
-[`note-lifecycle.ts`](../../src/lib/notes/storage/note-lifecycle.ts),
-[`note-cleanup.ts`](../../src/lib/notes/storage/note-cleanup.ts), and
+[`note-lifecycle.ts`](../../src/lib/notes/storage/note-lifecycle.ts) and
 [`indexing.ts`](../../src/lib/rag/indexing.ts) for the executable contract.
 
 ## Background work and queues
