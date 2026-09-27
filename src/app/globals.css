@@ -1049,6 +1049,26 @@ html.light .glass-card-active {
   color: var(--md-syntax-invalid);
 }
 
+/* browsers report env() insets; the android shell draws under the gesture bar and injects its height */
+:root {
+  --safe-bottom: max(env(safe-area-inset-bottom), var(--oghma-inset-bottom, 0px));
+}
+
+/* room the mobile dock takes at the bottom, including the inset below it */
+@media (max-width: 1023px) {
+  :root:has([data-mobile-dock]) {
+    --mobile-dock-space: calc(5.5rem + var(--safe-bottom));
+  }
+}
+
+/* the dock floats over scrolling pages, so their last item needs room to clear it */
+.mobile-dock-clearance::after {
+  content: "";
+  display: block;
+  flex-shrink: 0;
+  height: var(--mobile-dock-space, 0px);
+}
+
 /* accessible touch target — expands hit area to 44px minimum without changing visual size */
 .touch-target-44 {
   position: relative;

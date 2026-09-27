@@ -34,7 +34,7 @@ export default function MobileSheet({
         <DialogPanel
           transition
           {...swipe}
-          className="flex max-h-[85dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl border border-border-subtle bg-surface pb-[env(safe-area-inset-bottom)] text-text shadow-xl transition duration-150 data-[closed]:translate-y-4 data-[closed]:opacity-0 motion-reduce:transition-none sm:rounded-2xl"
+          className="flex max-h-[85dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl border border-border-subtle bg-surface pb-[var(--safe-bottom)] text-text shadow-xl transition duration-150 data-[closed]:translate-y-4 data-[closed]:opacity-0 motion-reduce:transition-none sm:rounded-2xl"
         >
           <div
             aria-hidden="true"

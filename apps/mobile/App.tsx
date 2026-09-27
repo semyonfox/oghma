@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, BackHandler, Linking, ScrollView, Text, View } from "react-native";
+import { Alert, BackHandler, Keyboard, Linking, ScrollView, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import * as SystemUI from "expo-system-ui";
-import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   useFonts,
   SourceSans3_400Regular,
@@ -14,7 +14,7 @@ import WebView, { type WebViewMessageEvent } from "react-native-webview";
 import { origin } from "./src/lib/api";
 import { ThemeProvider, useTheme } from "./src/lib/theme";
 import { restoreWebSession, resumeWebSignIn, signInToWeb } from "./src/lib/web-session";
-import { navigationAction, parseWebMessage } from "./src/lib/web-navigation";
+import { bottomInsetScript, navigationAction, parseWebMessage } from "./src/lib/web-navigation";
 import { oauthReturnUrl } from "./src/lib/oauth-contracts";
 import { AppUpdateLink, UpdateBanner, UpdatesProvider, useUpdates } from "./src/components/AppUpdates";
 import { Button, Loading, message } from "./src/ui";
@@ -45,7 +45,8 @@ function AppShell({ ready }: { ready: boolean }) {
     void SystemUI.setBackgroundColorAsync(colors.background);
   }, [colors.background]);
   return (
-    <SafeAreaView style={styles.screen}>
+    // the workspace runs under the gesture bar, like native screens, and pads for it in the page
+    <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
       <StatusBar style={isDark ? "light" : "dark"} />
       {ready ? <Workspace /> : <Loading />}
       {ready && <UpdateBanner />}
@@ -65,10 +66,14 @@ function RecoveryScreen({
   openOffline: () => void;
 }) {
   const { colors, styles } = useTheme();
+  const insets = useSafeAreaInsets();
   return (
     <ScrollView
       style={{ flex: 1 }}
-      contentContainerStyle={[styles.content, { flexGrow: 1, justifyContent: "center" }]}
+      contentContainerStyle={[
+        styles.content,
+        { flexGrow: 1, justifyContent: "center", paddingBottom: 32 + insets.bottom },
+      ]}
     >
       <View style={{ width: "100%", maxWidth: 560, alignSelf: "center", gap: 16 }}>
         <View
@@ -105,6 +110,10 @@ function Workspace() {
   const [loadError, setLoadError] = useState("");
   const [webViewVersion, setWebViewVersion] = useState(0);
   const [source, setSource] = useState({ uri: `${origin}/notes` });
+  const insets = useSafeAreaInsets();
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  // the keyboard covers the gesture bar, so the page should not leave room for it
+  const bottomInset = keyboardOpen ? 0 : insets.bottom;
 
   const restore = useCallback(async () => {
     setStartupError("");
@@ -136,6 +145,17 @@ function Workspace() {
     });
     return () => subscription.remove();
   }, []);
+  useEffect(() => {
+    const shown = Keyboard.addListener("keyboardDidShow", () => setKeyboardOpen(true));
+    const hidden = Keyboard.addListener("keyboardDidHide", () => setKeyboardOpen(false));
+    return () => {
+      shown.remove();
+      hidden.remove();
+    };
+  }, []);
+  useEffect(() => {
+    webView.current?.injectJavaScript(bottomInsetScript(bottomInset));
+  }, [bottomInset]);
   useEffect(() => {
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
       if (canGoBack.current && !loadError) {
@@ -209,6 +229,7 @@ function Workspace() {
         source={source}
         style={{ flex: 1, backgroundColor: colors.background }}
         applicationNameForUserAgent="OghmaNotesAndroid/0.1.4 OghmaNotesOffline/1"
+        injectedJavaScriptBeforeContentLoaded={bottomInsetScript(bottomInset)}
         originWhitelist={["*"]}
         onShouldStartLoadWithRequest={(request) => navigate(request.url)}
         onOpenWindow={(event) => { navigate(event.nativeEvent.targetUrl, true); }}

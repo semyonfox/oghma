@@ -33,7 +33,14 @@ const destinations = [
   { href: "/quiz", label: "quiz.title", icon: AcademicCapIcon },
 ];
 
-export default function MobileBottomNavigation() {
+export default function MobileBottomNavigation({
+  className = "",
+  reserveSpace = false,
+}: {
+  className?: string;
+  // keep the dock below fixed content, such as the chat composer, instead of floating over it
+  reserveSpace?: boolean;
+}) {
   const { t } = useI18n();
   const pathname = usePathname();
   const nativeBridge = useNativeAppBridge();
@@ -103,7 +110,8 @@ export default function MobileBottomNavigation() {
     <>
       <div
         ref={dockRef}
-        className={`${keyboardOpen ? "hidden" : "block"} relative h-[calc(88px+env(safe-area-inset-bottom))] shrink-0 lg:hidden`}
+        data-mobile-dock
+        className={`${keyboardOpen ? "hidden" : "block"} pointer-events-none h-[var(--mobile-dock-space)] lg:hidden ${reserveSpace ? "relative shrink-0" : "fixed inset-x-0 bottom-0 z-30"} ${className}`}
       >
         <nav
           aria-label={t("Main navigation")}
@@ -111,7 +119,7 @@ export default function MobileBottomNavigation() {
           onFocusCapture={(event) => {
             if (event.target.matches(":focus-visible")) setExpanded(true);
           }}
-          className={`absolute bottom-[calc(12px+env(safe-area-inset-bottom))] left-1/2 flex -translate-x-1/2 items-stretch overflow-hidden rounded-full bg-surface/95 ring-1 ring-border-subtle p-1 shadow-lg backdrop-blur-xl transition-[width,height] duration-[280ms] motion-reduce:transition-none ${expanded ? "h-16 w-[calc(100%-28px)] max-w-[420px]" : "h-[52px] w-[calc(100%-80px)] min-w-[228px] max-w-[350px]"}`}
+          className={`pointer-events-auto absolute bottom-[calc(12px+var(--safe-bottom))] left-1/2 flex -translate-x-1/2 items-stretch overflow-hidden rounded-full bg-surface/95 ring-1 ring-border-subtle p-1 shadow-lg backdrop-blur-xl transition-[width,height] duration-[280ms] motion-reduce:transition-none ${expanded ? "h-16 w-[calc(100%-28px)] max-w-[420px]" : "h-[52px] w-[calc(100%-80px)] min-w-[228px] max-w-[350px]"}`}
         >
           {destinations.map(({ href, label, icon: Icon }) => {
             const active = !moreActive && pathname?.startsWith(href);
