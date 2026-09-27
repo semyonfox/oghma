@@ -71,10 +71,6 @@ export default function CanvasIntegrationSettings() {
   const [isDownloadingCanvasFiles, setIsDownloadingCanvasFiles] =
     useState(false);
 
-  const isCourseImportable = (course: Course) =>
-    course.canvasStatus !== "inaccessible" &&
-    course.canvasStatus !== "unavailable";
-
   // import/polling state (custom hook)
   const {
     pendingReplacement, setPendingReplacement, confirmReplacement, isReplacing,
@@ -157,10 +153,9 @@ export default function CanvasIntegrationSettings() {
           const savedSelection = localStorage.getItem(LS_SELECTED);
           const savedIds = JSON.parse(savedSelection ?? "[]");
           const validIds = (data.courses ?? [])
-            .filter(isCourseImportable)
             .map((c) => String(c.id));
           const historicalIds = (data.courses ?? [])
-            .filter((course) => course.historical && isCourseImportable(course))
+            .filter((course) => course.historical)
             .map((course) => String(course.id));
           setSelectedCourseIds(
             Array.from(
@@ -267,10 +262,9 @@ export default function CanvasIntegrationSettings() {
       const savedSelection = localStorage.getItem(LS_SELECTED);
       const savedIds = JSON.parse(savedSelection ?? "[]");
       const validIds = (data.courses ?? [])
-        .filter(isCourseImportable)
         .map((c) => String(c.id));
       const historicalIds = (data.courses ?? [])
-        .filter((course) => course.historical && isCourseImportable(course))
+        .filter((course) => course.historical)
         .map((course) => String(course.id));
       setSelectedCourseIds(
         Array.from(
@@ -332,7 +326,6 @@ export default function CanvasIntegrationSettings() {
           ? courses
               .filter(
                 (course) =>
-                  isCourseImportable(course) &&
                   selectedCourseIds.includes(String(course.id)),
               )
               .map((c) => ({
@@ -387,7 +380,7 @@ export default function CanvasIntegrationSettings() {
   const toggleCourse = (courseId: string | number) => {
     const id = String(courseId);
     const course = courses.find((item) => String(item.id) === id);
-    if (!course || !isCourseImportable(course)) return;
+    if (!course) return;
     setSelectedCourseIds((prev) =>
       prev.includes(id)
         ? prev.filter((selectedId) => selectedId !== id)
@@ -396,16 +389,14 @@ export default function CanvasIntegrationSettings() {
   };
 
   const toggleSelectAll = () => {
-    const importableIds = courses
-      .filter(isCourseImportable)
-      .map((course) => String(course.id));
+    const listedIds = courses.map((course) => String(course.id));
     const allSelected =
-      importableIds.length > 0 &&
-      importableIds.every((id) => selectedCourseIds.includes(id));
+      listedIds.length > 0 &&
+      listedIds.every((id) => selectedCourseIds.includes(id));
     if (allSelected) {
       setSelectedCourseIds([]);
     } else {
-      setSelectedCourseIds(importableIds);
+      setSelectedCourseIds(listedIds);
     }
   };
 
@@ -452,9 +443,8 @@ export default function CanvasIntegrationSettings() {
   }
 
   const showProgress = (isImporting || importSummary) && progress;
-  const selectedImportableCourseCount = courses.filter(
+  const selectedCourseCount = courses.filter(
     (course) =>
-      isCourseImportable(course) &&
       selectedCourseIds.includes(String(course.id)),
   ).length;
 
@@ -592,11 +582,11 @@ export default function CanvasIntegrationSettings() {
           <div className="flex flex-wrap gap-3">
             <button
                 type="button"
-                disabled={selectedImportableCourseCount === 0 || isSyncing}
+                disabled={selectedCourseCount === 0 || isSyncing}
                 onClick={handleImport}
                 className="rounded-radius-md bg-primary-600 px-3 py-2 text-sm font-semibold text-text-on-primary hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {`${t("Import selected courses")}${selectedImportableCourseCount > 0 ? ` (${selectedImportableCourseCount})` : ""}`}
+                {`${t("Import selected courses")}${selectedCourseCount > 0 ? ` (${selectedCourseCount})` : ""}`}
               </button>
             <button
               type="button"
@@ -605,7 +595,7 @@ export default function CanvasIntegrationSettings() {
                 isSyncing ||
                 isDownloadingCanvasFiles ||
                 (selectedCourseIds.length > 0 &&
-                  selectedImportableCourseCount === 0)
+                  selectedCourseCount === 0)
               }
               onClick={handleDownloadCanvasFiles}
               className="rounded-radius-md glass-card-interactive px-3 py-2 text-sm font-semibold text-text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
@@ -613,8 +603,8 @@ export default function CanvasIntegrationSettings() {
               {isDownloadingCanvasFiles
                 ? t("Preparing archive...")
                 : `${t("Download full Canvas archive")}${
-                    selectedImportableCourseCount > 0
-                      ? ` (${selectedImportableCourseCount})`
+                    selectedCourseCount > 0
+                      ? ` (${selectedCourseCount})`
                       : ` (${t("all courses")})`
                   }`}
             </button>

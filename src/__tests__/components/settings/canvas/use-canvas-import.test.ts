@@ -179,6 +179,40 @@ describe("useCanvasImport shared status owner", () => {
     });
   });
 
+  it("requests selected listed courses even when their access lookup failed", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 502,
+      json: async () => ({ error: "Canvas unavailable" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const courses = [
+      { id: "56273", name: "Database Systems 2", course_code: "CT3532", canvasStatus: "inaccessible" },
+      { id: "56278", name: "Another course", course_code: "CT", canvasStatus: "unavailable" },
+    ];
+    const { result } = renderImporter({
+      selectedCourseIds: ["56273", "56278", "not-listed"],
+      courses,
+    });
+
+    await act(async () => result.current.importer.handleImport());
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/canvas/import",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          courseIds: courses.map((course) => ({
+            id: course.id,
+            name: course.name,
+            course_code: course.course_code,
+            term: null,
+          })),
+        }),
+      }),
+    );
+  });
+
   it("lets the shared owner publish a cancelled import before clearing it", async () => {
     localStorage.setItem("canvas_active_job", JSON.stringify({ jobId: "job-1" }));
     vi.stubGlobal(
