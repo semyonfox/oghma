@@ -63,7 +63,7 @@ const NoteTreePanel: FC<NoteTreePanelProps> = ({ onOpenNote }) => {
       <div className="obsidian-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
         <SidebarList onOpenNote={onOpenNote} />
       </div>
-      <div className="shrink-0 border-t border-border-subtle p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+      <div className="shrink-0 border-t border-border-subtle p-2 pb-[max(0.5rem,var(--safe-bottom))]">
         <Link
           href="/notes/trash"
           onClick={() => onOpenNote?.()}

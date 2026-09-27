@@ -519,7 +519,8 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
       {/* input area */}
       <div
         className="flex-shrink-0 border-t border-border-subtle bg-background px-3 py-3 lg:px-10"
-        style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+        // the chat page's dock sits below this and already clears the inset
+        style={{ paddingBottom: "max(0.75rem, calc(var(--safe-bottom) - var(--mobile-dock-space, 0px)))" }}
       >
         <div className="mx-auto max-w-3xl">
           {(selectedNotes.length > 0 || selectedFolders.length > 0 || (noteTitle && selectedNotes.length === 0)) && (
