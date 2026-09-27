@@ -32,7 +32,7 @@ export default function QuizPageClient({
             <PrimaryNavigation />
           </div>
         )}
-        <main className="min-w-0 flex-1 overflow-y-auto">
+        <main className="mobile-dock-clearance min-w-0 flex-1 overflow-y-auto">
           <QuizDashboard
             initialDashboard={initialData.dashboard}
             initialCourses={initialData.courses}

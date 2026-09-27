@@ -174,7 +174,7 @@ export default function DayAgenda({
           </button>
         </div>
       ) : (
-        <div className="obsidian-scrollbar min-h-0 flex-1 space-y-5 overflow-y-auto px-4 pb-6">
+        <div className="obsidian-scrollbar mobile-dock-clearance min-h-0 flex-1 space-y-5 overflow-y-auto px-4 pb-6">
           {error && (
             <div
               role="alert"

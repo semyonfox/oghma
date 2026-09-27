@@ -113,6 +113,20 @@ is `ACCESS_NETWORK_STATE`. Mobile type checking, 32 contract tests, Expo depende
 compatibility and Android JavaScript export passed. Installation on a device and
 OTA delivery still need verification.
 
+### Edge-to-edge frame
+
+Added to the unreleased 0.1.5 source on 2026-09-27. The shell pads only the
+top and sides, so the workspace runs under Android's gesture bar. It injects
+the bar's height into the page as `--oghma-inset-bottom` (zero while the
+keyboard is open). The website combines it with `env(safe-area-inset-bottom)`
+into `--safe-bottom`. On phones, the navigation dock floats over scrolling
+pages, which end with a `mobile-dock-clearance` spacer. Chat keeps the dock
+below its composer. Deploy the website change before shipping an APK or OTA
+update containing this shell change. Otherwise the current website places
+the dock over the gesture bar. The 0.1.4 shell keeps working with the new
+website because it never injects the inset. Not yet checked on a physical
+device.
+
 EAS Update covers bundled React Native JavaScript and assets compatible with
 the installed native runtime. The WebView still loads website changes from the
 deployed site. Native capability changes continue through the signed APK

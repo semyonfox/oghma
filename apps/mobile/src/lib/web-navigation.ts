@@ -47,3 +47,9 @@ export function navigationAction(value: string, origin: string) {
   }
   return "block";
 }
+
+// the WebView draws under Android's gesture bar, which the page cannot measure itself
+export function bottomInsetScript(inset: number) {
+  const px = Number.isFinite(inset) ? Math.max(0, Math.round(inset)) : 0;
+  return `(function(){function s(){document.documentElement.style.setProperty("--oghma-inset-bottom","${px}px")}if(document.documentElement)s();else document.addEventListener("DOMContentLoaded",s)})();true;`;
+}

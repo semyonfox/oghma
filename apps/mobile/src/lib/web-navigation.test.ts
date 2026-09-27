@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { navigationAction, parseWebMessage } from "./web-navigation.ts";
+import { bottomInsetScript, navigationAction, parseWebMessage } from "./web-navigation.ts";
 
 const origin = "https://oghmanotes.ie";
 
@@ -41,4 +41,10 @@ test("only the configured website can send a known native action", () => {
     assert.equal(parseWebMessage(data, `${origin}/login`, origin), null);
   }
   assert.deepEqual(parseWebMessage('{"type":"oghma:theme","theme":"dark"}', origin, origin), { type: "oghma:theme", theme: "dark" });
+});
+
+test("the bottom inset reaches the page only as a whole, non-negative pixel value", () => {
+  assert.match(bottomInsetScript(23.6), /"--oghma-inset-bottom","24px"/);
+  assert.match(bottomInsetScript(-4), /"0px"/);
+  assert.match(bottomInsetScript(Number.NaN), /"0px"/);
 });

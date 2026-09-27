@@ -252,7 +252,7 @@ export default function TrashPage() {
         </div>
       </header>
 
-      <div className="obsidian-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6">
+      <div className="obsidian-scrollbar mobile-dock-clearance min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6">
         {loading ? (
           <div className="flex h-full min-h-48 items-center justify-center gap-2 text-sm text-text-tertiary" role="status">
             <ArrowPathIcon className="h-4 w-4 animate-spin" aria-hidden="true" />

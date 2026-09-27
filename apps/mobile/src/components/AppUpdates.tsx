@@ -17,7 +17,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as nativeUpdater from "../../modules/oghma-updater";
 import { useTheme } from "../lib/theme";
@@ -151,6 +151,7 @@ export function AppUpdateLink() {
 export function UpdateBanner() {
   const { state, open } = useUpdates();
   const { colors, styles } = useTheme();
+  const insets = useSafeAreaInsets();
   const [dismissed, setDismissed] = useState<number | null>(null);
   const busy = ["downloading", "verifying", "cancelling", "opening"].includes(
     state.status,
@@ -158,7 +159,7 @@ export function UpdateBanner() {
   if (!state.release || (dismissed === state.release.versionCode && !busy))
     return null;
   return (
-    <View style={[styles.bar, { borderTopWidth: 1, borderBottomWidth: 0 }]}>
+    <View style={[styles.bar, { borderTopWidth: 1, borderBottomWidth: 0, paddingBottom: 8 + insets.bottom }]}>
       <Pressable
         accessibilityRole="button"
         onPress={open}
