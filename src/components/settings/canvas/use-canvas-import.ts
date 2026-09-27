@@ -503,8 +503,6 @@ export default function useCanvasImport({
     const selectedCourses = courses
       .filter(
         (course) =>
-          course.canvasStatus !== "inaccessible" &&
-          course.canvasStatus !== "unavailable" &&
           selectedCourseIds.includes(String(course.id)),
       )
       .map((course) => ({

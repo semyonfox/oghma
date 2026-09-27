@@ -1088,7 +1088,7 @@ html.light .glass-card-active {
 
 /* room the mobile dock takes at the bottom, including the inset below it */
 @media (max-width: 1023px) {
-  :root:has([data-mobile-dock]) {
+  :root:has([data-mobile-dock]:not(.hidden)) {
     --mobile-dock-space: calc(5.5rem + var(--safe-bottom));
   }
 }

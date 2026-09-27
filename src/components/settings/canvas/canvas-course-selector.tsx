@@ -37,17 +37,10 @@ export default function CanvasCourseSelector({
   setCourseListOpen: Dispatch<SetStateAction<boolean>>;
   t: Translate;
 }) {
-  const importableCourses = courses.filter(
-    (course) =>
-      course.canvasStatus !== "inaccessible" &&
-      course.canvasStatus !== "unavailable",
-  );
-  const selectedImportableCount = importableCourses.filter((course) =>
+  const selectedCount = courses.filter((course) =>
     selectedCourseIds.includes(String(course.id)),
   ).length;
-  const allSelected =
-    importableCourses.length > 0 &&
-    selectedImportableCount === importableCourses.length;
+  const allSelected = courses.length > 0 && selectedCount === courses.length;
 
   return (
     <div className="glass-card rounded-radius-md">
@@ -66,15 +59,12 @@ export default function CanvasCourseSelector({
             />
           </button>
         </h3>
-        {importableCourses.length > 0 && (
+        {courses.length > 0 && (
           <span className="text-xs text-text-tertiary" aria-live="polite">
-            {t("{selected} of {total} available courses selected", {
-              selected: selectedImportableCount,
-              total: importableCourses.length,
-            })}
+            {t("{count} selected", { count: selectedCount })}
           </span>
         )}
-        {courseListOpen && importableCourses.length > 0 && (
+        {courseListOpen && courses.length > 0 && (
           <button
             type="button"
             onClick={onToggleSelectAll}
@@ -103,20 +93,13 @@ export default function CanvasCourseSelector({
               return (
                 <label
                   key={course.id}
-                  className={`flex items-start gap-3 ${
-                    unavailable ? "cursor-not-allowed opacity-70" : "cursor-pointer"
-                  }`}
+                  className="flex items-start gap-3 cursor-pointer"
                 >
                   <input
                     type="checkbox"
-                    checked={
-                      !unavailable && selectedCourseIds.includes(String(course.id))
-                    }
-                    disabled={unavailable}
+                    checked={selectedCourseIds.includes(String(course.id))}
                     aria-describedby={unavailable ? reasonId : undefined}
-                    onChange={() => {
-                      if (!unavailable) onToggleCourse(course.id);
-                    }}
+                    onChange={() => onToggleCourse(course.id)}
                     className="mt-0.5 shrink-0"
                   />
                   <div className="flex-1 min-w-0">
@@ -144,7 +127,7 @@ export default function CanvasCourseSelector({
                       <p id={reasonId} className="text-xs text-text-tertiary">
                         {course.canvasStatus === "unavailable"
                           ? t("Canvas could not confirm access to this course. Try again later.")
-                          : t("This course is no longer available in Canvas.")}
+                          : t("Canvas data access depends on your permissions")}
                       </p>
                     )}
                     {(course.modules?.length ?? 0) > 0 && (
