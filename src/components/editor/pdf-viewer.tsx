@@ -401,7 +401,7 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane }) => {
       {/* PDF canvas — scrollable */}
       <div
         ref={scrollRef}
-        className="min-h-0 min-w-0 flex-1 overflow-auto bg-surface p-4"
+        className="mobile-dock-clearance min-h-0 min-w-0 flex-1 overflow-auto bg-surface p-4"
       >
         {loading ? (
           <div className="flex flex-col items-center gap-3 mt-16">

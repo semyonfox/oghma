@@ -2,7 +2,7 @@
 
 > **Status:** Active reference
 >
-> **Last reviewed:** 2026-09-23
+> **Last reviewed:** 2026-09-28
 >
 > **Source of truth:** [`src/app/globals.css`](../../src/app/globals.css), [`tailwind.config.js`](../../tailwind.config.js), and this usage guide
 
@@ -79,11 +79,11 @@ Large composers may intentionally use a softer radius. All controls still need v
 
 Shared compact icon controls use `.ui-icon-button`: 44px below 1024px and 32px on desktop, with consistent focus, hover and disabled states. Give icon-only actions an accessible label. Actions hidden on hover must remain available on touch devices.
 
-## Mobile application layout
+## Application navigation
 
-Phone and tablet app shells below 1024px place the page header above a scrollable main region and the five-destination bottom navigation below it: Notes, AI Chat, Calendar, Quiz, and More. The More sheet holds secondary destinations such as search, settings, focus, Trash, and the native offline reader when it is available. Keep the footer in normal flex layout so content never sits behind it.
+The main workspaces use the same five-destination floating bottom dock on phones, tablets and desktop: Notes, AI Chat, Calendar, Quiz, and More. It replaces the desktop navigation rail. The More sheet holds secondary destinations such as search, settings, focus, Trash, and the native offline reader when it is available. Give each scroll region end clearance so its last item remains reachable. Chat reserves space for the dock below its composer.
 
-The navigation uses a floating pill within that reserved footer: 64px tall with labels, 52px with icons when scrolling down. Scrolling up, changing routes, or focusing a destination expands it. Keep 44px touch targets in both states, respect reduced motion, and hide the dock while the keyboard is open. Single-line mobile headers start at 56px rather than 80px.
+The navigation pill is 64px tall with labels, 52px with icons when scrolling down. Its labels fade out as it shrinks and fade in on upward scrolling, route changes, or keyboard focus. The pill uses a 90% opaque surface and the selected destination uses a 95% opaque elevated surface, with no full-width backing bar or backdrop blur. Keep 44px touch targets in both states, respect reduced motion, and hide the dock and its clearance while the keyboard is open. Single-line mobile headers start at 56px rather than 80px.
 
 Below 1024px, Notes opens in a library-first view. Folder navigation drills into the selected folder and exposes a clear return path; opening a note moves to its compact editor. Do not render the desktop file tree on a phone. Editor actions sit below the filename, where they remain reachable without crowding the header. From 768px to 1023px, the inspector uses a drawer so it cannot squeeze the editor below its minimum width.
 

@@ -620,7 +620,7 @@ export default function MilkdownWriteEditor({
 
   return (
     <div
-      className="oghma-milkdown-editor relative h-full min-h-0 overflow-auto bg-app-page"
+      className="oghma-milkdown-editor mobile-dock-clearance relative h-full min-h-0 overflow-auto bg-app-page"
       onKeyDownCapture={(event) => {
         if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
           event.preventDefault();
