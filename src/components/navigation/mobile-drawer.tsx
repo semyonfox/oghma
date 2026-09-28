@@ -53,7 +53,7 @@ export default function MobileDrawer({
             {...swipe}
             transition
             className={clsx(
-              "flex h-dvh w-[calc(100vw-1rem)] max-w-sm flex-col bg-background pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] shadow-2xl ring-1 ring-border-subtle transition duration-200 ease-out data-closed:opacity-0 motion-reduce:transition-none",
+              "flex h-dvh w-[calc(100vw-1rem)] max-w-sm flex-col bg-background pb-[var(--safe-bottom)] pt-[env(safe-area-inset-top)] shadow-2xl ring-1 ring-border-subtle transition duration-200 ease-out data-closed:opacity-0 motion-reduce:transition-none",
               side === "left"
                 ? "rounded-r-2xl data-closed:-translate-x-full"
                 : "rounded-l-2xl data-closed:translate-x-full",

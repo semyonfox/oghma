@@ -141,7 +141,7 @@ export default function StudyBlockDialog({
           <form
             onSubmit={handleSubmit}
             className="obsidian-scrollbar min-h-0 space-y-3 overflow-y-auto p-4"
-            style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+            style={{ paddingBottom: "max(1rem, var(--safe-bottom))" }}
           >
             <div>
               <label

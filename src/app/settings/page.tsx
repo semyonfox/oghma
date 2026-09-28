@@ -431,7 +431,7 @@ export default function SettingsPage() {
         </ul>
       </nav>
 
-      <div ref={contentRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+      <div ref={contentRef} className="mobile-dock-clearance min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:flex lg:gap-x-16 lg:px-8">
           <aside className="hidden lg:block lg:flex-none lg:py-8">
           <nav className="sticky top-24 w-56">
