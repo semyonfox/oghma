@@ -1088,7 +1088,7 @@ html.light .glass-card-active {
 
 /* room the mobile dock takes at the bottom, including the inset below it */
 :root:has([data-mobile-dock]:not(.hidden)) {
-  --mobile-dock-space: calc(5.5rem + var(--safe-bottom));
+  --mobile-dock-space: calc(5rem + var(--safe-bottom));
 }
 
 /* the dock floats over scrolling pages, so their last item needs room to clear it */
