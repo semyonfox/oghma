@@ -2,6 +2,7 @@
 
 import { type ReactNode } from "react";
 import clsx from "clsx";
+import { useNativeAppBridge } from "@/lib/native-app";
 
 interface MobileAppHeaderProps {
   title: ReactNode;
@@ -18,10 +19,12 @@ export default function MobileAppHeader({
   actions,
   className,
 }: MobileAppHeaderProps) {
+  const nativeApp = !!useNativeAppBridge();
   return (
     <header
       className={clsx(
-        "flex min-h-14 shrink-0 items-center gap-2 bg-background px-4 py-1.5 pt-[max(0.375rem,env(safe-area-inset-top))] lg:hidden",
+        "flex min-h-14 shrink-0 items-center gap-2 bg-background px-4 py-1.5 lg:hidden",
+        !nativeApp && "pt-[max(0.375rem,env(safe-area-inset-top))]",
         className,
       )}
     >
