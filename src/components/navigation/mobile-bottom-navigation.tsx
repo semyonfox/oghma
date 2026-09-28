@@ -44,6 +44,7 @@ export default function MobileBottomNavigation({
   const { t } = useI18n();
   const pathname = usePathname();
   const nativeBridge = useNativeAppBridge();
+  const nativeDock = !!nativeBridge;
   const phase = usePomodoroStore((s) => s.phase);
   const [expanded, setExpanded] = useState(true);
   const dockRef = useRef<HTMLDivElement>(null);
@@ -118,6 +119,12 @@ export default function MobileBottomNavigation({
   }, []);
   const moreActive =
     pathname?.startsWith("/settings") || pathname === "/notes/trash";
+  const selectedStyle = nativeDock
+    ? "bg-[#373737]/35 text-[#f0f0f0]"
+    : "bg-surface-elevated/95 text-primary-700 dark:text-primary-300";
+  const restingStyle = nativeDock
+    ? "text-[#f0f0f0]/80 hover:bg-[#373737]/35 hover:text-[#f0f0f0]"
+    : "text-text-secondary hover:bg-surface-elevated/95 hover:text-text";
   const rowClass =
     "flex min-h-12 w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-base text-text-secondary hover:bg-subtle disabled:opacity-50";
   return (
@@ -133,7 +140,7 @@ export default function MobileBottomNavigation({
           onFocusCapture={(event) => {
             if (event.target.matches(":focus-visible")) setExpanded(true);
           }}
-          className={`pointer-events-auto absolute bottom-[calc(12px+var(--safe-bottom))] left-1/2 flex -translate-x-1/2 items-stretch overflow-hidden rounded-full bg-surface/90 ring-1 ring-border-subtle p-1 shadow-lg transition-[width,max-width,height] duration-[280ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${expanded ? "h-16 w-[calc(100%-28px)] max-w-[420px]" : "h-[52px] w-[calc(100%-80px)] min-w-[228px] max-w-[350px]"}`}
+          className={`pointer-events-auto absolute bottom-[calc(12px+var(--safe-bottom))] left-1/2 flex -translate-x-1/2 items-stretch overflow-hidden rounded-full ring-1 p-1 shadow-lg transition-[width,max-width,height] duration-[280ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${nativeDock ? "bg-[#232323]/70 ring-white/15 backdrop-blur-[8.75px]" : "bg-surface/90 ring-border-subtle"} ${expanded ? "h-16 w-[calc(100%-28px)] max-w-[420px]" : "h-[52px] w-[calc(100%-80px)] min-w-[228px] max-w-[350px]"}`}
         >
           {destinations.map(({ href, label, icon: Icon }) => {
             const active = !moreActive && pathname?.startsWith(href);
@@ -145,7 +152,7 @@ export default function MobileBottomNavigation({
                 aria-label={t(label)}
                 aria-current={active ? "page" : undefined}
                 onClick={() => setExpanded(true)}
-                className={`flex min-h-11 min-w-11 flex-1 flex-col items-center justify-center rounded-full text-xs font-semibold transition-[gap,background-color,color] duration-[280ms] motion-reduce:transition-none active:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 ${expanded ? "gap-0.5" : "gap-0"} ${active ? "bg-surface-elevated/95 text-primary-700 dark:text-primary-300" : "text-text-secondary hover:bg-surface-elevated/95 hover:text-text"}`}
+                className={`flex min-h-11 min-w-11 flex-1 flex-col items-center justify-center rounded-full text-xs font-semibold transition-[gap,background-color,color] duration-[280ms] motion-reduce:transition-none active:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 ${expanded ? "gap-0.5" : "gap-0"} ${active ? selectedStyle : restingStyle}`}
               >
                 <Icon className="h-[26px] w-[26px] shrink-0" aria-hidden="true" />
                 <span
@@ -163,7 +170,7 @@ export default function MobileBottomNavigation({
             aria-label={t("More")}
             aria-haspopup="dialog"
             aria-expanded={moreOpen}
-            className={`flex min-h-11 min-w-11 flex-1 flex-col items-center justify-center rounded-full text-xs font-semibold transition-[gap,background-color,color] duration-[280ms] motion-reduce:transition-none active:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 ${expanded ? "gap-0.5" : "gap-0"} ${moreActive || moreOpen ? "bg-surface-elevated/95 text-primary-700 dark:text-primary-300" : "text-text-secondary hover:bg-surface-elevated/95 hover:text-text"}`}
+            className={`flex min-h-11 min-w-11 flex-1 flex-col items-center justify-center rounded-full text-xs font-semibold transition-[gap,background-color,color] duration-[280ms] motion-reduce:transition-none active:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 ${expanded ? "gap-0.5" : "gap-0"} ${moreActive || moreOpen ? selectedStyle : restingStyle}`}
           >
             <EllipsisHorizontalIcon className="h-[26px] w-[26px] shrink-0" aria-hidden="true" />
             <span
