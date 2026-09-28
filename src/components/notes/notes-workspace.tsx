@@ -14,7 +14,6 @@ import { schedulePrefetch } from "@/lib/notes/prefetch";
 import useMediaQuery from "@/lib/hooks/use-media-query";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import useNoteTreeInitialization from "@/lib/notes/hooks/use-note-tree-initialization";
-import PrimaryNavigation from "@/components/navigation/primary-navigation";
 import MobileAppHeader from "@/components/navigation/mobile-app-header";
 import MobileDrawer from "@/components/navigation/mobile-drawer";
 import MobileBottomNavigation from "@/components/navigation/mobile-bottom-navigation";
@@ -178,15 +177,6 @@ export default function NotesWorkspace({
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {isDesktop === true && (
-          <div
-            key="navigation"
-            className="w-14 shrink-0 flex-col border-r border-border-subtle bg-background md:flex"
-          >
-            <PrimaryNavigation />
-          </div>
-        )}
-
-        {isDesktop === true && (
           <PanelGroup
             orientation="horizontal"
             className="min-w-0 flex-1"
@@ -288,7 +278,9 @@ export default function NotesWorkspace({
           </main>
         )}
       </div>
-      {(showMobileLibrary || isTrashView) && <MobileBottomNavigation />}
+      {(isDesktop === true || showMobileLibrary || isTrashView) && (
+        <MobileBottomNavigation />
+      )}
     </div>
   );
 }

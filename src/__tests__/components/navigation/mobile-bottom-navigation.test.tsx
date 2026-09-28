@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from "react";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -134,7 +134,7 @@ describe("MobileBottomNavigation", () => {
     ).toBe("page");
   });
 
-  it("contracts on downward scrolling and expands on upward scroll, focus, and navigation", () => {
+  it("contracts on downward scrolling and expands on upward scroll, focus, and navigation", async () => {
     const view = render(
       <div>
         <main data-testid="scroll-panel" />
@@ -143,23 +143,22 @@ describe("MobileBottomNavigation", () => {
     );
     const panel = screen.getByTestId("scroll-panel");
     const nav = screen.getByRole("navigation");
-    const scrollTo = (top: number) => {
+    const scrollTo = async (top: number, expanded: boolean) => {
       panel.scrollTop = top;
       fireEvent.scroll(panel);
+      await waitFor(() => expect(nav.getAttribute("data-expanded")).toBe(String(expanded)));
     };
     expect(nav.getAttribute("data-expanded")).toBe("true");
-    scrollTo(80);
-    expect(nav.getAttribute("data-expanded")).toBe("false");
+    await scrollTo(80, false);
     expect(screen.getByRole("link", { name: "AI Chat" })).toBeTruthy();
-    scrollTo(75);
-    expect(nav.getAttribute("data-expanded")).toBe("true");
-    scrollTo(120);
+    await scrollTo(75, true);
+    await scrollTo(120, false);
     const notesLink = screen.getByRole("link", { name: "Notes" });
     // jsdom does not model keyboard-driven :focus-visible matching.
     vi.spyOn(notesLink, "matches").mockReturnValueOnce(true);
     act(() => notesLink.focus());
     expect(nav.getAttribute("data-expanded")).toBe("true");
-    scrollTo(160);
+    await scrollTo(160, false);
     mocks.pathname = "/chat";
     view.rerender(<div><main data-testid="scroll-panel" /><MobileBottomNavigation /></div>);
     expect(nav.getAttribute("data-expanded")).toBe("true");
@@ -181,18 +180,45 @@ describe("MobileBottomNavigation", () => {
     expect(screen.getByRole("navigation").getAttribute("data-expanded")).toBe("true");
   });
 
-  it("stays expanded near the top and contracts only after enough downward travel", () => {
+  it("stays expanded near the top and contracts only after enough downward travel", async () => {
     render(<div><main data-testid="scroll-panel" /><MobileBottomNavigation /></div>);
     const panel = screen.getByTestId("scroll-panel");
     const nav = screen.getByRole("navigation");
     for (const top of [30, 40, 50, 59]) {
       panel.scrollTop = top;
       fireEvent.scroll(panel);
-      expect(nav.getAttribute("data-expanded")).toBe("true");
+      await waitFor(() => expect(nav.getAttribute("data-expanded")).toBe("true"));
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     }
     panel.scrollTop = 62;
     fireEvent.scroll(panel);
-    expect(nav.getAttribute("data-expanded")).toBe("false");
+    await waitFor(() => expect(nav.getAttribute("data-expanded")).toBe("false"));
+  });
+
+  it("contracts on document scrolling too", async () => {
+    render(<MobileBottomNavigation />);
+    const nav = screen.getByRole("navigation");
+    const scrollingElement = document.documentElement;
+    const originalDescriptor = Object.getOwnPropertyDescriptor(document, "scrollingElement");
+    Object.defineProperty(document, "scrollingElement", {
+      configurable: true,
+      value: scrollingElement,
+    });
+    try {
+      scrollingElement.scrollTop = 80;
+      fireEvent.scroll(document);
+      await waitFor(() => expect(nav.getAttribute("data-expanded")).toBe("false"));
+      scrollingElement.scrollTop = 70;
+      fireEvent.scroll(document);
+      await waitFor(() => expect(nav.getAttribute("data-expanded")).toBe("true"));
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(document, "scrollingElement", originalDescriptor);
+      } else {
+        Reflect.deleteProperty(document, "scrollingElement");
+      }
+      scrollingElement.scrollTop = 0;
+    }
   });
 
   it("ignores scrolling outside its workspace and in editable content", () => {
@@ -212,19 +238,19 @@ describe("MobileBottomNavigation", () => {
     outside.remove();
   });
 
-  it("expands when a destination or More is pressed", () => {
+  it("expands when a destination or More is pressed", async () => {
     render(<div><main data-testid="scroll-panel" /><MobileBottomNavigation /></div>);
     const panel = screen.getByTestId("scroll-panel");
     const nav = screen.getByRole("navigation");
-    const contract = () => {
+    const contract = async () => {
       panel.scrollTop += 100;
       fireEvent.scroll(panel);
-      expect(nav.getAttribute("data-expanded")).toBe("false");
+      await waitFor(() => expect(nav.getAttribute("data-expanded")).toBe("false"));
     };
-    contract();
+    await contract();
     fireEvent.click(screen.getByRole("link", { name: "Calendar" }));
     expect(nav.getAttribute("data-expanded")).toBe("true");
-    contract();
+    await contract();
     fireEvent.click(screen.getByRole("button", { name: "More" }));
     expect(nav.getAttribute("data-expanded")).toBe("true");
   });
@@ -250,16 +276,16 @@ describe("MobileBottomNavigation", () => {
     const input = document.createElement("input");
     document.body.append(input);
 
-    input.focus();
+    act(() => input.focus());
     viewport.height = 640;
     const resize = viewport.addEventListener.mock.calls.find(
       ([event]) => event === "resize",
     )?.[1] as EventListener;
-    resize(new Event("resize"));
+    act(() => resize(new Event("resize")));
 
     expect(container.querySelector("nav")?.parentElement?.className).toContain("hidden");
 
-    input.blur();
+    act(() => input.blur());
     expect(container.querySelector("nav")?.parentElement?.className).toContain("block");
     unmount();
     input.remove();
