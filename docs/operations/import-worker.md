@@ -47,8 +47,12 @@ created before this change.
 
 Canvas per-file work is released by a database-backed weighted fair scheduler.
 The `free`, `semester`, and `academic_year` service classes receive 1:3:5
-shares, users rotate within a class, and only one file per user is dispatched
-at once. Paid entitlement comes from verified local
+shares, users rotate within a class, and up to two downloads per user are
+dispatched at once. Discovery publishes files as soon as their rows commit.
+The downloader hands stored files to a durable `pending_extract` stage; a
+database poll republishes that stage after a lost enqueue and reclaims its
+expired extraction claims. New downloads pause
+when eight files for that user await or run extraction. Paid entitlement comes from verified local
 `app.login.import_service_class` state.
 
 The worker also polls the database as a safety net for Canvas import/sync

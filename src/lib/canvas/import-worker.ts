@@ -107,6 +107,8 @@ export async function processImportJob(jobId: string): Promise<boolean> {
 export { processDiscoverJob } from "./import-discovery";
 export {
   processCanvasFile,
+  processCanvasExtract,
+  recoverPendingCanvasExtracts,
   processDirectExtraction,
   processExtractionRetry,
   recoverPendingExtractionRetries,

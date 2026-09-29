@@ -11,6 +11,8 @@ export const IMPORT_CLASS_WEIGHTS: Record<ImportServiceClass, number> = {
 };
 
 const STALE_DISPATCH_LEASE = "5 minutes";
+const MAX_IN_FLIGHT_DOWNLOADS_PER_USER = 2;
+const MAX_PENDING_EXTRACTIONS_PER_USER = 8;
 
 export function chooseWeightedClass(
   current: Partial<Record<ImportServiceClass, number>>,
@@ -56,7 +58,7 @@ export async function recoverStaleCanvasDispatches(limit = 100): Promise<number>
       WHERE ci.status = 'pending'
         AND ci.dispatched_at < NOW() - ${STALE_DISPATCH_LEASE}::interval
         AND cij.type = 'canvas'
-        AND cij.status = 'processing'
+        AND cij.status IN ('discovering', 'processing')
       ORDER BY ci.dispatched_at
       LIMIT ${limit}
       FOR UPDATE OF ci SKIP LOCKED
@@ -73,8 +75,9 @@ export async function recoverStaleCanvasDispatches(limit = 100): Promise<number>
 /**
  * Releases a bounded number of Canvas files into the provider queue. Classes
  * use smooth weighted round robin; users within a class use least-recently
- * served order. One in-flight file per user prevents a large import monopolising
- * worker slots. The advisory lock makes selection safe across worker replicas.
+ * served order. Each user can have two active downloads. New downloads pause
+ * while eight files wait for or undergo extraction. The advisory lock makes
+ * selection safe across worker replicas.
  */
 export async function dispatchFairCanvasFiles(limit = 10): Promise<number> {
   // A waiter owns no OCR work. Once the shared result is ready, or its
@@ -83,7 +86,8 @@ export async function dispatchFairCanvasFiles(limit = 10): Promise<number> {
     UPDATE app.canvas_imports waiting SET status = 'pending', dispatched_at = NULL,
       next_attempt_at = NULL, updated_at = NOW()
     FROM app.canvas_import_jobs job
-    WHERE waiting.status = 'pending_cache' AND job.id = waiting.job_id AND job.status = 'processing'
+    WHERE waiting.status = 'pending_cache' AND job.id = waiting.job_id
+      AND job.status IN ('discovering', 'processing')
       AND (
         EXISTS (SELECT 1 FROM app.imported_file_cache cache
           WHERE cache.id = waiting.imported_file_cache_id AND cache.status = 'ready' AND cache.replayable)
@@ -91,8 +95,9 @@ export async function dispatchFairCanvasFiles(limit = 10): Promise<number> {
           SELECT 1 FROM app.imported_file_cache cache
           JOIN app.canvas_imports owner ON owner.id = cache.owner_import_id AND owner.job_id = cache.owner_job_id
           JOIN app.canvas_import_jobs owner_job ON owner_job.id = owner.job_id
-          WHERE cache.id = waiting.imported_file_cache_id AND owner_job.status = 'processing'
-            AND owner.status IN ('pending', 'downloading', 'processing', 'indexing', 'pending_retry', 'pending_marker')
+          WHERE cache.id = waiting.imported_file_cache_id
+            AND owner_job.status IN ('discovering', 'processing')
+            AND owner.status IN ('pending', 'downloading', 'processing', 'pending_extract', 'indexing', 'pending_retry', 'pending_marker')
         )
       )
   `;
@@ -114,13 +119,18 @@ export async function dispatchFairCanvasFiles(limit = 10): Promise<number> {
           AND ci.dispatched_at IS NULL
           AND (ci.next_attempt_at IS NULL OR ci.next_attempt_at <= NOW())
           AND cij.type = 'canvas'
-          AND cij.status = 'processing'
-          AND NOT EXISTS (
-            SELECT 1 FROM app.canvas_imports active
+          AND cij.status IN ('discovering', 'processing')
+          AND (
+            SELECT COUNT(*) FROM app.canvas_imports active
             WHERE active.user_id = ci.user_id
               AND active.dispatched_at IS NOT NULL
-              AND active.status IN ('pending', 'downloading', 'processing', 'indexing')
-          )
+              AND active.status IN ('pending', 'downloading', 'processing')
+          ) < ${MAX_IN_FLIGHT_DOWNLOADS_PER_USER}
+          AND (
+            SELECT COUNT(*) FROM app.canvas_imports downstream
+            WHERE downstream.user_id = ci.user_id
+              AND downstream.status IN ('pending_extract', 'indexing')
+          ) < ${MAX_PENDING_EXTRACTIONS_PER_USER}
       `;
       const eligible = eligibleRows.map((row) => row.service_class);
       if (eligible.length === 0) break;
@@ -156,14 +166,19 @@ export async function dispatchFairCanvasFiles(limit = 10): Promise<number> {
           AND ci.dispatched_at IS NULL
           AND (ci.next_attempt_at IS NULL OR ci.next_attempt_at <= NOW())
           AND cij.type = 'canvas'
-          AND cij.status = 'processing'
+          AND cij.status IN ('discovering', 'processing')
           AND COALESCE(l.import_service_class, 'free') = ${decision.chosen}
-          AND NOT EXISTS (
-            SELECT 1 FROM app.canvas_imports active
+          AND (
+            SELECT COUNT(*) FROM app.canvas_imports active
             WHERE active.user_id = ci.user_id
               AND active.dispatched_at IS NOT NULL
-              AND active.status IN ('pending', 'downloading', 'processing', 'indexing')
-          )
+              AND active.status IN ('pending', 'downloading', 'processing')
+          ) < ${MAX_IN_FLIGHT_DOWNLOADS_PER_USER}
+          AND (
+            SELECT COUNT(*) FROM app.canvas_imports downstream
+            WHERE downstream.user_id = ci.user_id
+              AND downstream.status IN ('pending_extract', 'indexing')
+          ) < ${MAX_PENDING_EXTRACTIONS_PER_USER}
         ORDER BY isu.last_dispatched_at ASC NULLS FIRST, ci.created_at ASC
         LIMIT 1
         FOR UPDATE OF ci SKIP LOCKED

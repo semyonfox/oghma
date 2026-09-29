@@ -151,6 +151,7 @@ function isVisibleWhileProcessing(status: string | undefined): boolean {
   return (
     status === "indexing" ||
     status === "processing" ||
+    status === "pending_extract" ||
     status === "pending_marker" ||
     status === "pending_retry" ||
     status === "pending_cache"

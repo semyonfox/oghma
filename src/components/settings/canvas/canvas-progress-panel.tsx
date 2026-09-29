@@ -99,6 +99,7 @@ export default function CanvasProgressPanel({
     (l) =>
       l.status === "downloading" ||
       l.status === "processing" ||
+      l.status === "pending_extract" ||
       l.status === "indexing" ||
       l.status === "pending_marker" ||
       l.status === "pending_retry" || l.status === "pending_cache",

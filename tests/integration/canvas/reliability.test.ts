@@ -7,7 +7,7 @@ import { startCanvasRun, canonicalCanvasCourses } from "@/lib/canvas/import-runs
 import { cancelActiveCanvasImportJobs } from "@/lib/canvas/cancel-import-jobs";
 import { withCanvasExecution, withCanvasPublication, CanvasClaimLostError } from "@/lib/canvas/execution";
 import { recoverCanvasExecutions } from "@/lib/canvas/execution-recovery";
-import { processCanvasFile, processExtractionRetry } from "@/lib/canvas/import-extraction";
+import { processCanvasExtract, processCanvasFile, processExtractionRetry, recoverPendingCanvasExtracts } from "@/lib/canvas/import-extraction";
 import { stageCanvasExtractionRetry } from "@/lib/canvas/extraction-retry";
 import { dispatchFairCanvasFiles } from "@/lib/canvas/import-scheduler";
 import { findCanvasTrashConflicts, CanvasTrashConflictError } from "@/lib/canvas/trash-conflicts";
@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => ({
   deleteVectors: vi.fn().mockResolvedValue(undefined), upsertVectors: vi.fn().mockResolvedValue(undefined),
   rag: vi.fn(), enqueue: vi.fn().mockResolvedValue(undefined),
   retry: vi.fn().mockResolvedValue(undefined),
-  bytes: Buffer.from("test PDF"), objects: new Map<string, Buffer>(),
+  bytes: Buffer.from("test PDF"), fileBytes: new Map<string, Buffer>(), objects: new Map<string, Buffer>(),
 }));
 vi.mock("@/lib/queue", () => ({
   getCanvasQueueAttemptLimit: () => 3, getMarkerCompletionAttemptLimit: () => 3,
@@ -39,10 +39,17 @@ vi.mock("@/lib/canvas/client", () => ({
   MAX_CANVAS_FILE_BYTES: 1_000_000,
   CanvasClient: class {
     baseUrl = "https://canvas.example.test";
-    async getFile() { return { data: { id: "42", display_name: "Lecture.pdf", filename: "Lecture.pdf",
-      content_type: "application/pdf", url: "https://canvas.example.test/file", size: mocks.bytes.length,
-      updated_at: mocks.bytes.toString("hex") } }; }
-    async downloadFile() { return { buffer: mocks.bytes }; }
+    async getFile(_courseId: string, fileId: string | number) {
+      const id = String(fileId);
+      const bytes = mocks.fileBytes.get(id) ?? mocks.bytes;
+      return { data: { id, display_name: "Lecture.pdf", filename: "Lecture.pdf",
+        content_type: "application/pdf", url: `https://canvas.example.test/file/${id}`, size: bytes.length,
+        updated_at: bytes.toString("hex") } };
+    }
+    async downloadFile(url: string) {
+      const id = url.split("/").pop() ?? "";
+      return { buffer: mocks.fileBytes.get(id) ?? mocks.bytes };
+    }
   },
 }));
 vi.mock("@/lib/storage/init.ts", () => ({ getStorageProvider: () => ({
@@ -81,7 +88,7 @@ function barrier() {
 describe("Canvas durable lifecycle with PostgreSQL", () => {
   beforeEach(() => {
     if (!process.env.DATABASE_URL?.includes("e2e")) throw new Error("Disposable e2e database required");
-    mocks.objects.clear(); mocks.bytes = Buffer.from(`%PDF-${randomUUID()}`);
+    mocks.objects.clear(); mocks.fileBytes.clear(); mocks.bytes = Buffer.from(`%PDF-${randomUUID()}`);
     mocks.deleteVectors.mockClear(); mocks.upsertVectors.mockClear();
     mocks.rag.mockReset(); mocks.enqueue.mockClear(); mocks.retry.mockClear();
   });
@@ -242,6 +249,33 @@ describe("Canvas durable lifecycle with PostgreSQL", () => {
     expect(row).toMatchObject({ status: "error", retryable: true });
   });
 
+  it("cancels a staged extraction before its worker can claim it", async () => {
+    const owner = await fixture("pending_extract");
+    await sql.begin((tx) => cancelActiveCanvasImportJobs(tx, owner.userId, "Stopped by user"));
+
+    await processCanvasExtract({ importRecordId: owner.importId, jobId: owner.jobId, userId: owner.userId });
+
+    const [file] = await sql`SELECT status FROM app.canvas_imports WHERE id = ${owner.importId}::uuid`;
+    expect(file.status).toBe("cancelled");
+    expect(mocks.rag).not.toHaveBeenCalled();
+  });
+
+  it("resumes staged extraction after discovery ownership is recovered", async () => {
+    const owner = await fixture("indexing");
+    const noteId = randomUUID();
+    await sql`INSERT INTO app.notes (note_id, user_id, title, s3_key)
+      VALUES (${noteId}::uuid, ${owner.userId}::uuid, 'Stored source', 'test/source.pdf')`;
+    await sql`UPDATE app.canvas_imports SET note_id = ${noteId}::uuid,
+      source_s3_key = 'test/source.pdf' WHERE id = ${owner.importId}::uuid`;
+    await sql`UPDATE app.canvas_import_jobs SET status = 'discovering', claim_token = ${owner.token}::uuid,
+      claim_expires_at = NOW() - INTERVAL '1 second', execution_attempts = 1 WHERE id = ${owner.jobId}::uuid`;
+
+    await recoverCanvasExecutions(true);
+
+    const [file] = await sql`SELECT status, claim_token FROM app.canvas_imports WHERE id = ${owner.importId}::uuid`;
+    expect(file).toMatchObject({ status: "pending_extract", claim_token: null });
+  });
+
   it("keeps the old search index and cleans new vectors if a later publication step rolls back", async () => {
     const owner = await fixture(); const noteId = randomUUID();
     await sql`INSERT INTO app.notes (note_id, user_id, title, content)
@@ -337,6 +371,12 @@ describe("Canvas durable lifecycle with PostgreSQL", () => {
       return { noteId, chunksStored: 0, pendingMarker: true };
     });
     await Promise.all([first, second].map((owner) => processCanvasFile({ importRecordId: owner.importId, jobId: owner.jobId, userId: owner.userId })));
+    expect(mocks.rag).not.toHaveBeenCalled();
+    const [pendingProducer] = await sql<{ id: string }[]>`SELECT id FROM app.canvas_imports
+      WHERE id = ANY(${[first.importId, second.importId]}::uuid[]) AND status = 'pending_extract'`;
+    expect(pendingProducer).toBeDefined();
+    const producer = pendingProducer.id === first.importId ? first : second;
+    await processCanvasExtract({ importRecordId: producer.importId, jobId: producer.jobId, userId: producer.userId });
     expect(mocks.rag).toHaveBeenCalledTimes(1);
     const files = await sql`SELECT id, status, imported_file_cache_id FROM app.canvas_imports
       WHERE id = ANY(${[first.importId, second.importId]}::uuid[])`;
@@ -359,5 +399,81 @@ describe("Canvas durable lifecycle with PostgreSQL", () => {
     await captureImportedPdfCache({ cacheId: waiter.imported_file_cache_id, sourceNoteId: done.note_id });
     const [cache] = await sql`SELECT extracted_markdown FROM app.imported_file_cache WHERE id = ${waiter.imported_file_cache_id}::uuid`;
     expect(cache.extracted_markdown).toBe("# Shared extraction");
+  });
+
+  it("extracts a file while its parent is still discovering", async () => {
+    const owner = await fixture("pending");
+    await sql`UPDATE app.canvas_import_jobs SET status = 'discovering', claim_token = ${owner.token}::uuid,
+      claim_expires_at = NOW() + INTERVAL '5 minutes' WHERE id = ${owner.jobId}::uuid`;
+    mocks.rag.mockImplementation(async (noteId: string) => ({ noteId, chunksStored: 1 }));
+
+    await processCanvasFile({ importRecordId: owner.importId, jobId: owner.jobId, userId: owner.userId });
+    const [staged] = await sql`SELECT status, note_id FROM app.canvas_imports WHERE id = ${owner.importId}::uuid`;
+    expect(staged.status).toBe("pending_extract");
+    expect(mocks.rag).not.toHaveBeenCalled();
+
+    await processCanvasExtract({ importRecordId: owner.importId, jobId: owner.jobId, userId: owner.userId });
+    const [file] = await sql`SELECT status FROM app.canvas_imports WHERE id = ${owner.importId}::uuid`;
+    const [job] = await sql`SELECT status FROM app.canvas_import_jobs WHERE id = ${owner.jobId}::uuid`;
+    expect(file.status).toBe("complete");
+    expect(job.status).toBe("discovering");
+  });
+
+  it("keeps same-name Canvas files and their stored bytes separate", async () => {
+    const first = await fixture("pending");
+    const secondId = randomUUID();
+    await sql`INSERT INTO app.canvas_imports (id, job_id, user_id, status, canvas_course_id,
+      canvas_file_id, canvas_module_id, filename, mime_type, s3_prefix)
+      VALUES (${secondId}::uuid, ${first.jobId}::uuid, ${first.userId}::uuid,
+        'pending', 42, 43, -1, 'Lecture.pdf', 'application/pdf', 'test')`;
+    const firstBytes = Buffer.from(`%PDF-first-${randomUUID()}`);
+    const secondBytes = Buffer.from(`%PDF-second-${randomUUID()}`);
+    mocks.fileBytes.set("42", firstBytes);
+    mocks.fileBytes.set("43", secondBytes);
+    mocks.rag.mockImplementation(async (noteId: string) => ({ noteId, chunksStored: 1 }));
+
+    await Promise.all([first.importId, secondId].map((importRecordId) =>
+      processCanvasFile({ importRecordId, jobId: first.jobId, userId: first.userId })));
+    const rows = await sql<{ id: string; note_id: string; source_s3_key: string; status: string }[]>`
+      SELECT id, note_id, source_s3_key, status FROM app.canvas_imports
+      WHERE id = ANY(${[first.importId, secondId]}::uuid[])`;
+    const one = rows.find((row) => row.id === first.importId)!;
+    const two = rows.find((row) => row.id === secondId)!;
+    expect(one.status).toBe("pending_extract");
+    expect(two.status).toBe("pending_extract");
+    expect(one.note_id).not.toBe(two.note_id);
+    expect(one.source_s3_key).not.toBe(two.source_s3_key);
+    await sql`UPDATE app.notes SET s3_key = ${two.source_s3_key}
+      WHERE note_id = ${one.note_id}::uuid`;
+
+    await processCanvasExtract({ importRecordId: first.importId, jobId: first.jobId, userId: first.userId });
+    expect(mocks.rag).toHaveBeenCalledTimes(1);
+    expect(mocks.rag.mock.calls[0][3]).toEqual(firstBytes);
+    expect(mocks.rag.mock.calls[0][4].s3Key).toBe(one.source_s3_key);
+    await processCanvasExtract({ importRecordId: secondId, jobId: first.jobId, userId: first.userId });
+    expect(mocks.rag.mock.calls[1][3]).toEqual(secondBytes);
+    const completed = await sql`SELECT status FROM app.canvas_imports
+      WHERE id = ANY(${[first.importId, secondId]}::uuid[])`;
+    expect(completed.map((row) => row.status)).toEqual(["complete", "complete"]);
+  });
+
+  it("reclaims an expired extraction claim and fences its old worker", async () => {
+    const owner = await fixture("pending");
+    mocks.rag.mockImplementation(async (noteId: string) => ({ noteId, chunksStored: 1 }));
+    await processCanvasFile({ importRecordId: owner.importId, jobId: owner.jobId, userId: owner.userId });
+    const oldToken = randomUUID();
+    await sql`UPDATE app.canvas_imports SET status = 'indexing', claim_token = ${oldToken}::uuid,
+      claim_expires_at = NOW() - INTERVAL '1 second' WHERE id = ${owner.importId}::uuid`;
+
+    await recoverPendingCanvasExtracts();
+    const [reclaimed] = await sql`SELECT status, claim_token FROM app.canvas_imports
+      WHERE id = ${owner.importId}::uuid`;
+    expect(reclaimed).toMatchObject({ status: "pending_extract", claim_token: null });
+    await expect(withCanvasExecution({ jobId: owner.jobId, userId: owner.userId,
+      importId: owner.importId, token: oldToken },
+    () => withCanvasPublication(async () => undefined))).rejects.toBeInstanceOf(CanvasClaimLostError);
+    await processCanvasExtract({ importRecordId: owner.importId, jobId: owner.jobId, userId: owner.userId });
+    const [finished] = await sql`SELECT status FROM app.canvas_imports WHERE id = ${owner.importId}::uuid`;
+    expect(finished.status).toBe("complete");
   });
 });

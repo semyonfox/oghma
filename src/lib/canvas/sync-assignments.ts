@@ -14,6 +14,7 @@ import { withCanvasPublication } from "./execution";
 import sql from "../../database/pgsql";
 import { canvasIdForBigintColumn } from "./id";
 import type { CanvasAssignment } from "./client";
+import { createAsyncLimiter } from "./async-limiter";
 
 interface AssignmentClient {
   getAssignments(courseId: string): Promise<{
@@ -100,8 +101,11 @@ export async function syncAssignmentMetadata(
   userId: string,
   courseTitle: string,
   client: AssignmentClient,
+  knownAssignments?: CanvasAssignment[],
 ) {
-  const { data: assignments, error } = await client.getAssignments(courseId);
+  const { data: assignments, error } = knownAssignments
+    ? { data: knownAssignments, error: undefined }
+    : await client.getAssignments(courseId);
 
   if (error || !assignments) {
     console.warn(
@@ -112,11 +116,8 @@ export async function syncAssignmentMetadata(
 
   const courseColor =
     COURSE_COLORS[hashString(courseTitle) % COURSE_COLORS.length];
-  let synced = 0;
-  let errors = 0;
-
-  for (const a of assignments) {
-    if (!shouldSyncAssignment(a)) continue;
+  const limit = createAsyncLimiter(4);
+  const results = await Promise.all(assignments.filter(shouldSyncAssignment).map((a) => limit(async () => {
     try {
       const status = deriveStatus(a);
       const assignmentType = deriveAssignmentType(a);
@@ -153,14 +154,17 @@ export async function syncAssignmentMetadata(
           assignment_type = EXCLUDED.assignment_type,
           updated_at = NOW()
       `);
-      synced++;
+      return true;
     } catch (err) {
       console.error(
         `[sync-assignments] failed to upsert assignment ${a.id}: ${errorMessage(err)}`,
       );
-      errors++;
+      return false;
     }
-  }
+  })));
 
-  return { synced, errors };
+  return {
+    synced: results.filter(Boolean).length,
+    errors: results.filter((ok) => !ok).length,
+  };
 }
