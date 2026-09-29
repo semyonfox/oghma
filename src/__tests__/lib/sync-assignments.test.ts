@@ -1,8 +1,47 @@
-import { describe, it, expect } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
+vi.mock("@/database/pgsql", () => ({ default: vi.fn().mockResolvedValue([]) }));
+import sql from "@/database/pgsql";
 import {
   deriveAssignmentType,
   shouldSyncAssignment,
+  syncAssignmentMetadata,
 } from "@/lib/canvas/sync-assignments";
+
+describe("syncAssignmentMetadata", () => {
+  beforeEach(() => {
+    vi.mocked(sql).mockReset().mockResolvedValue([]);
+  });
+
+  it("reuses assignments fetched during discovery", async () => {
+    const client = { getAssignments: vi.fn() };
+    const result = await syncAssignmentMetadata("42", "11111111-1111-4111-8111-111111111111", "Course", client, [
+      { id: "7", name: "Essay", due_at: "2026-10-01T10:00:00Z" },
+    ]);
+
+    expect(result).toEqual({ synced: 1, errors: 0 });
+    expect(client.getAssignments).not.toHaveBeenCalled();
+    expect(sql).toHaveBeenCalledOnce();
+  });
+
+  it("bounds database writes while syncing independent assignments", async () => {
+    let active = 0;
+    let peak = 0;
+    vi.mocked(sql).mockImplementation(async () => {
+      active++;
+      peak = Math.max(peak, active);
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      active--;
+      return [] as never;
+    });
+    const assignments = Array.from({ length: 8 }, (_, index) => ({
+      id: String(index + 1), name: `Assignment ${index + 1}`, due_at: "2026-10-01T10:00:00Z",
+    }));
+    const result = await syncAssignmentMetadata("42", "11111111-1111-4111-8111-111111111111", "Course", { getAssignments: vi.fn() }, assignments);
+
+    expect(result).toEqual({ synced: 8, errors: 0 });
+    expect(peak).toBe(4);
+  });
+});
 
 describe("shouldSyncAssignment", () => {
   it("skips unpublished assignments", () => {

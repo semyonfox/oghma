@@ -239,7 +239,7 @@ export async function submitMarkerJob({
         WHERE id = ${importJobId}::uuid
           AND user_id = ${userId}::uuid
           AND type = 'canvas'
-          AND status = 'processing'
+          AND status IN ('discovering', 'processing')
         FOR UPDATE
       `;
       if (!activeJob) throw new MarkerSubmissionCancelledError();

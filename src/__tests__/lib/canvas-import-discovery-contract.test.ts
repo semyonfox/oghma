@@ -16,7 +16,7 @@ vi.mock("@/lib/canvas/client", () => ({
 }));
 
 vi.mock("@/lib/canvas/import-scheduler.ts", () => ({
-  dispatchFairCanvasFiles: vi.fn(),
+  dispatchFairCanvasFiles: vi.fn().mockResolvedValue(0),
 }));
 
 vi.mock("@/lib/canvas/import-extraction", () => ({
@@ -26,6 +26,7 @@ vi.mock("@/lib/canvas/import-extraction", () => ({
   fetchResource: vi.fn(),
   isJobCancelled: vi.fn().mockResolvedValue(false),
   downloadAndStoreFile: vi.fn(),
+  checkAndCompleteJob: vi.fn().mockResolvedValue(true),
 }));
 
 vi.mock("@/lib/crypto.ts", () => ({
@@ -45,7 +46,7 @@ vi.mock("@/lib/canvas/canvas-folders", async (original) => ({
 }));
 vi.mock("@/lib/canvas/sync-assignments", () => ({ syncAssignmentMetadata: vi.fn().mockResolvedValue({ synced: 0, errors: 0 }) }));
 import { CanvasFolderTrashedError, findOrCreateFolder } from "@/lib/canvas/canvas-folders";
-import { fetchResource } from "@/lib/canvas/import-extraction";
+import { fetchResource, checkAndCompleteJob } from "@/lib/canvas/import-extraction";
 import sql from "@/database/pgsql";
 import { dispatchFairCanvasFiles } from "@/lib/canvas/import-scheduler.ts";
 import {
@@ -117,29 +118,33 @@ describe("Canvas discovery finalization", () => {
     ).resolves.toBe(true);
 
     expect(dispatchFairCanvasFiles).not.toHaveBeenCalled();
+    expect(checkAndCompleteJob).toHaveBeenCalledWith(
+      "11111111-1111-4111-8111-111111111111",
+      "22222222-2222-4222-8222-222222222222",
+    );
     const pendingQuery = vi.mocked(sql).mock.calls[5]?.[0] as unknown as
       | TemplateStringsArray
       | undefined;
     expect(Array.from(pendingQuery ?? []).join("")).toContain(
       "status = 'pending'",
     );
-    const completionQuery = vi.mocked(sql).mock.calls.at(-1)?.[0] as unknown as
-      | TemplateStringsArray
-      | undefined;
-    expect(Array.from(completionQuery ?? []).join("")).toContain(
-      "SET status = 'complete'",
-    );
   });
 });
 
 
 describe("Trash during nested module discovery", () => {
+  beforeEach(() => {
+    vi.mocked(sql).mockReset();
+    vi.clearAllMocks();
+  });
+
   it("skips only the trashed module, continues siblings, and excludes its files from the flat inventory", async () => {
     vi.mocked(sql).mockImplementation(async (parts) => {
       const query = Array.from(parts).join("");
       if (query.includes("RETURNING *")) return [{ user_id: "22222222-2222-4222-8222-222222222222", course_ids: ["56273", "56274"], started_at: new Date() }] as never;
       if (query.includes("canvas_token")) return [{ canvas_token: "encrypted", canvas_domain: "example.test" }] as never;
       if (query.includes("COUNT(*)")) return [{ count: "0" }] as never;
+      if (query.includes("INSERT INTO app.canvas_imports")) return [{ id: "file", status: "pending" }] as never;
       if (query.includes("RETURNING id")) return [{ id: "job" }] as never;
       return [] as never;
     });
@@ -160,6 +165,13 @@ describe("Trash during nested module discovery", () => {
     expect(findOrCreateFolder).toHaveBeenCalledWith(expect.any(String), "Week two", "active-course", expect.objectContaining({ canvasModuleId: "2" }));
     const inserts = vi.mocked(sql).mock.calls.filter(([parts]) => Array.from(parts).join("").includes("INSERT INTO app.canvas_imports"));
     expect(inserts).toHaveLength(2);
+    expect(dispatchFairCanvasFiles).toHaveBeenCalled();
+    const transitionIndex = vi.mocked(sql).mock.calls.findIndex(([parts]) =>
+      Array.from(parts).join("").includes("SET status = 'processing', expected_total"));
+    expect(transitionIndex).toBeGreaterThan(-1);
+    expect(vi.mocked(dispatchFairCanvasFiles).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(sql).mock.invocationCallOrder[transitionIndex],
+    );
     expect(inserts.every((call) => !call.slice(1).includes("42"))).toBe(true);
     expect(vi.mocked(sql).mock.calls.some(([parts]) => Array.from(parts).join("").includes("'{skippedFolders}'"))).toBe(true);
   });

@@ -162,6 +162,7 @@ export function LogStatusIcon({ status, t = (value: string) => value }: { status
   const map: Record<string, { dot: string; label: string }> = {
     complete: { dot: "bg-green-400", label: t("done") },
     processing: { dot: "bg-blue-400 animate-pulse", label: t("processing") },
+    pending_extract: { dot: "bg-blue-400 animate-pulse", label: t("processing") },
     indexing: { dot: "bg-blue-400 animate-pulse", label: t("processing") },
     pending_marker: {
       dot: "bg-amber-400 animate-pulse",

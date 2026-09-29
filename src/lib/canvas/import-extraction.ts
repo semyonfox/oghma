@@ -17,6 +17,7 @@ import { v4 as uuidv4 } from "uuid";
 import {
   getCanvasQueueAttemptLimit,
   getMarkerCompletionAttemptLimit,
+  enqueueCanvasJob,
   enqueueExtractRetryJob,
 } from "../queue.ts";
 import { getStorageProvider } from "../storage/init.ts";
@@ -48,6 +49,7 @@ import { recordActivationMilestone } from "../marketing/events.ts";
 import { dispatchFairCanvasFiles } from "./import-scheduler.ts";
 import {
   type ExtractionRetryMessage,
+  stageCanvasExtractionRetry,
 } from "./extraction-retry.ts";
 import {
   cloneImportedPdfCacheToNote,
@@ -68,6 +70,7 @@ interface NoteOptions {
   content?: string;
   isFolder?: boolean;
   s3Key?: string | null;
+  canvasImportId?: string | null;
   canvasCourseId?: string | number | null;
   canvasModuleId?: string | number | null;
   canvasAssignmentId?: string | number | null;
@@ -93,6 +96,7 @@ interface FileImportOptions {
   s3Prefix: string;
   jobId?: string | null;
   alreadyClaimed?: boolean;
+  claimToken?: string;
 }
 
 interface ImportStatusExtra {
@@ -138,12 +142,27 @@ interface CanvasImportJoinedRow extends CanvasImportRecord {
   canvas_domain: string | null;
 }
 
+interface CanvasExtractRow {
+  id: string;
+  job_id: string;
+  user_id: string;
+  note_id: string | null;
+  filename: string | null;
+  mime_type: string | null;
+  parent_folder_id: string | null;
+  canvas_course_id: string | number | null;
+  canvas_module_id: string | number | null;
+  imported_file_cache_id: string | null;
+  source_s3_key: string | null;
+}
+
 interface ExtractionImportRow {
   id: string;
   claim_token: string;
   retry_attempts: number;
   job_id: string;
   imported_file_cache_id: string | null;
+  source_s3_key: string | null;
 }
 
 interface ExistingExtractionImportRow extends ExtractionImportRow {
@@ -226,6 +245,7 @@ async function createNote(
   const canvasModuleId = opts.canvasModuleId ?? null;
   const canvasAssignmentId = opts.canvasAssignmentId ?? null;
   const canvasAcademicYear = opts.canvasAcademicYear ?? null;
+  const canvasImportId = opts.canvasImportId ?? null;
   await sql.begin(async (tx) => {
     // Match the lock held by a Trash transition. A file worker that loses the
     // race cannot create a fresh binary/markdown pair inside a deleted folder.
@@ -245,12 +265,12 @@ async function createNote(
     await tx`
       INSERT INTO app.notes (
         note_id, user_id, title, content, s3_key, is_folder,
-        canvas_course_id, canvas_module_id, canvas_assignment_id, canvas_academic_year,
+        canvas_course_id, canvas_module_id, canvas_assignment_id, canvas_academic_year, canvas_import_id,
         created_at, updated_at
       )
       VALUES (
         ${noteId}::uuid, ${userId}::uuid, ${title}, ${content}, ${s3Key}, ${isFolder},
-        ${canvasCourseId}, ${canvasModuleId}, ${canvasAssignmentId}, ${canvasAcademicYear},
+        ${canvasCourseId}, ${canvasModuleId}, ${canvasAssignmentId}, ${canvasAcademicYear}, ${canvasImportId}::uuid,
         NOW(), NOW()
       )
     `;
@@ -284,6 +304,7 @@ async function findOrCreateNote(
           AND t.user_id = ${userId}::uuid
           AND n.title = ${title}
           AND n.is_folder = false
+          AND n.canvas_import_id IS NOT DISTINCT FROM ${opts.canvasImportId ?? null}::uuid
           AND n.deleted_at IS NULL
           AND t.parent_id = ${parentId}::uuid
         LIMIT 1
@@ -295,6 +316,7 @@ async function findOrCreateNote(
           AND t.user_id = ${userId}::uuid
           AND n.title = ${title}
           AND n.is_folder = false
+          AND n.canvas_import_id IS NOT DISTINCT FROM ${opts.canvasImportId ?? null}::uuid
           AND n.deleted_at IS NULL
           AND t.parent_id IS NULL
         LIMIT 1
@@ -328,6 +350,7 @@ async function findOrCreateNote(
               AND t.user_id = ${userId}::uuid
               AND n.title = ${title}
               AND n.is_folder = false
+              AND n.canvas_import_id IS NOT DISTINCT FROM ${opts.canvasImportId ?? null}::uuid
               AND n.deleted_at IS NULL
               AND t.parent_id = ${parentId}::uuid
             LIMIT 1
@@ -339,6 +362,7 @@ async function findOrCreateNote(
               AND t.user_id = ${userId}::uuid
               AND n.title = ${title}
               AND n.is_folder = false
+              AND n.canvas_import_id IS NOT DISTINCT FROM ${opts.canvasImportId ?? null}::uuid
               AND n.deleted_at IS NULL
               AND t.parent_id IS NULL
             LIMIT 1
@@ -526,6 +550,7 @@ async function reuseImportedPdfCache(
     bundleFolderId,
     {
       s3Key: cache.storage_key,
+      canvasImportId: importRecordId,
       canvasCourseId,
       canvasModuleId,
       canvasAssignmentId,
@@ -543,7 +568,8 @@ async function reuseImportedPdfCache(
     opts.userId,
     file.display_name.replace(/\.[^.]+$/, "") + ".md",
     bundleFolderId,
-    { content: "", canvasCourseId, canvasModuleId, canvasAssignmentId },
+    { content: "", canvasImportId: importRecordId,
+      canvasCourseId, canvasModuleId, canvasAssignmentId },
   );
   const chunksStored = await cloneImportedPdfCacheToNote({
     cacheId: cache.id,
@@ -580,6 +606,51 @@ async function hasReusableImportedPdfCacheObject(
 }
 
 // ── File import ─────────────────────────────────────────────────────────────
+
+async function stageCanvasExtraction(
+  importRecordId: string,
+  noteId: string,
+  sourceKey: string,
+  opts: FileImportOptions,
+) {
+  if (!opts.jobId || !opts.claimToken) {
+    throw new Error("Canvas extraction handoff requires an active file claim");
+  }
+  const [staged] = await withCanvasPublication(() => sql<{ id: string }[]>`
+    UPDATE app.canvas_imports AS imported
+    SET status = 'pending_extract', note_id = ${noteId}::uuid,
+        source_s3_key = ${sourceKey},
+        claim_token = NULL, claim_expires_at = NULL, dispatched_at = NULL,
+        next_attempt_at = NULL, error_message = NULL, updated_at = NOW()
+    WHERE imported.id = ${importRecordId}::uuid
+      AND imported.job_id = ${opts.jobId}::uuid
+      AND imported.user_id = ${opts.userId}::uuid
+      AND imported.claim_token = ${opts.claimToken}::uuid
+      AND imported.status IN ('processing', 'indexing')
+      AND EXISTS (
+        SELECT 1 FROM app.notes source
+        WHERE source.note_id = ${noteId}::uuid
+          AND source.user_id = ${opts.userId}::uuid
+          AND source.deleted_at IS NULL
+      )
+    RETURNING imported.id
+  `);
+  if (!staged) throw new Error("Stored Canvas extraction source is missing");
+
+  try {
+    await enqueueCanvasJob("canvas-extract", {
+      importRecordId,
+      jobId: opts.jobId,
+      userId: opts.userId,
+    });
+  } catch (error) {
+    logger.warn("canvas-import-extraction-enqueue-deferred", {
+      jobId: opts.jobId,
+      importRecordId,
+      error: errorMessage(error),
+    });
+  }
+}
 
 async function _runFileImport(
   importRecordId: string,
@@ -638,7 +709,7 @@ async function _runFileImport(
             FROM app.canvas_import_jobs
             WHERE id = ${opts.jobId}::uuid
               AND type = 'canvas'
-              AND status = 'processing'
+              AND status IN ('discovering', 'processing')
             FOR UPDATE
           `;
           if (!activeJob) return false;
@@ -815,8 +886,8 @@ async function _runFileImport(
           JOIN app.canvas_import_jobs job ON job.id = imported.job_id
           WHERE imported.id = ${existing.owner_import_id}::uuid
             AND imported.job_id = ${existing.owner_job_id ?? null}::uuid
-            AND imported.status IN ('pending', 'downloading', 'processing', 'indexing', 'pending_marker', 'pending_retry')
-            AND job.status = 'processing'
+            AND imported.status IN ('pending', 'downloading', 'processing', 'pending_extract', 'indexing', 'pending_marker', 'pending_retry')
+            AND job.status IN ('discovering', 'processing')
         `;
         if (owner) {
           await sql`UPDATE app.canvas_imports SET status = 'pending_cache',
@@ -850,11 +921,21 @@ async function _runFileImport(
       await storage.putObject(s3Key, buffer, { contentType: resolvedMimeType });
       const bundleFolderId = await withCanvasPublication(() => findOrCreateExtractionBundle(userId, parentFolderId, file.display_name));
       const { noteId } = await findOrCreateNote(userId, file.display_name, bundleFolderId,
-        { s3Key, canvasCourseId, canvasModuleId, canvasAssignmentId });
+        { s3Key, canvasImportId: importRecordId,
+          canvasCourseId, canvasModuleId, canvasAssignmentId });
       await createAttachment(noteId, userId, file.display_name, s3Key, resolvedMimeType, buffer.length);
+      await withCanvasPublication(() => sql`
+        UPDATE app.notes
+        SET s3_key = ${s3Key}, imported_file_cache_id = ${cache.id}::uuid,
+            updated_at = NOW()
+        WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
+          AND deleted_at IS NULL
+      `);
+      if (opts.alreadyClaimed && opts.claimToken) {
+        await stageCanvasExtraction(importRecordId, noteId, s3Key, opts);
+        return;
+      }
       await setImportStatus(importRecordId, "indexing", { noteId }, opts.jobId);
-      await withCanvasPublication(() => sql`UPDATE app.notes SET imported_file_cache_id = ${cache.id}::uuid
-        WHERE note_id = ${noteId}::uuid`);
       const result = await runRagPipeline(noteId, userId, bundleFolderId, buffer, {
         filename: file.display_name, mimeType: resolvedMimeType, s3Key,
         jobId: opts.jobId, importRecordId, cacheId: cache.id,
@@ -878,7 +959,8 @@ async function _runFileImport(
     userId,
     file.display_name,
     parentFolderId,
-    { s3Key, canvasCourseId, canvasModuleId, canvasAssignmentId },
+    { s3Key, canvasImportId: importRecordId,
+      canvasCourseId, canvasModuleId, canvasAssignmentId },
   );
 
   // create attachment record so the upload GET handler can verify ownership
@@ -890,6 +972,16 @@ async function _runFileImport(
     resolvedMimeType,
     buffer.length,
   );
+  await withCanvasPublication(() => sql`
+    UPDATE app.notes SET s3_key = ${s3Key}, updated_at = NOW()
+    WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
+      AND deleted_at IS NULL
+  `);
+
+  if (opts.alreadyClaimed && opts.claimToken) {
+    await stageCanvasExtraction(importRecordId, noteId, s3Key, opts);
+    return;
+  }
 
   await setImportStatus(importRecordId, "indexing", { noteId }, opts.jobId);
 
@@ -1149,7 +1241,7 @@ export async function processCanvasFile({
         AND (ci.next_attempt_at IS NULL OR ci.next_attempt_at <= NOW())
         AND cij.id = ci.job_id
         AND cij.type = 'canvas'
-        AND cij.status = 'processing'
+        AND cij.status IN ('discovering', 'processing')
       RETURNING ci.id, ci.execution_attempts
     `;
     if (!claimed) {
@@ -1206,6 +1298,7 @@ export async function processCanvasFile({
       jobId: activeJobId,
       s3Prefix: activeRecord.s3_prefix,
       alreadyClaimed: true,
+      claimToken,
     });
 
     });
@@ -1246,6 +1339,227 @@ export async function processCanvasFile({
       console.error("Failed to release next fair import file:", dispatchError);
     });
   }
+}
+
+// The download worker commits a source note before this message is published.
+// A duplicate delivery can only claim the still-pending extraction row once.
+export async function processCanvasExtract({
+  importRecordId,
+  jobId,
+  userId,
+}: CanvasFileMessage) {
+  const claimToken = uuidv4();
+  const [claimed] = await sql<CanvasExtractRow[]>`
+    UPDATE app.canvas_imports AS imported
+    SET status = 'indexing', claim_token = ${claimToken}::uuid,
+        claim_expires_at = NOW() + ${CANVAS_CLAIM_SECONDS} * INTERVAL '1 second',
+        updated_at = NOW()
+    FROM app.canvas_import_jobs AS job
+    WHERE imported.id = ${importRecordId}::uuid
+      AND imported.job_id = ${jobId}::uuid
+      AND imported.user_id = ${userId}::uuid
+      AND imported.status = 'pending_extract'
+      AND job.id = imported.job_id
+      AND job.type = 'canvas'
+      AND job.status IN ('discovering', 'processing')
+    RETURNING imported.id, imported.job_id, imported.user_id, imported.note_id,
+      imported.filename, imported.mime_type, imported.parent_folder_id,
+      imported.canvas_course_id, imported.canvas_module_id,
+      imported.imported_file_cache_id, imported.source_s3_key
+  `;
+  if (!claimed) return true;
+
+  try {
+    await withCanvasExecution({ jobId, userId, importId: importRecordId, token: claimToken }, async () => {
+      let s3Key: string | null = null;
+      try {
+        if (!claimed.note_id || !claimed.filename || !claimed.mime_type) {
+          throw new Error("Stored Canvas extraction metadata is missing");
+        }
+        const noteId = claimed.note_id;
+        const filename = claimed.filename;
+        const mimeType = claimed.mime_type;
+        const [source] = await sql<{ note_id: string }[]>`
+          SELECT note_id FROM app.notes
+          WHERE note_id = ${noteId}::uuid
+            AND user_id = ${userId}::uuid
+            AND deleted_at IS NULL
+        `;
+        const sourceKey = claimed.source_s3_key;
+        if (!source || !sourceKey) throw new Error("Stored Canvas extraction source is missing");
+        s3Key = sourceKey;
+
+        const storedModuleId = claimed.canvas_module_id == null
+          ? null : String(claimed.canvas_module_id);
+        const canvasModuleId = storedModuleId && storedModuleId !== "0" && storedModuleId !== "-1"
+          ? canvasIdForBigintColumn(storedModuleId, "Canvas module ID") : null;
+        const canvasCourseId = claimed.canvas_course_id == null
+          ? null : canvasIdForBigintColumn(String(claimed.canvas_course_id), "Canvas course ID");
+        let canvasAssignmentId = null;
+        if (!canvasModuleId && claimed.parent_folder_id) {
+          const [parent] = await sql<{ canvas_assignment_id: string | number | null }[]>`
+            SELECT canvas_assignment_id FROM app.notes
+            WHERE note_id = ${claimed.parent_folder_id}::uuid
+              AND user_id = ${userId}::uuid
+          `;
+          if (parent?.canvas_assignment_id != null) {
+            canvasAssignmentId = canvasIdForBigintColumn(
+              String(parent.canvas_assignment_id), "Canvas assignment ID",
+            );
+          }
+        }
+
+        await globalFileLimiter(async () => {
+          const warning = setTimeout(() => {
+            console.warn(
+              `Canvas extraction exceeded ${Math.round(FILE_TIMEOUT_MS / 60000)} minute supervision threshold: ${filename}`,
+            );
+          }, FILE_TIMEOUT_MS);
+          try {
+            const objectData = await getStorageProvider().getObjectAndMeta(sourceKey);
+            const buffer = objectData?.buffer;
+            if (!Buffer.isBuffer(buffer)) {
+              throw new Error("Stored Canvas extraction source is missing");
+            }
+            const result = await runRagPipeline(
+              noteId, userId, claimed.parent_folder_id, buffer,
+              {
+                filename, mimeType, s3Key: sourceKey,
+                jobId, importRecordId, cacheId: claimed.imported_file_cache_id,
+                canvasCourseId, canvasModuleId, canvasAssignmentId,
+              },
+            );
+            if (result && !result.pendingMarker) {
+              await setImportStatus(importRecordId, "complete", { noteId: result.noteId }, jobId);
+            }
+          } finally {
+            clearTimeout(warning);
+          }
+        });
+      } catch (error) {
+        if (error instanceof CanvasClaimLostError) return;
+        const message = errorMessage(error);
+        if (claimed.note_id && claimed.filename && claimed.mime_type && s3Key) {
+          await stageCanvasExtractionRetry({
+            noteId: claimed.note_id, userId, s3Key,
+            filename: claimed.filename, mimeType: claimed.mime_type,
+            parentFolderId: claimed.parent_folder_id, attempt: 0,
+            importRecordId, jobId,
+          }, message);
+        } else {
+          await withCanvasPublication(() => sql`
+            UPDATE app.canvas_imports
+            SET status = 'error', retryable = TRUE, error_message = ${message},
+                claim_token = NULL, claim_expires_at = NULL, updated_at = NOW()
+            WHERE id = ${importRecordId}::uuid
+              AND job_id = ${jobId}::uuid
+              AND user_id = ${userId}::uuid
+              AND claim_token = ${claimToken}::uuid
+              AND status = 'indexing'
+          `);
+        }
+        logger.error("canvas-import-extraction-error", { jobId, importRecordId, error: message });
+      }
+    });
+    await checkAndCompleteJob(jobId, userId);
+    return true;
+  } catch (error) {
+    if (error instanceof CanvasClaimLostError) return true;
+    throw error;
+  } finally {
+    await dispatchFairCanvasFiles(1).catch((error: unknown) => {
+      logger.warn("canvas-import-extraction-dispatch-deferred", {
+        jobId, importRecordId, error: errorMessage(error),
+      });
+    });
+  }
+}
+
+async function recoverExpiredCanvasExtracts(limit: number): Promise<CanvasFileMessage[]> {
+  const expired = await sql<CanvasFileMessage[]>`
+    SELECT imported.id AS "importRecordId", imported.job_id AS "jobId",
+      imported.user_id AS "userId"
+    FROM app.canvas_imports AS imported
+    JOIN app.canvas_import_jobs AS job ON job.id = imported.job_id
+    WHERE imported.status = 'indexing'
+      AND imported.source_s3_key IS NOT NULL
+      AND imported.claim_expires_at < NOW()
+      AND job.type = 'canvas'
+      AND job.status IN ('discovering', 'processing')
+    ORDER BY imported.claim_expires_at
+    LIMIT ${limit}
+  `;
+  const ready: CanvasFileMessage[] = [];
+  for (const row of expired) {
+    const reclaimed = await sql.begin(async (tx) => {
+      const [lock] = await tx<{ acquired: boolean }[]>`
+        SELECT pg_try_advisory_xact_lock(hashtextextended(${row.userId}::text, 0)) AS acquired
+      `;
+      if (!lock?.acquired) return null;
+      const [job] = await tx`
+        SELECT id FROM app.canvas_import_jobs
+        WHERE id = ${row.jobId}::uuid AND type = 'canvas'
+          AND status IN ('discovering', 'processing')
+        FOR SHARE SKIP LOCKED
+      `;
+      if (!job) return null;
+      const [changed] = await tx<{ status: string }[]>`
+        UPDATE app.canvas_imports
+        SET status = CASE WHEN retry_attempts >= 4 THEN 'error' ELSE 'pending_extract' END,
+          retryable = retry_attempts >= 4,
+          error_message = 'Extraction worker stopped responding',
+          claim_token = NULL, claim_expires_at = NULL, updated_at = NOW()
+        WHERE id = ${row.importRecordId}::uuid
+          AND job_id = ${row.jobId}::uuid AND user_id = ${row.userId}::uuid
+          AND status = 'indexing' AND source_s3_key IS NOT NULL
+          AND claim_expires_at < NOW()
+        RETURNING status
+      `;
+      return changed?.status ?? null;
+    });
+    if (reclaimed === 'pending_extract') ready.push(row);
+  }
+  return ready;
+}
+
+export async function recoverPendingCanvasExtracts(limit = 50): Promise<number> {
+  const reclaimed = await recoverExpiredCanvasExtracts(limit);
+  const rows = await sql<CanvasFileMessage[]>`
+    WITH candidates AS (
+      SELECT imported.id, imported.job_id, imported.user_id
+      FROM app.canvas_imports AS imported
+      JOIN app.canvas_import_jobs AS job ON job.id = imported.job_id
+      WHERE imported.status = 'pending_extract'
+        AND imported.updated_at < NOW() - INTERVAL '1 minute'
+        AND job.type = 'canvas'
+        AND job.status IN ('discovering', 'processing')
+      ORDER BY imported.updated_at
+      LIMIT ${limit}
+      FOR UPDATE OF imported SKIP LOCKED
+    )
+    UPDATE app.canvas_imports AS imported SET updated_at = NOW()
+    FROM candidates
+    WHERE imported.id = candidates.id AND imported.status = 'pending_extract'
+    RETURNING imported.id AS "importRecordId", imported.job_id AS "jobId",
+      imported.user_id AS "userId"
+  `;
+  let enqueued = 0;
+  for (const row of [...reclaimed, ...rows]) {
+    try {
+      await enqueueCanvasJob("canvas-extract", {
+        importRecordId: row.importRecordId,
+        jobId: row.jobId,
+        userId: row.userId,
+      });
+      enqueued += 1;
+    } catch (error) {
+      logger.warn("canvas-import-extraction-recovery-deferred", {
+        jobId: row.jobId, importRecordId: row.importRecordId,
+        error: errorMessage(error),
+      });
+    }
+  }
+  return enqueued;
 }
 
 // ── Direct extraction (from /api/upload) ────────────────────────────────────
@@ -1387,7 +1701,7 @@ export async function processExtractionRetry(msg: ExtractionRetryMessage) {
   // Messages without that identity are only retained for the independent
   // direct-extraction enrichment path; they must never claim a Canvas row.
   const [existingImport] = await sql<ExistingExtractionImportRow[]>`
-    SELECT id, status, job_id, imported_file_cache_id
+    SELECT id, status, job_id, imported_file_cache_id, source_s3_key
     FROM app.canvas_imports
     WHERE note_id = ${noteId}::uuid
       AND user_id = ${userId}::uuid
@@ -1423,9 +1737,10 @@ export async function processExtractionRetry(msg: ExtractionRetryMessage) {
           FROM app.canvas_import_jobs AS canvas_job
           WHERE canvas_job.id = imported.job_id
             AND canvas_job.type = 'canvas'
-            AND canvas_job.status = 'processing'
+            AND canvas_job.status IN ('discovering', 'processing')
         )
-      RETURNING imported.id, imported.job_id, imported.imported_file_cache_id, imported.claim_token, imported.retry_attempts
+      RETURNING imported.id, imported.job_id, imported.imported_file_cache_id,
+        imported.claim_token, imported.retry_attempts, imported.source_s3_key
     `;
     if (!claimed) {
       console.log(`Canvas extraction retry ${importRecordId} is already claimed or inactive`);
@@ -1440,10 +1755,11 @@ export async function processExtractionRetry(msg: ExtractionRetryMessage) {
   const run = async () => {
   try {
   const storage = getStorageProvider();
-  if (!s3Key) {
+  const sourceKey = importRow?.source_s3_key ?? s3Key;
+  if (!sourceKey) {
     throw new Error("Stored extraction source is missing");
   }
-  const objectData = await storage.getObjectAndMeta(s3Key);
+  const objectData = await storage.getObjectAndMeta(sourceKey);
   const buffer = objectData?.buffer;
 
   if (!buffer || !Buffer.isBuffer(buffer) || buffer.length === 0) {
@@ -1463,7 +1779,7 @@ export async function processExtractionRetry(msg: ExtractionRetryMessage) {
         const result = await runRagPipeline(noteId, userId, parentFolderId, buffer, {
           filename,
           mimeType,
-          s3Key,
+          s3Key: sourceKey,
           attempt: importRow?.retry_attempts ?? attempt,
           cacheId: importRow?.imported_file_cache_id,
           jobId: importRow?.job_id ?? null,
@@ -1566,7 +1882,7 @@ export async function recoverPendingExtractionRetries(limit: number = 50) {
         imported.filename,
         imported.mime_type,
         imported.parent_folder_id, imported.retry_seq, imported.retry_attempts, imported.next_attempt_at,
-        note.s3_key
+        COALESCE(imported.source_s3_key, note.s3_key) AS s3_key
       FROM app.canvas_imports AS imported
       JOIN app.canvas_import_jobs AS canvas_job
         ON canvas_job.id = imported.job_id
@@ -1577,8 +1893,8 @@ export async function recoverPendingExtractionRetries(limit: number = 50) {
         AND imported.retry_attempts < 4
         AND imported.updated_at < NOW() - INTERVAL '1 minute'
         AND canvas_job.type = 'canvas'
-        AND canvas_job.status = 'processing'
-        AND note.s3_key IS NOT NULL
+        AND canvas_job.status IN ('discovering', 'processing')
+        AND COALESCE(imported.source_s3_key, note.s3_key) IS NOT NULL
       ORDER BY imported.updated_at
       LIMIT ${limit}
       FOR UPDATE OF imported SKIP LOCKED
@@ -1727,6 +2043,11 @@ export async function processMarkerComplete(msg: MarkerContinuationMessage) {
         'completion_queued', 'completion_enqueue_failed', 'completion_retry'
       )
       AND completion_attempts < ${maxAttempts}
+      AND (canvas_job_id IS NULL OR EXISTS (
+        SELECT 1 FROM app.canvas_import_jobs parent
+        WHERE parent.id = canvas_job_id
+          AND parent.status IN ('discovering', 'processing')
+      ))
     RETURNING *
   `;
   // A duplicate queue delivery, a completed job, or a currently claimed
@@ -1780,9 +2101,12 @@ export async function processMarkerComplete(msg: MarkerContinuationMessage) {
 
     const [importRows] = await Promise.all([
       sql`
-        SELECT imported_file_cache_id
+        SELECT id, imported_file_cache_id
         FROM app.canvas_imports
         WHERE note_id = ${markerJob.note_id}::uuid
+          AND user_id = ${markerJob.user_id}::uuid
+          AND (${markerJob.canvas_job_id ?? null}::uuid IS NULL
+            OR job_id = ${markerJob.canvas_job_id ?? null}::uuid)
         LIMIT 1
       `,
     ]);
@@ -1812,7 +2136,7 @@ export async function processMarkerComplete(msg: MarkerContinuationMessage) {
             AND imported.status = 'pending_marker'
             AND (
               marker.canvas_job_id IS NULL
-              OR (canvas_job.type = 'canvas' AND canvas_job.status = 'processing')
+              OR (canvas_job.type = 'canvas' AND canvas_job.status IN ('discovering', 'processing'))
             )
         `;
     if (!stillActive) return;
@@ -1831,6 +2155,7 @@ export async function processMarkerComplete(msg: MarkerContinuationMessage) {
         s3Key: null,
         attempt: 0,
         jobId: markerJob.canvas_job_id,
+        importRecordId: importRow?.id ?? null,
         retryOnFailure: false,
         extractionOverride: {
           rawText: normalizedText,

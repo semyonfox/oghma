@@ -222,7 +222,7 @@ async function cancelNoteProcessing(
         )
       )
       AND status IN (
-        'pending', 'downloading', 'processing', 'indexing', 'pending_retry',
+        'pending', 'downloading', 'processing', 'indexing', 'pending_extract', 'pending_retry',
         'pending_marker', 'pending_cache'
       )
   `;

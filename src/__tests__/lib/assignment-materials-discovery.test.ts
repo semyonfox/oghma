@@ -20,6 +20,7 @@ vi.mock("@/lib/canvas/import-extraction", () => ({
   resolveMimeType: () => "application/pdf",
   fetchResource: (fetch: (course: string) => Promise<unknown>, course: string) => fetch(course),
   isJobCancelled: async () => false, downloadAndStoreFile: vi.fn(),
+  checkAndCompleteJob: vi.fn().mockResolvedValue(false),
 }));
 vi.mock("@/lib/crypto.ts", () => ({ decrypt: () => "test-token" }));
 vi.mock("@/lib/queue.ts", () => ({ getCanvasQueueAttemptLimit: () => 3 }));

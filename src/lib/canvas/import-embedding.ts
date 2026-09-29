@@ -67,6 +67,7 @@ interface FindOrCreateNoteOptions {
   canvasCourseId?: string | number | null;
   canvasModuleId?: string | number | null;
   canvasAssignmentId?: string | number | null;
+  canvasImportId?: string | null;
 }
 
 export interface RagPipelineResult {
@@ -358,7 +359,8 @@ export async function processRagPipeline(
       userId,
       mdTitle,
       markdownParentFolderId,
-      { content: rawText, canvasCourseId, canvasModuleId, canvasAssignmentId },
+      { content: rawText, canvasCourseId, canvasModuleId, canvasAssignmentId,
+        canvasImportId: importRecordId },
     );
     const storage = getStorageProvider();
     const markerAssets = await persistMarkerAssetsForNote({
