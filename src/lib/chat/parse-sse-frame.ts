@@ -1,5 +1,5 @@
 import type { SseFrame } from "@/lib/chat/sse";
-import type { Message, SearchContextData } from "@/lib/chat/types";
+import { normalizeNoteActivityRefs, type Message, type NoteActivityRef, type SearchContextData } from "@/lib/chat/types";
 import { labelForTool } from "@/lib/chat/tool-labels";
 import { Metrics } from "@/lib/metrics";
 
@@ -28,6 +28,7 @@ export type MessageUpdate =
       type: "tool-result";
       toolCallId: string;
       detail?: string;
+      notes?: NoteActivityRef[];
       status?: "completed" | "failed";
     }
   | { type: "done" }
@@ -113,11 +114,13 @@ export function parseSseFrame(frame: SseFrame): MessageUpdate | null {
       const toolCallId =
         typeof payload.toolCallId === "string" ? payload.toolCallId : "";
       const detail = typeof payload.detail === "string" ? payload.detail : "";
+      const notes = normalizeNoteActivityRefs(payload.notes);
       return toolCallId
         ? {
             type: "tool-result",
             toolCallId,
             detail: detail || undefined,
+            ...(notes.length > 0 && { notes }),
             status: payload.status === "failed" ? "failed" : "completed",
           }
         : null;

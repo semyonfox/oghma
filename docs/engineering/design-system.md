@@ -2,7 +2,7 @@
 
 > **Status:** Active reference
 >
-> **Last reviewed:** 2026-09-28
+> **Last reviewed:** 2026-09-29
 >
 > **Source of truth:** [`src/app/globals.css`](../../src/app/globals.css), [`tailwind.config.js`](../../tailwind.config.js), and this usage guide
 
@@ -81,9 +81,9 @@ Shared compact icon controls use `.ui-icon-button`: 44px below 1024px and 32px o
 
 ## Application navigation
 
-The main workspaces use the same five-destination floating bottom dock on phones, tablets and desktop: Notes, AI Chat, Calendar, Quiz, and More. It replaces the desktop navigation rail. The More sheet holds secondary destinations such as search, settings, focus, Trash, and the native offline reader when it is available. Give each scroll region end clearance so its last item remains reachable. Chat reserves space for the dock below its composer.
+The main workspaces use a five-destination floating bottom dock below 1024px and in the Android app: Notes, AI Chat, Calendar, Quiz, and More. Desktop browsers use the navigation rail. The More sheet holds secondary destinations such as search, settings, focus, Trash, and the native offline reader when it is available. Give each scroll region end clearance so its last item remains reachable. On chat, the dock floats above the composer without reserving a full-width strip.
 
-The navigation pill is 64px tall with labels, 52px with icons when scrolling down. Its labels fade out as it shrinks and fade in on upward scrolling, route changes, or keyboard focus. In the Android app's WebView, the pill uses a 70% opaque app surface over an 8.75px backdrop blur, and the selected destination adds a 35% opaque elevated surface. The website uses a 90% opaque surface and a 95% opaque selected surface without blur. Neither has a full-width backing bar. Keep 44px touch targets in both states, respect reduced motion, and hide the dock and its clearance while the keyboard is open. Single-line mobile headers start at 56px rather than 80px.
+The navigation pill is 64px tall with labels, 52px with icons when scrolling down. Its labels fade out as it shrinks and fade in after sustained upward scrolling, route changes, or keyboard focus. In the Android app's WebView, the pill uses a 70% opaque app surface over an 8.75px backdrop blur, and the selected destination adds a 35% opaque elevated surface. The website uses a 90% opaque surface and a 95% opaque selected surface without blur. Neither has a full-width backing bar. Keep 44px touch targets in both states, respect reduced motion, and hide the dock and its clearance while the keyboard is open. Single-line mobile headers start at 56px rather than 80px.
 
 Below 1024px, Notes opens in a library-first view. Folder navigation drills into the selected folder and exposes a clear return path; opening a note moves to its compact editor. Do not render the desktop file tree on a phone. Editor actions sit below the filename, where they remain reachable without crowding the header. From 768px to 1023px, the inspector uses a drawer so it cannot squeeze the editor below its minimum width.
 

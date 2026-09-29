@@ -41,6 +41,21 @@ function persistedShape(result: ReturnType<typeof createChatGenerationResult>) {
 }
 
 describe("chat generation result parity", () => {
+  it("records note references from completed searches and reads", () => {
+    const noteId = "154b1133-54df-4e0e-a154-9b637750f106";
+    let generation = createChatGenerationResult();
+    generation = applyChatGenerationEvent(generation, streamPart({
+      type: "tool-call", toolName: "getChunks", toolCallId: "search-1", input: { query: "syntax" }, dynamic: true,
+    })).result;
+    const update = applyChatGenerationEvent(generation, streamPart({
+      type: "tool-result", toolName: "getChunks", toolCallId: "search-1", input: { query: "syntax" },
+      output: { results: [{ noteId, title: "Complete Syntax", content: "private note content" }] }, dynamic: true,
+    }));
+    expect(update.effect).toMatchObject({ type: "tool-result", notes: [{ id: noteId, title: "Complete Syntax" }] });
+    expect(update.result.parts).toMatchObject([{ type: "tool", notes: [{ id: noteId, title: "Complete Syntax" }] }]);
+    expect(JSON.stringify(update.result.parts)).not.toContain("private note content");
+  });
+
   it("accumulates equivalent streaming and completed results identically", () => {
     const events = [
       streamPart({ type: "reasoning-delta", id: "r1", text: "Think." }),

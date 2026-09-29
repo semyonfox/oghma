@@ -186,7 +186,9 @@ describe("applyUpdate — token + tool-call parts", () => {
     );
     const completed = applyUpdate(
       started,
-      { type: "tool-result", toolCallId: "read-1", detail: "Complete Syntax" },
+      { type: "tool-result", toolCallId: "read-1", detail: "Complete Syntax", notes: [
+        { id: "154b1133-54df-4e0e-a154-9b637750f106", title: "Complete Syntax" },
+      ] },
       ref(),
     );
 
@@ -195,6 +197,7 @@ describe("applyUpdate — token + tool-call parts", () => {
         type: "tool",
         detail: "154b1133-54df-4e0e-a154-9b637750f106",
         resultDetail: "Complete Syntax",
+        notes: [{ id: "154b1133-54df-4e0e-a154-9b637750f106", title: "Complete Syntax" }],
         status: "completed",
       }),
     ]);

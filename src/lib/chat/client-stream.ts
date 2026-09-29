@@ -116,6 +116,7 @@ export function applyUpdate(
             ? {
                 ...part,
                 resultDetail: update.detail,
+                ...(update.notes && update.notes.length > 0 && { notes: update.notes }),
                 status: update.status ?? "completed",
               }
             : part,

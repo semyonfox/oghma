@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ChatInterface from "@/components/chat/chat-interface";
 
 vi.mock("@/lib/notes/hooks/use-i18n", () => ({
-  default: () => ({ t: (key: string) => key }),
+  default: () => ({ t: (key: string, params?: { count?: number }) => key.replace("{count}", String(params?.count ?? "")) }),
 }));
 vi.mock("@/components/chat/chat-markdown", () => ({
   default: ({ children }: { children: string }) => <p>{children}</p>,
@@ -20,6 +20,8 @@ vi.mock("@/components/chat/chat-markdown", () => ({
 vi.mock("@/components/chat/chat-splash", () => ({
   default: () => <p>New chat suggestions</p>,
 }));
+
+const noteId = "154b1133-54df-4e0e-a154-9b637750f106";
 
 const oldMessages = [
   { id: "old-user", role: "user", content: "Old question" },
@@ -37,7 +39,10 @@ const newMessages = [
         name: "readNote",
         label: "Reading note",
         callId: "read-1",
-        detail: "Study notes",
+        detail: noteId,
+        resultDetail: "Study notes",
+        status: "completed",
+        notes: [{ id: noteId, title: "Study notes" }],
       },
       { type: "text", text: "New answer" },
     ],
@@ -162,7 +167,13 @@ async function emitWorkLog(network: ReturnType<typeof setupNetwork>) {
   await network.emit("tool-call", {
     toolName: "readNote",
     toolCallId: "read-1",
+    detail: noteId,
+  });
+  await network.emit("tool-result", {
+    toolCallId: "read-1",
     detail: "Study notes",
+    status: "completed",
+    notes: [{ id: noteId, title: "Study notes" }],
   });
   await network.emit("token", { text: "New answer" });
 }
@@ -265,7 +276,7 @@ describe("chat session lifecycle", () => {
     ).toBe(false);
   });
 
-  it("keeps a follow-up reply and the expanded work log after saving", async () => {
+  it("keeps a follow-up reply and the expanded note list after saving", async () => {
     const network = setupNetwork();
     const onComplete = vi.fn();
     render(
@@ -275,7 +286,7 @@ describe("chat session lifecycle", () => {
     await sendQuestion();
     await emitWorkLog(network);
     const answer = screen.getByText("New answer");
-    const workLog = screen.getByRole("button", { name: /Work log/ });
+    const workLog = screen.getByRole("button", { name: /Read 1 note/ });
     if (workLog.getAttribute("aria-expanded") === "false")
       fireEvent.click(workLog);
     expect(workLog.getAttribute("aria-expanded")).toBe("true");
@@ -285,10 +296,9 @@ describe("chat session lifecycle", () => {
     await waitFor(() => expect(onComplete).toHaveBeenCalledWith("session-1"));
     expect(screen.getByText("New answer")).toBe(answer);
     expect(screen.getByText("New question")).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Work log/ })).toBe(workLog);
+    expect(screen.getByRole("button", { name: /Read 1 note/ })).toBe(workLog);
     expect(workLog.getAttribute("aria-expanded")).toBe("true");
-    expect(screen.getByText("Checking the notes")).toBeTruthy();
-    expect(screen.getByText(/Study notes/)).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Study notes" }).getAttribute("href")).toBe(`/notes/${noteId}`);
     expect(
       screen
         .getByPlaceholderText("chat.ask_placeholder")
@@ -296,27 +306,27 @@ describe("chat session lifecycle", () => {
     ).toBe(false);
   });
 
-  it("recovers the saved answer and work log when replay only supplies done", async () => {
+  it("recovers the saved answer and note list when replay only supplies done", async () => {
     const network = setupNetwork();
     render(<ChatInterface sessionId="session-1" />);
     await screen.findByText("Old answer");
     await sendQuestion();
     await network.finish();
     expect(screen.getAllByText("New answer")).toHaveLength(1);
-    const workLog = screen.getByRole("button", { name: /Work log/ });
+    const workLog = screen.getByRole("button", { name: /Read 1 note/ });
     if (workLog.getAttribute("aria-expanded") === "false")
       fireEvent.click(workLog);
-    expect(screen.getByText("Checking the notes")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Study notes" }).getAttribute("href")).toBe(`/notes/${noteId}`);
   });
 
-  it("adopts a newly created session URL without replacing its answer or work log", async () => {
+  it("adopts a newly created session URL without replacing its answer or note list", async () => {
     const network = setupNetwork({ existing: false });
     const view = render(<ChatInterface />);
     await sendQuestion();
     await emitWorkLog(network);
     await network.finish();
     const answer = screen.getByText("New answer");
-    const workLog = screen.getByRole("button", { name: /Work log/ });
+    const workLog = screen.getByRole("button", { name: /Read 1 note/ });
     if (workLog.getAttribute("aria-expanded") === "false")
       fireEvent.click(workLog);
     view.rerender(<ChatInterface sessionId="session-1" />);
@@ -328,7 +338,7 @@ describe("chat session lifecycle", () => {
       ).toBe(false),
     );
     expect(screen.getByText("New answer")).toBe(answer);
-    expect(screen.getByRole("button", { name: /Work log/ })).toBe(workLog);
+    expect(screen.getByRole("button", { name: /Read 1 note/ })).toBe(workLog);
     expect(workLog.getAttribute("aria-expanded")).toBe("true");
   });
 
@@ -340,7 +350,7 @@ describe("chat session lifecycle", () => {
     await network.finish();
     await screen.findByText("New answer");
     expect(screen.getAllByText("New question")).toHaveLength(1);
-    expect(screen.getByRole("button", { name: /Work log/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Read 1 note/ })).toBeTruthy();
   });
 
   it("shows loading instead of new-chat suggestions while restoring history", async () => {
@@ -373,7 +383,7 @@ describe("chat session lifecycle", () => {
     await emitWorkLog(network);
     await network.finish();
     expect(screen.getByText("New answer")).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Work log/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Read 1 note/ })).toBeTruthy();
     expect(
       screen
         .getByPlaceholderText("chat.ask_placeholder")
@@ -398,13 +408,13 @@ describe("chat session lifecycle", () => {
     expect(onComplete).not.toHaveBeenCalled();
   });
 
-  it("reattaches after exhausted retries without losing the partial reply or work log", async () => {
+  it("reattaches after exhausted retries without losing the partial reply or note list", async () => {
     const network = setupNetwork({ resuming: true });
     render(<ChatInterface sessionId="session-1" />);
     await screen.findByRole("button", { name: "Stop generating" });
     await emitWorkLog(network);
     const answer = screen.getByText("New answer");
-    const workLog = screen.getByRole("button", { name: /Work log/ });
+    const workLog = screen.getByRole("button", { name: /Read 1 note/ });
     if (workLog.getAttribute("aria-expanded") === "false")
       fireEvent.click(workLog);
     await network.disconnect();
@@ -414,12 +424,12 @@ describe("chat session lifecycle", () => {
           url.includes("/stream"),
         );
         expect(requests).toHaveLength(5);
-        expect(requests[4][0]).toContain("after=3-0");
+        expect(requests[4][0]).toContain("after=4-0");
       },
       { timeout: 5_000 },
     );
     expect(screen.getByText("New answer")).toBe(answer);
-    expect(screen.getByRole("button", { name: /Work log/ })).toBe(workLog);
+    expect(screen.getByRole("button", { name: /Read 1 note/ })).toBe(workLog);
     await network.finish();
     expect(screen.getByText("New answer")).toBe(answer);
     expect(workLog.getAttribute("aria-expanded")).toBe("true");
@@ -435,7 +445,7 @@ describe("chat session lifecycle", () => {
     const view = render(<ChatInterface onStreamComplete={onComplete} />);
     await sendQuestion();
     await emitWorkLog(network);
-    const workLog = screen.getByRole("button", { name: /Work log/ });
+    const workLog = screen.getByRole("button", { name: /Read 1 note/ });
     await network.disconnect();
     await waitFor(
       () => {
@@ -449,7 +459,7 @@ describe("chat session lifecycle", () => {
     );
     await network.finish();
     expect(screen.getAllByText("New answer")).toHaveLength(1);
-    expect(screen.getByRole("button", { name: /Work log/ })).toBe(workLog);
+    expect(screen.getByRole("button", { name: /Read 1 note/ })).toBe(workLog);
     expect(
       screen
         .getByPlaceholderText("chat.ask_placeholder")
@@ -470,7 +480,7 @@ describe("chat session lifecycle", () => {
     ).toBe(true);
     await network.finish();
     expect(screen.getAllByText("New answer")).toHaveLength(1);
-    expect(screen.getByRole("button", { name: /Work log/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Read 1 note/ })).toBeTruthy();
     expect(onComplete).toHaveBeenCalledWith("session-1");
   });
 });
