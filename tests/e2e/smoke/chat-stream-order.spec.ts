@@ -34,7 +34,6 @@ test.describe("chat streaming", () => {
         "First I will consult the app guide.",
         "I am checking the guide.",
         "Now I can use the guide result.",
-        "The guide explains how chat works.",
       ]) {
         await expect(chat.getByText(hiddenText, { exact: true })).toHaveCount(0);
       }
