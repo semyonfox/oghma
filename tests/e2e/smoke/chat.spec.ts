@@ -109,7 +109,7 @@ test.describe("chat responsive smoke", () => {
       });
       const drawerBox = await historyTitle.boundingBox();
       if (!drawerBox) throw new Error("History drawer title has no bounds");
-      await swipe(drawerBox.x + 150, drawerBox.y + 10, -100, 0);
+      await swipe(drawerBox.x + 150, (page.viewportSize()?.height ?? 800) - 80, -100, 0);
       await expect(drawer).not.toBeVisible();
     } finally {
       await cdp.detach();
@@ -177,7 +177,7 @@ test.describe("chat responsive smoke", () => {
       await expect(page.getByRole("button", { name: "Unpin" })).toBeVisible();
       await expect(page.getByRole("heading", { name: "Pinned" })).toBeVisible();
       await expect(
-        page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "AI Chat" }),
+        page.getByRole("navigation", { name: "Main navigation" }).getByRole("button", { name: "AI Chat" }),
       ).toHaveCount(1);
       await expect(page.locator("[data-mobile-dock]")).not.toBeVisible();
     }
