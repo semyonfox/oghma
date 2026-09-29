@@ -39,6 +39,15 @@ describe("normalizeMessageParts", () => {
     ]);
   });
 
+  it("keeps only valid note links in stored activity", () => {
+    expect(normalizeMessageParts([{ type: "tool", name: "readNote", label: "Reading note", notes: [
+      { id: "154b1133-54df-4e0e-a154-9b637750f106", title: "Complete Syntax", content: "private" },
+      { id: "../../settings", title: "Bad link" },
+    ] }])).toEqual([{ type: "tool", name: "readNote", label: "Reading note", notes: [
+      { id: "154b1133-54df-4e0e-a154-9b637750f106", title: "Complete Syntax" },
+    ] }]);
+  });
+
   it("drops malformed entries without throwing", () => {
     const input = [
       { type: "text", text: "ok" },

@@ -8,6 +8,7 @@ import {
   ConversationHistory,
   type ConversationHistoryProps,
 } from "@/components/chat/conversation-history";
+import PrimaryNavigation from "@/components/navigation/primary-navigation";
 import MobileAppHeader from "@/components/navigation/mobile-app-header";
 import MobileDrawer from "@/components/navigation/mobile-drawer";
 import MobileBottomNavigation from "@/components/navigation/mobile-bottom-navigation";
@@ -504,6 +505,11 @@ export default function ChatPageClient() {
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {isDesktop === true && (
+          <div className="desktop-navigation-rail w-14 shrink-0 border-r border-border-subtle bg-background">
+            <PrimaryNavigation />
+          </div>
+        )}
+        {isDesktop === true && (
           <aside className="w-64 flex-shrink-0 overflow-hidden border-r border-border-subtle">
             <ConversationHistory {...historyProps} />
           </aside>
@@ -556,7 +562,7 @@ export default function ChatPageClient() {
           <ConversationHistory {...historyProps} showHeader={false} />
         </MobileDrawer>
       )}
-      <MobileBottomNavigation reserveSpace className="-mt-6 lg:mt-0" />
+      <MobileBottomNavigation aboveComposer />
     </div>
   );
 }

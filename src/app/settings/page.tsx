@@ -38,6 +38,7 @@ import { useWorkspaceSession } from "@/components/providers/workspace-lifecycle-
 import { resetWorkspaceClientState } from "@/lib/notes/workspace-lifecycle";
 import { publishWorkspaceInvalidation } from "@/lib/notes/workspace-invalidation";
 import useNoteTreeStore from "@/lib/notes/state/tree";
+import PrimaryNavigation from "@/components/navigation/primary-navigation";
 import MobileBottomNavigation from "@/components/navigation/mobile-bottom-navigation";
 
 const CanvasSection = dynamic(
@@ -420,7 +421,10 @@ export default function SettingsPage() {
   }, [hasUnsavedSettings]);
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-app-page">
+    <div className="settings-with-rail flex h-dvh flex-col overflow-hidden bg-app-page lg:pl-14">
+      <div className="desktop-navigation-rail fixed inset-y-0 left-0 hidden w-14 border-r border-border-subtle bg-background lg:block">
+        <PrimaryNavigation />
+      </div>
       <div className="shrink-0 border-b border-border-subtle">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex items-center gap-4 h-16">
           <button

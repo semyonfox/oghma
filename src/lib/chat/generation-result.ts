@@ -3,6 +3,7 @@ import type { FinishReason, StepResult, TextStreamPart, ToolSet } from "ai";
 import {
   appendReasoningPart,
   partitionMessageParts,
+  type NoteActivityRef,
   type MessageMetadata,
   type MessagePart,
 } from "@/lib/chat/types";
@@ -11,6 +12,7 @@ import {
   noteSearchDetail,
   toolCallDetail,
   toolResultDetail,
+  noteRefsFromToolResult,
 } from "@/lib/chat/tool-display";
 import { shouldSynthesizeFinalAnswer } from "@/lib/chat/final-answer";
 import {
@@ -45,6 +47,7 @@ export type ChatGenerationEffect =
       type: "tool-result";
       toolCallId: string;
       detail?: string;
+      notes?: NoteActivityRef[];
       status: "completed" | "failed";
     }
   | { type: "abort" }
@@ -215,12 +218,13 @@ export function applyChatGenerationEvent(
       ? "Tool execution failed"
       : toolResultDetail(event.toolName, event.output);
     const status = failed ? "failed" : "completed";
+    const notes = failed ? [] : noteRefsFromToolResult(event.toolName, event.output);
     return {
       result: {
         ...current,
         parts: current.parts.map((part) =>
           part.type === "tool" && part.callId === event.toolCallId
-            ? { ...part, resultDetail: detail, status }
+            ? { ...part, resultDetail: detail, status, ...(notes.length > 0 && { notes }) }
             : part,
         ),
       },
@@ -228,6 +232,7 @@ export function applyChatGenerationEvent(
         type: "tool-result",
         toolCallId: event.toolCallId,
         detail,
+        notes,
         status,
       },
     };

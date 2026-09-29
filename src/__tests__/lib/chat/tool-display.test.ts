@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { noteSearchDetail, toolCallDetail, toolResultDetail } from "@/lib/chat/tool-display";
+import { noteRefsFromToolResult, noteSearchDetail, toolCallDetail, toolResultDetail } from "@/lib/chat/tool-display";
 
 describe("tool activity display details", () => {
   it("shows the selected app-guide topic", () => {
@@ -25,6 +25,17 @@ describe("tool activity display details", () => {
   it("does not put arbitrary tool inputs or note content in the activity UI", () => {
     expect(toolCallDetail("makeMDNote", { content: "private note content" })).toBeUndefined();
     expect(toolResultDetail("readNote", { content: "private note content" })).toBeUndefined();
+  });
+
+  it("extracts linkable note references without copying note content", () => {
+    const noteId = "154b1133-54df-4e0e-a154-9b637750f106";
+    expect(noteRefsFromToolResult("getChunks", {
+      results: [{ noteId, title: "Complete Syntax", content: "private note content" }],
+    })).toEqual([{ id: noteId, title: "Complete Syntax" }]);
+    expect(noteRefsFromToolResult("readNote", {
+      noteId, title: "Complete Syntax", content: "private note content",
+    })).toEqual([{ id: noteId, title: "Complete Syntax" }]);
+    expect(noteRefsFromToolResult("readNote", { error: "Note not found" })).toEqual([]);
   });
 
   it("summarizes the notes matched by the initial retrieval", () => {

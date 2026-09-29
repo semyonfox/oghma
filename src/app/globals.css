@@ -1087,8 +1087,22 @@ html.light .glass-card-active {
 }
 
 /* room the mobile dock takes at the bottom, including the inset below it */
-:root:has([data-mobile-dock]:not(.hidden)) {
+@media (max-width: 1023px) {
+  :root:has([data-mobile-dock]:not(.hidden)) {
+    --mobile-dock-space: calc(5rem + var(--safe-bottom));
+  }
+}
+
+:root:has([data-mobile-dock][data-native-dock]:not(.hidden)) {
   --mobile-dock-space: calc(5rem + var(--safe-bottom));
+}
+
+:root:has([data-native-dock]) .desktop-navigation-rail {
+  display: none;
+}
+
+:root:has([data-native-dock]) .settings-with-rail {
+  padding-left: 0;
 }
 
 /* the dock floats over scrolling pages, so their last item needs room to clear it */

@@ -177,8 +177,9 @@ test.describe("chat responsive smoke", () => {
       await expect(page.getByRole("button", { name: "Unpin" })).toBeVisible();
       await expect(page.getByRole("heading", { name: "Pinned" })).toBeVisible();
       await expect(
-        page.getByRole("button", { name: "Settings" }),
+        page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "AI Chat" }),
       ).toHaveCount(1);
+      await expect(page.locator("[data-mobile-dock]")).not.toBeVisible();
     }
   });
 });
