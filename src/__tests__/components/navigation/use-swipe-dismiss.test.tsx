@@ -162,6 +162,20 @@ describe("mobile panel gestures", () => {
     expect(close).toHaveBeenCalledOnce();
   });
 
+  it("clears text selected during a dismissed swipe so the next panel can be swiped", () => {
+    const close = vi.fn();
+    render(<Panel onClose={close} />);
+    const title = screen.getByText("Panel title");
+    touch(title, "touchStart", 100, 100);
+    touch(title, "touchMove", 100, 190);
+    const range = document.createRange();
+    range.selectNodeContents(title);
+    window.getSelection()?.addRange(range);
+    touch(title, "touchEnd", 100, 190);
+    expect(close).toHaveBeenCalledOnce();
+    expect(window.getSelection()?.isCollapsed).toBe(true);
+  });
+
   it("gives up when the browser has already taken the touch for scrolling", () => {
     const close = vi.fn();
     render(<Panel onClose={close} />);
