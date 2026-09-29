@@ -109,7 +109,7 @@ test.describe("chat responsive smoke", () => {
       });
       const drawerBox = await historyTitle.boundingBox();
       if (!drawerBox) throw new Error("History drawer title has no bounds");
-      await swipe(drawerBox.x + 150, (page.viewportSize()?.height ?? 800) - 80, -100, 0);
+      await swipe(drawerBox.x + 150, drawerBox.y + 10, -100, 0);
       await expect(drawer).not.toBeVisible();
     } finally {
       await cdp.detach();
