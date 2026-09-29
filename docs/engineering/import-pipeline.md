@@ -29,7 +29,7 @@ checks them inside the user-tree transaction, including nested note/cache
 writes. Durable retry sequences reject stale deliveries. Recovery observes by
 default until compatible workers are deployed everywhere. The new staged
 extraction path separately reclaims its own expired leases after fencing the
-previous worker; migration 069 stores the key required to resume safely.
+previous worker; migration 070 stores the key required to resume safely.
 
 Identical active requests reuse their run. Replacement and Stop name the active
 job the user actually observed. Retryable failures move to a new run; completed
