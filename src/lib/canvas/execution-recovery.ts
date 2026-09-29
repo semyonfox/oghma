@@ -13,11 +13,9 @@ export async function recoverCanvasExecutions(
     WHERE (child.status IN ('downloading', 'processing', 'indexing')
       AND (child.claim_expires_at < NOW() OR (child.claim_token IS NULL AND child.updated_at < NOW() - INTERVAL '1 hour')))
       OR (parent.status IN ('complete', 'failed', 'cancelled')
-        AND child.status IN ('pending', 'downloading', 'processing', 'indexing', 'pending_retry', 'pending_marker', 'pending_cache'))
+        AND child.status IN ('pending', 'downloading', 'processing', 'pending_extract', 'indexing', 'pending_retry', 'pending_marker', 'pending_cache'))
       OR (child.status = 'pending_retry' AND child.updated_at < NOW() - INTERVAL '1 minute'
-        AND (child.next_attempt_at IS NULL OR child.retry_attempts >= 4 OR NOT EXISTS (
-          SELECT 1 FROM app.notes source WHERE source.note_id = child.note_id AND source.s3_key IS NOT NULL
-        )))
+        AND (child.next_attempt_at IS NULL OR child.retry_attempts >= 4 OR child.source_s3_key IS NULL))
     UNION ALL
     SELECT id, user_id, id AS job_id, 'discovery' AS kind FROM app.canvas_import_jobs
     WHERE type = 'canvas' AND status = 'discovering'
@@ -49,17 +47,52 @@ export async function recoverCanvasExecutions(
             AND (claim_expires_at < NOW() OR (claim_token IS NULL AND updated_at < NOW() - INTERVAL '1 hour'))
           RETURNING status
         `;
+        if (changed?.status === "queued") {
+          await tx`
+            UPDATE app.canvas_imports SET
+              status = CASE
+                WHEN status = 'indexing' AND retry_attempts >= 4 THEN 'error'
+                WHEN status = 'indexing' AND retry_attempts > 0
+                  AND source_s3_key IS NOT NULL THEN 'pending_retry'
+                WHEN status = 'indexing' AND source_s3_key IS NOT NULL THEN 'pending_extract'
+                ELSE 'pending'
+              END,
+              claim_token = NULL, claim_expires_at = NULL, dispatched_at = NULL,
+              next_attempt_at = CASE
+                WHEN status = 'indexing' AND retry_attempts >= 4 THEN NULL ELSE NOW()
+              END,
+              retry_seq = retry_seq + 1,
+              retryable = retryable OR (status = 'indexing' AND retry_attempts >= 4),
+              error_message = CASE
+                WHEN status = 'indexing' AND retry_attempts >= 4
+                  THEN 'Extraction retry budget exhausted'
+                ELSE error_message
+              END,
+              updated_at = NOW()
+            WHERE job_id = ${candidate.id}::uuid
+              AND status IN ('downloading', 'processing', 'indexing')
+          `;
+        }
         if (changed?.status === "failed") {
           await tx`
+            UPDATE app.marker_jobs SET status = 'cancelled', error = 'Parent discovery failed',
+              completed_at = NOW(), updated_at = NOW()
+            WHERE canvas_job_id = ${candidate.id}::uuid
+              AND status NOT IN ('completed', 'failed', 'invalid_result', 'cancelled')
+          `;
+          await tx`
             UPDATE app.canvas_imports SET status = 'error', retryable = TRUE,
-              claim_token = NULL, claim_expires_at = NULL,
-              error_message = 'Discovery did not finish', updated_at = NOW()
-            WHERE job_id = ${candidate.id}::uuid AND status = 'pending'
+              claim_token = NULL, claim_expires_at = NULL, dispatched_at = NULL,
+              next_attempt_at = NULL, error_message = 'Discovery did not finish', updated_at = NOW()
+            WHERE job_id = ${candidate.id}::uuid
+              AND status NOT IN ('complete', 'forbidden', 'error', 'cancelled')
           `;
         }
         return Boolean(changed);
       }
-      if (job.status !== "processing") await tx`
+      // discovery can be requeued after files have already started
+      const activeJob = ["queued", "discovering", "processing"].includes(job.status);
+      if (!activeJob) await tx`
         UPDATE app.marker_jobs SET status = 'cancelled', error = 'Parent import is terminal', updated_at = NOW()
         WHERE canvas_job_id = ${candidate.job_id}::uuid
           AND status NOT IN ('completed', 'failed', 'invalid_result', 'cancelled')
@@ -67,10 +100,13 @@ export async function recoverCanvasExecutions(
       const changed = await tx`
         UPDATE app.canvas_imports SET
           status = CASE WHEN ${job.status === "cancelled"} THEN 'cancelled'
-            WHEN ${job.status === "processing"} AND retry_attempts >= 4 AND status IN ('indexing', 'pending_retry') THEN 'error'
-            WHEN ${job.status === "processing"} AND retry_attempts > 0 AND retry_attempts < 4
-            AND status = 'indexing' THEN 'pending_retry'
-            WHEN ${job.status === "processing"} AND execution_attempts < ${getCanvasQueueAttemptLimit()}
+            WHEN ${activeJob} AND retry_attempts >= 4 AND status IN ('indexing', 'pending_retry') THEN 'error'
+            WHEN ${activeJob} AND retry_attempts > 0 AND retry_attempts < 4
+              AND status = 'indexing' AND source_s3_key IS NOT NULL THEN 'pending_retry'
+            WHEN ${activeJob} AND status = 'pending_retry' AND retry_attempts < 4
+              AND source_s3_key IS NOT NULL THEN 'pending_retry'
+            WHEN ${activeJob} AND status = 'indexing' AND source_s3_key IS NOT NULL THEN 'pending_extract'
+            WHEN ${activeJob} AND execution_attempts < ${getCanvasQueueAttemptLimit()}
             THEN 'pending' ELSE 'error' END,
           claim_token = NULL, claim_expires_at = NULL, dispatched_at = NULL,
           next_attempt_at = NOW(), retry_seq = retry_seq + 1, retryable = ${job.status !== "cancelled"},
@@ -79,11 +115,9 @@ export async function recoverCanvasExecutions(
           AND ((status IN ('downloading', 'processing', 'indexing')
             AND (claim_expires_at < NOW() OR (claim_token IS NULL AND updated_at < NOW() - INTERVAL '1 hour')))
             OR (${["complete", "failed", "cancelled"].includes(job.status)}
-              AND status IN ('pending', 'downloading', 'processing', 'indexing', 'pending_retry', 'pending_marker', 'pending_cache'))
+              AND status IN ('pending', 'downloading', 'processing', 'pending_extract', 'indexing', 'pending_retry', 'pending_marker', 'pending_cache'))
             OR (status = 'pending_retry' AND updated_at < NOW() - INTERVAL '1 minute'
-              AND (next_attempt_at IS NULL OR retry_attempts >= 4 OR NOT EXISTS (
-                SELECT 1 FROM app.notes source WHERE source.note_id = app.canvas_imports.note_id AND source.s3_key IS NOT NULL
-              ))))
+              AND (next_attempt_at IS NULL OR retry_attempts >= 4 OR source_s3_key IS NULL)))
         RETURNING id
       `;
       return changed.length > 0;

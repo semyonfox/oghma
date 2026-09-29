@@ -36,6 +36,8 @@ import { recoverStaleChatGenerations } from "../chat/generation-store";
 import {
   processDiscoverJob,
   processCanvasFile,
+  processCanvasExtract,
+  recoverPendingCanvasExtracts,
   processExtractionRetry,
   recoverPendingExtractionRetries,
   processDirectExtraction,
@@ -194,24 +196,36 @@ export async function processCanvasJob(job: CanvasJob): Promise<void> {
   const ts = () => new Date().toISOString();
   const data = job.data ?? {};
   const type = canvasJobType(job);
+  const startedAt = Date.now();
+  const sinceEnqueuedMs = typeof job.timestamp === "number" &&
+    Number.isFinite(job.timestamp) && job.timestamp <= startedAt
+    ? startedAt - job.timestamp
+    : null;
+  let outcome = "failed";
   console.log(
     `[${ts()}] Received ${type}: ${data.jobId ?? data.userId ?? job.id}`,
   );
 
-  const handled = await dispatchCanvasJob(job, {
-    processDiscoverJob,
-    processCanvasFile,
-    processImportJob: (jobId) => processDiscoverJob(jobId),
-    processDirectExtraction,
-    processExtractionRetry,
-    processMarkerComplete,
-    processMarkerFailed,
-    dispatchMarkerJob,
-    processVaultExport,
-    processVaultImport,
-  });
-  if (!handled) {
-    console.warn(`[${ts()}] Unknown job type: ${type}`);
+  try {
+    const handled = await dispatchCanvasJob(job, {
+      processDiscoverJob,
+      processCanvasFile,
+      processCanvasExtract,
+      processImportJob: (jobId) => processDiscoverJob(jobId),
+      processDirectExtraction,
+      processExtractionRetry,
+      processMarkerComplete,
+      processMarkerFailed,
+      dispatchMarkerJob,
+      processVaultExport,
+      processVaultImport,
+    });
+    if (!handled) {
+      console.warn(`[${ts()}] Unknown job type: ${type}`);
+    }
+    outcome = handled ? "handled" : "unknown";
+  } finally {
+    console.log(`[${ts()}] ${type} ${outcome}: ${data.jobId ?? data.userId ?? job.id}; processingMs=${Date.now() - startedAt}; sinceEnqueuedMs=${sinceEnqueuedMs ?? "unknown"}`);
   }
 }
 
@@ -251,6 +265,12 @@ setInterval(async () => {
     if (recoveredExtractionRetries > 0) {
       console.log(
         `[${new Date().toISOString()}] DB poll: recovered ${recoveredExtractionRetries} extraction retry job(s)`,
+      );
+    }
+    const recoveredCanvasExtracts = await recoverPendingCanvasExtracts();
+    if (recoveredCanvasExtracts > 0) {
+      console.log(
+        `[${new Date().toISOString()}] DB poll: republished ${recoveredCanvasExtracts} Canvas extraction stage(s)`,
       );
     }
     if (MARKER_DISPATCH_CONSUMER_ENABLED) {

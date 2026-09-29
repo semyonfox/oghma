@@ -130,7 +130,7 @@ export const GET = withErrorHandler(async (request) => {
         COUNT(CASE WHEN status = 'complete'    THEN 1 END) as indexed,
         COUNT(CASE WHEN status = 'indexing'    THEN 1 END) as indexing,
         COUNT(CASE WHEN status = 'downloading' THEN 1 END) as downloading,
-        COUNT(CASE WHEN status = 'processing'  THEN 1 END) as processing,
+        COUNT(CASE WHEN status IN ('processing', 'pending_extract') THEN 1 END) as processing,
         COUNT(CASE WHEN status = 'pending_retry' THEN 1 END) as pending_retry,
         COUNT(CASE WHEN status = 'pending_marker' THEN 1 END) as pending_marker,
         COUNT(CASE WHEN status = 'forbidden'   THEN 1 END) as forbidden,

@@ -33,6 +33,7 @@ export async function stageCanvasExtractionRetry(msg: ExtractionRetryMessage, er
   }[]>`
     UPDATE app.canvas_imports
     SET status = CASE WHEN retry_attempts < ${MAX_EXTRACTION_RETRIES} THEN 'pending_retry' ELSE 'error' END,
+        source_s3_key = COALESCE(source_s3_key, ${msg.s3Key}),
         retry_seq = retry_seq + 1,
         next_attempt_at = NOW() + (CASE retry_attempts
           WHEN 0 THEN 30 WHEN 1 THEN 120 WHEN 2 THEN 480 ELSE 900 END) * INTERVAL '1 second',

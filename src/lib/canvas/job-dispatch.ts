@@ -32,6 +32,7 @@ export interface CanvasJob {
   name?: string;
   id?: string;
   attemptsMade?: number;
+  timestamp?: number;
 }
 
 export interface CanvasJobHandlers {
@@ -41,6 +42,11 @@ export interface CanvasJobHandlers {
     jobId: string;
     userId: string;
     attempt: number;
+  }) => Promise<unknown>;
+  processCanvasExtract: (data: {
+    importRecordId: string;
+    jobId: string;
+    userId: string;
   }) => Promise<unknown>;
   processImportJob: (jobId: string) => Promise<unknown>;
   processDirectExtraction: (data: DirectExtractionJobData) => Promise<unknown>;
@@ -168,6 +174,9 @@ export async function dispatchCanvasJob(
       });
       return true;
     }
+    case "canvas-extract":
+      await handlers.processCanvasExtract(canvasFileData(data()));
+      return true;
     // Keep accepting already-enqueued messages from before the split import
     // pipeline; producers no longer create this legacy shape.
     case "canvas-import":

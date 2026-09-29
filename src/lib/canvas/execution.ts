@@ -62,7 +62,7 @@ export async function assertCanvasExecution(tx: postgres.TransactionSql, owner: 
   if (owner.markerId) {
     if (owner.jobId) {
       const [parent] = await tx`SELECT id FROM app.canvas_import_jobs
-        WHERE id = ${owner.jobId}::uuid AND status = 'processing' FOR SHARE`;
+        WHERE id = ${owner.jobId}::uuid AND status IN ('discovering', 'processing') FOR SHARE`;
       if (!parent) throw new CanvasClaimLostError();
     }
     const [marker] = await tx`SELECT callback_id FROM app.marker_jobs
@@ -75,7 +75,7 @@ export async function assertCanvasExecution(tx: postgres.TransactionSql, owner: 
   const [job] = await tx`
     SELECT id FROM app.canvas_import_jobs
     WHERE id = ${owner.jobId}::uuid AND user_id = ${owner.userId}::uuid AND type = 'canvas'
-      AND status = ${owner.importId ? "processing" : "discovering"}
+      AND (status = 'discovering' OR (${Boolean(owner.importId)} AND status = 'processing'))
       AND (${Boolean(owner.importId)} OR claim_token = ${owner.token}::uuid)
     FOR SHARE
   `;

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Execution fencing is exercised with real PostgreSQL in the integration
 // contract. These tests isolate the existing extraction/result behaviour.
@@ -8,6 +8,7 @@ vi.mock("@/lib/canvas/execution", async (original) => ({
   withCanvasMarkerPublication: (_owner: unknown, work: () => Promise<unknown>) => work(),
 }));
 vi.mock("@/lib/queue", () => ({
+  enqueueCanvasJob: vi.fn().mockResolvedValue(undefined),
   enqueueExtractRetryJob: vi.fn().mockResolvedValue(undefined),
   getCanvasQueueAttemptLimit: () => 3,
   getMarkerCompletionAttemptLimit: () => 3,
@@ -77,6 +78,7 @@ vi.mock("@/lib/canvas/import-scheduler.ts", () => ({
 
 vi.mock("@/lib/canvas/extraction-retry.ts", () => ({
   enqueueExtractionRetry: vi.fn().mockResolvedValue({ delaySeconds: 30 }),
+  stageCanvasExtractionRetry: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/lib/crypto.ts", () => ({
@@ -87,10 +89,12 @@ vi.mock("@/lib/logger.ts", () => ({
   default: {
     info: vi.fn(),
     warn: vi.fn(),
+    error: vi.fn(),
   },
 }));
 
 import sql from "@/database/pgsql";
+import { enqueueCanvasJob } from "@/lib/queue";
 import { getStorageProvider } from "@/lib/storage/init";
 import { processRagPipeline } from "@/lib/canvas/import-embedding";
 import { findOrCreateExtractionBundle } from "@/lib/notes/extraction-bundle";
@@ -100,6 +104,8 @@ import {
   recoverPendingExtractionRetries,
   fetchResource,
   processCanvasFile,
+  processCanvasExtract,
+  recoverPendingCanvasExtracts,
   processMarkerComplete,
   downloadAndStoreFile,
 } from "@/lib/canvas/import-extraction";
@@ -146,6 +152,64 @@ describe("fetchResource", () => {
         "22222222-2222-4222-8222-222222222222",
       ),
     ).rejects.toThrow("Canvas files request failed");
+  });
+});
+
+describe("Canvas extraction stage", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(sql).mockReset().mockResolvedValue([]);
+  });
+  afterEach(() => {
+    vi.mocked(sql).mockReset().mockResolvedValue([]);
+  });
+
+  it("claims a stored source once and extracts without downloading from Canvas", async () => {
+    const source = Buffer.from("stored content");
+    vi.mocked(sql).mockImplementation(async (parts) => {
+      const query = Array.from(parts).join("");
+      if (query.includes("SET status = 'indexing', claim_token")) return [{
+        id: "import-1", job_id: "job-1", user_id: "user-1", note_id: "note-1",
+        filename: "notes.txt", mime_type: "text/plain", parent_folder_id: null,
+        canvas_course_id: "42", canvas_module_id: "7", imported_file_cache_id: null,
+        source_s3_key: "canvas/notes.txt",
+      }] as never;
+      if (query.includes("SELECT note_id FROM app.notes")) return [{ note_id: "note-1" }] as never;
+      if (query.includes("SELECT COUNT(*) as count")) return [{ count: "1" }] as never;
+      return [] as never;
+    });
+    const getObjectAndMeta = vi.fn().mockResolvedValue({ buffer: source });
+    vi.mocked(getStorageProvider).mockReturnValue({ getObjectAndMeta } as never);
+    vi.mocked(processRagPipeline).mockResolvedValue({ noteId: "note-1", chunksStored: 1 } as never);
+
+    await expect(processCanvasExtract({ importRecordId: "import-1", jobId: "job-1", userId: "user-1" })).resolves.toBe(true);
+
+    expect(getObjectAndMeta).toHaveBeenCalledWith("canvas/notes.txt");
+    expect(processRagPipeline).toHaveBeenCalledWith(
+      "note-1", "user-1", null, source,
+      expect.objectContaining({ jobId: "job-1", importRecordId: "import-1", s3Key: "canvas/notes.txt" }),
+      expect.any(Function),
+    );
+    expect(vi.mocked(sql).mock.calls.some((call) =>
+      queryText(call).includes("SET status = ") && call[1] === "complete",
+    )).toBe(true);
+  });
+
+  it("does not read the source when another delivery claimed the stage", async () => {
+    await expect(processCanvasExtract({ importRecordId: "import-1", jobId: "job-1", userId: "user-1" })).resolves.toBe(true);
+    expect(getStorageProvider).not.toHaveBeenCalled();
+  });
+
+  it("republishes a pending extraction after a lost enqueue", async () => {
+    vi.mocked(sql).mockImplementation(async (parts) =>
+      Array.from(parts).join("").includes("WHERE imported.status = 'pending_extract'")
+        ? [{ importRecordId: "import-1", jobId: "job-1", userId: "user-1" }] as never
+        : [] as never);
+
+    await expect(recoverPendingCanvasExtracts()).resolves.toBe(1);
+    expect(enqueueCanvasJob).toHaveBeenCalledWith("canvas-extract", {
+      importRecordId: "import-1", jobId: "job-1", userId: "user-1",
+    });
   });
 });
 
