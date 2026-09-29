@@ -76,17 +76,6 @@ test.describe("chat responsive smoke", () => {
     await page.goto("/chat");
     const cdp = await page.context().newCDPSession(page);
     const swipe = async (x: number, y: number, dx: number, dy: number) => {
-      if (dx < 0) console.info("drawer touch start", await page.evaluate(({ x, y }) => {
-        const target = document.elementFromPoint(x, y);
-        return {
-          x, y,
-          target: target?.className,
-          scrollWidth: target?.scrollWidth,
-          clientWidth: target?.clientWidth,
-          overflowX: target ? getComputedStyle(target).overflowX : null,
-          selectionCollapsed: window.getSelection()?.isCollapsed,
-        };
-      }, { x, y }));
       await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
       for (let step = 1; step <= 8; step++) {
         await cdp.send("Input.dispatchTouchEvent", {
@@ -95,10 +84,6 @@ test.describe("chat responsive smoke", () => {
         });
         // Pace the touch path like a finger, rather than coalescing it into one frame.
         await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
-        if (dx < 0 && step === 8) console.info("drawer touch moved", await page.evaluate(() => ({
-          panelStyle: document.querySelector('[role="dialog"] [class*="rounded-r-2xl"]')?.getAttribute("style"),
-          selectionCollapsed: window.getSelection()?.isCollapsed,
-        })));
       }
       await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
     };
@@ -122,6 +107,7 @@ test.describe("chat responsive smoke", () => {
       await drawer.evaluate(async (element) => {
         await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished));
       });
+      await expect.poll(async () => (await historyTitle.boundingBox())?.x ?? -1).toBeGreaterThan(10);
       const drawerBox = await historyTitle.boundingBox();
       if (!drawerBox) throw new Error("History drawer title has no bounds");
       await swipe(drawerBox.x + 150, drawerBox.y + 10, -100, 0);
