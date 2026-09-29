@@ -80,6 +80,20 @@ describe("parseSseFrame — tool-call events", () => {
   });
 });
 
+describe("parseSseFrame — note references", () => {
+  it("keeps only safe note IDs and titles from a tool result", () => {
+    expect(parseSseFrame({ event: "tool-result", data: JSON.stringify({
+      toolCallId: "read-1", status: "completed", notes: [
+        { id: "154b1133-54df-4e0e-a154-9b637750f106", title: "Complete Syntax", content: "private" },
+        { id: "bad/path", title: "Bad link" },
+      ],
+    }) })).toEqual({
+      type: "tool-result", toolCallId: "read-1", detail: undefined,
+      status: "completed", notes: [{ id: "154b1133-54df-4e0e-a154-9b637750f106", title: "Complete Syntax" }],
+    });
+  });
+});
+
 describe("parseSseFrame — search events", () => {
   it("uses safe defaults for malformed numeric payload fields", () => {
     const update = parseSseFrame({

@@ -84,6 +84,7 @@ export default function useSwipeDismiss({
       const dismiss = gesture.claimed && distance >= 64;
       // Avoid a synthetic click on an action underneath the departing panel.
       if (gesture.claimed && event.cancelable) event.preventDefault();
+      if (dismiss) window.getSelection()?.removeAllRanges();
       reset();
       if (dismiss) closeRef.current();
     };

@@ -35,11 +35,10 @@ const destinations = [
 
 export default function MobileBottomNavigation({
   className = "",
-  reserveSpace = false,
+  aboveComposer = false,
 }: {
   className?: string;
-  // keep the dock below fixed content, such as the chat composer, instead of floating over it
-  reserveSpace?: boolean;
+  aboveComposer?: boolean;
 }) {
   const { t } = useI18n();
   const pathname = usePathname();
@@ -50,7 +49,34 @@ export default function MobileBottomNavigation({
   const dockRef = useRef<HTMLDivElement>(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
+  const [composerHeight, setComposerHeight] = useState(0);
   const restingHeight = useRef(0);
+  useEffect(() => {
+    if (!aboveComposer) return;
+    const parent = dockRef.current?.parentElement;
+    if (!parent) return;
+    let composer: HTMLElement | null = null;
+    const resizeObserver = new ResizeObserver(() => {
+      if (composer) setComposerHeight(composer.getBoundingClientRect().height);
+    });
+    const bindComposer = () => {
+      if (composer?.isConnected) return;
+      if (composer) resizeObserver.unobserve(composer);
+      const next = parent.querySelector("[data-chat-composer]");
+      composer = next instanceof HTMLElement ? next : null;
+      if (composer) {
+        resizeObserver.observe(composer);
+        setComposerHeight(composer.getBoundingClientRect().height);
+      }
+    };
+    bindComposer();
+    const mutationObserver = new MutationObserver(bindComposer);
+    mutationObserver.observe(parent, { childList: true, subtree: true });
+    return () => {
+      mutationObserver.disconnect();
+      resizeObserver.disconnect();
+    };
+  }, [aboveComposer]);
   useEffect(() => {
     setMoreOpen(false);
     setExpanded(true);
@@ -66,15 +92,15 @@ export default function MobileBottomNavigation({
       const offset = Math.max(0, target.scrollTop);
       const delta = offset - (offsets.get(target) ?? 0);
       offsets.set(target, offset);
-      if (offset <= 40 || delta < 0) {
+      if (offset <= 40) {
         setExpanded(true);
         travel = 0;
-      } else {
+      } else if (delta !== 0) {
+        if (Math.sign(delta) !== Math.sign(travel)) travel = 0;
         travel += delta;
-        if (travel >= 20) {
-          setExpanded(false);
-          travel = 0;
-        }
+        if (travel >= 24) setExpanded(false);
+        if (travel <= -16) setExpanded(true);
+        if (travel >= 24 || travel <= -16) travel = 0;
       }
     };
     const onScroll = (event: Event) => {
@@ -83,10 +109,15 @@ export default function MobileBottomNavigation({
       if (
         !(target instanceof HTMLElement) ||
         (!pageScroll && !dockRef.current?.parentElement?.contains(target)) ||
-        (!pageScroll && target.closest('nav, [role="dialog"], textarea, input, [contenteditable="true"]'))
-      ) return;
+        (!pageScroll &&
+          target.closest(
+            'nav, [role="dialog"], textarea, input, [contenteditable="true"]',
+          ))
+      )
+        return;
       scrollTarget = target;
-      if (frame === undefined) frame = window.requestAnimationFrame(updateFromScroll);
+      if (frame === undefined)
+        frame = window.requestAnimationFrame(updateFromScroll);
     };
     // Workspace pages scroll inside panels rather than the document itself.
     document.addEventListener("scroll", onScroll, true);
@@ -132,7 +163,9 @@ export default function MobileBottomNavigation({
       <div
         ref={dockRef}
         data-mobile-dock
-        className={`${keyboardOpen ? "hidden" : "block"} pointer-events-none h-[var(--mobile-dock-space)] ${reserveSpace ? "relative shrink-0" : "fixed inset-x-0 bottom-0 z-30"} ${className}`}
+        data-native-dock={nativeDock ? "" : undefined}
+        className={`${keyboardOpen ? "hidden" : "block"} pointer-events-none fixed inset-x-0 z-30 h-[var(--mobile-dock-space)] ${nativeDock ? "" : "lg:hidden"} ${className}`}
+        style={{ bottom: aboveComposer ? composerHeight : 0 }}
       >
         <nav
           aria-label={t("Main navigation")}
@@ -140,7 +173,7 @@ export default function MobileBottomNavigation({
           onFocusCapture={(event) => {
             if (event.target.matches(":focus-visible")) setExpanded(true);
           }}
-          className={`pointer-events-auto absolute bottom-[calc(12px+var(--safe-bottom))] left-1/2 flex -translate-x-1/2 items-stretch overflow-hidden rounded-full ring-1 p-1 shadow-lg transition-[width,max-width,height] duration-[280ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${nativeDock ? "bg-surface/70 ring-border-subtle backdrop-blur-[8.75px]" : "bg-surface/90 ring-border-subtle"} ${expanded ? "h-16 w-[calc(100%-28px)] max-w-[420px]" : "h-[52px] w-[calc(100%-80px)] min-w-[228px] max-w-[350px]"}`}
+          className={`pointer-events-auto absolute ${aboveComposer ? "bottom-3" : "bottom-[calc(12px+var(--safe-bottom))]"} left-1/2 flex -translate-x-1/2 items-stretch overflow-hidden rounded-full ring-1 p-1 shadow-lg transition-[width,height] duration-[280ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${nativeDock ? "bg-surface/70 ring-border-subtle backdrop-blur-[8.75px]" : "bg-surface/90 ring-border-subtle"} ${expanded ? "h-16 w-[min(420px,calc(100%_-_28px))]" : "h-[52px] w-[clamp(228px,calc(100%_-_80px),350px)]"}`}
         >
           {destinations.map(({ href, label, icon: Icon }) => {
             const active = !moreActive && pathname?.startsWith(href);
@@ -152,12 +185,15 @@ export default function MobileBottomNavigation({
                 aria-label={t(label)}
                 aria-current={active ? "page" : undefined}
                 onClick={() => setExpanded(true)}
-                className={`flex min-h-11 min-w-11 flex-1 flex-col items-center justify-center rounded-full text-xs font-semibold transition-[gap,background-color,color] duration-[280ms] motion-reduce:transition-none active:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 ${expanded ? "gap-0.5" : "gap-0"} ${active ? selectedStyle : restingStyle}`}
+                className={`relative flex min-h-11 min-w-11 flex-1 items-center justify-center rounded-full text-xs font-semibold transition-[background-color,color] duration-[280ms] motion-reduce:transition-none active:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 ${active ? selectedStyle : restingStyle}`}
               >
-                <Icon className="h-[26px] w-[26px] shrink-0" aria-hidden="true" />
+                <Icon
+                  className={`h-[26px] w-[26px] shrink-0 transition-transform duration-[280ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${expanded ? "-translate-y-2" : "translate-y-0"}`}
+                  aria-hidden="true"
+                />
                 <span
                   aria-hidden="true"
-                  className={`block max-w-full shrink-0 truncate transition-[max-height,opacity] duration-[280ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${expanded ? "max-h-4 opacity-100" : "max-h-0 opacity-0"}`}
+                  className={`absolute inset-x-0 bottom-1 truncate text-center transition-opacity duration-[200ms] motion-reduce:transition-none ${expanded ? "opacity-100" : "opacity-0"}`}
                 >
                   {t(label)}
                 </span>
@@ -166,16 +202,22 @@ export default function MobileBottomNavigation({
           })}
           <button
             type="button"
-            onClick={() => { setExpanded(true); setMoreOpen(true); }}
+            onClick={() => {
+              setExpanded(true);
+              setMoreOpen(true);
+            }}
             aria-label={t("More")}
             aria-haspopup="dialog"
             aria-expanded={moreOpen}
-            className={`flex min-h-11 min-w-11 flex-1 flex-col items-center justify-center rounded-full text-xs font-semibold transition-[gap,background-color,color] duration-[280ms] motion-reduce:transition-none active:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 ${expanded ? "gap-0.5" : "gap-0"} ${moreActive || moreOpen ? selectedStyle : restingStyle}`}
+            className={`relative flex min-h-11 min-w-11 flex-1 items-center justify-center rounded-full text-xs font-semibold transition-[background-color,color] duration-[280ms] motion-reduce:transition-none active:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 ${moreActive || moreOpen ? selectedStyle : restingStyle}`}
           >
-            <EllipsisHorizontalIcon className="h-[26px] w-[26px] shrink-0" aria-hidden="true" />
+            <EllipsisHorizontalIcon
+              className={`h-[26px] w-[26px] shrink-0 transition-transform duration-[280ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${expanded ? "-translate-y-2" : "translate-y-0"}`}
+              aria-hidden="true"
+            />
             <span
               aria-hidden="true"
-              className={`block max-w-full shrink-0 truncate transition-[max-height,opacity] duration-[280ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${expanded ? "max-h-4 opacity-100" : "max-h-0 opacity-0"}`}
+              className={`absolute inset-x-0 bottom-1 truncate text-center transition-opacity duration-[200ms] motion-reduce:transition-none ${expanded ? "opacity-100" : "opacity-0"}`}
             >
               {t("More")}
             </span>

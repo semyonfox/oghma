@@ -18,6 +18,7 @@ import useCalendarStore from "@/lib/notes/state/calendar.zustand";
 import useLayoutStore from "@/lib/notes/state/layout.zustand";
 import useMediaQuery from "@/lib/hooks/use-media-query";
 import useI18n from "@/lib/notes/hooks/use-i18n";
+import PrimaryNavigation from "@/components/navigation/primary-navigation";
 import MobileAppHeader from "@/components/navigation/mobile-app-header";
 import MobileDrawer from "@/components/navigation/mobile-drawer";
 import MobileBottomNavigation from "@/components/navigation/mobile-bottom-navigation";
@@ -181,6 +182,11 @@ export default function CalendarPage() {
       />
 
       <div className="flex min-h-0 flex-1">
+        {isDesktop === true && (
+          <div className="desktop-navigation-rail w-14 shrink-0 border-r border-border-subtle bg-background">
+            <PrimaryNavigation />
+          </div>
+        )}
         <PanelGroup
           key={hasTaskSidebar ? "with-tasks" : "without-tasks"}
           orientation="horizontal"
@@ -271,7 +277,7 @@ export default function CalendarPage() {
                 </div>
               </header>
 
-              <div className={`min-h-0 flex-1 ${isDesktop === true ? "mobile-dock-clearance overflow-auto" : "overflow-hidden"}`}>
+              <div className="min-h-0 flex-1 overflow-hidden">
                 {isDesktop === false ? (
                   <MobileCalendar
                     onAddTask={() => openNewTask(selectedDate)}

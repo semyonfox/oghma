@@ -8,11 +8,10 @@ import {
 import { toast } from "sonner";
 import type { Message } from "./chat-interface";
 import ChatMarkdown from "./chat-markdown";
-import { WorkLog } from "./tool-call-pill";
+import { WorkLog, collectNoteActivity } from "./tool-call-pill";
 import { partitionMessageParts } from "@/lib/chat/types";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
-/** Text keeps its position as later tools arrive. Only reasoning/tool groups collapse. */
 const AssistantBody: FC<{
   message: Message;
   active: boolean;
@@ -23,43 +22,20 @@ const AssistantBody: FC<{
     : message.content
       ? [{ type: "text" as const, text: message.content }]
       : [];
-  const legacyThinking = parts.some((part) => part.type === "reasoning")
-    ? undefined
-    : message.thinking;
-  const rows: React.ReactNode[] = [];
-  if (legacyThinking)
-    rows.push(
+  const presentation = partitionMessageParts(parts);
+  const answer = presentation.answer.filter((part) => part.type === "text");
+  const errors = parts.filter((part) => part.type === "error");
+  return (
+    <>
       <WorkLog
-        key="legacy-thinking"
-        parts={[]}
-        thinking={legacyThinking}
-        thinkingDuration={message.thinkingDuration}
-        active={active && parts.length === 0}
-      />,
-    );
-  for (let index = 0; index < parts.length;) {
-    const part = parts[index];
-    const key = index;
-    if (part.type === "tool" || part.type === "reasoning") {
-      const start = index;
-      while (
-        index < parts.length &&
-        (parts[index].type === "tool" || parts[index].type === "reasoning")
-      )
-        index++;
-      rows.push(
-        <WorkLog
-          key={key}
-          parts={parts.slice(start, index)}
-          active={active && index === parts.length}
-        />,
-      );
-      continue;
-    }
-    rows.push(
-      part.type === "text" ? (
+        parts={parts}
+        searchContext={message.searchContext}
+        active={active}
+        hasAnswer={presentation.answerText.trim().length > 0}
+      />
+      {answer.map((part, index) => (
         <div
-          key={key}
+          key={index}
           className={
             compact
               ? "rounded-radius-md rounded-bl-[4px] border border-border-subtle bg-surface px-2 py-[5px] text-base leading-relaxed text-text-secondary lg:text-sm"
@@ -68,23 +44,15 @@ const AssistantBody: FC<{
         >
           <ChatMarkdown>{part.text}</ChatMarkdown>
         </div>
-      ) : (
+      ))}
+      {errors.map((part, index) => (
         <div
-          key={key}
+          key={`error-${index}`}
           className="my-1 rounded-radius-md border border-red-500/25 bg-red-500/10 px-2.5 py-2 text-xs text-red-700 dark:text-red-200"
         >
           {part.text}
         </div>
-      ),
-    );
-    index++;
-  }
-  return (
-    <>
-      {rows}
-      {active && !message.error && parts.length === 0 && !legacyThinking && (
-        <TypingDots />
-      )}
+      ))}
     </>
   );
 };
@@ -181,23 +149,6 @@ const SourcesBlock: FC<{
   );
 };
 
-// typing animation dots — shown while waiting for first token
-export const TypingDots: FC = () => (
-  <div
-    className="flex items-center gap-1 px-1 py-0.5"
-    role="status"
-    aria-label="Working"
-  >
-    {[0, 150, 300].map((delay) => (
-      <span
-        key={delay}
-        className="w-1.5 h-1.5 rounded-full bg-text-tertiary animate-bounce"
-        style={{ animationDelay: `${delay}ms` }}
-      />
-    ))}
-  </div>
-);
-
 // The parent places this plain copy icon in a slot that appears on hover.
 // On success, a Sonner toast shows "Copied" for 1.2 seconds. The icon does not change.
 // This makes the action feel dispatched instead of changing the interface.
@@ -267,7 +218,8 @@ const FullMessageBubbleComponent: FC<{
   }
 
   const presentation = presentAssistantMessage(m);
-  const hasSources = Array.isArray(m.sources) && m.sources.length > 0;
+  const hasSources = Array.isArray(m.sources) && m.sources.length > 0 &&
+    collectNoteActivity(m.parts ?? [], m.searchContext).length === 0;
   const hasPartError = m.parts?.some((part) => part.type === "error");
 
   return (
@@ -314,7 +266,8 @@ const CompactMessageBubbleComponent: FC<{
     m.role === "assistant"
       ? Boolean(presentation?.answerText.trim())
       : m.content.trim().length > 0;
-  const hasSources = Array.isArray(m.sources) && m.sources.length > 0;
+  const hasSources = Array.isArray(m.sources) && m.sources.length > 0 &&
+    collectNoteActivity(m.parts ?? [], m.searchContext).length === 0;
   const hasPartError = m.parts?.some((part) => part.type === "error");
 
   return (

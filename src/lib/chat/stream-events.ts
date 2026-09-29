@@ -2,6 +2,7 @@ import { toSseEvent } from "@/lib/chat/sse";
 import { getTraceId } from "@/lib/trace";
 import type { SearchResult } from "@/lib/chat/rag-pipeline";
 import type { RetrievalInfo, SourceRef } from "@/lib/chat/rag-context";
+import type { NoteActivityRef } from "@/lib/chat/types";
 
 export interface SseWriter {
   enqueue(chunk: Uint8Array): void;
@@ -73,8 +74,9 @@ export function sendToolResult(
   toolCallId: string,
   detail?: string,
   status: "completed" | "failed" = "completed",
+  notes: NoteActivityRef[] = [],
 ): void {
-  send(writer, "tool-result", { toolCallId, detail, status });
+  send(writer, "tool-result", { toolCallId, detail, status, notes });
 }
 
 export function sendDone(writer: SseWriter): void {

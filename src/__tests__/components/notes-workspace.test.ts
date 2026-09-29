@@ -76,7 +76,7 @@ vi.mock("@/lib/notes/hooks/use-note-tree-initialization", () => ({
 }));
 
 vi.mock("@/components/navigation/primary-navigation", () => ({
-  default: () => null,
+  default: () => React.createElement("nav", null, "Desktop navigation"),
 }));
 vi.mock("@/components/navigation/mobile-app-header", () => ({
   default: () => null,
@@ -117,6 +117,13 @@ describe("NotesWorkspace note route synchronization", () => {
     vi.stubGlobal("fetch", vi.fn());
   });
 
+  it("shows the desktop rail without the mobile dock", () => {
+    layoutState.paneA.fileId = "550e8400-e29b-41d4-a716-446655440000";
+    render(React.createElement(NotesWorkspace));
+    expect(screen.getByText("Desktop navigation")).toBeTruthy();
+    expect(screen.queryByText("Mobile navigation")).toBeNull();
+  });
+
   it("opens the library at the mobile Notes root even with a remembered note", () => {
     mocks.isDesktop = false;
     mocks.pathname = "/notes";
@@ -124,6 +131,7 @@ describe("NotesWorkspace note route synchronization", () => {
     render(React.createElement(NotesWorkspace));
     expect(screen.getByText("Mobile library content")).toBeTruthy();
     expect(screen.getByText("Mobile navigation")).toBeTruthy();
+    expect(screen.queryByText("Desktop navigation")).toBeNull();
     expect(screen.queryByText("Library content")).toBeNull();
     expect(screen.queryByText("Editor content")).toBeNull();
   });

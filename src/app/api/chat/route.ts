@@ -382,6 +382,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                       update.effect.toolCallId,
                       update.effect.detail,
                       update.effect.status,
+                      update.effect.notes,
                     );
                   } else if (update.effect.type === "abort") {
                     throw new Error("Generation aborted: client disconnected");

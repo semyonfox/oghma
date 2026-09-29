@@ -324,6 +324,7 @@ export async function processChatGeneration(
           update.effect.toolCallId,
           update.effect.detail,
           update.effect.status,
+          update.effect.notes,
         );
       } else if (update.effect.type === "abort") {
         if (!abortController.signal.aborted)
