@@ -49,6 +49,7 @@ const mocks = vi.hoisted(() => {
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ back: vi.fn() }),
+  usePathname: () => "/settings",
 }));
 
 vi.mock("@/components/navigation/mobile-bottom-navigation", () => ({

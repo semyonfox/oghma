@@ -449,7 +449,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-4 lg:px-10 py-3 obsidian-scrollbar"
+        className="mobile-dock-clearance flex-1 overflow-y-auto px-4 lg:px-10 py-3 obsidian-scrollbar"
       >
         <div
           className={`mx-auto flex w-full max-w-3xl flex-col space-y-2.5 ${
@@ -518,9 +518,9 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
 
       {/* input area */}
       <div
+        data-chat-composer
         className="flex-shrink-0 px-3 py-3 lg:px-10"
-        // the chat page's dock sits below this and already clears the inset
-        style={{ paddingBottom: "max(0.75rem, calc(var(--safe-bottom) - var(--mobile-dock-space, 0px)))" }}
+        style={{ paddingBottom: "max(0.75rem, var(--safe-bottom))" }}
       >
         <div className="mx-auto max-w-3xl">
           {(selectedNotes.length > 0 || selectedFolders.length > 0 || (noteTitle && selectedNotes.length === 0)) && (

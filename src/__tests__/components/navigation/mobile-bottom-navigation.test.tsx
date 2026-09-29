@@ -108,6 +108,7 @@ describe("MobileBottomNavigation", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllGlobals();
     Object.defineProperty(window, "visualViewport", {
       configurable: true,
       value: undefined,
@@ -115,7 +116,9 @@ describe("MobileBottomNavigation", () => {
   });
 
   it("renders the mobile destinations and identifies the current route", () => {
-    render(<MobileBottomNavigation />);
+    const { container } = render(<MobileBottomNavigation />);
+
+    expect(container.querySelector("[data-mobile-dock]")?.className).toContain("lg:hidden");
 
     expect(
       screen.getByRole("link", { name: "Notes" }).getAttribute("href"),
@@ -132,6 +135,31 @@ describe("MobileBottomNavigation", () => {
     expect(
       screen.getByRole("link", { name: "Notes" }).getAttribute("aria-current"),
     ).toBe("page");
+  });
+
+  it("floats above the chat composer without reserving a layout row", async () => {
+    vi.stubGlobal("ResizeObserver", class {
+      observe() {}
+      disconnect() {}
+    });
+    const { container } = render(
+      <div>
+        <div
+          data-chat-composer
+          ref={(element) => {
+            if (element) {
+              vi.spyOn(element, "getBoundingClientRect").mockReturnValue(
+                new DOMRect(0, 0, 0, 96),
+              );
+            }
+          }}
+        />
+        <MobileBottomNavigation aboveComposer />
+      </div>,
+    );
+    const dock = container.querySelector<HTMLElement>("[data-mobile-dock]");
+    await waitFor(() => expect(dock?.style.bottom).toBe("96px"));
+    expect(dock?.className).toContain("fixed");
   });
 
   it("contracts on downward scrolling and expands on upward scroll, focus, and navigation", async () => {
@@ -151,7 +179,7 @@ describe("MobileBottomNavigation", () => {
     expect(nav.getAttribute("data-expanded")).toBe("true");
     await scrollTo(80, false);
     expect(screen.getByRole("link", { name: "AI Chat" })).toBeTruthy();
-    await scrollTo(75, true);
+    await scrollTo(60, true);
     await scrollTo(120, false);
     const notesLink = screen.getByRole("link", { name: "Notes" });
     // jsdom does not model keyboard-driven :focus-visible matching.
@@ -190,7 +218,7 @@ describe("MobileBottomNavigation", () => {
       await waitFor(() => expect(nav.getAttribute("data-expanded")).toBe("true"));
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     }
-    panel.scrollTop = 62;
+    panel.scrollTop = 65;
     fireEvent.scroll(panel);
     await waitFor(() => expect(nav.getAttribute("data-expanded")).toBe("false"));
   });
@@ -208,7 +236,7 @@ describe("MobileBottomNavigation", () => {
       scrollingElement.scrollTop = 80;
       fireEvent.scroll(document);
       await waitFor(() => expect(nav.getAttribute("data-expanded")).toBe("false"));
-      scrollingElement.scrollTop = 70;
+      scrollingElement.scrollTop = 60;
       fireEvent.scroll(document);
       await waitFor(() => expect(nav.getAttribute("data-expanded")).toBe("true"));
     } finally {

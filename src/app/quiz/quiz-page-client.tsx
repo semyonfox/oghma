@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import PrimaryNavigation from "@/components/navigation/primary-navigation";
 import MobileAppHeader from "@/components/navigation/mobile-app-header";
 import MobileBottomNavigation from "@/components/navigation/mobile-bottom-navigation";
 import QuizDashboard from "@/components/quiz/quiz-dashboard";
@@ -24,6 +25,9 @@ export default function QuizPageClient({
     <div className="flex h-dvh flex-col bg-app-page text-text">
       <MobileAppHeader title={t("quiz.title")} />
       <div className="flex min-h-0 flex-1">
+        <div className="desktop-navigation-rail hidden w-14 shrink-0 border-r border-border-subtle bg-background lg:block">
+          <PrimaryNavigation />
+        </div>
         <main className="mobile-dock-clearance min-w-0 flex-1 overflow-y-auto">
           <QuizDashboard
             initialDashboard={initialData.dashboard}

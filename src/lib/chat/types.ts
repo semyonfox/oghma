@@ -5,6 +5,25 @@ export interface SearchContextData {
   results: { noteId: string; title: string; distance: number }[];
 }
 
+export type NoteActivityRef = {
+  id: string;
+  title: string;
+};
+
+export function normalizeNoteActivityRefs(value: unknown): NoteActivityRef[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
+    const note = entry as Record<string, unknown>;
+    if (
+      typeof note.id !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(note.id) ||
+      typeof note.title !== "string"
+    ) return [];
+    return [{ id: note.id, title: note.title.trim() || "Untitled" }];
+  });
+}
+
 /**
  * Structured message segment. Assistant messages alternate text and tool
  * parts as the model streams; user messages are always a single text part.
@@ -21,6 +40,7 @@ export type MessagePart =
       callId?: string;
       detail?: string;
       resultDetail?: string;
+      notes?: NoteActivityRef[];
       status?: "running" | "completed" | "failed" | "interrupted";
     }
   | { type: "error"; text: string };
@@ -89,6 +109,7 @@ export function normalizeMessageParts(value: unknown): MessagePart[] | null {
       callId?: unknown;
       detail?: unknown;
       resultDetail?: unknown;
+      notes?: unknown;
       status?: unknown;
     };
     if (
@@ -101,6 +122,7 @@ export function normalizeMessageParts(value: unknown): MessagePart[] | null {
       typeof e.name === "string" &&
       typeof e.label === "string"
     ) {
+      const notes = normalizeNoteActivityRefs(e.notes);
       parts.push({
         type: "tool",
         name: e.name,
@@ -110,6 +132,7 @@ export function normalizeMessageParts(value: unknown): MessagePart[] | null {
         ...(typeof e.resultDetail === "string" && {
           resultDetail: e.resultDetail,
         }),
+        ...(notes.length > 0 && { notes }),
         ...((e.status === "running" ||
           e.status === "completed" ||
           e.status === "failed" ||
