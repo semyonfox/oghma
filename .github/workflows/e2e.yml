@@ -77,10 +77,29 @@ env:
   STORAGE_IMAGE: ghcr.io/rustfs/rustfs:1.0.0@sha256:8cc9801755448b71a786705ce76692c77e14936cccd87cf2fc31842e58f4d1ff
 
 jobs:
+  changes:
+    name: Select E2E checks
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      checks: ${{ steps.changes.outputs.checks }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Select web checks
+        id: changes
+        run: |
+          node --test scripts/select-ci-checks.test.mjs
+          node scripts/select-ci-checks.mjs
+
   # Keep this check name stable for branch protection. Full invocations run it
   # on an isolated runner alongside the extended job below.
   smoke:
     name: PR Smoke E2E
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || contains(fromJSON(needs.changes.outputs.checks || '[]'), 'web')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
 
