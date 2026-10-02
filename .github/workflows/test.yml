@@ -5,6 +5,11 @@ on:
     branches: [main, dev]
   push:
     branches: [dev]
+  workflow_dispatch:
+
+concurrency:
+  group: test-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:
@@ -13,16 +18,27 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Select web checks
+        id: changes
+        run: |
+          node --test scripts/select-ci-checks.test.mjs
+          node scripts/select-ci-checks.mjs
 
       - name: Set up Node.js
+        if: contains(fromJSON(steps.changes.outputs.checks), 'web')
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'npm'
+          node-version: "22"
+          cache: "npm"
 
       - name: Install dependencies
+        if: contains(fromJSON(steps.changes.outputs.checks), 'web')
         run: npm ci
 
       - name: Run tests
+        if: contains(fromJSON(steps.changes.outputs.checks), 'web')
         run: npm run test:ci
         continue-on-error: false
