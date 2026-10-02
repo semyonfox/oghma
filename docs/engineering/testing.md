@@ -98,7 +98,7 @@ dependencies, syntax-checks the active entrypoints, then runs the
 credential-free adapter and RunPod handler tests.
 
 For PRs and pushes to `dev`, `scripts/select-ci-checks.mjs` skips web tests,
-the i18n audit, the Next.js build and smoke E2E when changes only affect
+the i18n audit and the Next.js build when changes only affect
 Markdown documentation, the native app or the separate Marker Python service.
 Mobile changes retain root ESLint coverage. Shared files, web code and unknown
 paths run every web check. Unavailable Git comparisons also run every check;
@@ -107,7 +107,9 @@ retain the full scope of their workflows.
 
 Build and Test keep their existing named jobs, with a short selection step
 before installing dependencies. E2E uses a small selection job so unrelated
-PRs can skip starting its databases, browser and worker. Run the selector's
+PRs can skip starting its databases, browser and worker. Dev pushes retain
+smoke E2E because Jenkins requires a successful `PR Smoke E2E` check on the
+exact deployment commit; Jenkins rejects a skipped check. Run the selector's
 Git fixture tests locally with `node --test scripts/select-ci-checks.test.mjs`.
 Superseded PR runs cancel automatically.
 
