@@ -19,6 +19,7 @@ import {
   AcademicCapIcon,
   ClockIcon,
   ArrowDownTrayIcon,
+  Square3Stack3DIcon,
 } from "@heroicons/react/24/outline";
 
 interface NavItem {
@@ -26,7 +27,7 @@ interface NavItem {
   labelKey: string;
   icon: FC<{ className?: string }>;
   href: string;
-  section: "notes" | "search" | "calendar" | "settings" | "chat" | "quiz";
+  section: "notes" | "search" | "calendar" | "settings" | "chat" | "quiz" | "study-map";
 }
 
 interface PrimaryNavigationProps {
@@ -42,6 +43,7 @@ const NAV_ITEMS: NavItem[] = [
     href: "/notes",
     section: "notes",
   },
+  { id: "study-map", labelKey: "Study map", icon: Square3Stack3DIcon, href: "/study-map", section: "study-map" },
   {
     id: "search",
     labelKey: "Search OghmaNotes",
@@ -108,6 +110,8 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
     "/settings",
   )
     ? "settings"
+    : pathname?.startsWith("/study-map")
+      ? "study-map"
     : pathname?.startsWith("/quiz")
       ? "quiz"
       : pathname?.startsWith("/calendar")

@@ -14,6 +14,7 @@ import {
   MagnifyingGlassIcon,
   SparklesIcon,
   TrashIcon,
+  Square3Stack3DIcon,
 } from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import useGlobalSearchStore from "@/lib/global-search/state";
@@ -149,7 +150,7 @@ export default function MobileBottomNavigation({
     };
   }, []);
   const moreActive =
-    pathname?.startsWith("/settings") || pathname === "/notes/trash";
+    pathname?.startsWith("/settings") || pathname?.startsWith("/study-map") || pathname === "/notes/trash";
   const selectedStyle = nativeDock
     ? "bg-surface-elevated/35 text-primary-700 dark:text-primary-300"
     : "bg-surface-elevated/95 text-primary-700 dark:text-primary-300";
@@ -282,6 +283,10 @@ export default function MobileBottomNavigation({
           {t("Trash")}
         </Link>
         <CanvasImportIndicator />
+        <Link className={rowClass} href="/study-map" onClick={() => setMoreOpen(false)} aria-current={pathname?.startsWith("/study-map") ? "page" : undefined}>
+          <Square3Stack3DIcon className="h-5 w-5" aria-hidden="true" />
+          {t("Study map")}
+        </Link>
       </MobileSheet>
     </>
   );

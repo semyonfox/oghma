@@ -48,6 +48,7 @@ import { processVaultImport } from "../vault/import-worker";
 import { processVaultExport } from "../vault/export-worker";
 import { pruneChatGenerationPayloads } from "../chat/generation-store";
 import { cleanupMarketingData } from "../marketing/retention";
+import { processNextStudyJob, reconcileStudyMaps } from "../study-map/jobs";
 import {
   processPendingNoteDeletionCleanup,
   purgeExpiredTrash,
@@ -65,6 +66,8 @@ import {
 
 const STUCK_JOB_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const DB_POLL_INTERVAL_MS = 30_000;
+const STUDY_JOB_POLL_INTERVAL_MS = 5_000;
+const STUDY_MAP_RECONCILE_INTERVAL_MS = 60_000;
 const ORPHAN_ENQUEUE_RETRY_INTERVAL = "1 minute";
 const MARKETING_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const IMPORT_CACHE_RETENTION_INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -456,12 +459,51 @@ if (getQueueProvider() === "cloudflare") {
   await startBullMqWorkers();
 }
 
+let studyJobTask: Promise<void> | undefined;
+let studyMapTask: Promise<void> | undefined;
+
+function pollStudyJobs(): void {
+  if (shuttingDown || studyJobTask) return;
+  studyJobTask = (async () => {
+    try {
+      await processNextStudyJob();
+    } catch {
+      console.error(`[${new Date().toISOString()}] Study job poll failed. Check database availability and migrations.`);
+    }
+  })().finally(() => { studyJobTask = undefined; });
+}
+
+function reconcileStudyMapMaterials(): void {
+  if (shuttingDown || studyMapTask) return;
+  studyMapTask = (async () => {
+    try {
+      await reconcileStudyMaps();
+    } catch {
+      console.error(`[${new Date().toISOString()}] Study map reconciliation failed. Check database availability and migrations.`);
+    }
+  })().finally(() => { studyMapTask = undefined; });
+}
+
+const studyJobPollTimer = setInterval(pollStudyJobs, STUDY_JOB_POLL_INTERVAL_MS);
+const studyMapReconcileTimer = setInterval(reconcileStudyMapMaterials, STUDY_MAP_RECONCILE_INTERVAL_MS);
+studyJobPollTimer.unref();
+studyMapReconcileTimer.unref();
+pollStudyJobs();
+reconcileStudyMapMaterials();
+
 const shutdown = async (signal: string): Promise<void> => {
+  if (shuttingDown) return;
   shuttingDown = true;
+  clearInterval(studyJobPollTimer);
+  clearInterval(studyMapReconcileTimer);
   console.log(
     `[${new Date().toISOString()}] received ${signal}, draining workers`,
   );
-  await Promise.allSettled(workers.map((worker) => worker.close()));
+  await Promise.allSettled([
+    ...workers.map((worker) => worker.close()),
+    studyJobTask,
+    studyMapTask,
+  ]);
   await sql.end({ timeout: 5 });
   process.exit(0);
 };

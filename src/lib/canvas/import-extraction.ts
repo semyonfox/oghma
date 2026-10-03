@@ -574,6 +574,7 @@ async function reuseImportedPdfCache(
   const chunksStored = await cloneImportedPdfCacheToNote({
     cacheId: cache.id,
     noteId: md.noteId,
+    extractedFromNoteId: binary.noteId,
     userId: opts.userId,
     onlyIfEmpty: !md.created,
   });
