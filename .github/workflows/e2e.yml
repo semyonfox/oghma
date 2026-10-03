@@ -79,7 +79,8 @@ env:
 jobs:
   changes:
     name: Select E2E checks
-    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
+    # Jenkins requires a successful smoke check on every dev deployment commit
+    if: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
