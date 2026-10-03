@@ -74,8 +74,8 @@ Use [docker-compose.study-map.yml](../../docker-compose.study-map.yml), which bi
 Create `.env.mock` from [the public mock example](../../.env.mock.example) if it does not already exist. Keep its synthetic authentication and seeded-login values, then set these Study Map overrides. These credentials are public disposable fixtures from the Compose file.
 
 ```dotenv
-DATABASE_URL=postgresql://study_map:study_map@127.0.0.1:55488/oghma_study_e2e?search_path=app,public
-MIGRATION_DATABASE_URL=postgresql://study_map:study_map@127.0.0.1:55488/oghma_study_e2e?search_path=app,public
+DATABASE_URL=postgresql://study_map:postgres@127.0.0.1:55488/oghma_study_e2e?search_path=app,public
+MIGRATION_DATABASE_URL=postgresql://study_map:postgres@127.0.0.1:55488/oghma_study_e2e?search_path=app,public
 REDIS_HOST=127.0.0.1
 REDIS_PORT=56388
 QDRANT_URL=http://127.0.0.1:56389

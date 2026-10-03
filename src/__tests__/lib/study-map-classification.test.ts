@@ -342,8 +342,8 @@ describe("study classifier alternate providers", () => {
 
   it.each([
     undefined,
-    "postgresql://test:test@remote.invalid/study_e2e",
-    "postgresql://test:test@localhost/study",
+    "postgresql://remote.invalid/study_e2e",
+    "postgresql://localhost/study",
   ])("rejects mock mode outside an isolated local e2e database %s", async (database) => {
     vi.stubEnv("STUDY_CLASSIFIER_PROVIDER", "mock");
     vi.stubEnv("DATABASE_URL", database);
