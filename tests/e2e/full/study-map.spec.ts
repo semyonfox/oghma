@@ -329,12 +329,12 @@ test("a student creates a map, chooses a syllabus, approves topics and classifie
     ),
   ).toBe(true);
   await page.getByRole("tab", { name: "Materials", exact: true }).click();
-  await expect(
-    page.getByRole("button", { name: new RegExp(lecture.title) }),
-  ).toBeVisible();
-  await page
-    .getByRole("button", { name: new RegExp(lecture.title) })
-    .scrollIntoViewIfNeeded();
+  const lectureCard = page.getByRole("button", {
+    name: new RegExp(lecture.title),
+  });
+  await expect(lectureCard).toBeVisible();
+  await expect(lectureCard).toContainText("Suggestions to review");
+  await lectureCard.scrollIntoViewIfNeeded();
   await expectNoPageOverflow(page);
   await screenshot(page, testInfo, "desktop-classified-materials");
   expect(browserErrors).toEqual([]);

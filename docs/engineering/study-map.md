@@ -110,6 +110,17 @@ For a new separate mock session, use `npm run dev:mock` and, in another terminal
 
 A private preview can proxy the separate mock app through [Tailscale Serve](https://tailscale.com/docs/reference/tailscale-cli/serve). Before adding it, inspect `tailscale serve status` and local listeners to confirm HTTPS port 8448 is unused. If occupied, choose an unused port and use it consistently. Preserve existing routes and the normal development server.
 
+For a production preview, build with `NEXT_PUBLIC_API_URL=` so browser requests use the current origin. A build pinned to loopback prevents login through the tailnet address. Use the standalone entrypoint and copy its public assets:
+
+```sh
+NEXT_PUBLIC_API_URL= NODE_ENV=production node --experimental-strip-types scripts/dev/run-mock.ts npm run build
+cp -a public .next/standalone/
+cp -a .next/static .next/standalone/.next/
+HOSTNAME=127.0.0.1 PORT=3311 NODE_ENV=production NEXT_PUBLIC_API_URL= node --experimental-strip-types scripts/dev/run-mock.ts node .next/standalone/server.js
+```
+
+The dedicated database password defaults to the disposable `postgres` fixture. `STUDY_MAP_DB_PASSWORD` can override it for a fresh Compose volume; keep both database URLs consistent with that value. Changing the Compose variable does not change the password inside an existing Postgres volume.
+
 ```sh
 tailscale serve status
 ss -ltn 'sport = :8448'
