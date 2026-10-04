@@ -3,7 +3,7 @@ import { persist } from "zustand/middleware";
 
 export type FileType = "note" | "pdf" | "image" | "video";
 export type NavSection =
-  "notes" | "search" | "calendar" | "chat" | "quiz" | "settings";
+  "notes" | "search" | "calendar" | "chat" | "quiz" | "study-map" | "settings";
 export type RightPanelTab = "meta" | "ai" | "tasks";
 export type PaneId = "A" | "B";
 

@@ -398,6 +398,7 @@ export async function cloneImportedPdfCacheToNote(params: {
   noteId: string;
   userId: string;
   onlyIfEmpty?: boolean;
+  extractedFromNoteId?: string;
 }): Promise<number> {
   const [cache] = await sql<{
     extracted_markdown: string | null;
@@ -431,6 +432,32 @@ export async function cloneImportedPdfCacheToNote(params: {
       FOR UPDATE
     `;
     if (!note) return null;
+
+    if (params.extractedFromNoteId) {
+      const paired = await tx`
+        UPDATE app.notes companion
+        SET extracted_from_note_id = original.note_id, updated_at = NOW()
+        FROM app.notes original
+        WHERE companion.note_id = ${params.noteId}::uuid
+          AND companion.user_id = ${params.userId}::uuid
+          AND companion.deleted_at IS NULL
+          AND companion.is_folder = FALSE
+          AND companion.is_import_cache_source = FALSE
+          AND original.note_id = ${params.extractedFromNoteId}::uuid
+          AND original.user_id = companion.user_id
+          AND original.note_id <> companion.note_id
+          AND original.deleted_at IS NULL
+          AND original.is_folder = FALSE
+          AND original.is_import_cache_source = FALSE
+          AND original.s3_key IS NOT NULL
+          AND EXISTS (SELECT 1 FROM app.tree_items tree
+            WHERE tree.note_id = companion.note_id AND tree.user_id = companion.user_id)
+          AND EXISTS (SELECT 1 FROM app.tree_items tree
+            WHERE tree.note_id = original.note_id AND tree.user_id = original.user_id)
+        RETURNING companion.note_id
+      `;
+      if (!paired.length) throw new Error("Cache replay requires an active owned source file and Markdown companion");
+    }
 
     // A cache replay creates a fresh user reference. Clear a pending retention
     // schedule before cloning derived state so a daily collector cannot treat

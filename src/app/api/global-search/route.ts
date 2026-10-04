@@ -6,6 +6,7 @@ import logger from "@/lib/logger";
 import { searchChunkVectors } from "@/lib/qdrant";
 import { checkRateLimit } from "@/lib/rateLimiter";
 import { hydrateOwnedNoteChunks } from "@/lib/search/owned-note-chunks";
+import { searchStudyMaterials } from "@/lib/study-map/search";
 import sql from "@/database/pgsql";
 
 type SearchSource = "keyword" | "semantic" | "recent";
@@ -48,6 +49,7 @@ interface QuizCourseRow {
 }
 
 const LIKE_ESCAPE = "\\";
+const MAX_NOTE_RESULTS = 12;
 type SemanticVector = Awaited<ReturnType<typeof embedText>>;
 
 function cleanSnippet(value: string | null | undefined): string {
@@ -177,6 +179,58 @@ async function searchNotes(
     seen.add(result.id);
     return true;
   });
+}
+
+async function studyNotes(
+  userId: string,
+  query: string | null,
+): Promise<GlobalSearchResult[]> {
+  if (!query) return [];
+
+  try {
+    const materials = await searchStudyMaterials(userId, { q: query, limit: 10 });
+    return materials.results.map((material) => ({
+      id: material.noteId,
+      type: "note" as const,
+      title: material.title,
+      subtitle: [
+        material.mapName,
+        ...material.topics.slice(0, 3).map((topic) => `${topic.status} ${topic.name}`),
+      ].join(" · "),
+      snippet: cleanSnippet(material.labels.join(", ")).slice(0, 220),
+      href: `/notes/${material.noteId}`,
+      source: "keyword" as const,
+    }));
+  } catch {
+    logger.warn("global study material search failed");
+    return [];
+  }
+}
+
+function mergeStudyNotes(
+  notes: GlobalSearchResult[],
+  study: GlobalSearchResult[],
+): GlobalSearchResult[] {
+  const metadata = new Map<string, GlobalSearchResult>();
+  for (const result of study) {
+    if (!metadata.has(result.id)) metadata.set(result.id, result);
+  }
+  const notesById = new Map(notes.map((note) => [note.id, note]));
+  const ordered = [
+    ...notes.filter((note) => note.source === "keyword"),
+    ...[...metadata.values()].map((material) => notesById.get(material.id) ?? material),
+    ...notes.filter((note) => note.source !== "keyword"),
+  ];
+  const seen = new Set<string>();
+  const merged = ordered.filter((note) => {
+    if (seen.has(note.id)) return false;
+    seen.add(note.id);
+    return true;
+  }).map((note) => {
+    const material = metadata.get(note.id);
+    return material ? { ...note, subtitle: material.subtitle, snippet: material.snippet || note.snippet } : note;
+  });
+  return merged.slice(0, MAX_NOTE_RESULTS);
 }
 
 async function searchChats(
@@ -445,16 +499,17 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   if (limited) return limited;
 
   const semanticVector = query ? await embedGlobalQuery(query) : null;
-  const [notes, chats, quizzes] = await Promise.all([
+  const [notes, chats, quizzes, study] = await Promise.all([
     searchNotes(userId, query, semanticVector),
     searchChats(userId, query),
     searchQuizzes(userId, query, semanticVector),
+    studyNotes(userId, query),
   ]);
 
   return NextResponse.json({
     query: rawQuery,
     results: {
-      notes,
+      notes: mergeStudyNotes(notes, study),
       chats,
       quizzes,
     },
