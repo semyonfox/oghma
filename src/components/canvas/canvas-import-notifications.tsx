@@ -1,40 +1,66 @@
 "use client";
 
+import { createContext, useContext, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import { useCanvasImportStatus } from "@/hooks/useCanvasImportStatus";
-import CanvasImportStatusBar from "./canvas-import-status-bar";
-import { useRouter } from "next/navigation";
+import { useWorkspaceSession } from "@/components/providers/workspace-lifecycle-provider";
+import useNoteTreeStore from "@/lib/notes/state/tree";
 
-/**
- * Wrapper component that manages Canvas import notifications globally
- *
- * Place this in your root layout or main app wrapper:
- *
- * export default function RootLayout({ children }) {
- *   return (
- *     <>
- *       <CanvasImportNotifications />
- *       {children}
- *     </>
- *   )
- * }
- */
-export default function CanvasImportNotifications() {
-  const router = useRouter();
-  const { progress, showToast, onToastClose } = useCanvasImportStatus({
-    autoCheckOnMount: true, // Check on component mount (app load)
-  });
+const CanvasImportContext = createContext<ReturnType<
+  typeof useCanvasImportStatus
+> | null>(null);
 
-  const handleViewLogs = () => {
-    // Navigate to settings page with Canvas import section
-    router.push("/settings?tab=canvas-imports");
-  };
+export function useCanvasImportNotification() {
+  return useContext(CanvasImportContext);
+}
 
+export function useCanvasImportOwner() {
+  const owner = useCanvasImportNotification();
+  if (!owner) {
+    throw new Error("CanvasImportNotifications must wrap Canvas import UI");
+  }
+  return owner;
+}
+
+// Keep one owner across workspace navigation. Public and auth pages do not
+// make authenticated Canvas requests.
+export default function CanvasImportNotifications({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  const pathname = usePathname();
+  const { ready, userId } = useWorkspaceSession();
+  const treeGeneration = useNoteTreeStore((state) => state.generation);
+  const workspacePath =
+    pathname === "/notes" ||
+    pathname.startsWith("/notes/") ||
+    pathname === "/settings" ||
+    pathname.startsWith("/settings/");
   return (
-    <CanvasImportStatusBar
-      show={showToast}
-      progress={progress}
-      onClose={onToastClose}
-      onViewLogs={handleViewLogs}
-    />
+    <CanvasImportOwnerProvider
+      key={`${userId ?? "no-session"}:${treeGeneration}`}
+      enabled={workspacePath && ready && userId !== null}
+    >
+      {children}
+    </CanvasImportOwnerProvider>
+  );
+}
+
+function CanvasImportOwnerProvider({
+  children,
+  enabled,
+}: {
+  children: ReactNode;
+  enabled: boolean;
+}) {
+  const status = useCanvasImportStatus({
+    autoCheckOnMount: true,
+    enabled,
+  });
+  return (
+    <CanvasImportContext.Provider value={status}>
+      {children}
+    </CanvasImportContext.Provider>
   );
 }

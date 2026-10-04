@@ -127,19 +127,3 @@ export function isoToDateKey(value: string, timeZone?: string): string {
 
   return `${year}-${month}-${day}`;
 }
-
-export function addMonthsClamped(dateValue: string, months: number): string {
-  const date = new Date(dateValue);
-  if (Number.isNaN(date.getTime())) return dateValue;
-
-  const originalDay = date.getUTCDate();
-  date.setUTCDate(1);
-  date.setUTCMonth(date.getUTCMonth() + months);
-
-  const daysInTargetMonth = new Date(
-    Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0),
-  ).getUTCDate();
-
-  date.setUTCDate(Math.min(originalDay, daysInTargetMonth));
-  return date.toISOString();
-}

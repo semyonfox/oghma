@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { MagnifyingGlassIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
+import useSwipeDismiss from "@/components/navigation/use-swipe-dismiss";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import type { CourseSetting } from "@/lib/notes/state/courses.zustand";
 
@@ -17,7 +18,7 @@ export interface CourseVisibilityItem {
 
 export interface CourseVisibilityItemSource {
   courseId: string;
-  courseName: string;
+  courseName: string | null;
   isActive?: boolean;
   contextText?: string | null;
   hasDueItems?: boolean;
@@ -56,6 +57,16 @@ function sortItems(items: CourseVisibilityItem[]) {
   );
 }
 
+function resolveCourseName(courseId: string, ...names: Array<string | null | undefined>) {
+  for (const name of names) {
+    const trimmed = name?.trim();
+    if (trimmed && trimmed !== courseId && trimmed !== `Course ${courseId}`) {
+      return trimmed;
+    }
+  }
+  return `Course ${courseId}`;
+}
+
 export function mergeCourseVisibilityItems(
   sources: CourseVisibilityItemSource[],
   settings: CourseSetting[],
@@ -65,7 +76,7 @@ export function mergeCourseVisibilityItems(
   for (const setting of settings) {
     merged.set(setting.canvasCourseId, {
       courseId: setting.canvasCourseId,
-      courseName: setting.courseName,
+      courseName: resolveCourseName(setting.canvasCourseId, setting.courseName),
       isActive: setting.isActive,
     });
   }
@@ -74,7 +85,7 @@ export function mergeCourseVisibilityItems(
     const existing = merged.get(source.courseId);
     merged.set(source.courseId, {
       courseId: source.courseId,
-      courseName: source.courseName,
+      courseName: resolveCourseName(source.courseId, source.courseName, existing?.courseName),
       isActive: existing?.isActive ?? source.isActive ?? true,
       contextText: source.contextText ?? existing?.contextText ?? null,
       hasDueItems: source.hasDueItems ?? existing?.hasDueItems,
@@ -288,13 +299,14 @@ export function CourseVisibilityDialog({
   onClose,
   ...props
 }: CourseVisibilityDialogProps) {
+  const swipe = useSwipeDismiss({ open, onClose });
   const { t } = useI18n();
 
   return (
     <Dialog open={open} onClose={onClose} className="relative z-[70]">
       <div className="fixed inset-0 bg-black/50 backdrop-blur-[1px]" aria-hidden="true" />
       <div className="fixed inset-0 flex items-end justify-center sm:items-center sm:p-4">
-        <DialogPanel className="flex max-h-[calc(100dvh-0.5rem)] w-full flex-col overflow-hidden rounded-t-radius-lg border border-border-subtle bg-app-page shadow-2xl sm:max-w-2xl sm:rounded-radius-lg">
+        <DialogPanel {...swipe} className="flex max-h-[calc(100dvh-0.5rem)] w-full flex-col overflow-hidden rounded-t-radius-lg border border-border-subtle bg-app-page shadow-2xl sm:max-w-2xl sm:rounded-radius-lg">
           <div className="flex items-start justify-between border-b border-border-subtle px-5 py-4">
             <div>
               <DialogTitle className="text-base font-semibold text-text-secondary">
@@ -315,7 +327,7 @@ export function CourseVisibilityDialog({
           </div>
           <div
             className="min-h-0 flex-1 overflow-y-auto px-5 py-5"
-            style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
+            style={{ paddingBottom: "max(1.25rem, var(--safe-bottom))" }}
           >
             <CourseVisibilityManager {...props} />
           </div>

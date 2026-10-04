@@ -153,6 +153,8 @@ describe("extraction bundles", () => {
     );
 
     expect(bundleId).toMatch(/^[0-9a-f-]{36}$/i);
+    // PostgreSQL cannot lock the nullable parent side of this outer join.
+    expect(queryText(mocks.tx.mock.calls[1])).toContain("FOR UPDATE OF t");
     expect(queryText(mocks.tx.mock.calls[6])).toContain(
       "UPDATE app.tree_items",
     );

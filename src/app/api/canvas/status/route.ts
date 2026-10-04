@@ -1,6 +1,9 @@
+import { config } from "@/lib/config";
+import { canvasPollInterval } from "@/lib/canvas/status-poll";
 import { NextResponse } from "next/server";
 import { withErrorHandler, requireAuth } from "@/lib/api-error";
 import sql from "@/database/pgsql";
+import { isValidUUID } from "@/lib/utils/uuid";
 
 interface CanvasJobRow {
   id: string;
@@ -11,6 +14,7 @@ interface CanvasJobRow {
   completed_at: Date | string | null;
   expected_total: number | null;
   error_message: string | null;
+  discovery_progress?: { completedCourses?: number; totalCourses?: number; stage?: string; skippedCourses?: string[]; skippedFolders?: string[] } | null;
 }
 
 interface CanvasFileStatsRow {
@@ -23,6 +27,9 @@ interface CanvasFileStatsRow {
   pending_marker: string;
   forbidden: string;
   error: string;
+  retryable?: string;
+  stopped?: string;
+  pending_cache?: string;
 }
 
 interface CanvasLogRow {
@@ -39,6 +46,10 @@ interface TreePathRow {
   tree_path: string[] | null;
 }
 
+interface PublishedNoteRow {
+  note_id: string;
+}
+
 /**
  * GET /api/canvas/status
  *
@@ -53,15 +64,25 @@ interface TreePathRow {
  *   issues: { forbidden, error },
  *   markerColdStarting: boolean,
  *   estimatedSecsRemaining: number | null,
+ *   publishedJobId: string | null,
+ *   publishedNoteCount: number,
+ *   publishedTreePaths: string[][],
  *   recentLogs: [{ filename, status, errorMessage, updatedAt, noteId, treePath }],
  * }
  */
-export const GET = withErrorHandler(async () => {
+export const GET = withErrorHandler(async (request) => {
   const user = await requireAuth();
+  const publishJobId = request.nextUrl.searchParams.get("publishJobId");
+  if (publishJobId !== null && !isValidUUID(publishJobId)) {
+    return NextResponse.json(
+      { error: "Invalid Canvas import job ID" },
+      { status: 400 },
+    );
+  }
 
   // active or most-recently-completed job
   const activeJobs = await sql<CanvasJobRow[]>`
-    SELECT id, status, job_type, created_at, started_at, completed_at, expected_total, error_message
+    SELECT id, status, job_type, created_at, started_at, completed_at, expected_total, error_message, discovery_progress
     FROM app.canvas_import_jobs
     WHERE user_id = ${user.user_id} AND type = 'canvas'
     ORDER BY created_at DESC
@@ -109,11 +130,14 @@ export const GET = withErrorHandler(async () => {
         COUNT(CASE WHEN status = 'complete'    THEN 1 END) as indexed,
         COUNT(CASE WHEN status = 'indexing'    THEN 1 END) as indexing,
         COUNT(CASE WHEN status = 'downloading' THEN 1 END) as downloading,
-        COUNT(CASE WHEN status = 'processing'  THEN 1 END) as processing,
+        COUNT(CASE WHEN status IN ('processing', 'pending_extract') THEN 1 END) as processing,
         COUNT(CASE WHEN status = 'pending_retry' THEN 1 END) as pending_retry,
         COUNT(CASE WHEN status = 'pending_marker' THEN 1 END) as pending_marker,
         COUNT(CASE WHEN status = 'forbidden'   THEN 1 END) as forbidden,
-        COUNT(CASE WHEN status = 'error'       THEN 1 END) as error
+        COUNT(CASE WHEN status = 'error'       THEN 1 END) as error,
+        COUNT(CASE WHEN status = 'error' AND retryable THEN 1 END) as retryable,
+        COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as stopped,
+        COUNT(CASE WHEN status = 'pending_cache' THEN 1 END) as pending_cache
       FROM app.canvas_imports
       WHERE user_id = ${user.user_id}
         AND CASE
@@ -166,7 +190,7 @@ export const GET = withErrorHandler(async () => {
     stats.forbidden,
     stats.error,
   ].map((value) => parseInt(String(value), 10));
-  const completed = indexed + indexing;
+  const completed = indexed;
 
   // use expected_total from the discovery phase as denominator when available —
   // this prevents the progress bar from jumping backwards as new files are found
@@ -194,14 +218,54 @@ export const GET = withErrorHandler(async () => {
       ? Math.max(1, Math.ceil((elapsedSecs / etaCompleted) * (denominator - etaCompleted)))
       : null;
 
+  // Keep the visible log bounded, but publish every affected tree branch once
+  // a job settles. Otherwise imports larger than the log limit can leave an
+  // already-loaded folder stale until the next full page load.
+  let publicationJob: Pick<CanvasJobRow, "id" | "status"> | null =
+    publishJobId === job?.id ? job : null;
+  if (publishJobId && !publicationJob) {
+    const publicationJobs = await sql<
+      Pick<CanvasJobRow, "id" | "status">[]
+    >`
+      SELECT id, status
+      FROM app.canvas_import_jobs
+      WHERE id = ${publishJobId}::uuid
+        AND user_id = ${user.user_id}::uuid
+        AND type = 'canvas'
+      LIMIT 1
+    `;
+    publicationJob = publicationJobs[0] ?? null;
+  }
+  const publishedJobId =
+    publicationJob &&
+    ["complete", "failed", "cancelled"].includes(publicationJob.status)
+      ? publicationJob.id
+      : null;
+  const publishedNotes =
+    publishedJobId
+      ? await sql<PublishedNoteRow[]>`
+          SELECT DISTINCT canvas_import.note_id
+          FROM app.canvas_imports AS canvas_import
+          JOIN app.notes AS note
+            ON note.note_id = canvas_import.note_id
+           AND note.user_id = canvas_import.user_id
+          WHERE canvas_import.user_id = ${user.user_id}::uuid
+            AND canvas_import.note_id IS NOT NULL
+            AND canvas_import.job_id = ${publishedJobId}::uuid
+            AND note.deleted_at IS NULL
+        `
+      : [];
+
   // Notes become durable before OCR/embedding completes. Include each visible
   // note's path so the client can refresh only that branch rather than reset
   // its lazy-loaded tree. The traversal is bounded defensively against cycles.
   const noteIds = [
     ...new Set(
-      (recentLogs ?? [])
+      [...(recentLogs ?? []), ...publishedNotes]
         .map((row) => row.note_id)
-        .filter((noteId): noteId is string => typeof noteId === "string"),
+        .filter(
+          (noteId): noteId is string => typeof noteId === "string",
+        ),
     ),
   ];
   const treePaths =
@@ -249,8 +313,17 @@ export const GET = withErrorHandler(async () => {
 
   return NextResponse.json({
     success: true,
+    pollIntervalMs: canvasPollInterval(config.canvas.pollIntervalMs),
     latestJob,
     activeJob,
+    retryableFiles: Number(stats.retryable ?? 0),
+    discovery: job?.discovery_progress ? {
+      completedCourses: job.discovery_progress?.completedCourses ?? 0,
+      totalCourses: job.discovery_progress?.totalCourses ?? 0,
+      stage: job.discovery_progress?.stage ?? "modules", filesFound: total,
+      skippedCourses: job.discovery_progress?.skippedCourses ?? [],
+      skippedFolders: job.discovery_progress?.skippedFolders ?? [],
+    } : null,
     progress: {
       total: denominator,
       completed,
@@ -260,11 +333,13 @@ export const GET = withErrorHandler(async () => {
       processing,
       retrying,
       pendingMarker,
+      pendingCache: Number(stats.pending_cache ?? 0),
       percent: progressPercent,
     },
     issues: {
       forbidden,
       error: errorCount,
+      stopped: Number(stats.stopped ?? 0),
     },
     // `pending_marker` means the file was handed off to the asynchronous
     // Marker pipeline; it is not evidence that a cold start is happening.
@@ -272,6 +347,12 @@ export const GET = withErrorHandler(async () => {
     // rather than showing a misleading warm-up warning.
     markerColdStarting: false,
     estimatedSecsRemaining,
+    publishedJobId,
+    publishedNoteCount: publishedNotes.length,
+    publishedTreePaths: publishedNotes.flatMap((row) => {
+      const path = treePathByNoteId.get(row.note_id);
+      return path?.length ? [path] : [];
+    }),
     recentLogs: (recentLogs ?? []).map((r) => ({
       filename: r.filename,
       status: r.status,

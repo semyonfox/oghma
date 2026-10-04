@@ -1,3 +1,6 @@
+import logger from "../logger";
+import { checkAndCompleteJob } from "./import-extraction";
+import { recoverCanvasExecutions } from "./execution-recovery";
 /**
  * Canvas Worker Entry Point
  *
@@ -17,6 +20,7 @@ import {
   ackCloudflareQueueMessages,
   cloudflareAttemptsMade,
   enqueueCanvasJob,
+  enqueueRecoveredChatGeneration,
   getQueueProvider,
   getQueueConnection,
   parseCloudflareQueueBody,
@@ -29,10 +33,12 @@ import {
 } from "../marker-serverless";
 import { markerDispatchConsumerEnabled } from "../marker-worker-config";
 import { processChatGeneration } from "../chat/generate-background";
+import { recoverStaleChatGenerations } from "../chat/generation-store";
 import {
-  processImportJob,
   processDiscoverJob,
   processCanvasFile,
+  processCanvasExtract,
+  recoverPendingCanvasExtracts,
   processExtractionRetry,
   recoverPendingExtractionRetries,
   processDirectExtraction,
@@ -41,6 +47,7 @@ import {
 } from "./import-worker";
 import { processVaultImport } from "../vault/import-worker";
 import { processVaultExport } from "../vault/export-worker";
+import { pruneChatGenerationPayloads } from "../chat/generation-store";
 import { cleanupMarketingData } from "../marketing/retention";
 import {
   processPendingNoteDeletionCleanup,
@@ -50,14 +57,12 @@ import {
 import { dispatchFairCanvasFiles } from "./import-scheduler";
 import { runImportedFileCacheRetention } from "./import-cache-retention";
 import {
-  canvasJobType,
   dispatchCanvasJob,
   requireJobString,
   type CanvasJob,
   type CanvasJobData,
 } from "./job-dispatch";
 
-const STUCK_JOB_THRESHOLD = "1 hour";
 const STUCK_JOB_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const DB_POLL_INTERVAL_MS = 30_000;
 const ORPHAN_ENQUEUE_RETRY_INTERVAL = "1 minute";
@@ -86,64 +91,36 @@ const CF_QUEUE_EMPTY_POLL_INTERVAL_MS = parseInt(
   10,
 );
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 async function failStuckJobs(): Promise<void> {
-  const stuck = await sql`
-    UPDATE app.canvas_import_jobs jobs
-    SET status = 'failed', error_message = 'Job timed out', updated_at = NOW()
-    WHERE jobs.status IN ('processing', 'discovering')
-      AND jobs.type = 'canvas'
-      AND jobs.updated_at < NOW() - ${STUCK_JOB_THRESHOLD}::interval
-      AND NOT EXISTS (
-        SELECT 1
-        FROM app.canvas_imports imports
-        WHERE imports.job_id = jobs.id
-          AND imports.status NOT IN ('complete', 'forbidden', 'error', 'cancelled')
-          AND imports.updated_at >= NOW() - ${STUCK_JOB_THRESHOLD}::interval
-      )
-      AND NOT EXISTS (
-        SELECT 1
-        FROM app.marker_jobs marker
-        WHERE marker.canvas_job_id = jobs.id
-          AND marker.status NOT IN ('completed', 'failed', 'invalid_result', 'cancelled')
-      )
-    RETURNING id
+  const recovered = await recoverCanvasExecutions();
+  const settled = await sql<{ id: string }[]>`
+    SELECT job.id FROM app.canvas_import_jobs job WHERE job.type = 'canvas' AND job.status = 'processing'
+      AND NOT EXISTS (SELECT 1 FROM app.canvas_imports child WHERE child.job_id = job.id
+        AND child.status NOT IN ('complete', 'forbidden', 'error', 'cancelled'))
+    LIMIT 50
   `;
-  if (stuck.length > 0) {
-    console.log(
-      `[${new Date().toISOString()}] Failed ${stuck.length} stuck job(s)`,
-    );
+  for (const jobId of new Set([...recovered, ...settled.map((job) => job.id)])) {
+    const [job] = await sql<{ user_id: string }[]>`SELECT user_id FROM app.canvas_import_jobs WHERE id = ${jobId}::uuid`;
+    if (job) await checkAndCompleteJob(jobId, job.user_id);
   }
 }
 
 async function runMarketingCleanup(): Promise<void> {
   try {
-    const result = await cleanupMarketingData();
-    console.log(
-      `[${new Date().toISOString()}] Marketing retention cleanup: ${result.eventsDeleted} event(s), ${result.leadsDeleted} lead(s) deleted`,
-    );
-  } catch (err) {
-    console.error(
-      `[${new Date().toISOString()}] Marketing retention cleanup failed:`,
-      errorMessage(err),
-    );
+    await pruneChatGenerationPayloads();
+    await cleanupMarketingData();
+    logger.info("worker_event");
+  } catch {
+    logger.error("worker_event");
   }
 }
 
 async function runImportCacheRetention(): Promise<void> {
   try {
-    const result = await runImportedFileCacheRetention();
-    console.log(
-      `[${new Date().toISOString()}] Imported-file cache retention: ${result.cachesMarkedFailed} abandoned, ${result.cachesMarkedOrphaned} marked orphaned, ${result.cachesRevived} revived, ${result.cachesPurged} purged, ${result.purgeFailures} failed`,
-    );
-  } catch (err) {
-    console.error(
-      `[${new Date().toISOString()}] Imported-file cache retention failed:`,
-      errorMessage(err),
-    );
+    await runImportedFileCacheRetention();
+    logger.info("worker_event");
+  } catch {
+    logger.error("worker_event");
   }
 }
 
@@ -152,17 +129,12 @@ async function runNoteLifecycleRetention(): Promise<void> {
     // Purging expired Trash roots can create external-cleanup tasks, so run
     // task processing second and let a single daily pass finish both when
     // Qdrant and object storage are healthy.
-    const trashRootsPurged = await purgeExpiredTrash();
-    const cleanupTasksCompleted = await processPendingNoteDeletionCleanup();
-    const hiddenTrashVectors = await reconcileTrashedVectorVisibility();
-    console.log(
-      `[${new Date().toISOString()}] Note lifecycle retention: ${trashRootsPurged} Trash root(s) purged, ${cleanupTasksCompleted} cleanup task(s) completed, ${hiddenTrashVectors} vector(s) hidden`,
-    );
-  } catch (err) {
-    console.error(
-      `[${new Date().toISOString()}] Note lifecycle retention failed:`,
-      errorMessage(err),
-    );
+    await purgeExpiredTrash();
+    await processPendingNoteDeletionCleanup();
+    await reconcileTrashedVectorVisibility();
+    logger.info("worker_event");
+  } catch {
+    logger.error("worker_event");
   }
 }
 
@@ -179,81 +151,68 @@ async function claimOrphanedJobs(): Promise<boolean> {
     RETURNING id, user_id
   `;
 
-  // A stale discovery is moved back to queued before publishing. The next
-  // consumer claims it atomically, while duplicate messages become no-ops.
-  const discoveringOrphans = await sql`
-    WITH candidates AS (
-      SELECT id
-      FROM app.canvas_import_jobs
-      WHERE status = 'discovering'
-        AND type = 'canvas'
-        AND updated_at < NOW() - ${STUCK_JOB_THRESHOLD}::interval / 2
-      ORDER BY updated_at
-      LIMIT ${MAX_CONCURRENT_JOBS}
-      FOR UPDATE SKIP LOCKED
-    )
-    UPDATE app.canvas_import_jobs jobs
-    SET status = 'queued', updated_at = NOW()
-    FROM candidates
-    WHERE jobs.id = candidates.id
-    RETURNING jobs.id, jobs.user_id
-  `;
-
-  const orphaned = [...queuedOrphans, ...discoveringOrphans];
+  const orphaned = queuedOrphans;
   if (orphaned.length === 0) return false;
 
-  console.log(
-    `[${new Date().toISOString()}] DB poll: re-queuing ${orphaned.length} orphaned job(s)`,
-  );
+  logger.info("worker_event");
   for (const row of orphaned) {
     try {
       await enqueueCanvasJob("canvas-discover", {
         jobId: row.id,
         userId: row.user_id,
       });
-    } catch (err) {
-      console.error(
-        `[${new Date().toISOString()}] orphan re-enqueue failed:`,
-        errorMessage(err),
-      );
+    } catch {
+      logger.error("worker_event");
     }
   }
   return true;
 }
 
 export async function processCanvasJob(job: CanvasJob): Promise<void> {
-  const ts = () => new Date().toISOString();
-  const data = job.data ?? {};
-  const type = canvasJobType(job);
-  console.log(
-    `[${ts()}] Received ${type}: ${data.jobId ?? data.userId ?? job.id}`,
-  );
+  logger.info("worker_event");
 
-  const handled = await dispatchCanvasJob(job, {
-    processDiscoverJob,
-    processCanvasFile,
-    processImportJob,
-    processDirectExtraction,
-    processExtractionRetry,
-    processMarkerComplete,
-    processMarkerFailed,
-    dispatchMarkerJob,
-    processVaultExport,
-    processVaultImport,
-  });
-  if (!handled) {
-    console.warn(`[${ts()}] Unknown job type: ${type}`);
+  try {
+    const handled = await dispatchCanvasJob(job, {
+      processDiscoverJob,
+      processCanvasFile,
+      processCanvasExtract,
+      processImportJob: (jobId) => processDiscoverJob(jobId),
+      processDirectExtraction,
+      processExtractionRetry,
+      processMarkerComplete,
+      processMarkerFailed,
+      dispatchMarkerJob,
+      processVaultExport,
+      processVaultImport,
+    });
+    if (!handled) {
+      logger.warn("worker_event");
+    }
+  } finally {
+    logger.info("worker_event");
   }
 }
 
-console.log(
-  `[${new Date().toISOString()}] Canvas Import Worker started (${getQueueProvider()} + DB poll, concurrency=${MAX_CONCURRENT_JOBS}, marker-dispatch=${MARKER_DISPATCH_CONSUMER_ENABLED ? MAX_CONCURRENT_MARKER_DISPATCHES : "disabled"})`,
-);
+logger.info("worker_event");
+
+async function recoverChatGenerations(): Promise<void> {
+  if (getQueueProvider() !== "bullmq") return;
+  const staleChatGenerations = await recoverStaleChatGenerations();
+  await Promise.all(
+    staleChatGenerations.map((generationId) =>
+      enqueueRecoveredChatGeneration(generationId),
+    ),
+  );
+  if (staleChatGenerations.length > 0) {
+    logger.info("worker_event");
+  }
+}
 
 await failStuckJobs();
 await runMarketingCleanup();
 await runImportCacheRetention();
 await runNoteLifecycleRetention();
+await recoverChatGenerations();
 setInterval(failStuckJobs, STUCK_JOB_CHECK_INTERVAL_MS);
 setInterval(runMarketingCleanup, MARKETING_CLEANUP_INTERVAL_MS);
 setInterval(runImportCacheRetention, IMPORT_CACHE_RETENTION_INTERVAL_MS);
@@ -261,26 +220,24 @@ setInterval(runNoteLifecycleRetention, NOTE_LIFECYCLE_RETENTION_INTERVAL_MS);
 setInterval(async () => {
   try {
     await claimOrphanedJobs();
+    await recoverChatGenerations();
     const recoveredExtractionRetries = await recoverPendingExtractionRetries();
     if (recoveredExtractionRetries > 0) {
-      console.log(
-        `[${new Date().toISOString()}] DB poll: recovered ${recoveredExtractionRetries} extraction retry job(s)`,
-      );
+      logger.info("worker_event");
+    }
+    const recoveredCanvasExtracts = await recoverPendingCanvasExtracts();
+    if (recoveredCanvasExtracts > 0) {
+      logger.info("worker_event");
     }
     if (MARKER_DISPATCH_CONSUMER_ENABLED) {
       const recoveredMarkerJobs = await recoverMarkerDispatchJobs();
       if (recoveredMarkerJobs > 0) {
-        console.log(
-          `[${new Date().toISOString()}] DB poll: recovered ${recoveredMarkerJobs} Marker dispatch job(s)`,
-        );
+        logger.info("worker_event");
       }
     }
     await dispatchFairCanvasFiles(MAX_CONCURRENT_JOBS);
-  } catch (err) {
-    console.error(
-      `[${new Date().toISOString()}] DB poll error:`,
-      errorMessage(err),
-    );
+  } catch {
+    logger.error("worker_event");
   }
 }, DB_POLL_INTERVAL_MS);
 
@@ -325,11 +282,8 @@ async function processCloudflareQueueBatch(
       try {
         await processCanvasJob(cloudflareJobFromMessage(message));
         acks.push(message.lease_id);
-      } catch (err) {
-        console.error(
-          `[${new Date().toISOString()}] Cloudflare queue job ${message.id} failed:`,
-          errorMessage(err),
-        );
+      } catch {
+        logger.error("worker_event");
         retries.push({
           lease_id: message.lease_id,
           delay_seconds: CF_QUEUE_RETRY_DELAY_SECONDS,
@@ -346,9 +300,7 @@ async function startCloudflarePullLoop(
   queueName: string,
   concurrency: number,
 ): Promise<void> {
-  console.log(
-    `[${new Date().toISOString()}] Starting Cloudflare pull consumer for ${queueName}`,
-  );
+  logger.info("worker_event");
 
   while (!shuttingDown) {
     try {
@@ -359,11 +311,8 @@ async function startCloudflarePullLoop(
       if (!hadMessages) {
         await sleep(CF_QUEUE_EMPTY_POLL_INTERVAL_MS);
       }
-    } catch (err) {
-      console.error(
-        `[${new Date().toISOString()}] Cloudflare pull error for ${queueName}:`,
-        errorMessage(err),
-      );
+    } catch {
+      logger.error("worker_event");
       await sleep(CF_QUEUE_EMPTY_POLL_INTERVAL_MS);
     }
   }
@@ -420,17 +369,11 @@ async function startBullMqWorkers(): Promise<void> {
   }
 
   for (const w of activeWorkers) {
-    w.on("failed", (job, err) => {
-      console.error(
-        `[${new Date().toISOString()}] Job ${job?.id} (${job?.name}) failed:`,
-        errorMessage(err),
-      );
+    w.on("failed", () => {
+      logger.error("worker_event");
     });
-    w.on("error", (err) => {
-      console.error(
-        `[${new Date().toISOString()}] Worker error:`,
-        errorMessage(err),
-      );
+    w.on("error", () => {
+      logger.error("worker_event");
     });
   }
 
@@ -450,14 +393,12 @@ if (getQueueProvider() === "cloudflare") {
   await startBullMqWorkers();
 }
 
-const shutdown = async (signal: string): Promise<void> => {
+const shutdown = async (): Promise<void> => {
   shuttingDown = true;
-  console.log(
-    `[${new Date().toISOString()}] received ${signal}, draining workers`,
-  );
+  logger.info("worker_event");
   await Promise.allSettled(workers.map((worker) => worker.close()));
   await sql.end({ timeout: 5 });
   process.exit(0);
 };
-process.on("SIGTERM", () => shutdown("SIGTERM"));
-process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("SIGTERM", () => shutdown());
+process.on("SIGINT", () => shutdown());

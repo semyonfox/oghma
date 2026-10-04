@@ -10,6 +10,7 @@ import {
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import useCalendarStore from "@/lib/notes/state/calendar.zustand";
 import { formatDateKey, parseDateKey } from "@/lib/notes/utils/calendar-date";
+import useSwipeDismiss from "@/components/navigation/use-swipe-dismiss";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
 interface StudyBlockDialogProps {
@@ -52,6 +53,7 @@ export default function StudyBlockDialog({
   initialStart,
   initialEnd,
 }: StudyBlockDialogProps) {
+  const swipe = useSwipeDismiss({ open, onClose });
   const { t } = useI18n();
   const createTimeBlock = useCalendarStore((state) => state.createTimeBlock);
   const timeBlocks = useCalendarStore((state) => state.timeBlocks);
@@ -115,13 +117,13 @@ export default function StudyBlockDialog({
   };
 
   const inputClassName =
-    "min-h-11 w-full rounded-radius-md border border-border-subtle bg-surface px-2.5 py-2 text-sm text-text-secondary focus:border-primary-500/50 focus:outline-none focus:ring-1 focus:ring-primary-500/50";
+    "min-h-11 w-full rounded-radius-md border border-border-subtle bg-surface px-2.5 py-2 text-base text-text-secondary focus:border-primary-500/50 focus:outline-none focus:ring-1 focus:ring-primary-500/50 lg:text-sm";
 
   return (
     <Dialog open={open} onClose={onClose} className="relative z-[70]">
       <DialogBackdrop className="fixed inset-0 bg-black/50 backdrop-blur-[1px]" />
       <div className="fixed inset-0 flex items-end justify-center sm:items-center sm:p-4">
-        <DialogPanel className="flex max-h-[calc(100dvh-0.5rem)] w-full flex-col overflow-hidden rounded-t-radius-lg border border-border-subtle bg-surface shadow-xl sm:max-w-sm sm:rounded-radius-lg">
+        <DialogPanel {...swipe} className="flex max-h-[calc(100dvh-0.5rem)] w-full flex-col overflow-hidden rounded-t-radius-lg border border-border-subtle bg-surface shadow-xl sm:max-w-sm sm:rounded-radius-lg">
           <div className="flex h-12 shrink-0 items-center justify-between border-b border-border-subtle px-4">
             <DialogTitle className="text-sm font-medium text-text-secondary">
               {t("Add study block")}
@@ -139,7 +141,7 @@ export default function StudyBlockDialog({
           <form
             onSubmit={handleSubmit}
             className="obsidian-scrollbar min-h-0 space-y-3 overflow-y-auto p-4"
-            style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+            style={{ paddingBottom: "max(1rem, var(--safe-bottom))" }}
           >
             <div>
               <label

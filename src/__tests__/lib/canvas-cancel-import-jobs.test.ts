@@ -8,6 +8,7 @@ describe("cancelActiveCanvasImportJobs", () => {
     const tx = vi
       .fn()
       .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: "11111111-1111-4111-8111-111111111111" }])
       .mockResolvedValue([]);
 
@@ -19,11 +20,11 @@ describe("cancelActiveCanvasImportJobs", () => {
 
     expect(result).toEqual([{ id: "11111111-1111-4111-8111-111111111111" }]);
     const queries = tx.mock.calls.map((call) => call[0].join(""));
-    expect(queries).toHaveLength(5);
+    expect(queries).toHaveLength(6);
     expect(queries[0]).toContain("pg_advisory_xact_lock");
-    expect(queries[2]).toContain("UPDATE app.marker_jobs");
-    expect(queries[2]).toContain("status = 'cancelled'");
-    expect(queries[3]).toContain("'pending_marker'");
-    expect(queries[4]).toContain("UPDATE app.ingestion_jobs");
+    expect(queries[3]).toContain("UPDATE app.marker_jobs");
+    expect(queries[3]).toContain("status = 'cancelled'");
+    expect(queries[4]).toContain("'pending_marker'");
+    expect(queries[5]).toContain("UPDATE app.ingestion_jobs");
   });
 });

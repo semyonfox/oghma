@@ -1,15 +1,17 @@
 import Redis, { Cluster } from 'ioredis';
 import logger from '@/lib/logger';
 
+export type RedisConnection = Cluster | Redis;
+
 // track connection state for consumers that need to know if redis is available
 export let redisReady = false;
 
 // Use lazy initialization because the Next.js build evaluates this module during page data collection.
 // REDIS_HOST and REDIS_PORT are not available yet. They come from .env.production at runtime.
-let _redis: Cluster | Redis | null = null;
+let _redis: RedisConnection | null = null;
 let _redisReadyWait: Promise<boolean> | null = null;
 
-function initRedis(): Cluster | Redis {
+function initRedis(): RedisConnection {
   if (_redis) return _redis;
 
   const host = process.env.REDIS_HOST ?? 'localhost';
@@ -85,8 +87,20 @@ export function ensureRedisReady(timeoutMs = 750): Promise<boolean> {
   return _redisReadyWait;
 }
 
+/**
+ * A blocking Redis command monopolises its connection until it returns. SSE
+ * readers must use a private connection so an idle stream cannot delay the
+ * command client used by requests, rate limiting, presence, and BullMQ.
+ */
+export function createBlockingRedisConnection(): RedisConnection {
+  const connection = initRedis();
+  return connection instanceof Cluster
+    ? connection.duplicate()
+    : connection.duplicate();
+}
+
 // proxy so existing `import { redis }` keeps working — defers actual connection to first use
-export const redis: Cluster | Redis = new Proxy({} as Cluster & Redis, {
+export const redis: RedisConnection = new Proxy({} as Cluster & Redis, {
   get(_, prop) {
     const instance = initRedis();
     const value: unknown = Reflect.get(instance, prop);

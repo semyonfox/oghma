@@ -298,7 +298,7 @@ export default function NoteInspectorPanel({
   );
 
   const tabClasses = (tab: RightPanelTab) => `
-    min-h-11 px-2.5 py-1.5 text-xs font-medium transition-colors border-b-2 lg:min-h-0 focus-visible:outline-2 focus-visible:outline-primary-400
+    min-h-11 px-2.5 py-1.5 text-xs font-medium transition-colors border-b-2 focus-visible:outline-2 focus-visible:outline-primary-400
     ${
       activeTab === tab
         ? "border-primary-500 text-text-secondary"
@@ -309,7 +309,7 @@ export default function NoteInspectorPanel({
   return (
     <div className="h-full flex flex-col text-text">
       {presentation === "desktop" && (
-        <div className="flex h-9 items-center justify-between border-b border-border-subtle px-3">
+        <div className="flex min-h-11 items-center justify-between gap-2 border-b border-border-subtle px-3">
           <h3 className="truncate text-sm text-text-secondary">
             {activeTab === "tasks"
               ? t("Global Tasks")
@@ -352,14 +352,14 @@ export default function NoteInspectorPanel({
       </div>
 
       {/* Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="min-h-0 flex-1 flex flex-col overflow-hidden">
         {/* Meta Tab — file info + tags */}
         {activeTab === "meta" && (
           <div
             id="panel-meta"
             role="tabpanel"
             aria-labelledby="tab-meta"
-            className="flex-1 overflow-y-auto p-4 space-y-5"
+            className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-5"
           >
             {loading ? (
               <p className="text-xs text-text-tertiary">{t("Loading...")}</p>
@@ -368,7 +368,7 @@ export default function NoteInspectorPanel({
                 <dl className="space-y-3">
                   <div>
                     <dt className="text-xs text-text-tertiary">{t("Title")}</dt>
-                    <dd className="mt-0.5 text-text-secondary text-sm">
+                    <dd className="mt-0.5 break-words text-text-secondary text-sm">
                       {note.title || activeFile?.title || t("Untitled")}
                     </dd>
                   </div>
@@ -410,7 +410,7 @@ export default function NoteInspectorPanel({
                   </div>
                   <div>
                     <dt className="text-xs text-text-tertiary">{t("ID")}</dt>
-                    <dd className="mt-0.5 break-all font-mono text-xs text-text-tertiary/50">
+                    <dd className="mt-0.5 break-all font-mono text-xs text-text-tertiary">
                       {note.id || activeFile.fileId}
                     </dd>
                   </div>
@@ -456,8 +456,8 @@ export default function NoteInspectorPanel({
                     <button
                       type="button"
                       onClick={() => void addTag()}
-                      disabled={!newTag.trim() || isSavingTag}
                       aria-label={t("add tag")}
+                      disabled={!newTag.trim() || isSavingTag}
                       className={`flex shrink-0 items-center justify-center text-text-tertiary hover:text-text-secondary disabled:opacity-30 transition-colors ${presentation === "drawer" ? "h-11 w-11" : ""}`}
                     >
                       <PlusIcon className="w-3.5 h-3.5" />

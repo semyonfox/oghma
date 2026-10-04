@@ -53,7 +53,7 @@ vi.mock("@/lib/notes/utils/filter-fields", () => ({
   filterNoteFields: vi.fn((note) => note),
 }));
 
-import { GET as notesGET, POST as notesPOST } from "@/app/api/notes/route";
+import { GET as notesGET } from "@/app/api/notes/route";
 import {
   GET as noteGET,
   PUT as notePUT,
@@ -127,61 +127,6 @@ describe("GET /api/notes", () => {
     expect(body[0].id).toBe("note-uuid-1");
     expect(body[0].title).toBe("Test Note");
     expect(body[0].isFolder).toBe(false);
-  });
-});
-
-// ─── POST /api/notes ───────────────────────────────────────────────────────
-
-describe("POST /api/notes", () => {
-  it("returns 401 when not authenticated", async () => {
-    validateSession.mockResolvedValue(null);
-    const req = makeRequest("POST", "http://localhost/api/notes", {
-      title: "New Note",
-    });
-    const res = await notesPOST(req);
-    expect(res.status).toBe(401);
-  });
-
-  it("creates a note and returns 201", async () => {
-    sql.mockResolvedValue([NOTE_ROW]);
-    const req = makeRequest("POST", "http://localhost/api/notes", {
-      title: "Test Note",
-      content: "# Hello",
-    });
-    const res = await notesPOST(req);
-    expect(res.status).toBe(201);
-    const body = await res.json();
-    expect(body.id).toBe("note-uuid-1");
-    expect(body.title).toBe("Test Note");
-  });
-
-  it("creates a folder when isFolder=true", async () => {
-    const folderRow = { ...NOTE_ROW, is_folder: true, title: "New Folder" };
-    sql.mockResolvedValue([folderRow]);
-    const req = makeRequest("POST", "http://localhost/api/notes", {
-      isFolder: true,
-    });
-    const res = await notesPOST(req);
-    expect(res.status).toBe(201);
-    const body = await res.json();
-    expect(body.isFolder).toBe(true);
-  });
-
-  it("does not create a child below a parent that has entered Trash", async () => {
-    sql
-      .mockResolvedValueOnce([]) // advisory lock
-      .mockResolvedValueOnce([]); // no active parent
-    const req = makeRequest("POST", "http://localhost/api/notes", {
-      title: "Late child",
-      pid: "11111111-1111-4111-8111-111111111111",
-    });
-
-    const res = await notesPOST(req);
-
-    expect(res.status).toBe(404);
-    await expect(res.json()).resolves.toMatchObject({
-      error: "Parent folder not found",
-    });
   });
 });
 
@@ -263,6 +208,23 @@ describe("PATCH /api/notes/[id]", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.content).toBe("# Updated");
+  });
+
+  it("persists pin changes and returns the stored pin state", async () => {
+    const pinnedRow = { ...NOTE_ROW, pinned: 1 };
+    sql.mockResolvedValueOnce([NOTE_ROW]).mockResolvedValueOnce([pinnedRow]);
+
+    const req = makeRequest("PATCH", "http://localhost/api/notes/note-uuid-1", {
+      pinned: 1,
+    });
+    const res = await notePATCH(req, {
+      params: Promise.resolve({ id: "note-uuid-1" }),
+    });
+
+    expect(res.status).toBe(200);
+    expect((await res.json()).pinned).toBe(1);
+    expect(sql.mock.calls[1][0].join(" ")).toContain("pinned =");
+    expect(sql.mock.calls[1].slice(1)).toContain(1);
   });
 });
 

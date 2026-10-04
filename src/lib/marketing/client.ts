@@ -30,7 +30,7 @@ export function marketingAnalyticsAllowed(): boolean {
     if (typeof window === "undefined" || typeof navigator === "undefined") return false;
     const gpc: unknown = Reflect.get(navigator, "globalPrivacyControl");
     const signals: unknown[] = [navigator.doNotTrack, Reflect.get(window, "doNotTrack")];
-    return telemetryConfigured() && !telemetryDisabled() && gpc !== true && !signals.some((signal) => signal === "1" || signal === "yes");
+    return telemetryConfigured() && !telemetryDisabled() && gpc !== true && !signals.some((signal) => typeof signal === "string" && ["1", "yes"].includes(signal.toLowerCase()));
   } catch { return false; }
 }
 

@@ -79,18 +79,29 @@ describe("PrimaryNavigation AI chat entry", () => {
   it("opens global search from the navigation rail", async () => {
     render(React.createElement(PrimaryNavigation));
 
-    fireEvent.click(screen.getByTitle("Search"));
+    fireEvent.click(screen.getByTitle("Search OghmaNotes"));
 
     expect(mocks.globalSearchOpen).toHaveBeenCalledTimes(1);
     expect(mocks.push).not.toHaveBeenCalled();
   });
 
-  it("identifies the current destination accessibly", () => {
+  it("keeps Notes current when its AI side panel is open", () => {
     render(React.createElement(PrimaryNavigation));
 
     expect(screen.getByRole("navigation", { name: "Main navigation" })).toBeTruthy();
     expect(
       screen.getByRole("link", { name: "Notes" }).getAttribute("aria-current"),
+    ).toBe("page");
+    expect(
+      screen.getByRole("link", { name: "AI Chat" }).getAttribute("aria-current"),
+    ).toBeNull();
+  });
+
+  it("identifies a full chat session as the current destination", () => {
+    mocks.pathname = "/chat/session-123";
+    render(React.createElement(PrimaryNavigation));
+    expect(
+      screen.getByRole("link", { name: "AI Chat" }).getAttribute("aria-current"),
     ).toBe("page");
   });
 
@@ -103,7 +114,9 @@ describe("PrimaryNavigation AI chat entry", () => {
       }),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Search OghmaNotes" }),
+    );
 
     expect(onNavigate).toHaveBeenCalledTimes(1);
     expect(mocks.globalSearchOpen).toHaveBeenCalledTimes(1);

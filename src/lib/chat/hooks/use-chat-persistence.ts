@@ -2,11 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { Message } from "@/lib/chat/types";
-import { normalizeMessageParts } from "@/lib/chat/types";
-import {
-  nextLlmThinkingMode,
-  type LlmThinkingMode,
-} from "@/lib/ai-config";
+import { normalizeMessageParts, decodeStoredChatJson } from "@/lib/chat/types";
+import { nextLlmThinkingMode, type LlmThinkingMode } from "@/lib/ai-config";
 
 const THINKING_MODE_KEY = "chat-thinking-mode";
 const USE_RAG_KEY = "chat-use-rag";
@@ -42,7 +39,11 @@ interface UseChatPersistenceResult {
   useRag: boolean;
   toggleRag: () => void;
   restoredMessages: Message[] | null;
+  restoredGenerating: boolean;
   restored: boolean;
+  restoreError: boolean;
+  retryRestore: () => void;
+  finishBackgroundGeneration: (generationId?: string) => void;
   /** true when the server still owns generation for a reopened session */
   backgroundLoading: boolean;
   backgroundGenerationId: string | null;
@@ -52,7 +53,7 @@ interface UseChatPersistenceResult {
 
 type StoredMessage = {
   id: string;
-  role: string;
+  role: "user" | "assistant";
   content: string;
   parts?: unknown;
   sources?: { id: string; title: string }[];
@@ -66,28 +67,147 @@ type StoredMessage = {
   rating?: number | null;
 };
 
-export function mapStoredChatMessages(messages: StoredMessage[]): Message[] {
-  return messages.map((m) => {
-    const parts = normalizeMessageParts(m.parts) ??
-      (m.content ? [{ type: "text" as const, text: m.content }] : []);
+export interface ChatSessionSnapshot {
+  messages: Message[];
+  generating: boolean;
+  activeGenerationId: string | null;
+}
+
+/** Session messages are append-only; only locally created rows need ID adoption. */
+export function reconcileChatMessages(
+  current: Message[],
+  saved: Message[],
+): Message[] {
+  const byId = new Map(current.map((message) => [message.id, message]));
+  return saved.map((message, index) => {
+    const optimistic = current[index];
+    const previous = byId.get(message.id) ??
+      (optimistic?.id.startsWith("local-") && optimistic.role === message.role
+        ? optimistic
+        : undefined);
+    return previous
+      ? {
+          ...message,
+          renderKey: previous.renderKey ?? previous.id,
+          retrieval: message.retrieval ?? previous.retrieval,
+          searchContext: message.searchContext ?? previous.searchContext,
+        }
+      : message;
+  });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function storedMessageFrom(value: unknown): StoredMessage | null {
+  if (
+    !isRecord(value) ||
+    typeof value.id !== "string" ||
+    (value.role !== "user" && value.role !== "assistant") ||
+    typeof value.content !== "string"
+  ) {
+    return null;
+  }
+
+  const decodedMetadata = decodeStoredChatJson(value.metadata);
+  const decodedSources = decodeStoredChatJson(value.sources);
+  const metadata = isRecord(decodedMetadata) ? decodedMetadata : undefined;
+  const sources = Array.isArray(decodedSources)
+    ? decodedSources.flatMap((source) =>
+        isRecord(source) &&
+        typeof source.id === "string" &&
+        typeof source.title === "string"
+          ? [{ id: source.id, title: source.title }]
+          : [],
+      )
+    : undefined;
+
+  return {
+    id: value.id,
+    role: value.role,
+    content: value.content,
+    parts: value.parts,
+    sources,
+    metadata,
+    created_at:
+      typeof value.created_at === "string" ? value.created_at : undefined,
+    rating:
+      typeof value.rating === "number" || value.rating === null
+        ? value.rating
+        : undefined,
+  };
+}
+
+/** Fetch the durable PostgreSQL-backed view of a chat session. */
+export async function fetchChatSessionSnapshot(
+  sessionId: string,
+  signal?: AbortSignal,
+): Promise<ChatSessionSnapshot> {
+  const response = await fetch(`/api/chat/sessions/${sessionId}`, {
+    signal,
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`Unable to restore conversation (${response.status})`);
+  }
+
+  const data: unknown = await response.json();
+  if (!isRecord(data) || !Array.isArray(data.messages)) {
+    throw new Error("Invalid conversation response");
+  }
+
+  const session = isRecord(data.session) ? data.session : {};
+  const generating = session.generation_status === "generating";
+  return {
+    messages: mapStoredChatMessages(data.messages),
+    generating,
+    activeGenerationId:
+      generating && typeof session.active_generation_id === "string"
+        ? session.active_generation_id
+        : null,
+  };
+}
+
+export function mapStoredChatMessages(messages: unknown[]): Message[] {
+  return messages.flatMap((value) => {
+    const m = storedMessageFrom(value);
+    if (!m) return [];
     const metadata = m.metadata ?? {};
-    return {
-      id: m.id,
-      role: m.role as "user" | "assistant",
-      content: m.content,
-      parts,
-      thinking:
-        typeof metadata.thinking === "string" ? metadata.thinking : undefined,
-      thinkingDuration:
-        typeof metadata.thinkingDuration === "number"
-          ? metadata.thinkingDuration
-          : undefined,
-      partial: metadata.partial === true,
-      error: typeof metadata.error === "string" ? metadata.error : undefined,
-      sources: Array.isArray(m.sources) ? m.sources : [],
-      timestamp: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
-      rating: m.rating ?? null,
-    };
+    const restoredParts = normalizeMessageParts(m.parts) ?? [];
+    // Legacy rows kept one aggregated reasoning field with no positions.
+    const normalizedParts: Message["parts"] =
+      typeof metadata.thinking === "string" &&
+      metadata.thinking &&
+      !restoredParts.some((part) => part.type === "reasoning")
+        ? [{ type: "reasoning", text: metadata.thinking }, ...restoredParts]
+        : restoredParts;
+    const hasAnswerText = normalizedParts.some(
+      (part) => part.type === "text" && part.text.trim().length > 0,
+    );
+    const parts =
+      !hasAnswerText && m.content.trim().length > 0
+        ? [...normalizedParts, { type: "text" as const, text: m.content }]
+        : normalizedParts;
+    return [
+      {
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        parts,
+        thinking:
+          typeof metadata.thinking === "string" ? metadata.thinking : undefined,
+        thinkingDuration:
+          typeof metadata.thinkingDuration === "number"
+            ? metadata.thinkingDuration
+            : undefined,
+        partial: metadata.partial === true,
+        error: typeof metadata.error === "string" ? metadata.error : undefined,
+        sources: Array.isArray(m.sources) ? m.sources : [],
+        timestamp: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
+        rating: m.rating ?? null,
+      },
+    ];
   });
 }
 
@@ -143,14 +263,41 @@ export function useChatPersistence(
 
   // session restore
   const [restored, setRestored] = useState(false);
-  const [restoredMessages, setRestoredMessages] = useState<Message[] | null>(null);
+  const [restoredSessionId, setRestoredSessionId] = useState<string | null>(
+    null,
+  );
+  const [restoredMessages, setRestoredMessages] = useState<Message[] | null>(
+    null,
+  );
+  const [restoredGenerating, setRestoredGenerating] = useState(false);
   const [backgroundLoading, setBackgroundLoading] = useState(false);
-  const [backgroundGenerationId, setBackgroundGenerationId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!controlledSessionId) {
+  const [backgroundGenerationId, setBackgroundGenerationId] = useState<
+    string | null
+  >(null);
+  const [restoreError, setRestoreError] = useState(false);
+  const [restoreAttempt, setRestoreAttempt] = useState(0);
+  const finishedGenerationRef = useRef<string | null>(null);
+  const retryRestore = useCallback(() => {
+    setRestored(false);
+    setRestoreAttempt((attempt) => attempt + 1);
+  }, []);
+  const finishBackgroundGeneration = useCallback(
+    (generationId?: string) => {
+      finishedGenerationRef.current = generationId ?? backgroundGenerationId;
       setBackgroundLoading(false);
       setBackgroundGenerationId(null);
+    },
+    [backgroundGenerationId],
+  );
+
+  useEffect(() => {
+    finishedGenerationRef.current = null;
+    if (!controlledSessionId) {
+      setRestoredSessionId(null);
+      setRestoredMessages(null);
+      setBackgroundLoading(false);
+      setBackgroundGenerationId(null);
+      setRestoreError(false);
       setRestored(true);
       return;
     }
@@ -158,36 +305,46 @@ export function useChatPersistence(
     let cancelled = false;
     let pollTimer: ReturnType<typeof setTimeout> | undefined;
     let firstLoad = true;
+    const controller = new AbortController();
+
+    setRestored(false);
+    setRestoredSessionId(controlledSessionId);
+    setRestoreError(false);
+    setRestoredMessages(null);
+    setBackgroundLoading(false);
+    setBackgroundGenerationId(null);
 
     const restore = async (): Promise<void> => {
       try {
-        const res = await fetch(`/api/chat/sessions/${controlledSessionId}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!Array.isArray(data.messages) || data.messages.length === 0) return;
-        const serverMessages = mapStoredChatMessages(data.messages);
-        const generating = data.session?.generation_status === "generating";
-        if (cancelled) return;
-        setBackgroundLoading(generating);
-        setBackgroundGenerationId(
-          generating && typeof data.session?.active_generation_id === "string"
-            ? data.session.active_generation_id
-            : null,
+        const snapshot = await fetchChatSessionSnapshot(
+          controlledSessionId,
+          controller.signal,
         );
+        if (cancelled) return;
+        if (
+          snapshot.activeGenerationId &&
+          snapshot.activeGenerationId === finishedGenerationRef.current
+        ) return;
+        setRestoredSessionId(controlledSessionId);
+        setRestoredGenerating(snapshot.generating);
+        setRestoreError(false);
+        setRestored(true);
+        setBackgroundLoading(snapshot.generating);
+        setBackgroundGenerationId(snapshot.activeGenerationId);
 
         // check sessionStorage for a partial assistant message saved on unload
         const draftKey = `chat-draft:${controlledSessionId}`;
         let draftMsg: Message | null = null;
         try {
           const raw = sessionStorage.getItem(draftKey);
-          if (firstLoad && !generating && raw) {
+          if (firstLoad && !snapshot.generating && raw) {
             const draft = JSON.parse(raw) as {
               content: string;
               thinking?: string;
               sources?: { id: string; title: string }[];
               timestamp: number;
             };
-            const alreadyHas = serverMessages.some(
+            const alreadyHas = snapshot.messages.some(
               (m) => m.role === "assistant" && m.timestamp >= draft.timestamp,
             );
             if (!alreadyHas && draft.content) {
@@ -207,25 +364,32 @@ export function useChatPersistence(
         }
 
         setRestoredMessages([
-          ...serverMessages,
+          ...snapshot.messages,
           ...(draftMsg ? [draftMsg] : []),
         ]);
         firstLoad = false;
-        if (generating) {
+        if (snapshot.generating) {
           pollTimer = setTimeout(() => void restore(), 1_500);
         }
-      } catch {
-        // fresh session is fine
-      } finally {
-        if (!cancelled) setRestored(true);
+      } catch (error) {
+        if (cancelled || controller.signal.aborted) return;
+        logChatPersistence("session restore failed", {
+          sessionId: controlledSessionId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        setRestored(false);
+        setRestoreError(true);
+        setBackgroundLoading(false);
+        setBackgroundGenerationId(null);
       }
     };
     void restore();
     return () => {
       cancelled = true;
+      controller.abort();
       if (pollTimer) clearTimeout(pollTimer);
     };
-  }, [controlledSessionId]);
+  }, [controlledSessionId, restoreAttempt]);
 
   // refs for unload handlers (kept in sync by the consumer)
   const messagesRef = useRef<Message[]>([]);
@@ -304,15 +468,20 @@ export function useChatPersistence(
     };
   }, []);
 
+  const matchesRoute = restoredSessionId === (controlledSessionId ?? null);
   return {
     thinkingMode,
     toggleThinking,
     useRag,
     toggleRag,
-    restoredMessages,
-    restored,
-    backgroundLoading,
-    backgroundGenerationId,
+    restoredMessages: matchesRoute ? restoredMessages : null,
+    restoredGenerating: matchesRoute && restoredGenerating,
+    restored: matchesRoute && restored,
+    restoreError: matchesRoute && restoreError,
+    retryRestore,
+    finishBackgroundGeneration,
+    backgroundLoading: matchesRoute && backgroundLoading,
+    backgroundGenerationId: matchesRoute ? backgroundGenerationId : null,
     updateRefs,
   };
 }

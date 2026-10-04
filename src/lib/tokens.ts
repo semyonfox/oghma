@@ -15,11 +15,3 @@ export function generateSecureToken(): string {
 export function hashToken(rawToken: string): string {
   return crypto.createHash("sha256").update(rawToken).digest("hex");
 }
-
-/**
- * verifies a raw token against a stored hash
- * hashes the raw token and compares to the stored value
- */
-export function verifyTokenHash(rawToken: string, storedHash: string): boolean {
-  return hashToken(rawToken) === storedHash;
-}

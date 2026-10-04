@@ -42,15 +42,16 @@ export interface TreeModel extends TreeData {
 
 export const ROOT_ID = "root";
 
-export const DEFAULT_TREE: TreeModel = {
-  rootId: ROOT_ID,
-  items: {
-    root: {
-      id: ROOT_ID,
-      children: [],
+export function createEmptyTree(): TreeModel {
+  return {
+    rootId: ROOT_ID,
+    items: {
+      root: { id: ROOT_ID, children: [] },
     },
-  },
-};
+  };
+}
+
+export const DEFAULT_TREE = createEmptyTree();
 
 export interface TreeMovePosition {
   parentId: string;
@@ -58,8 +59,16 @@ export interface TreeMovePosition {
 }
 
 export interface TreeMoveRequest {
-  source: TreeMovePosition;
-  destination: TreeMovePosition;
+  noteId: string;
+  expectedParentId: string | null;
+  parentId: string | null;
+}
+
+export interface TreeMoveResult {
+  success: true;
+  noteId: string;
+  oldParentId: string | null;
+  newParentId: string | null;
 }
 
 export interface TreeExpansionRequest {

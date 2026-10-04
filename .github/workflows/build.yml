@@ -2,9 +2,14 @@ name: Build
 
 on:
   pull_request:
-    branches: [main, production]
+    branches: [main, dev, production]
   push:
     branches: [main, dev]
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -13,25 +18,38 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Select web checks
+        id: changes
+        run: |
+          node --test scripts/select-ci-checks.test.mjs
+          node scripts/select-ci-checks.mjs
 
       - name: Set up Node.js
+        if: steps.changes.outputs.checks != '[]'
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: "npm"
 
       - name: Install dependencies
+        if: steps.changes.outputs.checks != '[]'
         run: npm ci
 
       - name: Lint
+        if: contains(fromJSON(steps.changes.outputs.checks), 'lint')
         run: npm run lint
         continue-on-error: false
 
       - name: i18n audit
+        if: contains(fromJSON(steps.changes.outputs.checks), 'web')
         run: npm run i18n:audit
         continue-on-error: false
 
       - name: Build
+        if: contains(fromJSON(steps.changes.outputs.checks), 'web')
         run: npm run build
         continue-on-error: false
         env:

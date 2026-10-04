@@ -28,8 +28,8 @@ test("a toolbar user can reference a note and create a backlink", async ({
     .locator(".oghma-milkdown-editor [contenteditable='true']")
     .first();
   await expect(content).toContainText(target.title);
-  await editor.getByRole("button", { name: "Unsaved" }).click();
-  await expect(editor.getByText("Saved", { exact: true })).toBeVisible();
+  await editor.getByRole("button", { name: "Save (Ctrl+S)", exact: true }).click();
+  await expect(editor.getByLabel("Saved", { exact: true })).toBeVisible();
 
   await expect
     .poll(async () => {

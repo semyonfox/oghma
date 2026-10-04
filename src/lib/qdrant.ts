@@ -1,4 +1,5 @@
 import logger from "@/lib/logger";
+import { config } from "@/lib/config";
 
 const DEFAULT_COLLECTION = "oghma_chunks";
 // Keep high-dimensional JSON vector requests comfortably below Qdrant's
@@ -100,6 +101,9 @@ async function qdrantFetch<T>(
 ): Promise<T> {
   const res = await fetch(`${qdrantUrl()}${path}`, {
     ...init,
+    signal: init.signal
+      ? AbortSignal.any([init.signal, AbortSignal.timeout(10_000)])
+      : AbortSignal.timeout(10_000),
     headers: {
       ...qdrantHeaders(),
       ...init.headers,
@@ -120,16 +124,19 @@ async function qdrantFetch<T>(
 async function createPayloadIndex(
   fieldName: string,
   fieldSchema: "keyword" | "bool" = "keyword",
+  signal?: AbortSignal,
 ): Promise<void> {
   try {
     await qdrantFetch(`/collections/${qdrantCollection()}/index?wait=true`, {
       method: "PUT",
+      signal,
       body: JSON.stringify({
         field_name: fieldName,
         field_schema: fieldSchema,
       }),
     });
   } catch (error) {
+    signal?.throwIfAborted();
     logger.warn("qdrant payload index creation failed", {
       fieldName,
       fieldSchema,
@@ -138,22 +145,24 @@ async function createPayloadIndex(
   }
 }
 
-export async function ensureQdrantCollection(vectorSize: number): Promise<void> {
+export async function ensureQdrantCollection(vectorSize: number, signal?: AbortSignal): Promise<void> {
   if (ensuredCollectionSize === vectorSize) return;
 
   const collection = qdrantCollection();
   const existing = await fetch(`${qdrantUrl()}/collections/${collection}`, {
     headers: qdrantHeaders(),
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(10_000)]) : AbortSignal.timeout(10_000),
   });
 
   if (existing.status === 404) {
     await qdrantFetch(`/collections/${collection}`, {
       method: "PUT",
+      signal,
       body: JSON.stringify(qdrantCollectionConfig(vectorSize)),
     });
-    await createPayloadIndex("user_id");
-    await createPayloadIndex("document_id");
-    await createPayloadIndex("searchable", "bool");
+    await createPayloadIndex("user_id", "keyword", signal);
+    await createPayloadIndex("document_id", "keyword", signal);
+    await createPayloadIndex("searchable", "bool", signal);
     ensuredCollectionSize = vectorSize;
     return;
   }
@@ -175,19 +184,21 @@ export async function ensureQdrantCollection(vectorSize: number): Promise<void> 
 
   await qdrantFetch(`/collections/${collection}`, {
     method: "PATCH",
+    signal,
     body: JSON.stringify({
       hnsw_config: qdrantCollectionConfig(vectorSize).hnsw_config,
       optimizers_config: qdrantCollectionConfig(vectorSize).optimizers_config,
     }),
   }).catch((error) => {
+    signal?.throwIfAborted();
     logger.warn("qdrant collection index config update failed", {
       collection,
       error,
     });
   });
-  await createPayloadIndex("user_id");
-  await createPayloadIndex("document_id");
-  await createPayloadIndex("searchable", "bool");
+  await createPayloadIndex("user_id", "keyword", signal);
+  await createPayloadIndex("document_id", "keyword", signal);
+  await createPayloadIndex("searchable", "bool", signal);
 
   ensuredCollectionSize = vectorSize;
 }
@@ -196,12 +207,16 @@ export async function upsertChunkVectors(
   points: ChunkVectorPoint[],
 ): Promise<void> {
   if (points.length === 0) return;
-  await ensureQdrantCollection(points[0].vector.length);
+  // One deadline covers every batch and collection setup while the caller
+  // holds a note lock. Keep headroom before PostgreSQL's idle transaction limit.
+  const signal = AbortSignal.timeout(Math.max(1, Math.min(15_000, Math.floor(config.db.transactionTimeoutMs / 2))));
+  await ensureQdrantCollection(points[0].vector.length, signal);
 
   for (let offset = 0; offset < points.length; offset += UPSERT_BATCH_SIZE) {
     const batch = points.slice(offset, offset + UPSERT_BATCH_SIZE);
     await qdrantFetch(`/collections/${qdrantCollection()}/points?wait=true`, {
       method: "PUT",
+      signal,
       body: JSON.stringify({
         points: batch.map((point) => ({
           id: point.chunkId,
@@ -315,6 +330,7 @@ export async function searchChunkVectors({
   excludeDocumentIds,
   excludeChunkIds,
 }: SearchChunkVectorsParams): Promise<ChunkVectorHit[]> {
+  if (documentIds?.length === 0) return [];
   await ensureQdrantCollection(vector.length);
 
   const response = await qdrantFetch<{ result: QdrantSearchPoint[] }>(

@@ -1,3 +1,4 @@
+import logger from "@/lib/logger";
 /**
  * Canvas Import Worker
  * Handler-level orchestration for Canvas imports. worker-entry.ts owns process
@@ -56,7 +57,7 @@ async function runJobPipeline(
 // ── Job entry point (legacy single-pass) ────────────────────────────────────
 
 export async function processImportJob(jobId: string): Promise<boolean> {
-  console.log(`[${new Date().toISOString()}] Processing import job: ${jobId}`);
+  logger.info("worker_event");
   let job:
     | { id: string; user_id: string; course_ids: string | Array<unknown> }
     | undefined;
@@ -76,21 +77,21 @@ export async function processImportJob(jobId: string): Promise<boolean> {
       RETURNING *
     `;
     if (!job) {
-      console.log(`Job ${jobId} is already claimed, terminal, cancelled, or missing`);
+      logger.info("worker_event");
       return false;
     }
     await runJobPipeline(jobId, job.user_id, parseJobCourses(job));
 
     const completed = await checkAndCompleteJob(jobId, job.user_id);
     if (!completed) {
-      console.log(`Job ${jobId} remains active while file work or Marker completion is pending`);
+      logger.info("worker_event");
       return true;
     }
 
-    console.log(`Job completed: ${jobId}`);
+    logger.info("worker_event");
     return true;
   } catch (error) {
-    console.error(`Job failed: ${jobId}`, error);
+    logger.error("worker_event");
     await sql`
       UPDATE app.canvas_import_jobs
       SET status = 'failed', error_message = ${errorMessage(error)}, updated_at = NOW()
@@ -107,6 +108,8 @@ export async function processImportJob(jobId: string): Promise<boolean> {
 export { processDiscoverJob } from "./import-discovery";
 export {
   processCanvasFile,
+  processCanvasExtract,
+  recoverPendingCanvasExtracts,
   processDirectExtraction,
   processExtractionRetry,
   recoverPendingExtractionRetries,

@@ -1,3 +1,6 @@
+import { CanvasClaimLostError, withCanvasExecution, withCanvasPublication, CANVAS_CLAIM_SECONDS } from "./execution";
+import { discoverAssignmentMaterials } from "./assignment-materials";
+import { randomUUID } from "node:crypto";
 /**
  * Canvas Import — Discovery Phase
  *
@@ -40,6 +43,7 @@ import {
   fetchResource,
   isJobCancelled,
   downloadAndStoreFile,
+  checkAndCompleteJob,
 } from "./import-extraction";
 
 // Canvas penalizes concurrent requests. Discovery deliberately defaults to a
@@ -50,10 +54,39 @@ const CANVAS_DISCOVERY_CONCURRENCY = Math.max(
   Number.parseInt(process.env.CANVAS_DISCOVERY_CONCURRENCY ?? "", 10) || 1,
 );
 
+let discoveryDispatchRunning = false;
+let discoveryDispatchRequested = false;
+
+function requestDiscoveryDispatch(jobId: string) {
+  discoveryDispatchRequested = true;
+  if (discoveryDispatchRunning) return;
+  discoveryDispatchRunning = true;
+
+  const dispatch = async () => {
+    discoveryDispatchRequested = false;
+    try {
+      await dispatchFairCanvasFiles(2);
+    } catch (error) {
+      logger.warn("canvas-import-discovery-dispatch-deferred", {
+        jobId, error: errorMessage(error),
+      });
+    } finally {
+      if (discoveryDispatchRequested) {
+        setTimeout(() => { void dispatch(); }, 250);
+      } else {
+        discoveryDispatchRunning = false;
+      }
+    }
+  };
+  void dispatch();
+}
+
 interface ImportContext {
   client: CanvasClient;
   jobId: string;
   storage?: StoreS3;
+  skippedFileIds?: Set<string>;
+  assignmentId?: string;
 }
 
 interface DiscoveredCanvasFile extends CanvasFile {
@@ -64,6 +97,7 @@ interface CanvasImportJobRow {
   course_ids: unknown;
   user_id: string;
   started_at: Date | string | null;
+  execution_attempts: number;
 }
 
 type AttachmentHandler = (
@@ -75,6 +109,10 @@ type AttachmentHandler = (
 function throwFirstRejected(results: PromiseSettledResult<unknown>[], context: string) {
   const failure = results.find((result) => result.status === "rejected");
   if (failure) {
+    // Lifecycle signals must reach the course/worker boundary intact.
+    if (failure.reason instanceof CanvasFolderTrashedError || failure.reason instanceof CanvasClaimLostError) {
+      throw failure.reason;
+    }
     throw new Error(
       `Canvas ${context} failed: ${
         failure.reason instanceof Error ? failure.reason.message : String(failure.reason)
@@ -121,6 +159,7 @@ async function insertPendingFile(
   parentFolderId: string | null,
   s3Prefix: string,
 ) {
+  const published = await withCanvasPublication(async () => {
   const moduleIdVal = moduleId ?? -1;
   const canvasCourseId = canvasIdForBigintColumn(courseId, "Canvas course ID");
   const canvasModuleId = canvasModuleIdForBigintColumn(moduleIdVal);
@@ -140,9 +179,9 @@ async function insertPendingFile(
   // tree lifecycle lock with Trash, so either this row is committed before
   // the enclosing folder is deleted (and gets cancelled with it), or the
   // deleted parent prevents this late Canvas page from publishing any work.
-  await sql.begin(async (tx) => {
+  return sql.begin(async (tx) => {
     await lockUserTree(tx, userId);
-    await tx`
+    return tx<{ id: string; status: string }[]>`
       INSERT INTO app.canvas_imports (
         id, user_id, canvas_course_id, canvas_module_id, canvas_file_id,
         filename, mime_type, status, error_message, job_id, parent_folder_id, s3_prefix
@@ -170,6 +209,14 @@ async function insertPendingFile(
       DO UPDATE SET
         status           = EXCLUDED.status,
         job_id           = EXCLUDED.job_id,
+        claim_token      = NULL,
+        claim_expires_at = NULL,
+        execution_attempts = 0,
+        retry_attempts   = 0,
+        retry_seq        = app.canvas_imports.retry_seq + 1,
+        source_s3_key    = NULL,
+        next_attempt_at  = NULL,
+        retryable        = FALSE,
         canvas_course_id = EXCLUDED.canvas_course_id,
         canvas_module_id = CASE
           WHEN (CASE WHEN EXCLUDED.canvas_module_id <> -1 THEN 2
@@ -213,8 +260,28 @@ async function insertPendingFile(
       -- rows belong to the existing job and must never be reassigned by a
       -- duplicate discovery or stale page response.
       WHERE app.canvas_imports.status IN ('error', 'forbidden', 'cancelled')
+        AND app.canvas_imports.job_id IS DISTINCT FROM EXCLUDED.job_id
+      RETURNING id, status
     `;
   });
+
+  });
+  // Publication has committed, so a file worker can claim this row while
+  // discovery continues. The periodic scheduler recovers a failed enqueue.
+  if (published?.some((row) => row.status === "pending")) {
+    requestDiscoveryDispatch(jobId);
+  }
+}
+
+async function recordSkippedFolder(ctx: ImportContext, title: string, fileIds: Array<string | number>) {
+  for (const id of fileIds) ctx.skippedFileIds?.add(String(id));
+  await withCanvasPublication(() => sql`
+    UPDATE app.canvas_import_jobs
+    SET discovery_progress = jsonb_set(COALESCE(discovery_progress, '{}'::jsonb), '{skippedFolders}',
+      COALESCE(discovery_progress->'skippedFolders', '[]'::jsonb) || ${JSON.stringify([title])}::text::jsonb),
+      updated_at = NOW()
+    WHERE id = ${ctx.jobId}::uuid AND status = 'discovering'
+  `);
 }
 
 // ── Two-phase discovery helpers ─────────────────────────────────────────────
@@ -261,7 +328,9 @@ async function discoverModuleFiles(
       if (fileItems.length === 0) return;
 
       // create folder now so parent_folder_id is stable before per-file processing
-      const folderId = await findOrCreateFolder(
+      let folderId: string | null;
+      try {
+        folderId = await findOrCreateFolder(
         userId,
         module.name,
         courseFolderId,
@@ -270,6 +339,11 @@ async function discoverModuleFiles(
           canvasModuleId: canvasIdForBigintColumn(module.id, "Canvas module ID"),
         },
       );
+      } catch (error) {
+        if (!(error instanceof CanvasFolderTrashedError)) throw error;
+        await recordSkippedFolder(ctx, `${courseTitle} / ${module.name}`, fileItems.map((item) => item.content_id));
+        return;
+      }
       const s3Prefix = `canvas/${userId}/${courseId}/${module.id}`;
 
       const fileResults = await pooled(
@@ -323,14 +397,20 @@ async function eachAssignmentWithFiles(
 ) {
   const { client, jobId } = ctx;
   const { data: assignments, forbidden } = await fetchResource(
-    (id) => client.getAssignments(id),
+    async (id) => {
+      if (!ctx.assignmentId) return client.getAssignments(id);
+      const result = await client.getAssignment(id, ctx.assignmentId);
+      if (!result.data || result.error) throw new Error(result.error ?? "Assignment unavailable");
+      const materials = await discoverAssignmentMaterials(client, id, result.data);
+      return { ...result, data: [{ ...result.data, attachments: materials.flatMap(material => material.file && !material.unavailable ? [material.file] : []) }] };
+    },
     courseId,
     userId,
     courseTitle,
     "assignments",
     jobId,
   );
-  if (forbidden || !assignments || assignments.length === 0) return;
+  if (forbidden || !assignments || assignments.length === 0) return assignments;
 
   const hasProcessableFile = (att: CanvasFile): att is DiscoveredCanvasFile => {
     const mimeType = resolveMimeType(att.display_name, att.content_type);
@@ -339,9 +419,11 @@ async function eachAssignmentWithFiles(
   const assignmentsWithFiles = assignments.filter((a) =>
     (a.attachments ?? []).some(hasProcessableFile),
   );
-  if (assignmentsWithFiles.length === 0) return;
+  if (assignmentsWithFiles.length === 0) return assignments;
 
-  const assignmentsFolderId = await findOrCreateFolder(
+  let assignmentsFolderId: string | null;
+  try {
+    assignmentsFolderId = await findOrCreateFolder(
     userId,
     "Assignments",
     courseFolderId,
@@ -351,12 +433,21 @@ async function eachAssignmentWithFiles(
     },
   );
 
+  } catch (error) {
+    if (!(error instanceof CanvasFolderTrashedError)) throw error;
+    await recordSkippedFolder(ctx, `${courseTitle} / Assignments`,
+      assignmentsWithFiles.flatMap((assignment) => (assignment.attachments ?? []).map((file) => file.id)));
+    return assignments;
+  }
+
   const assignmentResults = await pooled(
     assignmentsWithFiles.map((assignment) => async () => {
       const attachments = (assignment.attachments ?? []).filter(
         hasProcessableFile,
       );
-      const assignmentFolderId = await findOrCreateFolder(
+      let assignmentFolderId: string | null;
+      try {
+        assignmentFolderId = await findOrCreateFolder(
         userId,
         assignment.name,
         assignmentsFolderId,
@@ -368,11 +459,17 @@ async function eachAssignmentWithFiles(
           ),
         },
       );
+      } catch (error) {
+        if (!(error instanceof CanvasFolderTrashedError)) throw error;
+        await recordSkippedFolder(ctx, `${courseTitle} / ${assignment.name}`, attachments.map((file) => file.id));
+        return;
+      }
       await handleAttachments(assignment, attachments, assignmentFolderId);
     }),
     CANVAS_DISCOVERY_CONCURRENCY,
   );
   throwFirstRejected(assignmentResults, `assignment discovery for ${courseId}`);
+  return assignments;
 }
 
 async function discoverAssignmentFiles(
@@ -383,7 +480,7 @@ async function discoverAssignmentFiles(
   ctx: ImportContext,
 ) {
   const { jobId } = ctx;
-  await eachAssignmentWithFiles(
+  return eachAssignmentWithFiles(
     courseId,
     userId,
     courseTitle,
@@ -430,6 +527,7 @@ async function discoverStandaloneCourseFiles(
 
   const results = await pooled(
     files.map((file) => async () => {
+      if (ctx.skippedFileIds?.has(String(file.id))) return;
       if (typeof file.display_name !== "string") {
         throw new Error(`Canvas file ${file.id} is missing a display name`);
       }
@@ -448,18 +546,37 @@ async function discoverStandaloneCourseFiles(
   throwFirstRejected(results, `course file discovery for ${courseId}`);
 }
 
+async function discoveryStage(jobId: string, stage: string) {
+  await withCanvasPublication(() => sql`
+    UPDATE app.canvas_import_jobs SET discovery_progress =
+      COALESCE(discovery_progress, '{}'::jsonb) || jsonb_build_object('stage', ${stage}::text), updated_at = NOW()
+    WHERE id = ${jobId}::uuid AND status = 'discovering'
+  `);
+}
+
+async function timedDiscoveryStage<T>(jobId: string, courseId: string, stage: string, work: () => Promise<T>): Promise<T> {
+  await discoveryStage(jobId, stage);
+  const startedAt = Date.now();
+  try {
+    return await work();
+  } finally {
+    logger.info("canvas-import-discovery-stage", { jobId, courseId, stage, elapsedMs: Date.now() - startedAt });
+  }
+}
+
 async function discoverCourse(
   course: CanvasCourseSelection,
   userId: string,
   ctx: ImportContext,
 ) {
+  ctx = { ...ctx, skippedFileIds: new Set<string>(), assignmentId: course.assignmentId };
   const courseId = String(course.id);
   const { title: courseTitle, academicYear } = cleanCourseName(
     course.course_code,
     course.name,
     course.term,
   );
-  console.log(`Discovering course: ${courseTitle}`);
+  logger.info("worker_event");
 
   try {
     const courseFolderId = await findOrCreateFolder(userId, courseTitle, null, {
@@ -467,32 +584,50 @@ async function discoverCourse(
       canvasAcademicYear: academicYear,
     });
 
+    if (course.assignmentId) {
+      await timedDiscoveryStage(ctx.jobId, courseId, "assignments", () =>
+        discoverAssignmentFiles(courseId, userId, courseTitle, courseFolderId, ctx));
+      return;
+    }
+
     // Canvas dynamically charges request cost and penalizes parallel calls.
     // Keep top-level resource discovery serial; its inner operations are also
     // bounded by CANVAS_DISCOVERY_CONCURRENCY.
-    await discoverModuleFiles(courseId, userId, courseTitle, courseFolderId, ctx);
-    await discoverAssignmentFiles(
+    await timedDiscoveryStage(ctx.jobId, courseId, "modules", () =>
+      discoverModuleFiles(courseId, userId, courseTitle, courseFolderId, ctx));
+    const assignments = await timedDiscoveryStage(ctx.jobId, courseId, "assignments", () => discoverAssignmentFiles(
       courseId,
       userId,
       courseTitle,
       courseFolderId,
       ctx,
-    );
-    await discoverStandaloneCourseFiles(
+    ));
+    await timedDiscoveryStage(ctx.jobId, courseId, "files", () => discoverStandaloneCourseFiles(
       courseId,
       userId,
       courseTitle,
       courseFolderId,
       ctx,
-    );
+    ));
 
-    await syncAssignmentMetadataQuietly(courseId, userId, courseTitle, ctx.client);
+    const metadataStartedAt = Date.now();
+    await syncAssignmentMetadataQuietly(courseId, userId, courseTitle, ctx.client, assignments ?? undefined);
+    logger.info("canvas-import-discovery-stage", {
+      jobId: ctx.jobId, courseId, stage: "assignment_metadata", elapsedMs: Date.now() - metadataStartedAt,
+    });
   } catch (error) {
     if (error instanceof CanvasFolderTrashedError) {
       // A user intentionally removed this course hierarchy while discovery
       // was in flight. Skip this course rather than silently recreate it or
       // fail unrelated courses in the same import job.
-      console.log(`Skipping trashed Canvas course: ${courseTitle}`);
+      await withCanvasPublication(() => sql`
+        UPDATE app.canvas_import_jobs
+        SET discovery_progress = jsonb_set(COALESCE(discovery_progress, '{}'::jsonb), '{skippedCourses}',
+          COALESCE(discovery_progress->'skippedCourses', '[]'::jsonb) || ${JSON.stringify([courseTitle])}::text::jsonb),
+          updated_at = NOW()
+        WHERE id = ${ctx.jobId}::uuid AND status = 'discovering'
+      `);
+      logger.info("worker_event");
       return;
     }
     throw error;
@@ -505,6 +640,7 @@ async function syncAssignmentMetadataQuietly(
   userId: string,
   courseTitle: string,
   client: CanvasClient,
+  assignments?: CanvasAssignment[],
 ) {
   try {
     const { synced, errors } = await syncAssignmentMetadata(
@@ -512,16 +648,13 @@ async function syncAssignmentMetadataQuietly(
       userId,
       courseTitle,
       client,
+      assignments,
     );
     if (synced > 0 || errors > 0) {
-      console.log(
-        `[sync-assignments] course ${courseTitle}: ${synced} synced, ${errors} errors`,
-      );
+      logger.info("worker_event");
     }
-  } catch (err) {
-    console.warn(
-      `[sync-assignments] skipped for course ${courseTitle}: ${errorMessage(err)}`,
-    );
+  } catch {
+    logger.warn("worker_event");
   }
 }
 
@@ -545,7 +678,7 @@ async function processModules(
     jobId,
   );
   if (!modules) {
-    console.warn(`No modules (or restricted) for course ${courseId}`);
+    logger.warn("worker_event");
     return;
   }
   await pooled(
@@ -573,7 +706,7 @@ async function processModules(
             item.content_id,
           );
           if (fileForbidden || !file) {
-            console.log(`File forbidden: ${item.title}`);
+            logger.info("worker_event");
             return null;
           }
           return file;
@@ -644,7 +777,7 @@ export async function processCourse(courseInput: unknown, userId: string, ctx: I
     course.name,
     course.term,
   );
-  console.log(`Processing course: ${courseTitle}`);
+  logger.info("worker_event");
   try {
     const courseFolderId = await findOrCreateFolder(userId, courseTitle, null, {
       canvasCourseId: canvasIdForBigintColumn(course.id, "Canvas course ID"),
@@ -657,7 +790,7 @@ export async function processCourse(courseInput: unknown, userId: string, ctx: I
     await syncAssignmentMetadataQuietly(courseId, userId, courseTitle, ctx.client);
   } catch (error) {
     if (error instanceof CanvasFolderTrashedError) {
-      console.log(`Skipping trashed Canvas course: ${courseTitle}`);
+      logger.info("worker_event");
       return;
     }
     throw error;
@@ -666,51 +799,52 @@ export async function processCourse(courseInput: unknown, userId: string, ctx: I
 
 // ── Two-phase discovery entry point ─────────────────────────────────────────
 
-export async function processDiscoverJob(jobId: string, attempt = 0) {
-  console.log(
-    `[${new Date().toISOString()}] Starting discovery for job: ${jobId}`,
-  );
+export async function processDiscoverJob(jobId: string, _attempt = 0) {
+  logger.info("worker_event");
+  const claimToken = randomUUID();
   try {
     // Claim discovery atomically. Queue providers are at-least-once, so a
     // duplicate delivery must not run a second course walk alongside a live
     // worker. A stale discovery is explicitly reclaimed by the DB poller.
     const [job] = await sql<CanvasImportJobRow[]>`
       UPDATE app.canvas_import_jobs
-      SET status = 'discovering',
+      SET status = 'discovering', claim_token = ${claimToken}::uuid,
+          claim_expires_at = NOW() + ${CANVAS_CLAIM_SECONDS} * INTERVAL '1 second',
+          execution_attempts = execution_attempts + 1,
           started_at = COALESCE(started_at, NOW()),
           updated_at = NOW()
       WHERE id = ${jobId}
         AND type = 'canvas'
-        AND (
-          status = 'queued'
-          OR (
-            status = 'discovering'
-            AND updated_at < NOW() - INTERVAL '15 minutes'
-          )
-        )
+        AND status = 'queued'
       RETURNING *
     `;
     if (!job) {
-      console.log(`Job ${jobId} is already claimed, terminal, or missing`);
+      logger.info("worker_event");
       return false;
     }
 
+    return await withCanvasExecution({ jobId, userId: job.user_id, token: claimToken }, async () => {
     const [creds] =
       await sql<{ canvas_token: string; canvas_domain: string }[]>`SELECT canvas_token, canvas_domain FROM app.login WHERE user_id = ${job.user_id}`;
     if (!creds) throw new Error("Canvas credentials not found");
     const plainToken = decrypt(creds.canvas_token, job.user_id);
     const client = new CanvasClient(creds.canvas_domain, plainToken);
 
+    const courses = parseJobCourses(job);
+    await withCanvasPublication(() => sql`UPDATE app.canvas_import_jobs
+      SET discovery_progress = ${JSON.stringify({ completedCourses: 0, totalCourses: courses.length, stage: "modules" })}::text::jsonb
+      WHERE id = ${jobId}::uuid`);
     const courseResults = await pooled(
-      parseJobCourses(job).map((course) => async () => {
+      courses.map((course) => async () => {
         if (await isJobCancelled(jobId)) return;
         await discoverCourse(course, job.user_id, { client, jobId });
         // Heartbeat after each bounded course walk. The orphan detector can
         // distinguish a slow but healthy import from a dead worker.
         await sql`
           UPDATE app.canvas_import_jobs
-          SET updated_at = NOW()
-          WHERE id = ${jobId} AND status = 'discovering'
+          SET updated_at = NOW(), discovery_progress = jsonb_set(discovery_progress, '{completedCourses}',
+            to_jsonb(COALESCE((discovery_progress->>'completedCourses')::int, 0) + 1))
+          WHERE id = ${jobId} AND status = 'discovering' AND claim_token = ${claimToken}::uuid
         `;
       }),
       CANVAS_DISCOVERY_CONCURRENCY,
@@ -725,9 +859,9 @@ export async function processDiscoverJob(jobId: string, attempt = 0) {
         UPDATE app.canvas_imports
         SET status = 'cancelled', error_message = 'Cancelled by user', updated_at = NOW()
         WHERE job_id = ${jobId}::uuid
-          AND status IN ('pending', 'downloading', 'processing', 'indexing', 'pending_retry', 'pending_marker')
+          AND status IN ('pending', 'downloading', 'processing', 'indexing', 'pending_extract', 'pending_retry', 'pending_marker', 'pending_cache')
       `;
-      console.log(`Job ${jobId} cancelled during discovery`);
+      logger.info("worker_event");
       return false;
     }
 
@@ -736,34 +870,23 @@ export async function processDiscoverJob(jobId: string, attempt = 0) {
       await sql`SELECT COUNT(*) as count FROM app.canvas_imports WHERE job_id = ${jobId}::uuid`;
     const total = parseInt(count, 10);
 
-    const transitioned = await sql`
+    const transitioned = await withCanvasPublication(() => sql`
       UPDATE app.canvas_import_jobs
       SET status = 'processing', expected_total = ${total}, updated_at = NOW()
-      WHERE id = ${jobId} AND status = 'discovering'
+      WHERE id = ${jobId} AND status = 'discovering' AND claim_token = ${claimToken}::uuid
       RETURNING id
-    `;
+    `);
     if (transitioned.length === 0) {
-      console.log(`Job ${jobId} was cancelled during discovery finalization`);
+      logger.info("worker_event");
       return false;
     }
 
     const pendingRecords =
       await sql`SELECT id FROM app.canvas_imports WHERE job_id = ${jobId}::uuid AND status = 'pending'`;
-
-    if (pendingRecords.length === 0) {
-      await sql`
-        UPDATE app.canvas_import_jobs
-        SET status = 'complete', completed_at = NOW(), updated_at = NOW()
-        WHERE id = ${jobId} AND status = 'processing'
-      `;
-
-      console.log(
-        `Job ${jobId}: no processable files found, completed immediately`,
-      );
-      return true;
-    }
-
-    await dispatchFairCanvasFiles();
+    if (pendingRecords.length > 0) await dispatchFairCanvasFiles();
+    // A file may finish before discovery does. Completion is safe only after
+    // discovery has transitioned the job and every child is terminal.
+    await checkAndCompleteJob(jobId, job.user_id);
 
     const startTime = job.started_at ? new Date(job.started_at) : new Date();
     const elapsedMs = Date.now() - startTime.getTime();
@@ -778,27 +901,59 @@ export async function processDiscoverJob(jobId: string, attempt = 0) {
       userId: job.user_id,
     });
 
-    console.log(
-      `[${new Date().toISOString()}] Discovery done: ${total} total, ${pendingRecords.length} ready for fair scheduling for job ${jobId}`,
-    );
+    logger.info("worker_event");
     return true;
+    });
   } catch (error) {
-    console.error(`Discovery failed: ${jobId}`, error);
+    if (error instanceof CanvasClaimLostError) return false;
+    logger.error("worker_event");
     const message = errorMessage(error);
     logger.error("canvas-import-discovery-error", {
       jobId,
       error: message,
     });
-    await sql`
-      UPDATE app.canvas_import_jobs
-      SET status = ${attempt + 1 < getCanvasQueueAttemptLimit() ? "queued" : "failed"},
-          error_message = ${message},
-          updated_at = NOW()
-      WHERE id = ${jobId}
-        AND type = 'canvas'
-        AND status = 'discovering'
-    `;
-    if (attempt + 1 < getCanvasQueueAttemptLimit()) throw error;
+    await sql.begin(async (tx) => {
+      const [owner] = await tx<{ user_id: string }[]>`SELECT user_id FROM app.canvas_import_jobs WHERE id = ${jobId}::uuid`;
+      if (!owner) return;
+      await tx`SELECT pg_advisory_xact_lock(hashtextextended(${owner.user_id}::text, 0))`;
+      const [changed] = await tx<{ status: string }[]>`
+        UPDATE app.canvas_import_jobs SET
+          status = CASE WHEN execution_attempts < ${getCanvasQueueAttemptLimit()} THEN 'queued' ELSE 'failed' END,
+          claim_token = NULL, claim_expires_at = NULL, error_message = ${message}, updated_at = NOW()
+        WHERE id = ${jobId}::uuid AND status = 'discovering' AND claim_token = ${claimToken}::uuid
+        RETURNING status
+      `;
+      if (changed?.status === "queued") await tx`
+        UPDATE app.canvas_imports SET
+          status = CASE
+            WHEN status = 'indexing' AND retry_attempts >= 4 THEN 'error'
+            WHEN status = 'indexing' AND retry_attempts > 0 AND (
+              source_s3_key IS NOT NULL OR EXISTS (
+              SELECT 1 FROM app.notes source
+              WHERE source.note_id = app.canvas_imports.note_id AND source.s3_key IS NOT NULL
+            )) THEN 'pending_retry'
+            WHEN status = 'indexing' AND source_s3_key IS NOT NULL THEN 'pending_extract'
+            ELSE 'pending'
+          END,
+          claim_token = NULL, claim_expires_at = NULL, dispatched_at = NULL,
+          next_attempt_at = NOW(), retry_seq = retry_seq + 1, updated_at = NOW()
+        WHERE job_id = ${jobId}::uuid AND status IN ('downloading', 'processing', 'indexing')
+      `;
+      if (changed?.status === "failed") {
+        await tx`
+          UPDATE app.marker_jobs SET status = 'cancelled', error = 'Parent discovery failed', updated_at = NOW()
+          WHERE canvas_job_id = ${jobId}::uuid
+            AND status NOT IN ('completed', 'failed', 'invalid_result', 'cancelled')
+        `;
+        await tx`
+          UPDATE app.canvas_imports SET status = 'error', retryable = TRUE,
+            claim_token = NULL, claim_expires_at = NULL, dispatched_at = NULL,
+            error_message = 'Discovery did not finish', updated_at = NOW()
+          WHERE job_id = ${jobId}::uuid
+            AND status NOT IN ('complete', 'forbidden', 'error', 'cancelled')
+        `;
+      }
+    });
     return false;
   }
 }

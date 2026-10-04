@@ -19,6 +19,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import useNoteTreeStore from "@/lib/notes/state/tree";
+import { publishWorkspaceInvalidation } from "@/lib/notes/workspace-invalidation";
 
 export interface TrashRoot {
   id: string;
@@ -82,6 +83,8 @@ async function requestTrashAction(
   if (!response.ok) {
     throw new Error(`Trash action failed: ${response.status}`);
   }
+  const userId = useNoteTreeStore.getState().ownerUserId;
+  if (userId) publishWorkspaceInvalidation(userId, "tree");
 }
 
 export default function TrashPage() {
@@ -249,7 +252,7 @@ export default function TrashPage() {
         </div>
       </header>
 
-      <div className="obsidian-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6">
+      <div className="obsidian-scrollbar mobile-dock-clearance min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6">
         {loading ? (
           <div className="flex h-full min-h-48 items-center justify-center gap-2 text-sm text-text-tertiary" role="status">
             <ArrowPathIcon className="h-4 w-4 animate-spin" aria-hidden="true" />

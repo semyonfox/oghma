@@ -12,12 +12,20 @@ import { purgeNonUUIDNoteCache } from "@/lib/notes/cache/note";
 export default function useNoteTreeInitialization() {
   const treeAPI = useTreeAPI();
   const noteAPI = useNoteAPI();
-  const initStarted = useRef(false);
+  const initializedGeneration = useRef<number | null>(null);
   const [dependenciesReady, setDependenciesReady] = useState(false);
+  const treeGeneration = useNoteTreeStore((state) => state.generation);
+  const noteSessionReady = useNoteStore((state) => state.sessionReady);
 
   useEffect(() => {
-    if (initStarted.current) return;
-    initStarted.current = true;
+    if (
+      !noteSessionReady ||
+      initializedGeneration.current === treeGeneration
+    ) {
+      return;
+    }
+    initializedGeneration.current = treeGeneration;
+    setDependenciesReady(false);
 
     const toastFn = (message: string, type?: "error") => {
       if (type === "error") toast.error(message);
@@ -36,7 +44,9 @@ export default function useNoteTreeInitialization() {
       .getState()
       .initTree()
       .catch((error) => console.error("Error initializing tree:", error));
-  }, [noteAPI, treeAPI]);
+  }, [noteAPI, noteSessionReady, treeAPI, treeGeneration]);
 
-  return dependenciesReady;
+  return (
+    dependenciesReady && initializedGeneration.current === treeGeneration
+  );
 }

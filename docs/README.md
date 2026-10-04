@@ -1,7 +1,7 @@
 # Documentation
 
 > **Status:** Current navigation map
-> **Last reviewed:** 2026-08-12
+> **Last reviewed:** 2026-09-13
 > **Source of truth for:** Which document owns each kind of project information
 
 Use this page to find the owner of a fact. Link to that owner instead of copying its content into another checklist or handover.
@@ -13,8 +13,9 @@ Use this page to find the owner of a fact. Link to that owner instead of copying
 | Understand the product | [Project README](../README.md) |
 | Run the app locally | [Local setup](../SETUP.md) |
 | Find current work | [Current-work pointers](../TODO.md) |
-| Understand the running code | [Architecture](engineering/architecture.md) |
-| [Anonymous usage counts](engineering/anonymous-telemetry.md) | Default-off collection, privacy controls, transport contract and retired reporting |
+| Understand the running code | [Anonymous usage counts](engineering/anonymous-telemetry.md) | Default-off collection, privacy controls, transport contract and retired reporting |
+| [Architecture](engineering/architecture.md) |
+| Build or distribute the Android alpha | [Android alpha](engineering/mobile-alpha.md) |
 | Operate the current deployment | [Infrastructure index](../infra/README.md) and [homelab runbook](../infra/HOMELAB.md) |
 | Operate import and vault workers | [Import-worker runbook](operations/import-worker.md) |
 | Prepare a beta or paid launch | [Launch checklist](product/launch-checklist.md) |
@@ -38,12 +39,16 @@ Use this page to find the owner of a fact. Link to that owner instead of copying
 | Document | Owns |
 |---|---|
 | [Architecture](engineering/architecture.md) | Current application, data, queue, worker, and deployment boundaries |
+| [File-tree coordination](engineering/file-tree-coordination.md) | Tree request ordering, refresh, session resets, and import publication |
 | [Import pipeline](engineering/import-pipeline.md) | Canvas/vault processing stages and tuning model |
+| [Canvas reliability handover](engineering/canvas-import-queue-reliability-handover.md) | Execution ownership, shared PDF dedupe, replacement/Stop contracts, and rollout gates |
 | [Canvas data emergency plan](engineering/canvas-data-emergency-plan.md) | Contingency modes for reducing or stopping retention of Canvas-originated content |
 | [Design system](engineering/design-system.md) | UI tokens and component conventions |
+| [Split-pane editor](engineering/split-pane-editor.md) | Pane drag/swap resolution, save-affordance placement, and the second-editor cost decision |
 | [Markdown rendering](engineering/markdown-rendering.md) | Canonical Markdown, editor, renderer, highlighting, and sanitisation contract |
 | [Unified editor migration handover](engineering/markdown-editor-migration-handover.md) | Target Milkdown spike, implementation criteria, T3 Code visual reference, release gates, and research sources |
 | [Performance](engineering/performance.md) | Repeatable performance-audit workflow and evidence rules |
+| [Database performance and integrity](engineering/database-performance.md) | Database fixes, synthetic measurements, and rollout validation |
 | [Testing](engineering/testing.md) | Suite scopes, fast checks, and disposable-service verification |
 | [Demo flow](engineering/demo-flow.md) | Product walkthrough without duplicating architecture |
 | [Agent compatibility](engineering/agent-compatibility.md) | Verified discovery/action surfaces and agent-safety gaps |
@@ -54,6 +59,7 @@ Use this page to find the owner of a fact. Link to that owner instead of copying
 | Document | Owns |
 |---|---|
 | [Infrastructure index](../infra/README.md) | The owner map for current, target, retained, and historical infrastructure |
+| [Chat](operations/chat.md) | Chat queue, delivery, readiness, diagnosis, and release verification |
 | [Import worker](operations/import-worker.md) | Worker deployment, verification, tuning, and recovery |
 | [Vast Serverless Marker](operations/vast-marker.md) | Ready-to-provision GPU queue boundary, image, scaling, monitoring, launch gates, and rollback |
 | [RunPod Serverless Marker](operations/runpod-marker.md) | Ready-to-provision async GPU endpoint, baked image, telemetry, launch gates, and rollback |
@@ -75,6 +81,11 @@ These files are dated evidence. Recheck volatile provider facts before acting.
 [Historical records](history/README.md) explain completed implementation sessions, handovers, university artifacts, and retired deployment details. They provide provenance, not current instructions.
 
 ## Component documentation
+
+Feature-local maps cover [notes](../src/lib/notes/README.md),
+[chat](../src/lib/chat/README.md), and the
+[import and worker path](../src/lib/canvas/README.md). Use the architecture
+and operations documents above for cross-cutting or runtime changes.
 
 The vendored Canvas MCP has its own [README](../src/lib/canvas-mcp/README.md), [tool manifest](../src/lib/canvas-mcp/TOOL_MANIFEST.md), [contributor guide](../src/lib/canvas-mcp/CONTRIBUTING.md), [attribution record](../src/lib/canvas-mcp/ATTRIBUTION.md), and [license](../src/lib/canvas-mcp/LICENSE). Its standalone 129-tool surface is not the same as the filtered Canvas tool surface hosted by OghmaNotes.
 

@@ -28,3 +28,6 @@ coverage
 benchmark*
 test-results
 playwright-report
+
+# Native app is built separately from the website
+apps/mobile

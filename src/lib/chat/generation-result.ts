@@ -1,16 +1,18 @@
-import type {
-  FinishReason,
-  StepResult,
-  TextStreamPart,
-  ToolSet,
-} from "ai";
+import type { FinishReason, StepResult, TextStreamPart, ToolSet } from "ai";
 
-import type { MessageMetadata, MessagePart } from "@/lib/chat/types";
+import {
+  appendReasoningPart,
+  partitionMessageParts,
+  type NoteActivityRef,
+  type MessageMetadata,
+  type MessagePart,
+} from "@/lib/chat/types";
 import { labelForTool } from "@/lib/chat/tool-labels";
 import {
   noteSearchDetail,
   toolCallDetail,
   toolResultDetail,
+  noteRefsFromToolResult,
 } from "@/lib/chat/tool-display";
 import { shouldSynthesizeFinalAnswer } from "@/lib/chat/final-answer";
 import {
@@ -41,7 +43,13 @@ export type ChatGenerationEffect =
       toolCallId: string;
       detail?: string;
     }
-  | { type: "tool-result"; toolCallId: string; detail?: string }
+  | {
+      type: "tool-result";
+      toolCallId: string;
+      detail?: string;
+      notes?: NoteActivityRef[];
+      status: "completed" | "failed";
+    }
   | { type: "abort" }
   | { type: "error"; error: unknown };
 
@@ -156,11 +164,13 @@ export function applyChatGenerationEvent(
   now = Date.now(),
 ): ChatGenerationUpdate {
   if (event.type === "reasoning-delta") {
+    const result = flushChatGenerationText(current);
     return {
       result: {
-        ...current,
-        thinkingStartedAt: current.thinkingStartedAt ?? now,
-        thinking: current.thinking + event.text,
+        ...result,
+        thinkingStartedAt: result.thinkingStartedAt ?? now,
+        thinking: result.thinking + event.text,
+        parts: appendReasoningPart(result.parts, event.text),
       },
       effect: { type: "thinking", text: event.text },
     };
@@ -189,6 +199,7 @@ export function applyChatGenerationEvent(
             label: labelForTool(event.toolName),
             callId: event.toolCallId,
             detail,
+            status: "running",
           },
         ],
       },
@@ -201,23 +212,28 @@ export function applyChatGenerationEvent(
     };
   }
 
-  if (event.type === "tool-result") {
-    const detail = toolResultDetail(event.toolName, event.output);
+  if (event.type === "tool-result" || event.type === "tool-error") {
+    const failed = event.type === "tool-error";
+    const detail = failed
+      ? "Tool execution failed"
+      : toolResultDetail(event.toolName, event.output);
+    const status = failed ? "failed" : "completed";
+    const notes = failed ? [] : noteRefsFromToolResult(event.toolName, event.output);
     return {
       result: {
         ...current,
-        parts: detail
-          ? current.parts.map((part) =>
-              part.type === "tool" && part.callId === event.toolCallId
-                ? { ...part, detail }
-                : part,
-            )
-          : current.parts,
+        parts: current.parts.map((part) =>
+          part.type === "tool" && part.callId === event.toolCallId
+            ? { ...part, resultDetail: detail, status, ...(notes.length > 0 && { notes }) }
+            : part,
+        ),
       },
       effect: {
         type: "tool-result",
         toolCallId: event.toolCallId,
         detail,
+        notes,
+        status,
       },
     };
   }
@@ -263,7 +279,12 @@ export function buildChatGenerationFromSteps(
   for (const step of steps) {
     for (const content of step.content) {
       if (content.type === "reasoning") {
-        result = { ...result, thinking: result.thinking + content.text };
+        result = flushChatGenerationText(result);
+        result = {
+          ...result,
+          thinking: result.thinking + content.text,
+          parts: appendReasoningPart(result.parts, content.text),
+        };
       } else if (content.type === "text") {
         result = {
           ...result,
@@ -313,9 +334,7 @@ export function finalizeChatGenerationResult(
   maxToolSteps: number,
   now = Date.now(),
 ): ChatGenerationFinalization {
-  const result = flushChatGenerationText(
-    closeChatThinkingWindow(current, now),
-  );
+  const result = flushChatGenerationText(closeChatThinkingWindow(current, now));
 
   if (
     isToolCallLimitFinish(
@@ -336,10 +355,15 @@ export function finalizeChatGenerationResult(
     };
   }
 
-  if (shouldSynthesizeFinalAnswer(result.reply, result.finishReason)) {
+  if (
+    shouldSynthesizeFinalAnswer(
+      partitionMessageParts(result.parts).answerText,
+      result.finishReason,
+    )
+  ) {
     return { kind: "synthesize-final-answer", result };
   }
-  if (!result.reply.trim()) {
+  if (!partitionMessageParts(result.parts).answerText.trim()) {
     return {
       kind: "invalid",
       result,

@@ -101,6 +101,14 @@ replays missed events, and then continues live delivery. Sessions and messages
 are relational data. Assistant messages retain canonical plain `content` and
 optional structured `parts` for durable tool and error UI.
 
+Redis is a required dependency for streamed chat, not merely a cache. The app
+must publish the BullMQ job, the worker must consume the same environment-prefixed
+queue, and the replay endpoint must read the resulting Redis Stream. Generic
+app liveness remains available when Redis is degraded, while
+`GET /api/health?readiness=chat` returns success only when PostgreSQL, Redis,
+and the BullMQ provider are available. Worker readiness separately validates
+the `chat-generation` queue. See the [chat runbook](../operations/chat.md).
+
 Generations are cancellable. Every open browser tab heartbeats a per-user,
 per-tab presence hash in Redis through [`src/lib/chat/presence.ts`](../../src/lib/chat/presence.ts)
 and removes its own field with a `pagehide` beacon. A worker watchdog aborts

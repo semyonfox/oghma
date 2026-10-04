@@ -14,6 +14,7 @@ export async function cancelActiveCanvasImportJobs(
   await tx`
     SELECT pg_advisory_xact_lock(hashtext(${`oghma-canvas-import:${userId}`}))
   `;
+  await tx`SELECT pg_advisory_xact_lock(hashtextextended(${userId}::text, 0))`;
   const cancelled = await tx<{ id: string }[]>`
     UPDATE app.canvas_import_jobs
     SET status = 'cancelled', completed_at = NOW(), updated_at = NOW()
@@ -39,8 +40,8 @@ export async function cancelActiveCanvasImportJobs(
     SET status = 'cancelled', error_message = ${reason}, updated_at = NOW()
     WHERE job_id = ANY(${jobIds}::uuid[])
       AND status IN (
-        'pending', 'downloading', 'processing', 'indexing', 'pending_retry',
-        'pending_marker'
+        'pending', 'downloading', 'processing', 'indexing', 'pending_extract', 'pending_retry',
+        'pending_marker', 'pending_cache'
       )
   `;
   await tx`

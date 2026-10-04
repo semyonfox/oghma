@@ -3,11 +3,13 @@
 import { FC, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import CanvasImportIndicator from "@/components/canvas/canvas-import-indicator";
 import BrandLogo from "@/components/brand-logo";
 import useLayoutStore from "@/lib/notes/state/layout.zustand";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import useGlobalSearchStore from "@/lib/global-search/state";
 import usePomodoroStore from "@/lib/notes/state/pomodoro.zustand";
+import { useNativeAppBridge, supportsNativeOffline, postNativeOfflineOpen } from "@/lib/native-app";
 import {
   DocumentTextIcon,
   MagnifyingGlassIcon,
@@ -16,6 +18,7 @@ import {
   Cog6ToothIcon,
   AcademicCapIcon,
   ClockIcon,
+  ArrowDownTrayIcon,
 } from "@heroicons/react/24/outline";
 
 interface NavItem {
@@ -41,7 +44,7 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     id: "search",
-    labelKey: "Search",
+    labelKey: "Search OghmaNotes",
     icon: MagnifyingGlassIcon,
     href: "/notes",
     section: "search",
@@ -62,7 +65,7 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     id: "quiz",
-    labelKey: "Quiz",
+    labelKey: "quiz.title",
     icon: AcademicCapIcon,
     href: "/quiz",
     section: "quiz",
@@ -81,6 +84,7 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
   variant = "rail",
   onNavigate,
 }) => {
+  const nativeAppBridge = useNativeAppBridge();
   const pathname = usePathname();
   const activeNav = useLayoutStore((state) => state.activeNav);
   const setActiveNav = useLayoutStore((state) => state.setActiveNav);
@@ -93,6 +97,7 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
   const focusActive = pomodoroPhase !== "idle";
   const focusLabel = t("Focus");
   const focusTitle = focusActive ? t("Focus session in progress") : focusLabel;
+  const offlineAvailable = !!nativeAppBridge && supportsNativeOffline();
 
   const handleFocusClick = async () => {
     if (focusActive || focusStartPending.current) return;
@@ -135,20 +140,29 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
   if (variant === "drawer") {
     return (
       <nav
-        className="flex h-full flex-col overflow-y-auto p-3"
+        className="flex h-full flex-col gap-5 overflow-y-auto p-4"
         aria-label={t("Main navigation")}
       >
         <Link
-          href="/"
+          href={nativeAppBridge ? "/notes" : "/"}
           onClick={onNavigate}
-          className="mb-3 flex min-h-11 items-center gap-3 rounded-radius-md px-3 text-sm font-semibold text-text-secondary transition-colors hover:bg-subtle"
+          className="flex min-h-11 items-center gap-3 rounded-radius-lg px-2 text-lg font-semibold text-text-secondary transition-colors hover:bg-subtle"
         >
           <BrandLogo size={24} className="h-6 w-6" />
           <span>{t("OghmaNotes")}</span>
         </Link>
 
-        <div className="space-y-1">
-          {NAV_ITEMS.map((item) => {
+        <button
+          type="button"
+          onClick={() => { onNavigate?.(); useGlobalSearchStore.getState().open(); }}
+          className="flex min-h-12 items-center gap-3 rounded-radius-xl border border-border-subtle bg-surface px-4 text-sm text-text-tertiary transition-colors hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50"
+        >
+          <MagnifyingGlassIcon className="h-5 w-5 shrink-0" aria-hidden="true" />
+          <span>{t("Search OghmaNotes")}</span>
+        </button>
+
+        <div className="flex flex-col gap-1">
+          {NAV_ITEMS.filter((item) => item.section !== "search").map((item) => {
             const IconComp = item.icon;
             const isActive = derivedActiveSection === item.section;
             const translatedLabel = t(item.labelKey);
@@ -177,15 +191,16 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
                 onClick={() => handleNavClick(item)}
                 aria-label={translatedLabel}
                 aria-current={isActive ? "page" : undefined}
-                className={`flex min-h-11 w-full items-center gap-3 rounded-radius-md px-3 text-sm font-medium transition-colors ${
+                className={`flex min-h-12 w-full items-center gap-3 rounded-radius-lg px-4 py-3 text-left text-base font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 ${
                   isActive
-                    ? "bg-primary-500/10 text-primary-400"
-                    : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
+                    ? "bg-primary-500/10 text-primary-700 dark:text-primary-300"
+                    : "text-text-secondary hover:bg-subtle"
                 }`}
                 title={translatedLabel}
               >
-                <IconComp className="h-5 w-5 shrink-0" />
+                <IconComp className="h-5 w-5 shrink-0" aria-hidden="true" />
                 <span>{translatedLabel}</span>
+                {isActive && <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden="true" />}
               </button>
             );
           })}
@@ -197,19 +212,28 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
             aria-label={focusLabel}
             aria-pressed={focusActive}
             aria-busy={focusStarting}
-            className={`flex min-h-11 w-full items-center gap-3 rounded-radius-md px-3 text-sm font-medium transition-colors ${
+            className={`mt-2 flex min-h-12 w-full items-center gap-3 rounded-radius-lg px-4 text-base font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 ${
               focusActive
-                ? "bg-primary-500/10 text-primary-400"
+                ? "bg-primary-500/10 text-primary-600 dark:text-primary-400"
                 : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
             }`}
             title={focusStarting ? t("Loading...") : focusTitle}
           >
             <ClockIcon className="h-5 w-5 shrink-0" />
-            <span>{focusLabel}</span>
+            <span>{focusTitle}</span>
           </button>
         </div>
 
         <div className="mt-auto border-t border-border-subtle pt-3">
+          {offlineAvailable && <button
+            type="button"
+            onClick={() => { onNavigate?.(); postNativeOfflineOpen(); }}
+            className="flex min-h-12 w-full items-center gap-3 rounded-radius-lg px-3 text-sm font-medium text-text-secondary transition-colors hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50"
+          >
+            <ArrowDownTrayIcon className="h-5 w-5 shrink-0" aria-hidden="true" />
+            <span>{t("Offline notes")}</span>
+          </button>}
+          <CanvasImportIndicator variant="drawer" onNavigate={onNavigate} />
           <Link
             href={SETTINGS_ITEM.href}
             onClick={() => handleNavClick(SETTINGS_ITEM)}
@@ -219,7 +243,7 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
             }
             className={`flex min-h-11 w-full items-center gap-3 rounded-radius-md px-3 text-sm font-medium transition-colors ${
               derivedActiveSection === "settings"
-                ? "bg-primary-500/10 text-primary-400"
+                ? "bg-primary-500/10 text-primary-600 dark:text-primary-400"
                 : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
             }`}
             title={t("Settings")}
@@ -238,7 +262,7 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
       aria-label={t("Main navigation")}
     >
       <Link
-        href="/"
+        href={nativeAppBridge ? "/notes" : "/"}
         className="mb-4 flex h-10 min-h-[44px] w-10 min-w-[44px] items-center justify-center transition-opacity hover:opacity-70"
       >
         <BrandLogo size={24} alt="OghmaNotes Logo" className="h-6 w-6" />
@@ -275,7 +299,7 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
               aria-describedby={`tooltip-${item.id}`}
               className={`group relative flex h-10 min-h-[44px] w-10 min-w-[44px] items-center justify-center rounded-radius-md transition-colors ${
                 isActive
-                  ? "bg-primary-500/10 text-primary-400"
+                  ? "bg-primary-500/10 text-primary-600 dark:text-primary-400"
                   : "text-text-tertiary hover:bg-subtle hover:text-text"
               }`}
               title={translatedLabel}
@@ -298,11 +322,11 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
           disabled={focusActive || focusStarting}
           aria-label={focusLabel}
           aria-pressed={focusActive}
-            aria-busy={focusStarting}
+          aria-busy={focusStarting}
           aria-describedby="tooltip-focus"
           className={`group relative flex h-10 min-h-[44px] w-10 min-w-[44px] items-center justify-center rounded-radius-md transition-colors ${
             focusActive
-              ? "bg-primary-500/10 text-primary-400"
+              ? "bg-primary-500/10 text-primary-600 dark:text-primary-400"
               : "text-text-tertiary hover:bg-subtle hover:text-text"
           }`}
           title={focusStarting ? t("Loading...") : focusTitle}
@@ -318,6 +342,16 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
         </button>
       </div>
 
+      <CanvasImportIndicator />
+
+      {offlineAvailable && <button
+        type="button"
+        onClick={() => postNativeOfflineOpen()}
+        aria-label={t("Offline notes")}
+        title={t("Offline notes")}
+        className="flex min-h-11 min-w-11 items-center justify-center rounded-radius-md text-text-tertiary hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50"
+      ><ArrowDownTrayIcon className="h-5 w-5" aria-hidden="true" /></button>}
+
       <Link
         href={SETTINGS_ITEM.href}
         onClick={() => handleNavClick(SETTINGS_ITEM)}
@@ -326,7 +360,7 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
         aria-current={derivedActiveSection === "settings" ? "page" : undefined}
         className={`group relative flex h-10 min-h-[44px] w-10 min-w-[44px] items-center justify-center rounded-radius-md transition-colors ${
           derivedActiveSection === "settings"
-            ? "bg-primary-500/10 text-primary-400"
+            ? "bg-primary-500/10 text-primary-600 dark:text-primary-400"
             : "text-text-tertiary hover:bg-subtle hover:text-text"
         }`}
         title={t("Settings")}

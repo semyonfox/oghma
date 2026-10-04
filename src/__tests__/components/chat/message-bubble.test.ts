@@ -139,16 +139,17 @@ describe("message bubble copy actions", () => {
     );
   });
 
-  it("separates process narration and tools from the final answer", async () => {
+  it("hides narration, links a read note, and copies only the final answer", async () => {
+    const noteId = "154b1133-54df-4e0e-a154-9b637750f106";
     const container = renderNode(
       React.createElement(FullMessageBubble, {
         message: makeMessage({
           content: "Let me check.Final answer",
           thinking: "Reasoning trace",
           parts: [
-            { type: "tool", name: "search", label: "Searching notes" },
+            { type: "tool", name: "getChunks", label: "Searching notes", status: "completed", notes: [{ id: noteId, title: "Study notes" }] },
             { type: "text", text: "Let me check." },
-            { type: "tool", name: "read", label: "Reading note" },
+            { type: "tool", name: "readNote", label: "Reading note", status: "completed", notes: [{ id: noteId, title: "Study notes" }] },
             { type: "text", text: "Final answer" },
           ],
         }),
@@ -158,15 +159,18 @@ describe("message bubble copy actions", () => {
     const workLogButton = container.querySelector(
       "button[aria-expanded]",
     ) as HTMLButtonElement;
-    expect(workLogButton.textContent).toContain("Work log");
+    expect(workLogButton.textContent).toContain("Found 1 note · Read 1 note");
     expect(container.textContent).toContain("Final answer");
     expect(container.textContent).not.toContain("Let me check.");
 
-    act(() => workLogButton.click());
-    expect(container.textContent).toContain("Reasoning trace");
-    expect(container.textContent).toContain("Let me check.");
-    expect(container.textContent).toContain("Searching notes");
-    expect(container.textContent).toContain("Reading note");
+    act(() => {
+      container
+        .querySelectorAll<HTMLButtonElement>("button[aria-expanded=false]")
+        .forEach((button) => button.click());
+    });
+    expect(container.textContent).not.toContain("Reasoning trace");
+    expect(container.textContent).not.toContain("Let me check.");
+    expect(container.querySelector(`a[href="/notes/${noteId}"]`)?.textContent).toBe("Study notes");
 
     const copyButton = container.querySelector(
       "button[aria-label='Copy message']",
@@ -222,28 +226,32 @@ describe("message bubble copy actions", () => {
     roots.push(root);
 
     act(() => {
-      root.render(withI18n(
-        React.createElement(
-          React.Fragment,
-          undefined,
-          React.createElement(FullMessageBubble, { message: historical }),
-          React.createElement(FullMessageBubble, { message: streaming }),
+      root.render(
+        withI18n(
+          React.createElement(
+            React.Fragment,
+            undefined,
+            React.createElement(FullMessageBubble, { message: historical }),
+            React.createElement(FullMessageBubble, { message: streaming }),
+          ),
         ),
-      ));
+      );
     });
 
     const updatedStreaming = { ...streaming, content: "partial response" };
     act(() => {
-      root.render(withI18n(
-        React.createElement(
-          React.Fragment,
-          undefined,
-          React.createElement(FullMessageBubble, { message: historical }),
-          React.createElement(FullMessageBubble, {
-            message: updatedStreaming,
-          }),
+      root.render(
+        withI18n(
+          React.createElement(
+            React.Fragment,
+            undefined,
+            React.createElement(FullMessageBubble, { message: historical }),
+            React.createElement(FullMessageBubble, {
+              message: updatedStreaming,
+            }),
+          ),
         ),
-      ));
+      );
     });
 
     expect(markdownRender.mock.calls).toEqual([

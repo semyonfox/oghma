@@ -3,9 +3,21 @@
 
 import { uiCache } from "./cache";
 
-// owner A keeps the legacy key; owners follow their notes across pane swaps
-const key = (noteId: string, owner: "A" | "B") =>
+const key = (noteId: string, owner: "A" | "B" = "A") =>
   owner === "A" ? `draft:${noteId}` : `draft:B:${noteId}`;
+const LEGACY_DRAFT_PREFIX = "legacy-unowned-draft:";
+let generation = 0;
+let writable = true;
+const pendingWrites = new Set<Promise<void>>();
+// Drafts written or already recovered in this workspace session are expected
+// when navigating back to a note. A fresh page load can announce recovery again.
+const knownDrafts = new Set<string>();
+
+export function acknowledgeDraftRecovery(noteId: string): boolean {
+  if (knownDrafts.has(noteId)) return false;
+  knownDrafts.add(noteId);
+  return true;
+}
 
 export interface NoteDraft {
   content: string;
@@ -13,38 +25,86 @@ export interface NoteDraft {
   version?: string;
 }
 
-export async function writeDraft(
-  noteId: string,
-  owner: "A" | "B",
-  content: string,
-): Promise<NoteDraft> {
+const pendingByNote = new Map<string, Promise<void>>();
+
+function queueDraftChange(noteId: string, change: () => Promise<unknown>): Promise<void> {
+  const previous = pendingByNote.get(noteId) ?? Promise.resolve();
+  const operation = previous.catch(() => {}).then(async () => { await change(); });
+  pendingByNote.set(noteId, operation);
+  pendingWrites.add(operation);
+  void operation.finally(() => {
+    pendingWrites.delete(operation);
+    if (pendingByNote.get(noteId) === operation) pendingByNote.delete(noteId);
+  }).catch(() => {});
+  return operation;
+}
+
+export async function writeDraft(noteId: string, content: string, owner: "A" | "B" = "A"): Promise<NoteDraft | undefined> {
+  if (!writable) return;
+  knownDrafts.add(noteId);
   const draft = { content, draftAt: Date.now(), version: crypto.randomUUID() };
-  await uiCache.setItem<NoteDraft>(key(noteId, owner), draft);
+  await queueDraftChange(noteId, () => uiCache.setItem<NoteDraft>(key(noteId, owner), draft));
   return draft;
 }
 
-export async function readDraft(
-  noteId: string,
-  owner: "A" | "B",
-  recoverOtherOwner?: () => boolean,
-): Promise<NoteDraft | null> {
-  if (recoverOtherOwner) {
-    return (await uiCache.getOrMoveItem<NoteDraft>(
-      key(noteId, owner),
-      key(noteId, owner === "A" ? "B" : "A"),
-      recoverOtherOwner,
-    )) ?? null;
-  }
-  return (await uiCache.getItem<NoteDraft>(key(noteId, owner))) ?? null;
+// Reset blocks new writers, then drains writes already opening an IDB connection.
+// Leave their values intact until quarantine has copied any unowned drafts.
+export async function waitForDraftWrites(): Promise<void> {
+  await Promise.allSettled([...pendingWrites]);
 }
 
-export async function clearDraft(
-  noteId: string,
-  owner: "A" | "B",
-  savedDraft: NoteDraft,
-): Promise<void> {
-  // compare and delete in one IDB transaction so a later edit survives
-  await uiCache.removeItemIf<NoteDraft>(key(noteId, owner), (current) =>
-    savedDraft.version !== undefined && current?.version === savedDraft.version,
+export async function readDraft(noteId: string, owner: "A" | "B" = "A", recoverOtherOwner?: () => boolean): Promise<NoteDraft | null> {
+  if (!writable) return null;
+  const readGeneration = generation;
+  await pendingByNote.get(noteId)?.catch(() => {});
+  if (!writable || generation !== readGeneration) return null;
+  const current = await uiCache.getItem<NoteDraft>(key(noteId, owner));
+  if (current) return current;
+  if (recoverOtherOwner) {
+    return (await uiCache.getOrMoveItem<NoteDraft>(key(noteId, owner), key(noteId, owner === "A" ? "B" : "A"), recoverOtherOwner)) ?? null;
+  }
+  return null;
+}
+
+export async function clearDraft(noteId: string, savedDraft?: NoteDraft, owner: "A" | "B" = "A"): Promise<void> {
+  if (!writable) return;
+  await queueDraftChange(noteId, () => savedDraft
+    ? uiCache.removeItemIf<NoteDraft>(key(noteId, owner), (current) =>
+      savedDraft.version !== undefined ? current?.version === savedDraft.version
+        : current?.version === undefined && current?.content === savedDraft.content && current?.draftAt === savedDraft.draftAt)
+    : uiCache.removeItem(key(noteId, owner)));
+}
+
+export function beginDraftCacheReset(): number {
+  generation += 1;
+  writable = false;
+  knownDrafts.clear();
+  return generation;
+}
+
+export function finishDraftCacheReset(resetGeneration: number): void {
+  if (generation === resetGeneration) writable = true;
+}
+
+export async function clearAllDrafts(): Promise<void> {
+  const keys = await uiCache.keys();
+  await Promise.all(
+    keys
+      .filter((cacheKey) => cacheKey.startsWith("draft:"))
+      .map((cacheKey) => uiCache.removeItem(cacheKey)),
   );
+}
+
+export async function quarantineUnownedDrafts(): Promise<void> {
+  const keys = await uiCache.keys();
+  for (const cacheKey of keys) {
+    if (!cacheKey.startsWith("draft:")) continue;
+
+    const backupKey = `${LEGACY_DRAFT_PREFIX}${cacheKey.slice("draft:".length)}`;
+    const existingBackup = await uiCache.getItem<unknown>(backupKey);
+    if (existingBackup !== undefined) continue;
+
+    const draft = await uiCache.getItem<unknown>(cacheKey);
+    if (draft !== undefined) await uiCache.setItem(backupKey, draft);
+  }
 }

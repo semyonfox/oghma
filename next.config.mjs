@@ -29,6 +29,15 @@ const nextConfig = {
     async headers() {
         return [
             {
+                source: '/downloads/oghmanotes-alpha.apk',
+                headers: [
+                    { key: 'Content-Type', value: 'application/vnd.android.package-archive' },
+                    { key: 'Content-Disposition', value: 'attachment; filename="oghmanotes-alpha.apk"' },
+                    { key: 'Cache-Control', value: 'no-cache' },
+                    { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
+                ],
+            },
+            {
                 source: '/(.*)',
                 headers: [
                     { key: 'X-Frame-Options', value: 'DENY' },

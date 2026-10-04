@@ -24,6 +24,15 @@ npm run mock:seed
 npm run dev:mock
 ```
 
+Streamed chat runs in the background worker. Start the worker with the same
+mock configuration in a second terminal before testing chat or any other
+queued job:
+
+```bash
+node --experimental-strip-types scripts/dev/run-mock.ts npm run worker
+node --experimental-strip-types scripts/dev/run-mock.ts npm run worker:healthcheck
+```
+
 Open `http://127.0.0.1:3311/login` and sign in with:
 
 - Email: `student.e2e@example.com`
@@ -60,7 +69,8 @@ At minimum, configure these groups for the features you exercise:
 | AI | LLM, embedding, rerank, and optional OCR/Marker provider settings |
 | Email | Cloudflare Email Sending account/token/from-address settings when testing real mail |
 
-Start the background worker in a second terminal when testing imports or vault jobs.
+Start the background worker in a second terminal when testing streamed chat,
+imports, or vault jobs.
 The worker does not load `.env.local` itself, so load the same configuration as
 the app first:
 
@@ -91,6 +101,7 @@ npm run worker
 
 - **Mock services are unhealthy:** run `docker compose -f docker-compose.e2e.yml ps` and inspect the failing service logs.
 - **Imports never advance:** make sure `npm run worker` uses the same database, queue prefix, Redis, storage, and Qdrant configuration as the app.
+- **Chat accepts a message but never answers:** verify that the worker is running with the same database, Redis, and `QUEUE_PREFIX` as the app, then run `npm run worker:healthcheck` in that environment.
 - **Uploads fail:** verify that the bucket exists and that endpoint/path-style settings match the storage provider.
 - **Search fails:** verify Qdrant connectivity and that the configured collection matches the environment.
 - **Schema errors appear:** apply migrations with the intended migration connection; never point a migration command at an unverified database.

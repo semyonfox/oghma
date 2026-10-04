@@ -48,7 +48,7 @@ export default function MobileDayAgenda({
           onChange={(event) => {
             if (event.target.value) setSelectedDate(event.target.value);
           }}
-          className="mb-2 min-h-11 w-full rounded-radius-md border border-border-subtle bg-surface px-3 text-sm text-text-secondary focus:border-primary-500/50 focus:outline-none focus:ring-1 focus:ring-primary-500/50"
+          className="mb-2 min-h-11 w-full rounded-radius-md border border-border-subtle bg-surface px-3 text-base text-text-secondary focus:border-primary-500/50 focus:outline-none focus:ring-1 focus:ring-primary-500/50 sm:text-sm"
         />
 
         <div className="grid grid-cols-7 gap-1" aria-label={t("Select date") }>
@@ -68,7 +68,7 @@ export default function MobileDayAgenda({
                   selected
                     ? "bg-primary-600 text-text-on-primary"
                     : isToday
-                      ? "bg-primary-500/10 font-semibold text-primary-300"
+                      ? "bg-primary-500/10 font-semibold text-primary-700 dark:text-primary-300"
                       : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
                 }`}
               >

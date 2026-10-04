@@ -1,3 +1,4 @@
+import logger from "@/lib/logger";
 /** Create a limiter that runs at most `limit` asynchronous tasks in parallel. */
 export function createAsyncLimiter(limit: number) {
   if (!Number.isInteger(limit) || limit < 1) {
@@ -36,7 +37,7 @@ export async function pooled<T>(tasks: Array<() => Promise<T>>, limit: number) {
   const settled = await Promise.allSettled(tasks.map((task) => run(task)));
   for (const result of settled) {
     if (result.status === "rejected") {
-      console.error("[pooled] task rejected:", result.reason);
+      logger.error("worker_event");
     }
   }
   return settled;

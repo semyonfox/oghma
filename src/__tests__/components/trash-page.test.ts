@@ -21,8 +21,11 @@ vi.mock("@/lib/notes/hooks/use-i18n", () => ({
 
 vi.mock("@/lib/notes/state/tree", () => ({
   __esModule: true,
-  default: (selector: (state: { refreshTree: typeof mocks.refreshTree }) => unknown) =>
-    selector({ refreshTree: mocks.refreshTree }),
+  default: Object.assign(
+    (selector: (state: { refreshTree: typeof mocks.refreshTree }) => unknown) =>
+      selector({ refreshTree: mocks.refreshTree }),
+    { getState: () => ({ ownerUserId: null }) },
+  ),
 }));
 
 vi.mock("sonner", () => ({

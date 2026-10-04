@@ -2,6 +2,7 @@ import React, { useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import useNoteTreeStore from "@/lib/notes/state/tree";
+import { publishWorkspaceInvalidation } from "@/lib/notes/workspace-invalidation";
 import useNoteStore from "@/lib/notes/state/note";
 import useLayoutStore from "@/lib/notes/state/layout.zustand";
 import useContextMenuStore from "@/lib/notes/state/context-menu";
@@ -163,6 +164,8 @@ export function useSidebarActions(deps: {
         // The upload endpoint publishes the source note before its background
         // extraction begins. Merge the root branch once for the whole batch so
         // the sidebar reflects that immediately without a full-tree reset.
+        const userId = useNoteTreeStore.getState().ownerUserId;
+        if (userId) publishWorkspaceInvalidation(userId, "tree");
         await refreshChildren(null);
         router.push(`/notes/${firstNoteId}`);
       }
@@ -172,9 +175,8 @@ export function useSidebarActions(deps: {
 
   // collapse all tree items
   const handleCollapseAll = useCallback(() => {
-    setExpandedIds(new Set());
     collapseAllItems();
-  }, [collapseAllItems, setExpandedIds]);
+  }, [collapseAllItems]);
 
   // start renaming an item
   const handleRename = useCallback(
@@ -428,31 +430,24 @@ export function useSidebarActions(deps: {
       if (typeof dragId !== "string") return;
 
       let sourceParentId = "";
-      let sourceIndex = -1;
       for (const itemId in currentItems) {
-        const idx = currentItems[itemId].children.indexOf(dragId);
-        if (idx !== -1) {
+        if (currentItems[itemId].children.includes(dragId)) {
           sourceParentId = itemId;
-          sourceIndex = idx;
           break;
         }
       }
-      if (sourceIndex === -1) return;
+      if (!sourceParentId) return;
 
       let destParentId: string;
-      let destIndex: number;
 
       if (target.targetType === "item") {
         if (typeof target.targetItem !== "string") return;
         destParentId = target.targetItem;
-        destIndex = currentItems[destParentId]?.children?.length ?? 0;
       } else if (target.targetType === "between-items") {
         if (typeof target.parentItem !== "string") return;
         destParentId = target.parentItem;
-        destIndex = target.childIndex ?? 0;
       } else {
         destParentId = "root";
-        destIndex = currentItems["root"]?.children?.length ?? 0;
       }
 
       if (typeof destParentId !== "string") return;
@@ -466,9 +461,10 @@ export function useSidebarActions(deps: {
         return;
       }
 
-      moveItem({
-        source: { parentId: sourceParentId, index: sourceIndex },
-        destination: { parentId: destParentId, index: destIndex },
+      void moveItem({
+        noteId: dragId,
+        expectedParentId: sourceParentId === "root" ? null : sourceParentId,
+        parentId: destParentId === "root" ? null : destParentId,
       });
     },
     [moveItem],

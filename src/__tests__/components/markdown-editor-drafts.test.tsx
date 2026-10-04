@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   router: { push: vi.fn(), replace: vi.fn() },
   t: (key: string) => key,
   setSettings: vi.fn(),
+  failDraftWrite: false,
 }));
 
 vi.mock("next/navigation", () => ({ useRouter: () => mocks.router }));
@@ -48,7 +49,7 @@ vi.mock("@/lib/notes/cache", () => ({
   noteCacheInstance: { getItem: async () => undefined },
   uiCache: {
     getItem: async (key: string) => mocks.cache.get(key),
-    setItem: async (key: string, value: unknown) => { mocks.cache.set(key, value); },
+    setItem: async (key: string, value: unknown) => { if (mocks.failDraftWrite) throw new Error("synthetic storage unavailable"); mocks.cache.set(key, value); },
     getOrMoveItem: async (key: string, fallbackKey: string, canMove: () => boolean) => {
       if (!mocks.cache.has(key) && mocks.cache.has(fallbackKey) && canMove()) {
         mocks.cache.set(key, mocks.cache.get(fallbackKey));
@@ -64,8 +65,8 @@ vi.mock("@/lib/notes/cache", () => ({
 
 import MarkdownEditor from "@/components/editor/markdown-editor";
 import useLayoutStore from "@/lib/notes/state/layout.zustand";
-import useSaveIndicatorStore from "@/lib/notes/state/save-indicator";
-import { readDraft } from "@/lib/notes/draft-cache";
+import useSaveIndicatorStore, { saveIndicatorKey } from "@/lib/notes/state/save-indicator";
+import { readDraft, waitForDraftWrites } from "@/lib/notes/draft-cache";
 
 const file = { fileId: "same-note", fileType: "note" as const };
 
@@ -76,16 +77,24 @@ function deferredSave() {
 }
 
 async function savePane(pane: "A" | "B") {
-  await act(async () => { useSaveIndicatorStore.getState().panes[pane]?.save(); });
+  await act(async () => {
+    const layout = useLayoutStore.getState();
+    const spec = pane === "A" ? layout.paneA : layout.paneB;
+    const key = spec?.fileId ? saveIndicatorKey(spec.fileId, spec.draftOwner ?? pane)
+      : Object.keys(useSaveIndicatorStore.getState().files).find((key) => pane === "B" ? key.endsWith(":B") : !key.endsWith(":B"));
+    if (key) useSaveIndicatorStore.getState().files[key]?.save();
+    await waitForDraftWrites();
+  });
 }
 
 describe("markdown editor recovery ownership", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.cache.clear();
+    mocks.failDraftWrite = false;
     mocks.fetchNote.mockResolvedValue({ content: "server", updatedAt: "2026-01-01T00:00:00Z" });
     mocks.mutateNote.mockResolvedValue(undefined);
-    useSaveIndicatorStore.setState({ panes: {} });
+    useSaveIndicatorStore.setState({ files: {} });
     useLayoutStore.setState({
       activePane: "A",
       paneA: { fileId: "", fileType: "note" },
@@ -94,6 +103,27 @@ describe("markdown editor recovery ownership", () => {
   });
 
   afterEach(() => { cleanup(); });
+
+  it("saves to the server when local draft storage is unavailable", async () => {
+    const view = render(<MarkdownEditor pane="A" file={file} />);
+    await waitFor(() => expect(view.getByRole("textbox")).toBeTruthy());
+    mocks.failDraftWrite = true;
+    fireEvent.change(view.getByRole("textbox"), { target: { value: "cloud copy" } });
+    await savePane("A");
+    await waitFor(() => expect(mocks.mutateNote).toHaveBeenCalledWith(file.fileId, { content: "cloud copy" }));
+    await waitFor(() => expect(useSaveIndicatorStore.getState().files[file.fileId]?.state).toBe("saved"));
+  });
+
+  it("keeps a focused save action available instead of starting a blur save", async () => {
+    const view = render(<div><MarkdownEditor pane="A" file={file} /><button data-save-action>Save changes</button></div>);
+    await waitFor(() => expect(view.getByRole("textbox")).toBeTruthy());
+    fireEvent.change(view.getByRole("textbox"), { target: { value: "keyboard edit" } });
+    fireEvent.blur(view.getByRole("textbox"), { relatedTarget: view.getByRole("button") });
+    expect(mocks.mutateNote).not.toHaveBeenCalled();
+    expect(useSaveIndicatorStore.getState().files[file.fileId]?.state).toBe("dirty");
+    await savePane("A");
+    await waitFor(() => expect(mocks.mutateNote).toHaveBeenCalledOnce());
+  });
 
   it("saving A preserves B's divergent draft through unmount and recovery", async () => {
     const saveA = deferredSave();
@@ -121,7 +151,7 @@ describe("markdown editor recovery ownership", () => {
     await waitFor(() => expect((recovered.getByRole("textbox") as HTMLTextAreaElement).value).toBe("draft B"));
     await act(async () => { saveB.resolve(); });
     expect((await readDraft(file.fileId, "B"))?.content).toBe("draft B");
-    expect(useSaveIndicatorStore.getState().panes.B?.state).toBe("dirty");
+    expect(useSaveIndicatorStore.getState().files[saveIndicatorKey(file.fileId, "B")]?.state).toBe("dirty");
   });
 
   it("an older save leaves a later edit dirty and recoverable", async () => {
@@ -133,7 +163,7 @@ describe("markdown editor recovery ownership", () => {
     await savePane("A");
     fireEvent.change(view.getByRole("textbox"), { target: { value: "newer" } });
     await act(async () => { save.resolve(); });
-    expect(useSaveIndicatorStore.getState().panes.A?.state).toBe("dirty");
+    expect(Object.entries(useSaveIndicatorStore.getState().files).find(([key]) => !key.endsWith(":B"))?.[1].state).toBe("dirty");
     view.unmount();
     expect((await readDraft(file.fileId, "A"))?.content).toBe("newer");
   });
@@ -149,7 +179,7 @@ describe("markdown editor recovery ownership", () => {
     await waitFor(() => expect((view.getByRole("textbox") as HTMLTextAreaElement).value).toBe("server"));
     fireEvent.change(view.getByRole("textbox"), { target: { value: "same edit" } });
     await act(async () => { save.resolve(); });
-    expect(useSaveIndicatorStore.getState().panes.A?.state).toBe("dirty");
+    expect(Object.entries(useSaveIndicatorStore.getState().files).find(([key]) => !key.endsWith(":B"))?.[1].state).toBe("dirty");
     expect((await readDraft(file.fileId, "A"))?.content).toBe("same edit");
     view.unmount();
     expect((await readDraft("next-note", "A"))?.content).toBe("same edit");
@@ -166,7 +196,7 @@ describe("markdown editor recovery ownership", () => {
     useLayoutStore.setState({ activePane: "B" });
     await act(async () => { fireEvent.keyDown(window, { key: "s", ctrlKey: true }); });
     expect(mocks.mutateNote).toHaveBeenCalledExactlyOnceWith(file.fileId, { content: "draft B" });
-    expect(useSaveIndicatorStore.getState().panes.A?.state).toBe("dirty");
+    expect(Object.entries(useSaveIndicatorStore.getState().files).find(([key]) => !key.endsWith(":B"))?.[1].state).toBe("dirty");
   });
 
   it("Ctrl+S handled by the focused B surface does not also save the stale active pane A", async () => {
@@ -191,7 +221,7 @@ describe("markdown editor recovery ownership", () => {
     });
 
     expect(mocks.mutateNote).toHaveBeenCalledExactlyOnceWith(file.fileId, { content: "draft B" });
-    expect(useSaveIndicatorStore.getState().panes.A?.state).toBe("dirty");
+    expect(Object.entries(useSaveIndicatorStore.getState().files).find(([key]) => !key.endsWith(":B"))?.[1].state).toBe("dirty");
   });
 
   it.each([false, true])(
@@ -230,7 +260,7 @@ describe("markdown editor recovery ownership", () => {
         expect((within(view.getByTestId("A")).getByRole("textbox") as HTMLTextAreaElement).value)
           .toBe("unsaved closed B");
       });
-      expect(useSaveIndicatorStore.getState().panes.A?.state).toBe("dirty");
+      expect(Object.entries(useSaveIndicatorStore.getState().files).find(([key]) => !key.endsWith(":B"))?.[1].state).toBe("dirty");
     },
   );
 

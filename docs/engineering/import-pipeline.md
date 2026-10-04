@@ -2,7 +2,7 @@
 
 > **Status:** Active engineering overview
 >
-> **Last reviewed:** 2026-08-12
+> **Last reviewed:** 2026-09-29
 >
 > **Source of truth:** [`src/lib/queue.ts`](../../src/lib/queue.ts), [`src/lib/canvas/worker-entry.ts`](../../src/lib/canvas/worker-entry.ts), and the import workers
 
@@ -14,13 +14,28 @@ names, tuning values, and live troubleshooting belong in the
 ## End-to-end flow
 
 1. An API validates the user, creates relational job/import rows, and submits a typed message through the queue facade.
-2. The worker consumes the message and, for Canvas, discovers courses/modules/files before fanning out per-file work.
-3. Files are downloaded and deduplicated, note/tree rows are created, and binary objects are stored through the S3-compatible provider.
-4. Extraction uses supported text parsers and optional Marker OCR. Extraction coverage records whether the result is partial.
+2. The worker discovers Canvas courses, modules, and files. Committed file rows enter the fair scheduler immediately, so earlier files can download while discovery continues.
+3. Files are downloaded and deduplicated, note/tree rows are created, and binary objects are stored through the S3-compatible provider. A durable `pending_extract` row records the exact object key and queues the next stage. Canvas files with the same name retain separate note identities.
+4. The extraction stage reloads stored bytes and uses supported text parsers or optional Marker OCR. Extraction coverage records whether the result is partial.
 5. Text is normalized, chunked, and embedded. Chunk text stays in PostgreSQL; vectors are upserted to Qdrant.
 6. Job and per-file status rows drive UI progress. Extraction failures re-enter the shared import lane after a delayed retry backoff.
 
 Files can appear before semantic indexing completes. Product copy must distinguish visible material from search/chat-ready material.
+
+## Canvas execution ownership
+
+Canvas discovery and file execution carry database ownership tokens. Publication
+checks them inside the user-tree transaction, including nested note/cache
+writes. Durable retry sequences reject stale deliveries. Recovery observes by
+default until compatible workers are deployed everywhere. The new staged
+extraction path separately reclaims its own expired leases after fencing the
+previous worker; migration 070 stores the key required to resume safely.
+
+Identical active requests reuse their run. Replacement and Stop name the active
+job the user actually observed. Retryable failures move to a new run; completed
+notes stay available. See the [reliability handover](canvas-import-queue-reliability-handover.md)
+for behavior and release gates, and the [worker runbook](../operations/import-worker.md#canvas-claim-recovery-rollout)
+for recovery rollout.
 
 ## Content-addressed PDF reuse
 
@@ -33,6 +48,13 @@ by SHA-256, which remains the authoritative identity. Course names and
 filenames are provenance, never identity. Canvas's documented File object does
 not expose a content checksum, so previously unseen or changed locators must be
 downloaded once.
+
+Concurrent first-time requests for the same hash elect one durable producer.
+Other imports wait in `pending_cache`, including while that producer waits for
+Marker or a scheduled retry. The ownership lock covers only that decision;
+OCR runs after it is released. Both users may still need to download the bytes
+before their common hash is known. Ready canonical results cannot be recaptured
+from subsequent user edits.
 
 The cache owns the immutable PDF object, pipeline-versioned extracted
 Markdown, Marker image assets, chunks, and one canonical vector set. Each user
@@ -81,7 +103,8 @@ Canvas discovery does not fan every file directly into the provider queue.
 Pending files pass through a provider-neutral scheduler using smooth weighted
 round robin across `free`, `semester`, and `academic_year` service classes with
 weights 1:3:5. Within a class, the least-recently served eligible user goes
-next, and each user has at most one dispatched file at a time. This preserves a
+next, and each user has at most two dispatched downloads at a time. New
+downloads pause when eight of that user's files await or run extraction. This preserves a
 paid queue advantage without allowing one large import or one class to starve
 the rest. `app.login.import_service_class` is local entitlement state and
 defaults to `free`.
@@ -91,6 +114,16 @@ defaults to `free`.
 Code fallbacks, committed template values, and private live values are
 different concepts. The operations runbook owns the verified comparison and
 tuning procedure; do not copy that table into engineering overviews.
+
+Worker logs report `processingMs` for each import-related queue message and
+`sinceEnqueuedMs` when BullMQ supplies its enqueue timestamp. The latter
+includes intentional retry delays, so it is not pure queue wait time. Canvas
+discovery logs `canvas-import-discovery-stage` with `jobId`, `courseId`,
+`stage`, and `elapsedMs` for modules, assignments, course files, and assignment
+metadata. File extraction, download, and indexing have their own timing logs.
+Compare those segments for the same job before changing a concurrency limit.
+The scheduler caps downloads and the extraction backlog separately. Those caps
+keep stored, unprocessed files bounded while allowing both stages to overlap.
 
 Throughput depends on document shape, OCR availability, provider limits, CPU,
 storage latency, queue pressure, and GPU capacity. Retry timing and concurrency

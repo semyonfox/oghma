@@ -5,6 +5,7 @@ export type FileType = "note" | "pdf" | "image" | "video";
 export type NavSection =
   "notes" | "search" | "calendar" | "chat" | "quiz" | "settings";
 export type RightPanelTab = "meta" | "ai" | "tasks";
+export type PaneId = "A" | "B";
 
 interface PaneState {
   fileId: string;
@@ -91,6 +92,7 @@ interface LayoutState {
   setActiveNav: (nav: NavSection) => void;
   setPaneA: (file: FileSpec | undefined) => void;
   setPaneB: (file: FileSpec | undefined) => void;
+  placeFileInPane: (file: FileSpec, target: PaneId, source?: PaneId) => void;
   dismissUnavailablePane: (
     pane: "A" | "B",
     fileId: string,
@@ -107,6 +109,7 @@ interface LayoutState {
   toggleCollapsedSection: (section: string) => void;
   setSelectedNode: (nodeId: string | null) => void;
   setDraggedFile: (file: FileSpec | null) => void;
+  resetWorkspace: () => void;
 }
 
 const useLayoutStore = create<LayoutState>()(
@@ -150,6 +153,49 @@ const useLayoutStore = create<LayoutState>()(
             lastOpened: Date.now(),
           } }));
         }
+      },
+
+      // Place tree files or move open files in one state update. Pane-to-pane
+      // moves swap the two files so neither editor is briefly overwritten.
+      placeFileInPane: (file, target, source) => {
+        set((state) => {
+          if (source === target) {
+            return {
+              activePane: target,
+              selectedNode: file.fileId,
+            };
+          }
+
+          if (source) {
+            const sourceFile = source === "A" ? state.paneA : state.paneB;
+            if (!sourceFile || sourceFile.fileId !== file.fileId) return state;
+
+            // A lone primary pane cannot be moved into an empty secondary pane.
+            // Files from the tree can still be dropped there to create the split.
+            if (source === "A" && target === "B" && !state.paneB) return state;
+
+            return {
+              paneA: state.paneB ? { ...state.paneB, draftOwner: state.paneB.draftOwner ?? "B" } : state.paneA,
+              paneB: { ...state.paneA, draftOwner: state.paneA.draftOwner ?? "A" },
+              activePane: target,
+              selectedNode: file.fileId,
+            };
+          }
+
+          if (target === "A") {
+            return {
+              paneA: withDraftOwner(file, "A", state.paneA, state.paneB),
+              activePane: "A",
+              selectedNode: file.fileId,
+            };
+          }
+
+          return {
+            paneB: { ...withDraftOwner(file, "B", state.paneB, state.paneA), lastOpened: Date.now() },
+            activePane: "B",
+            selectedNode: file.fileId,
+          };
+        });
       },
 
       // Remove a file only if the failed request still belongs to that pane.
@@ -264,6 +310,20 @@ const useLayoutStore = create<LayoutState>()(
       setSelectedNode: (nodeId) => set({ selectedNode: nodeId }),
 
       setDraggedFile: (file) => set({ draggedFile: file }),
+
+      resetWorkspace: () =>
+        set({
+          activeNav: "notes",
+          paneA: { fileId: "", fileType: "note" },
+          paneB: null,
+          activePane: "A",
+          rightPanelOpen: false,
+          rightPanelTab: "meta",
+          expandedNodes: new Set(["root"]),
+          collapsedSections: new Set(),
+          selectedNode: null,
+          draggedFile: null,
+        }),
     }),
     {
       name: "oghmaNotes-layout-store",

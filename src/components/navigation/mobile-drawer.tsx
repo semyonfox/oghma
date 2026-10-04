@@ -4,6 +4,7 @@ import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from "@headlessui/re
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import clsx from "clsx";
 import type { ReactNode } from "react";
+import useSwipeDismiss from "./use-swipe-dismiss";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
 interface MobileDrawerProps {
@@ -28,6 +29,7 @@ export default function MobileDrawer({
   panelClassName,
 }: MobileDrawerProps) {
   const { t } = useI18n();
+  const swipe = useSwipeDismiss({ open, onClose, direction: side, breakpoint: 1024 });
 
   return (
     <Dialog
@@ -38,7 +40,7 @@ export default function MobileDrawer({
     >
       <DialogBackdrop
         transition
-        className="fixed inset-0 bg-black/45 backdrop-blur-[1px] transition duration-200 data-closed:opacity-0"
+        className="fixed inset-0 bg-black/45 backdrop-blur-[1px] transition duration-200 data-closed:opacity-0 motion-reduce:transition-none"
       />
       <div className="fixed inset-0 overflow-hidden">
         <div
@@ -48,17 +50,18 @@ export default function MobileDrawer({
           )}
         >
           <DialogPanel
+            {...swipe}
             transition
             className={clsx(
-              "flex h-dvh w-[90vw] max-w-sm flex-col bg-background shadow-2xl ring-1 ring-border-subtle transition duration-200 ease-out data-closed:opacity-0",
+              "flex h-dvh w-[calc(100vw-1rem)] max-w-sm flex-col bg-background pb-[var(--safe-bottom)] pt-[env(safe-area-inset-top)] shadow-2xl ring-1 ring-border-subtle transition duration-200 ease-out data-closed:opacity-0 motion-reduce:transition-none",
               side === "left"
-                ? "data-closed:-translate-x-full"
-                : "data-closed:translate-x-full",
+                ? "rounded-r-2xl data-closed:-translate-x-full"
+                : "rounded-l-2xl data-closed:translate-x-full",
               panelClassName,
             )}
           >
-            <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border-subtle px-3">
-              <DialogTitle className="min-w-0 flex-1 truncate text-sm font-semibold text-text-secondary">
+            <div className="flex min-h-14 shrink-0 items-center gap-3 border-b border-border-subtle px-4 py-1">
+              <DialogTitle className="min-w-0 flex-1 truncate text-base font-semibold text-text">
                 {title}
               </DialogTitle>
               <button

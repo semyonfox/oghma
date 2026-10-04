@@ -1,5 +1,8 @@
 "use client";
 
+import AssignmentDetailsTrigger from "@/components/assignments/assignment-details-trigger";
+import type { Assignment } from "@/lib/notes/state/assignments.zustand";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { XMarkIcon, CheckCircleIcon } from "@heroicons/react/20/solid";
 import { CheckCircleIcon as CheckCircleOutline } from "@heroicons/react/24/outline";
@@ -146,6 +149,7 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
   // due date markers
   const dueMarkers = useMemo(() => {
     const markers: {
+      assignment: Assignment;
       col: number;
       top: number;
       title: string;
@@ -162,6 +166,7 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
 
       const hour = d.getHours() + d.getMinutes() / 60;
       markers.push({
+        assignment: a,
         col: colIdx,
         top: (hour - START_HOUR) * hourHeight,
         title: a.title,
@@ -367,7 +372,7 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
                         className="h-3 w-3 text-white"
                         label={marker.typeLabel}
                       />
-                      <span className="truncate">{marker.title}</span>
+                      <AssignmentDetailsTrigger assignment={marker.assignment} className="pointer-events-auto cursor-pointer truncate text-left underline underline-offset-2" />
                     </span>
                   </div>
                 ))}

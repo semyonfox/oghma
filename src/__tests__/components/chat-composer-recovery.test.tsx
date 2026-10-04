@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({ send: vi.fn() }));
 vi.mock("@/lib/notes/hooks/use-i18n", () => ({ default: () => ({ t: (key: string) => key }) }));
 vi.mock("@/lib/chat/hooks/use-chat-stream", () => ({ useChatStream: () => ({ messages: [], loading: false, send: mocks.send, setMessages: vi.fn(), setSessionId: vi.fn() }) }));
 vi.mock("@/lib/chat/hooks/use-chat-persistence", () => ({ useChatPersistence: () => ({ thinkingMode: "off", useRag: true, backgroundLoading: false, updateRefs: vi.fn() }) }));
+import useNoteStore from "@/lib/notes/state/note";
 import ChatInterface from "@/components/chat/chat-interface";
 afterEach(cleanup);
 describe("note composer draft recovery", () => {
@@ -28,4 +29,13 @@ describe("note composer draft recovery", () => {
     view.rerender(<ChatInterface compact noteId="draft-note-a" />);
     expect(screen.getByRole("textbox").getAttribute("value")).toBe("Question about A");
   });
+});
+
+it("does not restore another workspace generation's unsent question", () => {
+  const view = render(<ChatInterface compact noteId="session-question" />);
+  fireEvent.change(screen.getByRole("textbox"), { target: { value: "Private question" } });
+  view.unmount();
+  useNoteStore.setState({ generation: useNoteStore.getState().generation + 1 });
+  render(<ChatInterface compact noteId="session-question" />);
+  expect(screen.getByRole("textbox").getAttribute("value")).toBe("");
 });

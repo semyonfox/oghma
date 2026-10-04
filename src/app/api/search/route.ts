@@ -29,7 +29,7 @@ async function keywordSearch(
   course?: string,
   limit = 20,
 ): Promise<ResultItem[]> {
-  const pattern = `%${query}%`;
+  const pattern = `%${query.replace(/[\\%_]/g, (value) => `\\${value}`)}%`;
   const rows = await sql<KeywordNoteRow[]>`
         SELECT note_id, title,
                CASE
@@ -64,12 +64,34 @@ async function semanticSearch(
   limit = 10,
 ): Promise<ResultItem[]> {
   const vector = await embedText(query);
-  const hits = await searchChunkVectors({
-    userId,
-    vector,
-    excludeDocumentIds: excludeIds,
-    limit: Math.max(limit * 3, limit),
-  });
+  const candidateLimit = Math.max(limit * 3, limit);
+  let hits: Awaited<ReturnType<typeof searchChunkVectors>> = [];
+  if (course) {
+    // Scope before top-K retrieval. Page IDs to bound each vector filter and
+    // merge each page's top-K; this preserves recall without a payload backfill.
+    let after: string | null = null;
+    while (true) {
+      const notes: { note_id: string }[] = await sql<{ note_id: string }[]>`
+        SELECT note_id FROM app.notes
+        WHERE user_id = ${userId}::uuid AND canvas_course_id = ${course}::bigint
+          AND deleted_at IS NULL AND is_folder = false
+          AND (${after}::uuid IS NULL OR note_id > ${after}::uuid)
+        ORDER BY note_id LIMIT 500
+      `;
+      if (!notes.length) break;
+      const pageHits = await searchChunkVectors({
+        userId, vector, excludeDocumentIds: excludeIds,
+        documentIds: notes.map((note) => note.note_id), limit: candidateLimit,
+      });
+      hits = [...hits, ...pageHits].sort((a, b) => a.distance - b.distance).slice(0, candidateLimit);
+      if (notes.length < 500) break;
+      after = notes[notes.length - 1].note_id;
+    }
+  } else {
+    hits = await searchChunkVectors({
+      userId, vector, excludeDocumentIds: excludeIds, limit: candidateLimit,
+    });
+  }
   if (hits.length === 0) return [];
 
   const chunks = await hydrateOwnedNoteChunks(userId, hits, {
@@ -93,7 +115,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   if (!user) return tracedError("Unauthorized", 401);
 
   const url = new URL(request.url);
-  const query = url.searchParams.get("q")?.trim();
+  const query = url.searchParams.get("q")?.trim().slice(0, 200);
   const mode = url.searchParams.get("mode") || "keyword";
   const rawCourse = url.searchParams.get("course") || undefined;
 

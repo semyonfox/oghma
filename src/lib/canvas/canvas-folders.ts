@@ -1,3 +1,5 @@
+import logger from "@/lib/logger";
+import { withCanvasPublication } from "./execution";
 /**
  * Canvas folder deduplication and naming utilities.
  * Handles find-or-create semantics backed by partial unique indexes.
@@ -25,10 +27,6 @@ function isUniqueViolation(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === "23505";
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 export const ASSIGNMENTS_PARENT_MODULE_ID = -1;
 
 /** A trashed Canvas hierarchy is a lifecycle fence, not a duplicate target. */
@@ -39,6 +37,13 @@ export class CanvasFolderTrashedError extends Error {
     super("Canvas folder is in Trash");
     this.name = "CanvasFolderTrashedError";
     this.noteId = noteId;
+  }
+}
+
+export class CanvasFolderMissingError extends Error {
+  constructor(readonly noteId: string) {
+    super("The local Canvas parent folder is missing");
+    this.name = "CanvasFolderMissingError";
   }
 }
 
@@ -78,14 +83,14 @@ async function ensureActiveParent(
 ): Promise<void> {
   if (!parentId) return;
   const [parent] = await db`
-    SELECT note_id
+    SELECT note_id, deleted_at
     FROM app.notes
     WHERE note_id = ${parentId}::uuid
       AND user_id = ${userId}::uuid
-      AND deleted_at IS NULL
     FOR KEY SHARE
   `;
-  if (!parent) throw new CanvasFolderTrashedError(parentId);
+  if (!parent) throw new CanvasFolderMissingError(parentId);
+  if (parent.deleted_at) throw new CanvasFolderTrashedError(parentId);
 }
 
 async function reuseExisting(
@@ -108,6 +113,7 @@ export async function findOrCreateFolder(
   parentId: string | null,
   canvas: CanvasFolderIdentity = {},
 ): Promise<string | null> {
+  return withCanvasPublication(async () => {
   const { canvasCourseId, canvasAcademicYear } = canvas;
 
   try {
@@ -147,7 +153,7 @@ export async function findOrCreateFolder(
     await invalidateTreeAfterPublish(userId, parentId);
     return folderId;
   } catch (error) {
-    if (error instanceof CanvasFolderTrashedError) throw error;
+    if (error instanceof CanvasFolderTrashedError || error instanceof CanvasFolderMissingError) throw error;
     // Unique index conflict: a concurrent worker won the creation race.
     if (isUniqueViolation(error) && canvasCourseId != null) {
       const folderId = await sql.begin(async (tx) => {
@@ -165,7 +171,9 @@ export async function findOrCreateFolder(
       await invalidateTreeAfterPublish(userId, parentId);
       return folderId;
     }
-    console.warn(`Failed to create folder "${title}": ${errorMessage(error)}`);
+    logger.warn("worker_event");
     return parentId;
   }
+
+  });
 }

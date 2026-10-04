@@ -1,3 +1,4 @@
+import { afterDatabaseCommit } from "@/database/pgsql";
 import { cacheInvalidate, cacheKeys } from "@/lib/cache";
 
 /**
@@ -12,9 +13,9 @@ export async function invalidateTreeAfterPublish(
   userId: string,
   parentId: string | null | undefined,
 ): Promise<void> {
-  await cacheInvalidate(
+  await afterDatabaseCommit(() => cacheInvalidate(
     cacheKeys.treeChildren(userId, parentId ?? null),
     cacheKeys.treeFull(userId),
     cacheKeys.notesList(userId, 0, undefined),
-  );
+  ));
 }

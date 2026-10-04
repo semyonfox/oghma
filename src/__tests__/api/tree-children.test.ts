@@ -7,8 +7,6 @@ type TestRouteHandler = (
 ) => Promise<Response>;
 
 const mocks = vi.hoisted(() => ({
-  cacheGet: vi.fn(),
-  cacheSet: vi.fn(),
   requireAuth: vi.fn(),
   sql: vi.fn(),
 }));
@@ -28,14 +26,6 @@ vi.mock("@/lib/api-error", () => ({
   },
 }));
 
-vi.mock("@/lib/cache", () => ({
-  cacheGet: mocks.cacheGet,
-  cacheSet: mocks.cacheSet,
-  cacheKeys: {
-    treeChildren: vi.fn(() => "tree-children"),
-  },
-}));
-
 vi.mock("@/database/pgsql", () => ({ default: mocks.sql }));
 
 import { GET } from "@/app/api/tree/children/route";
@@ -43,8 +33,6 @@ import { GET } from "@/app/api/tree/children/route";
 describe("GET /api/tree/children", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.cacheGet.mockResolvedValue(null);
-    mocks.cacheSet.mockResolvedValue(undefined);
     mocks.requireAuth.mockResolvedValue({ user_id: "user-123" });
   });
 
@@ -71,33 +59,16 @@ describe("GET /api/tree/children", () => {
     ]);
   });
 
-  it("naturally sorts results from an existing cache entry", async () => {
-    mocks.cacheGet.mockResolvedValue({
-      parentId: "root",
-      items: [
-        { id: "week-10", title: "Week 10" },
-        { id: "week-2", title: "Week 2" },
-        { id: "week-1", title: "Week 1" },
-      ],
-    });
+  it("reads each child-list request from PostgreSQL", async () => {
+    mocks.sql.mockResolvedValue([]);
 
-    const response = await GET(
-      new NextRequest("http://localhost/api/tree/children"),
-    );
+    await GET(new NextRequest("http://localhost/api/tree/children"));
+    await GET(new NextRequest("http://localhost/api/tree/children"));
 
-    expect((await response.json()).items.map((item: { title: string }) => item.title)).toEqual([
-      "Week 1",
-      "Week 2",
-      "Week 10",
-    ]);
-    expect(mocks.sql).not.toHaveBeenCalled();
+    expect(mocks.sql).toHaveBeenCalledTimes(2);
   });
 
-  it("does not serve a cached child list when its parent is trashed", async () => {
-    mocks.cacheGet.mockResolvedValue({
-      parentId: "folder-1",
-      items: [{ id: "child-1", title: "Should not leak" }],
-    });
+  it("rejects a trashed parent before reading its children", async () => {
     mocks.sql.mockResolvedValue([]);
 
     await expect(
@@ -107,6 +78,6 @@ describe("GET /api/tree/children", () => {
         ),
       ),
     ).rejects.toMatchObject({ statusCode: 404 });
-    expect(mocks.cacheGet).not.toHaveBeenCalled();
+    expect(mocks.sql).toHaveBeenCalledTimes(1);
   });
 });

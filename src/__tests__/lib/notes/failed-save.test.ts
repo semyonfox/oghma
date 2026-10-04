@@ -31,7 +31,7 @@ function note(content: string): NoteModel {
 
 function noteApi(mutate: NoteApi["mutate"]): NoteApi {
   return {
-    find: vi.fn(async () => undefined),
+    find: vi.fn(async () => note("original")),
     create: vi.fn(async () => undefined),
     mutate,
     remove: vi.fn(async () => undefined),
@@ -53,7 +53,7 @@ function treeStore() {
 describe("note save result handling", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useNoteStore.setState({ note: undefined, noteAPI: null, treeStore: null });
+    useNoteStore.setState({ note: undefined, noteAPI: null, treeStore: null, sessionReady: true });
     useSyncStatusStore.setState({ status: {} });
   });
 
@@ -67,7 +67,7 @@ describe("note save result handling", () => {
 
     expect(mutate).toHaveBeenCalledWith(id, { content: "saved" });
     expect(useSyncStatusStore.getState().getStatus(id)).toBe("synced");
-    expect(noteCache.mutateItem).toHaveBeenCalledWith(id, { content: "saved" });
+    expect(noteCache.setItem).toHaveBeenCalledWith(id, note("saved"));
   });
 
   it("keeps the note modified when the API rejects", async () => {
@@ -96,7 +96,7 @@ describe("note save result handling", () => {
 
     await expect(
       useNoteStore.getState().mutateNote(id, { content: "unsaved" }),
-    ).rejects.toThrow("Note save failed");
+    ).rejects.toThrow("Failed to save note");
 
     expect(useSyncStatusStore.getState().getStatus(id)).toBe("modified");
     expect(noteCache.mutateItem).not.toHaveBeenCalled();

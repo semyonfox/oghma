@@ -1,11 +1,16 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { MutableRefObject } from "react";
 import {
   applyUpdate,
   consumeChatStream,
+  consumeBackgroundGeneration,
   resolveResumeAssistantId,
 } from "@/lib/chat/client-stream";
-import { mapStoredChatMessages } from "@/lib/chat/hooks/use-chat-persistence";
+import {
+  fetchChatSessionSnapshot,
+  mapStoredChatMessages,
+} from "@/lib/chat/hooks/use-chat-persistence";
+import { isChatOperationCurrent } from "@/lib/chat/hooks/use-chat-stream";
 import type { Message } from "@/lib/chat/types";
 
 function ref(): MutableRefObject<number | null> {
@@ -22,6 +27,33 @@ function baseMsg(content = "", parts: Message["parts"] = []): Message {
   };
 }
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe("chat operation ownership", () => {
+  const baseOperation = {
+    id: 4,
+    routeSessionId: "session-1",
+    createdSessionId: null,
+  };
+
+  it("rejects stale operations and route changes", () => {
+    expect(isChatOperationCurrent(baseOperation, 5, "session-1")).toBe(false);
+    expect(isChatOperationCurrent(baseOperation, 4, "session-2")).toBe(false);
+  });
+
+  it("accepts only the server-created route for a new-chat operation", () => {
+    const operation = {
+      id: 4,
+      routeSessionId: null,
+      createdSessionId: "session-created",
+    };
+    expect(isChatOperationCurrent(operation, 4, "session-created")).toBe(true);
+    expect(isChatOperationCurrent(operation, 4, "session-other")).toBe(false);
+  });
+});
+
 describe("applyUpdate — token + tool-call parts", () => {
   it("renders the initial RAG search with its query and matched note", () => {
     const msg = applyUpdate(
@@ -32,7 +64,9 @@ describe("applyUpdate — token + tool-call parts", () => {
           query: "invalid HTML syntax",
           scopeSize: null,
           resultsFound: 1,
-          results: [{ noteId: "note-1", title: "Complete Syntax", distance: 0.2 }],
+          results: [
+            { noteId: "note-1", title: "Complete Syntax", distance: 0.2 },
+          ],
         },
       },
       ref(),
@@ -59,7 +93,11 @@ describe("applyUpdate — token + tool-call parts", () => {
   });
 
   it("inserts a tool part between text segments and keeps content as plain prose", () => {
-    let msg = applyUpdate(baseMsg(), { type: "token", text: "looking now." }, ref());
+    let msg = applyUpdate(
+      baseMsg(),
+      { type: "token", text: "looking now." },
+      ref(),
+    );
     msg = applyUpdate(
       msg,
       { type: "tool-call", toolName: "getChunks", label: "Searching notes" },
@@ -70,13 +108,22 @@ describe("applyUpdate — token + tool-call parts", () => {
     expect(msg.content).toBe("looking now.found three");
     expect(msg.parts).toEqual([
       { type: "text", text: "looking now." },
-      { type: "tool", name: "getChunks", label: "Searching notes" },
+      {
+        type: "tool",
+        name: "getChunks",
+        label: "Searching notes",
+        status: "running",
+      },
       { type: "text", text: "found three" },
     ]);
   });
 
   it("supports back-to-back tool calls without dropping prior text", () => {
-    let msg = applyUpdate(baseMsg(), { type: "token", text: "thinking…" }, ref());
+    let msg = applyUpdate(
+      baseMsg(),
+      { type: "token", text: "thinking…" },
+      ref(),
+    );
     msg = applyUpdate(
       msg,
       { type: "tool-call", toolName: "getChunks", label: "Searching notes" },
@@ -90,8 +137,18 @@ describe("applyUpdate — token + tool-call parts", () => {
 
     expect(msg.parts).toEqual([
       { type: "text", text: "thinking…" },
-      { type: "tool", name: "getChunks", label: "Searching notes" },
-      { type: "tool", name: "readNote", label: "Reading note" },
+      {
+        type: "tool",
+        name: "getChunks",
+        label: "Searching notes",
+        status: "running",
+      },
+      {
+        type: "tool",
+        name: "readNote",
+        label: "Reading note",
+        status: "running",
+      },
     ]);
     expect(msg.content).toBe("thinking…");
   });
@@ -105,7 +162,12 @@ describe("applyUpdate — token + tool-call parts", () => {
     msg = applyUpdate(msg, { type: "token", text: "ok" }, ref());
 
     expect(msg.parts).toEqual([
-      { type: "tool", name: "getChunks", label: "Searching notes" },
+      {
+        type: "tool",
+        name: "getChunks",
+        label: "Searching notes",
+        status: "running",
+      },
       { type: "text", text: "ok" },
     ]);
   });
@@ -124,12 +186,20 @@ describe("applyUpdate — token + tool-call parts", () => {
     );
     const completed = applyUpdate(
       started,
-      { type: "tool-result", toolCallId: "read-1", detail: "Complete Syntax" },
+      { type: "tool-result", toolCallId: "read-1", detail: "Complete Syntax", notes: [
+        { id: "154b1133-54df-4e0e-a154-9b637750f106", title: "Complete Syntax" },
+      ] },
       ref(),
     );
 
     expect(completed.parts).toEqual([
-      expect.objectContaining({ type: "tool", detail: "Complete Syntax" }),
+      expect.objectContaining({
+        type: "tool",
+        detail: "154b1133-54df-4e0e-a154-9b637750f106",
+        resultDetail: "Complete Syntax",
+        notes: [{ id: "154b1133-54df-4e0e-a154-9b637750f106", title: "Complete Syntax" }],
+        status: "completed",
+      }),
     ]);
   });
 
@@ -201,6 +271,7 @@ describe("background chat restore", () => {
         role: "assistant",
         content: "Finished while away",
         parts: [
+          { type: "reasoning", text: "Checking the note" },
           { type: "tool", name: "readNote", label: "Reading note" },
           { type: "text", text: "Finished while away" },
         ],
@@ -208,6 +279,92 @@ describe("background chat restore", () => {
         thinkingDuration: 4,
       }),
     ]);
+  });
+
+  it.each([
+    ["an empty array", []],
+    ["only malformed entries", [{ type: "tool", name: "missing-label" }, null]],
+  ])(
+    "falls back to canonical content when parts contain %s",
+    (_label, parts) => {
+      expect(
+        mapStoredChatMessages([
+          {
+            id: "answer-1",
+            role: "assistant",
+            content: "Durable answer",
+            parts,
+          },
+        ]),
+      ).toEqual([
+        expect.objectContaining({
+          content: "Durable answer",
+          parts: [{ type: "text", text: "Durable answer" }],
+        }),
+      ]);
+    },
+  );
+
+  it.each([
+    ["blank text", [{ type: "text", text: "   " }]],
+    [
+      "tool activity only",
+      [{ type: "tool", name: "readNote", label: "Reading note" }],
+    ],
+  ])("appends canonical content when parts contain %s", (_label, parts) => {
+    const [message] = mapStoredChatMessages([
+      {
+        id: "answer-1",
+        role: "assistant",
+        content: "Durable answer",
+        parts,
+      },
+    ]);
+
+    expect(message.parts).toEqual([
+      ...parts,
+      { type: "text", text: "Durable answer" },
+    ]);
+  });
+
+  it("filters malformed persisted messages at the network boundary", () => {
+    expect(
+      mapStoredChatMessages([
+        { id: "bad", role: "system", content: "not supported" },
+        { id: "answer-1", role: "assistant", content: "Durable answer" },
+      ]),
+    ).toEqual([
+      expect.objectContaining({ id: "answer-1", content: "Durable answer" }),
+    ]);
+  });
+
+  it("loads an empty durable session and its active generation", async () => {
+    const signal = new AbortController().signal;
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          session: {
+            generation_status: "generating",
+            active_generation_id: "generation-1",
+          },
+          messages: [],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      fetchChatSessionSnapshot("session-1", signal),
+    ).resolves.toEqual({
+      messages: [],
+      generating: true,
+      activeGenerationId: "generation-1",
+    });
+    expect(fetchMock).toHaveBeenCalledWith("/api/chat/sessions/session-1", {
+      signal,
+      cache: "no-store",
+    });
   });
 });
 
@@ -260,5 +417,131 @@ describe("chat event stream consumption", () => {
         translate: (key) => key,
       }),
     ).rejects.toThrow("before completion");
+  });
+
+  it("finishes at done even if the transport keeps the response open", async () => {
+    const cancel = vi.fn();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(
+          new TextEncoder().encode("event: done\ndata: {}\n\n"),
+        );
+      },
+      cancel,
+    });
+    await expect(
+      consumeChatStream({
+        body,
+        assistantId: "msg-1",
+        userText: "Question",
+        thinkingStartRef: ref(),
+        setMessages: () => undefined,
+        onSession: () => undefined,
+        translate: (key) => key,
+      }),
+    ).resolves.toEqual({ timeBlockChanged: false });
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
+  it("cancels the browser reader when its operation detaches", async () => {
+    const cancel = vi.fn();
+    const body = new ReadableStream<Uint8Array>({
+      pull() {
+        // Keep the read pending until AbortSignal detaches the consumer.
+      },
+      cancel,
+    });
+    const controller = new AbortController();
+    const consuming = consumeChatStream({
+      body,
+      assistantId: "msg-1",
+      userText: "Question",
+      thinkingStartRef: ref(),
+      setMessages: () => undefined,
+      onSession: () => undefined,
+      translate: (key) => key,
+      signal: controller.signal,
+    });
+
+    controller.abort();
+
+    await expect(consuming).rejects.toMatchObject({ name: "AbortError" });
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+});
+
+describe("chat failure recovery", () => {
+  it("recovers old double-encoded metadata, sources, and activity without duplicating narration", () => {
+    const [restored] = mapStoredChatMessages([
+      {
+        id: "saved",
+        role: "assistant",
+        content: "Let me check.",
+        parts: JSON.stringify([
+          { type: "text", text: "Let me check." },
+          { type: "tool", name: "readNote", label: "Reading note" },
+        ]),
+        metadata: JSON.stringify({
+          thinking: "Reasoning",
+          partial: true,
+          error: "Stopped",
+        }),
+        sources: JSON.stringify([{ id: "source", title: "Source" }]),
+      },
+    ]);
+    expect(restored).toMatchObject({
+      thinking: "Reasoning",
+      partial: true,
+      error: "Stopped",
+      sources: [{ id: "source", title: "Source" }],
+      parts: [
+        { type: "reasoning", text: "Reasoning" },
+        { type: "text", text: "Let me check." },
+        { type: "tool", name: "readNote", label: "Reading note" },
+      ],
+    });
+  });
+
+  it("does not reconnect to a terminal provider failure or append duplicate error rows", async () => {
+    let messages = [baseMsg()];
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          'id: 1-0\nevent: token\ndata: {"text":"Partial"}\n\nid: 2-0\nevent: error\ndata: {"message":"Interrupted"}\n\n',
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      await expect(
+        consumeBackgroundGeneration({
+          generationId: "generation",
+          assistantId: "msg-1",
+          userText: "Question",
+          signal: new AbortController().signal,
+          activeGenerationRef: { current: null },
+          consumeStream: (body, assistantId, userText, onEventId) =>
+            consumeChatStream({
+              body,
+              assistantId,
+              userText,
+              onEventId,
+              thinkingStartRef: ref(),
+              setMessages: (update) => {
+                messages =
+                  typeof update === "function" ? update(messages) : update;
+              },
+              onSession: () => {},
+              translate: (key) => key,
+            }),
+        }),
+      ).rejects.toThrow("Interrupted");
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(messages[0].content).toBe("Partial");
+      expect(
+        messages[0].parts?.filter((part) => part.type === "error"),
+      ).toHaveLength(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

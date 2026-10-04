@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateSecureToken, hashToken, verifyTokenHash } from '@/lib/tokens';
+import { generateSecureToken, hashToken } from '@/lib/tokens';
 
 describe('generateSecureToken', () => {
     it('returns a 64-character hex string', () => {
@@ -30,19 +30,5 @@ describe('hashToken', () => {
         const a = hashToken('token-a');
         const b = hashToken('token-b');
         expect(a).not.toBe(b);
-    });
-});
-
-describe('verifyTokenHash', () => {
-    it('returns true when raw token matches stored hash', () => {
-        const raw = generateSecureToken();
-        const stored = hashToken(raw);
-        expect(verifyTokenHash(raw, stored)).toBe(true);
-    });
-
-    it('returns false when raw token does not match stored hash', () => {
-        const raw = generateSecureToken();
-        const stored = hashToken('different-token');
-        expect(verifyTokenHash(raw, stored)).toBe(false);
     });
 });

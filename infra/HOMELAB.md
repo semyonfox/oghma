@@ -34,6 +34,24 @@ Jenkins runtime environments for both the app and worker:
 The Jenkins env files are the deploy inputs. Do not copy their values into this
 repository. Follow [the secrets policy](../docs/operations/secrets.md).
 
+Verified 2026-09-15: the live jobs use the operator-owned pipelines at
+`/home/semyon/server-stacks/jenkins/oghma-dev/Jenkinsfile` and
+`/home/semyon/server-stacks/jenkins/oghma-prod/Jenkinsfile`. Their GitHub check
+gate uses `jenkins/scripts/wait-for-github-ci.sh` in that same stack repository.
+Changing this repository's root `Jenkinsfile` does not update those live jobs.
+The deployment sequence below describes the repository pipeline; compare the
+operator-owned pipeline before changing a live deployment.
+
+Release commits on `dev` and `main` must run CI. Do not use `[skip ci]` or other
+[GitHub skip instructions](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/skip-workflow-runs)
+for releases. Run `bash scripts/check-deploy-commit.sh` after checkout and
+before waiting for GitHub checks. The live pipelines need this guard wired
+separately; its presence in the repository is not proof of installation.
+
+The live app storage endpoint was verified as Cloudflare R2 on 2026-09-15.
+RustFS remains a running stack service; its health does not prove application
+object storage is reachable.
+
 The root `docker-compose.yml` is a repository convenience for the development
 app/worker/Qdrant shape; it is not the persistent homelab stack definition.
 
@@ -147,7 +165,7 @@ Interactive `psql` and `redis-cli` sessions are privileged mutation surfaces,
 not read-only checks. Use them only through the private operations workflow.
 Do not include env-file contents in diagnostics.
 
-## Rate-limiter degradation
+## Health and chat readiness
 
 `GET /api/health` is the app liveness check: it remains HTTP 200 while the
 database is reachable, including when Redis is unavailable, but returns
@@ -156,6 +174,14 @@ database is reachable, including when Redis is unavailable, but returns
 `rateLimiter.redisReady` and `rateLimiter.status`. Alert on a degraded status
 or `redisReady: false`; do not treat a successful container liveness check as
 proof of distributed rate limiting.
+
+Background chat has a stricter readiness contract because Redis carries both
+its BullMQ job and replayable events. `GET /api/health?readiness=chat` returns
+HTTP 503 unless PostgreSQL and Redis are reachable and `QUEUE_PROVIDER` is
+`bullmq`. This does not prove that a worker process is consuming jobs, so run
+`npm run worker:healthcheck` in the worker container and complete an
+authenticated deterministic chat smoke test before promotion. See the
+[chat runbook](../docs/operations/chat.md).
 
 In homelab and launch-provider deployments, Redis loss makes sensitive public
 auth categories fail closed with HTTP 503 rather than use per-process memory

@@ -1,52 +1,51 @@
-// per-pane save state so the pane header (filename bar) can own the save
-// affordance instead of floating a button over the editor toolbar
+// save state for the note currently being edited, keyed by file rather than by
+// pane. keying by file means pane swaps need no synchronisation here — the
+// indicator travels with the note automatically.
 import { create } from "zustand";
 
 export type SaveState = "saved" | "dirty" | "saving" | "error";
 
-export interface PaneSaveIndicator {
-    fileId: string;
+export interface FileSaveIndicator {
     state: SaveState;
+    ready?: boolean;
     save: () => void;
 }
 
+export function saveIndicatorKey(fileId: string, owner: "A" | "B" = "A"): string {
+    return owner === "A" ? fileId : `${fileId}:B`;
+}
+
 interface SaveIndicatorState {
-    panes: Partial<Record<"A" | "B", PaneSaveIndicator>>;
-    setIndicator: (pane: "A" | "B", indicator: PaneSaveIndicator) => void;
-    clearIndicator: (pane: "A" | "B", fileId: string) => void;
-    swapPanes: () => void;
+    files: Record<string, FileSaveIndicator>;
+    setIndicator: (fileId: string, indicator: FileSaveIndicator) => void;
+    clearIndicator: (fileId: string) => void;
 }
 
 const useSaveIndicatorStore = create<SaveIndicatorState>((set) => ({
-    panes: {},
+    files: {},
 
-    setIndicator: (pane, indicator) => {
+    setIndicator: (fileId, indicator) => {
         set((state) => {
-            const current = state.panes[pane];
+            const current = state.files[fileId];
             if (
                 current &&
-                current.fileId === indicator.fileId &&
                 current.state === indicator.state &&
+                current.ready === indicator.ready &&
                 current.save === indicator.save
             ) {
                 return state;
             }
-            return { panes: { ...state.panes, [pane]: indicator } };
+            return { files: { ...state.files, [fileId]: indicator } };
         });
     },
 
-    // only clear if the pane still holds the file that is unmounting
-    clearIndicator: (pane, fileId) => {
+    clearIndicator: (fileId) => {
         set((state) => {
-            if (state.panes[pane]?.fileId !== fileId) return state;
-            const next = { ...state.panes };
-            delete next[pane];
-            return { panes: next };
+            if (!(fileId in state.files)) return state;
+            const next = { ...state.files };
+            delete next[fileId];
+            return { files: next };
         });
-    },
-
-    swapPanes: () => {
-        set((state) => ({ panes: { A: state.panes.B, B: state.panes.A } }));
     },
 }));
 

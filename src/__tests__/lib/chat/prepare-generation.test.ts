@@ -22,34 +22,13 @@ vi.mock("@/lib/chat/rag-context", async (importOriginal) => ({
 import { createEmptyChatSessionContext } from "@/lib/chat/session";
 import { prepareChatGeneration } from "@/lib/chat/prepare-generation";
 
-const emptyRagResult = {
-  searchResults: [],
-  semanticMatches: [],
-  embeddingAvailable: false,
-  ragFailed: false,
-};
-
 describe("prepareChatGeneration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.runRagPipeline.mockResolvedValue(emptyRagResult);
-    mocks.runKeywordFallback.mockResolvedValue([]);
-    mocks.buildRetrievalInfo.mockResolvedValue({
-      uniqueSources: [],
-      retrieval: {
-        scopeMode: "global",
-        availableCount: 0,
-        availableFiles: [],
-        semanticHits: [],
-        usedFiles: [],
-      },
-    });
   });
 
-  it("keeps plain chat free of retrieval work", async () => {
+  it("does no eager retrieval work when note tools are disabled", async () => {
     const prepared = await prepareChatGeneration({
-      userId: "11111111-1111-1111-1111-111111111111",
-      message: "hello",
       useRag: false,
       scopedNoteIds: null,
       sessionContext: createEmptyChatSessionContext(),
@@ -62,25 +41,25 @@ describe("prepareChatGeneration", () => {
     expect(mocks.buildRetrievalInfo).not.toHaveBeenCalled();
   });
 
-  it("uses keyword fallback only for an explicitly scoped empty search", async () => {
-    const keywordHit = {
-      note_id: "22222222-2222-2222-2222-222222222222",
-      title: "Networks",
-      chunk_id: "33333333-3333-3333-3333-333333333333",
-      chunk_text: "OSI layers",
-      distance: null,
-    };
-    mocks.runKeywordFallback.mockResolvedValue([keywordHit]);
-
-    await prepareChatGeneration({
-      userId: "11111111-1111-1111-1111-111111111111",
-      message: "OSI",
+  it("leaves note retrieval to scoped model tools", async () => {
+    const prepared = await prepareChatGeneration({
       useRag: true,
-      scopedNoteIds: [keywordHit.note_id],
+      scopedNoteIds: ["22222222-2222-2222-2222-222222222222"],
       sessionContext: createEmptyChatSessionContext(),
     });
 
-    expect(mocks.runKeywordFallback).toHaveBeenCalledOnce();
-    expect(mocks.buildSystemPrompt).toHaveBeenCalledWith([keywordHit]);
+    expect(prepared.systemPrompt).toBe("rag prompt");
+    expect(prepared.initialParts).toEqual([]);
+    expect(prepared.uniqueSources).toEqual([]);
+    expect(prepared.retrieval).toMatchObject({
+      scopeMode: "scoped",
+      availableCount: 0,
+      semanticHits: [],
+      usedFiles: [],
+    });
+    expect(mocks.buildSystemPrompt).toHaveBeenCalledWith([]);
+    expect(mocks.runRagPipeline).not.toHaveBeenCalled();
+    expect(mocks.runKeywordFallback).not.toHaveBeenCalled();
+    expect(mocks.buildRetrievalInfo).not.toHaveBeenCalled();
   });
 });

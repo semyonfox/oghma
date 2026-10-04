@@ -1,0 +1,323 @@
+// @vitest-environment jsdom
+
+import React from "react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  globalSearchOpen: vi.fn(),
+  pomodoroStart: vi.fn(),
+  pathname: "/notes",
+}));
+
+vi.mock("next/link", () => ({
+  default: ({
+    children,
+    href,
+    onClick,
+    prefetch: _prefetch,
+    ...props
+  }: React.ComponentProps<"a"> & { prefetch?: boolean }) => (
+    <a
+      href={href}
+      {...props}
+      onClick={(event) => {
+        onClick?.(event);
+        event.preventDefault();
+      }}
+    >
+      {children}
+    </a>
+  ),
+}));
+vi.mock("next/navigation", () => ({
+  usePathname: () => mocks.pathname,
+}));
+vi.mock("@/lib/notes/hooks/use-i18n", () => ({
+  __esModule: true,
+  default: () => ({ t: (key: string) => key }),
+}));
+vi.mock("@/lib/global-search/state", () => ({
+  __esModule: true,
+  default: { getState: () => ({ open: mocks.globalSearchOpen }) },
+}));
+vi.mock("@/lib/notes/state/pomodoro.zustand", () => ({
+  __esModule: true,
+  default: (
+    selector: (state: {
+      phase: string;
+      start: typeof mocks.pomodoroStart;
+    }) => unknown,
+  ) => selector({ phase: "idle", start: mocks.pomodoroStart }),
+}));
+vi.mock("@/lib/native-app", () => ({
+  useNativeAppBridge: () => false,
+  supportsNativeOffline: () => false,
+  postNativeOfflineOpen: vi.fn(),
+}));
+vi.mock("@/components/canvas/canvas-import-indicator", () => ({
+  default: () => null,
+}));
+vi.mock("@/components/navigation/mobile-sheet", () => ({
+  default: ({
+    open,
+    onClose,
+    title,
+    children,
+  }: {
+    open: boolean;
+    onClose: () => void;
+    title: string;
+    children: React.ReactNode;
+  }) =>
+    open ? (
+      <section role="dialog" aria-label={title}>
+        <button onClick={onClose}>Close sheet</button>
+        {children}
+      </section>
+    ) : null,
+}));
+
+import MobileBottomNavigation from "@/components/navigation/mobile-bottom-navigation";
+
+type Viewport = {
+  height: number;
+  addEventListener: ReturnType<typeof vi.fn>;
+  removeEventListener: ReturnType<typeof vi.fn>;
+};
+
+describe("MobileBottomNavigation", () => {
+  let viewport: Viewport;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.pathname = "/notes";
+    viewport = {
+      height: 800,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    };
+    Object.defineProperty(window, "innerHeight", {
+      configurable: true,
+      value: 800,
+    });
+    Object.defineProperty(window, "visualViewport", {
+      configurable: true,
+      value: viewport,
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    Object.defineProperty(window, "visualViewport", {
+      configurable: true,
+      value: undefined,
+    });
+  });
+
+  it("renders the mobile destinations and identifies the current route", () => {
+    const { container } = render(<MobileBottomNavigation />);
+
+    expect(container.querySelector("[data-mobile-dock]")?.className).toContain("lg:hidden");
+
+    expect(
+      screen.getByRole("link", { name: "Notes" }).getAttribute("href"),
+    ).toBe("/notes");
+    expect(
+      screen.getByRole("link", { name: "AI Chat" }).getAttribute("href"),
+    ).toBe("/chat");
+    expect(
+      screen.getByRole("link", { name: "Calendar" }).getAttribute("href"),
+    ).toBe("/calendar");
+    expect(
+      screen.getByRole("link", { name: "quiz.title" }).getAttribute("href"),
+    ).toBe("/quiz");
+    expect(
+      screen.getByRole("link", { name: "Notes" }).getAttribute("aria-current"),
+    ).toBe("page");
+  });
+
+  it("floats above the chat composer without reserving a layout row", async () => {
+    vi.stubGlobal("ResizeObserver", class {
+      observe() {}
+      disconnect() {}
+    });
+    const { container } = render(
+      <div>
+        <div
+          data-chat-composer
+          ref={(element) => {
+            if (element) {
+              vi.spyOn(element, "getBoundingClientRect").mockReturnValue(
+                new DOMRect(0, 0, 0, 96),
+              );
+            }
+          }}
+        />
+        <MobileBottomNavigation aboveComposer />
+      </div>,
+    );
+    const dock = container.querySelector<HTMLElement>("[data-mobile-dock]");
+    await waitFor(() => expect(dock?.style.bottom).toBe("96px"));
+    expect(dock?.className).toContain("fixed");
+  });
+
+  it("contracts on downward scrolling and expands on upward scroll, focus, and navigation", async () => {
+    const view = render(
+      <div>
+        <main data-testid="scroll-panel" />
+        <MobileBottomNavigation />
+      </div>,
+    );
+    const panel = screen.getByTestId("scroll-panel");
+    const nav = screen.getByRole("navigation");
+    const scrollTo = async (top: number, expanded: boolean) => {
+      panel.scrollTop = top;
+      fireEvent.scroll(panel);
+      await waitFor(() => expect(nav.getAttribute("data-expanded")).toBe(String(expanded)));
+    };
+    expect(nav.getAttribute("data-expanded")).toBe("true");
+    await scrollTo(80, false);
+    expect(screen.getByRole("link", { name: "AI Chat" })).toBeTruthy();
+    await scrollTo(60, true);
+    await scrollTo(120, false);
+    const notesLink = screen.getByRole("link", { name: "Notes" });
+    // jsdom does not model keyboard-driven :focus-visible matching.
+    vi.spyOn(notesLink, "matches").mockReturnValueOnce(true);
+    act(() => notesLink.focus());
+    expect(nav.getAttribute("data-expanded")).toBe("true");
+    await scrollTo(160, false);
+    mocks.pathname = "/chat";
+    view.rerender(<div><main data-testid="scroll-panel" /><MobileBottomNavigation /></div>);
+    expect(nav.getAttribute("data-expanded")).toBe("true");
+    expect(screen.getByRole("link", { name: "AI Chat" }).getAttribute("aria-current")).toBe("page");
+  });
+
+  it("ignores scrolling in text inputs and open sheets", () => {
+    render(
+      <div>
+        <textarea aria-label="Draft" />
+        <section role="dialog" aria-label="Other sheet"><div data-testid="sheet-scroll" /></section>
+        <MobileBottomNavigation />
+      </div>,
+    );
+    for (const element of [screen.getByRole("textbox"), screen.getByTestId("sheet-scroll")]) {
+      element.scrollTop = 100;
+      fireEvent.scroll(element);
+    }
+    expect(screen.getByRole("navigation").getAttribute("data-expanded")).toBe("true");
+  });
+
+  it("stays expanded near the top and contracts only after enough downward travel", async () => {
+    render(<div><main data-testid="scroll-panel" /><MobileBottomNavigation /></div>);
+    const panel = screen.getByTestId("scroll-panel");
+    const nav = screen.getByRole("navigation");
+    for (const top of [30, 40, 50, 59]) {
+      panel.scrollTop = top;
+      fireEvent.scroll(panel);
+      await waitFor(() => expect(nav.getAttribute("data-expanded")).toBe("true"));
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    }
+    panel.scrollTop = 65;
+    fireEvent.scroll(panel);
+    await waitFor(() => expect(nav.getAttribute("data-expanded")).toBe("false"));
+  });
+
+  it("contracts on document scrolling too", async () => {
+    render(<MobileBottomNavigation />);
+    const nav = screen.getByRole("navigation");
+    const scrollingElement = document.documentElement;
+    const originalDescriptor = Object.getOwnPropertyDescriptor(document, "scrollingElement");
+    Object.defineProperty(document, "scrollingElement", {
+      configurable: true,
+      value: scrollingElement,
+    });
+    try {
+      scrollingElement.scrollTop = 80;
+      fireEvent.scroll(document);
+      await waitFor(() => expect(nav.getAttribute("data-expanded")).toBe("false"));
+      scrollingElement.scrollTop = 60;
+      fireEvent.scroll(document);
+      await waitFor(() => expect(nav.getAttribute("data-expanded")).toBe("true"));
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(document, "scrollingElement", originalDescriptor);
+      } else {
+        Reflect.deleteProperty(document, "scrollingElement");
+      }
+      scrollingElement.scrollTop = 0;
+    }
+  });
+
+  it("ignores scrolling outside its workspace and in editable content", () => {
+    const outside = document.createElement("div");
+    document.body.append(outside);
+    render(
+      <div>
+        <div contentEditable data-testid="editor" />
+        <MobileBottomNavigation />
+      </div>,
+    );
+    for (const element of [outside, screen.getByTestId("editor")]) {
+      element.scrollTop = 200;
+      fireEvent.scroll(element);
+    }
+    expect(screen.getByRole("navigation").getAttribute("data-expanded")).toBe("true");
+    outside.remove();
+  });
+
+  it("expands when a destination or More is pressed", async () => {
+    render(<div><main data-testid="scroll-panel" /><MobileBottomNavigation /></div>);
+    const panel = screen.getByTestId("scroll-panel");
+    const nav = screen.getByRole("navigation");
+    const contract = async () => {
+      panel.scrollTop += 100;
+      fireEvent.scroll(panel);
+      await waitFor(() => expect(nav.getAttribute("data-expanded")).toBe("false"));
+    };
+    await contract();
+    fireEvent.click(screen.getByRole("link", { name: "Calendar" }));
+    expect(nav.getAttribute("data-expanded")).toBe("true");
+    await contract();
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
+    expect(nav.getAttribute("data-expanded")).toBe("true");
+  });
+
+  it("closes More before opening search or following a More destination", () => {
+    render(<MobileBottomNavigation />);
+
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
+    expect(screen.getByRole("dialog", { name: "More" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Search OghmaNotes" }));
+    expect(mocks.globalSearchOpen).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog", { name: "More" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
+    const settings = screen.getByRole("link", { name: "Settings" });
+    expect(settings.getAttribute("href")).toBe("/settings");
+    fireEvent.click(settings);
+    expect(screen.queryByRole("dialog", { name: "More" })).toBeNull();
+  });
+
+  it("hides while the visual viewport contracts for an active text editor and cleans up listeners", () => {
+    const { container, unmount } = render(<MobileBottomNavigation />);
+    const input = document.createElement("input");
+    document.body.append(input);
+
+    act(() => input.focus());
+    viewport.height = 640;
+    const resize = viewport.addEventListener.mock.calls.find(
+      ([event]) => event === "resize",
+    )?.[1] as EventListener;
+    act(() => resize(new Event("resize")));
+
+    expect(container.querySelector("nav")?.parentElement?.className).toContain("hidden");
+
+    act(() => input.blur());
+    expect(container.querySelector("nav")?.parentElement?.className).toContain("block");
+    unmount();
+    input.remove();
+
+    expect(viewport.removeEventListener).toHaveBeenCalledWith("resize", resize);
+  });
+});

@@ -377,6 +377,7 @@ export default function MilkdownWriteEditor({
   const onChangeRef = useRef(onChange);
   const latestValueRef = useRef(value);
   const lastLocallyEmittedValueRef = useRef<string | null>(null);
+  const lastDocumentMarkdownRef = useRef<string | null>(null);
   const pickerSelectionRef = useRef({ from: 0, to: 0 });
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerQuery, setPickerQuery] = useState("");
@@ -515,6 +516,10 @@ export default function MilkdownWriteEditor({
 
     crepe.on((listener) => {
       listener.markdownUpdated((_ctx, markdown) => {
+        // Milkdown may normalize Markdown while mounting or rendering content.
+        // Only a change from the rendered document represents a new edit.
+        if (!crepeRef.current || markdown === lastDocumentMarkdownRef.current) return;
+        lastDocumentMarkdownRef.current = markdown;
         lastLocallyEmittedValueRef.current = markdown;
         onChangeRef.current(markdown, false);
       });
@@ -549,6 +554,7 @@ export default function MilkdownWriteEditor({
       if (crepe.getMarkdown() !== latestValueRef.current) {
         replaceExternalMarkdown(crepe, latestValueRef.current);
       }
+      lastDocumentMarkdownRef.current = crepe.getMarkdown();
       enhanceMilkdownCodeBlocks(root);
       enhanceNoteReferenceButton(root);
       syncMermaidPreviews();
@@ -583,6 +589,7 @@ export default function MilkdownWriteEditor({
       return;
     }
     replaceExternalMarkdown(crepe, value);
+    lastDocumentMarkdownRef.current = crepe.getMarkdown();
   }, [value]);
 
   const insertNoteReference = (note: NoteOption) => {
@@ -613,7 +620,7 @@ export default function MilkdownWriteEditor({
 
   return (
     <div
-      className="oghma-milkdown-editor relative h-full min-h-0 overflow-auto bg-app-page"
+      className="oghma-milkdown-editor mobile-dock-clearance relative h-full min-h-0 overflow-auto bg-app-page"
       onKeyDownCapture={(event) => {
         if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
           event.preventDefault();

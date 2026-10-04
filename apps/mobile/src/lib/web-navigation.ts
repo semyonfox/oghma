@@ -1,0 +1,55 @@
+import { z } from "zod";
+import { offlineSnapshotSchema } from "./offline-state.ts";
+
+const bridgeMessage = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("oghma:oauth"), provider: z.enum(["google", "github"]) }).strict(),
+  z.object({ type: z.literal("oghma:updates") }).strict(),
+  z.object({ type: z.literal("oghma:theme"), theme: z.enum(["dark", "light"]) }).strict(),
+  z.object({ type: z.literal("oghma:offline-open") }).strict(),
+  z.object({ type: z.literal("oghma:offline-account"), ownerId: z.string().uuid().nullable() }).strict(),
+  z.object({ type: z.literal("oghma:offline-save"), snapshot: offlineSnapshotSchema }).strict(),
+]);
+
+export function isWorkspaceUrl(value: string, origin: string) {
+  try {
+    const url = new URL(value);
+    return url.origin === origin && !url.username && !url.password;
+  } catch {
+    return false;
+  }
+}
+
+export function parseWebMessage(data: string, source: string, origin: string) {
+  if (!isWorkspaceUrl(source, origin) || data.length > 250_000) return null;
+  try {
+    const parsed = bridgeMessage.safeParse(JSON.parse(data));
+    if (!parsed.success || (parsed.data.type !== "oghma:offline-save" && data.length > 512)) return null;
+    return parsed.data;
+  } catch {
+    return null;
+  }
+}
+
+export function navigationAction(value: string, origin: string) {
+  try {
+    const url = new URL(value);
+    if (url.username || url.password) return "block";
+    if (isWorkspaceUrl(value, origin)) {
+      if (url.pathname === "/") return "home";
+      if (url.pathname === "/downloads") return "update";
+      if (url.pathname === "/downloads/oghmanotes-alpha.apk") return "update";
+      if (/^\/(pricing|about|blog|info|ai)(\/|$)/.test(url.pathname)) return "external";
+      return "workspace";
+    }
+    if (["https:", "http:", "mailto:", "tel:"].includes(url.protocol)) return "external";
+  } catch {
+    // File, content, intent and JavaScript URLs never leave the WebView sandbox.
+  }
+  return "block";
+}
+
+// the WebView draws under Android's gesture bar, which the page cannot measure itself
+export function bottomInsetScript(inset: number) {
+  const px = Number.isFinite(inset) ? Math.max(0, Math.round(inset)) : 0;
+  return `(function(){function s(){document.documentElement.style.setProperty("--oghma-inset-bottom","${px}px")}if(document.documentElement)s();else document.addEventListener("DOMContentLoaded",s)})();true;`;
+}

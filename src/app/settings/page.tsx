@@ -34,6 +34,13 @@ import CourseVisibilityManager, {
 import EditorThemeSection from "@/components/settings/editor-theme-section";
 import PasswordSection from "@/components/settings/password-section";
 import useCourseStore from "@/lib/notes/state/courses.zustand";
+import { postNativeUpdates, postNativeOfflineAccount, useNativeAppBridge } from "@/lib/native-app";
+import { useWorkspaceSession } from "@/components/providers/workspace-lifecycle-provider";
+import { resetWorkspaceClientState } from "@/lib/notes/workspace-lifecycle";
+import { publishWorkspaceInvalidation } from "@/lib/notes/workspace-invalidation";
+import useNoteTreeStore from "@/lib/notes/state/tree";
+import PrimaryNavigation from "@/components/navigation/primary-navigation";
+import MobileBottomNavigation from "@/components/navigation/mobile-bottom-navigation";
 
 const CanvasSection = dynamic(
   () => import("@/components/settings/canvas-section"),
@@ -100,10 +107,17 @@ function applyThemePreview(theme: FormState["theme"]) {
   root.classList.toggle("dark", isDark);
 }
 
+function isCurrentWorkspace(ownerUserId: string | null, generation: number) {
+  const tree = useNoteTreeStore.getState();
+  return tree.ownerUserId === ownerUserId && tree.generation === generation;
+}
+
 export default function SettingsPage() {
   const router = useRouter();
   const { t, activeLocale } = useI18n();
   const { setSettings } = useSettingsStore();
+  const nativeAppBridge = useNativeAppBridge();
+  const { userId } = useWorkspaceSession();
   const {
     settings: courseSettings,
     fetchSettings,
@@ -125,6 +139,7 @@ export default function SettingsPage() {
   const [savingSection, setSavingSection] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState("account");
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
   const [quizCourses, setQuizCourses] = useState<ReturnType<typeof mapQuizCourses>>([]);
   const [courseVisibilityLoading, setCourseVisibilityLoading] = useState(true);
   const [courseVisibilityError, setCourseVisibilityError] = useState(false);
@@ -270,8 +285,10 @@ export default function SettingsPage() {
         }
       }
     };
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
+    const content = contentRef.current;
+    if (!content) return;
+    content.addEventListener("scroll", handleScroll);
+    return () => content.removeEventListener("scroll", handleScroll);
   }, []);
 
   useEffect(() => {
@@ -288,14 +305,41 @@ export default function SettingsPage() {
   };
 
   const handleSignOut = async () => {
+    const mutationOwner = userId;
+    const mutationGeneration = useNoteTreeStore.getState().generation;
+    let continuationOwner = mutationOwner;
+    let continuationGeneration = mutationGeneration;
     setIsSigningOut(true);
+    postNativeOfflineAccount(null);
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
+      const response = await fetch("/api/auth/logout", { method: "POST" });
+      if (!response.ok) throw new Error(`logout failed: ${response.status}`);
+      if (!isCurrentWorkspace(mutationOwner, mutationGeneration)) {
+        if (mutationOwner) {
+          publishWorkspaceInvalidation(mutationOwner, "session");
+        }
+        setIsSigningOut(false);
+        return;
+      }
+      const clearing = resetWorkspaceClientState(null);
+      const resetGeneration = useNoteTreeStore.getState().generation;
+      continuationOwner = null;
+      continuationGeneration = resetGeneration;
+      if (mutationOwner) {
+        publishWorkspaceInvalidation(mutationOwner, "session");
+      }
+      await clearing;
+      if (!isCurrentWorkspace(null, resetGeneration)) {
+        setIsSigningOut(false);
+        return;
+      }
       localStorage.removeItem("ogma-theme");
       document.cookie = "ogma-theme=; path=/; max-age=0";
       window.location.href = "/login";
     } catch {
-      toast.error(t("Failed to sign out"));
+      if (isCurrentWorkspace(continuationOwner, continuationGeneration)) {
+        toast.error(t("Failed to sign out"));
+      }
       setIsSigningOut(false);
     }
   };
@@ -341,13 +385,18 @@ export default function SettingsPage() {
   }, [hasUnsavedSettings]);
 
   return (
-    <div className="bg-app-page min-h-screen">
-      <div className="border-b border-border-subtle">
+    <div className="settings-with-rail flex h-dvh flex-col overflow-hidden bg-app-page lg:pl-14">
+      <div className="desktop-navigation-rail fixed inset-y-0 left-0 hidden w-14 border-r border-border-subtle bg-background lg:block">
+        <PrimaryNavigation />
+      </div>
+      <div className="shrink-0 border-b border-border-subtle">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex items-center gap-4 h-16">
           <button
+            type="button"
             onClick={() => router.back()}
-            className="inline-flex items-center justify-center rounded-radius-md text-text-tertiary hover:text-text hover:bg-subtle p-2 -ml-2"
+            className="ui-icon-button -ml-2"
             title={t("Back")}
+            aria-label={t("Back")}
           >
             <ArrowLeftIcon className="h-5 w-5" />
           </button>
@@ -357,16 +406,18 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <nav className="lg:hidden border-b border-border-subtle overflow-x-auto">
-        <ul className="flex min-w-full gap-x-6 px-4 py-4 text-sm font-semibold text-text-tertiary sm:px-6">
+      <nav className="shrink-0 border-b border-border-subtle overflow-x-auto overscroll-x-contain lg:hidden">
+        <ul className="flex min-w-full gap-x-5 px-4 text-sm font-medium text-text-tertiary sm:px-6">
           {navigation.map((item) => (
             <li key={item.id} className="whitespace-nowrap">
               <button
                 className={cn(
+                  "min-h-12 border-b-2 px-1 py-3 transition-colors",
                   activeSection === item.id
-                    ? "text-primary-400 border-b-2 border-primary-500 pb-3.5"
-                    : "hover:text-text-secondary",
+                    ? "text-primary-700 dark:text-primary-300 border-primary-500"
+                    : "border-transparent hover:text-text-secondary",
                 )}
+                aria-current={activeSection === item.id ? "location" : undefined}
                 onClick={() => scrollToSection(item.id)}
               >
                 {item.name}
@@ -375,7 +426,7 @@ export default function SettingsPage() {
           ))}
           <li className="whitespace-nowrap">
             <button
-              className="text-error-400 hover:text-error-300"
+              className="min-h-12 px-1 py-3 text-error-700 hover:text-error-600 dark:text-error-400 dark:hover:text-error-300 disabled:opacity-50"
               onClick={handleSignOut}
               disabled={isSigningOut}
             >
@@ -385,8 +436,9 @@ export default function SettingsPage() {
         </ul>
       </nav>
 
-      <div className="mx-auto max-w-7xl lg:flex lg:gap-x-16 px-4 sm:px-6 lg:px-8">
-        <aside className="hidden lg:block lg:flex-none lg:py-8">
+      <div ref={contentRef} className="mobile-dock-clearance min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:flex lg:gap-x-16 lg:px-8">
+          <aside className="hidden lg:block lg:flex-none lg:py-8">
           <nav className="sticky top-24 w-56">
             <ul className="space-y-1">
               {navigation.map((item) => (
@@ -395,7 +447,7 @@ export default function SettingsPage() {
                     className={cn(
                       "group flex w-full items-center gap-x-3 rounded-radius-md px-3 py-2 text-sm font-medium transition-colors",
                       activeSection === item.id
-                        ? "bg-primary-500/10 text-primary-400"
+                        ? "bg-primary-500/10 text-primary-700 dark:text-primary-300"
                         : "text-text-tertiary hover:text-text-secondary hover:bg-subtle",
                     )}
                     onClick={() => scrollToSection(item.id)}
@@ -419,7 +471,7 @@ export default function SettingsPage() {
           </nav>
         </aside>
 
-        <main className="flex-1 divide-y divide-border">
+          <main className="flex-1 divide-y divide-border">
           <AccountSection
             formState={formState}
             setFormState={setFormState}
@@ -433,6 +485,17 @@ export default function SettingsPage() {
               });
             }}
           />
+          {nativeAppBridge && (
+            <div className="pb-12 md:pl-[calc(33.333333%+1.333333rem)]">
+              <button
+                type="button"
+                onClick={postNativeUpdates}
+                className="glass-card-interactive rounded-radius-md px-3 py-2 text-sm font-semibold text-text"
+              >
+                {t("Check for updates")}
+              </button>
+            </div>
+          )}
           <EditorThemeSection
             formState={formState}
             setFormState={setFormState}
@@ -489,8 +552,10 @@ export default function SettingsPage() {
           </section>
           <DataExportSection />
           <DangerSection />
-        </main>
+          </main>
+        </div>
       </div>
+      <MobileBottomNavigation />
     </div>
   );
 }

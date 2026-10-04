@@ -1,3 +1,4 @@
+import logger from "@/lib/logger";
 import sql from "../../database/pgsql";
 import { normalizePlannerItem, type NormalizedPlannerItem, type PlannableType } from "./planner-items";
 import type { CanvasRecord } from "./client";
@@ -114,7 +115,7 @@ export async function syncCanvasPlannerItems(params: SyncCanvasPlannerItemsParam
   const effectiveEnd = endDate ?? defaultEndDate(now);
   const result = await client.getPlannerItems(effectiveStart, effectiveEnd);
   if (result?.error || result?.forbidden || !Array.isArray(result?.data)) {
-    console.warn(`[sync-planner-items] partial planner sync for ${canvasDomain}: ${result?.error ?? "forbidden"}`);
+    logger.warn("worker_event");
     return { synced: 0, tombstoned: 0, errors: 1, partial: true };
   }
   let synced = 0;
@@ -126,8 +127,8 @@ export async function syncCanvasPlannerItems(params: SyncCanvasPlannerItemsParam
       await upsertPlannerItem(userId, item);
       seenKeys.push({ type: item.plannable_type, id: item.plannable_id });
       synced++;
-    } catch (err) {
-      console.error(`[sync-planner-items] failed to upsert planner item: ${err instanceof Error ? err.message : String(err)}`);
+    } catch {
+      logger.error("worker_event");
       errors++;
     }
   }

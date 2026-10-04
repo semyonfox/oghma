@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { tool, type ToolExecutionOptions } from "ai";
 import { z } from "zod";
 import {
@@ -62,6 +62,20 @@ describe("tool budget controls", () => {
     });
   });
 
+  it("does not exceed the execution budget for parallel calls in one step", async () => {
+    const execute = vi.fn(async () => ({ ok: true }));
+    const controls = buildToolBudgetControls(1, {
+      lookup: tool({ inputSchema: z.object({}), execute }),
+    });
+    const results = await Promise.all([executeLookup(controls), executeLookup(controls), executeLookup(controls)]);
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(results[0]).toEqual({ ok: true });
+    expect(results.slice(1)).toEqual([
+      expect.objectContaining({ type: "tool-call-limit" }),
+      expect.objectContaining({ type: "tool-call-limit" }),
+    ]);
+  });
+
   it("keeps tools enabled before the budget is exhausted", async () => {
     const controls = buildToolBudgetControls(2, {});
     const result = await controls.prepareStep({
@@ -106,7 +120,7 @@ describe("tool budget controls", () => {
       runtimeContext: {},
     });
 
-    expect(result?.activeTools).toEqual([]);
+    expect(result?.activeTools).toBeUndefined();
     expect(result?.toolChoice).toBe("none");
     expect(result?.messages).toBeUndefined();
     expect(result?.instructions).toEqual(

@@ -6,41 +6,55 @@ import {
   ClipboardDocumentIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
-import type { Message, MessagePart } from "./chat-interface";
+import type { Message } from "./chat-interface";
 import ChatMarkdown from "./chat-markdown";
-import { WorkLog } from "./tool-call-pill";
+import { WorkLog, collectNoteActivity } from "./tool-call-pill";
 import { partitionMessageParts } from "@/lib/chat/types";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
-/**
- * Render only final-answer parts. Process narration and tools are handled by
- * WorkLog above this surface.
- */
-const AssistantBody: FC<{ parts?: MessagePart[]; content: string }> = ({
-  parts,
-  content,
-}) => {
-  if (parts && parts.length > 0) {
-    return (
-      <>
-        {parts.map((part, i) =>
-          part.type === "text" ? (
-            <div key={i}>
-              <ChatMarkdown>{part.text}</ChatMarkdown>
-            </div>
-          ) : part.type === "error" ? (
-            <div
-              key={i}
-              className="my-1 rounded-radius-md border border-red-500/25 bg-red-500/10 px-2.5 py-2 text-xs text-red-200"
-            >
-              {part.text}
-            </div>
-          ) : null,
-        )}
-      </>
-    );
-  }
-  return <ChatMarkdown>{content}</ChatMarkdown>;
+const AssistantBody: FC<{
+  message: Message;
+  active: boolean;
+  compact?: boolean;
+}> = ({ message, active, compact = false }) => {
+  const parts = message.parts?.length
+    ? message.parts
+    : message.content
+      ? [{ type: "text" as const, text: message.content }]
+      : [];
+  const presentation = partitionMessageParts(parts);
+  const answer = presentation.answer.filter((part) => part.type === "text");
+  const errors = parts.filter((part) => part.type === "error");
+  return (
+    <>
+      <WorkLog
+        parts={parts}
+        searchContext={message.searchContext}
+        active={active}
+        hasAnswer={presentation.answerText.trim().length > 0}
+      />
+      {answer.map((part, index) => (
+        <div
+          key={index}
+          className={
+            compact
+              ? "rounded-radius-md rounded-bl-[4px] border border-border-subtle bg-surface px-2 py-[5px] text-base leading-relaxed text-text-secondary lg:text-sm"
+              : "glass-card rounded-radius-xl rounded-bl-[4px] px-3 py-2.5 text-base leading-relaxed text-text lg:text-sm"
+          }
+        >
+          <ChatMarkdown>{part.text}</ChatMarkdown>
+        </div>
+      ))}
+      {errors.map((part, index) => (
+        <div
+          key={`error-${index}`}
+          className="my-1 rounded-radius-md border border-red-500/25 bg-red-500/10 px-2.5 py-2 text-xs text-red-700 dark:text-red-200"
+        >
+          {part.text}
+        </div>
+      ))}
+    </>
+  );
 };
 
 function presentAssistantMessage(message: Message) {
@@ -92,7 +106,7 @@ const SourcesBlock: FC<{
         type="button"
         onClick={() => setExpanded(!expanded)}
         aria-expanded={expanded}
-        className="w-full flex items-center justify-between px-3 py-2 bg-surface/50 hover:bg-subtle/50 transition-colors text-left"
+        className="flex min-h-11 w-full items-center justify-between bg-surface/50 px-3 py-2 text-left transition-colors hover:bg-subtle/50 lg:min-h-0"
       >
         <span className="text-xs text-text-tertiary">
           <span className="font-medium text-text-secondary">
@@ -135,23 +149,6 @@ const SourcesBlock: FC<{
   );
 };
 
-// typing animation dots — shown while waiting for first token
-export const TypingDots: FC = () => (
-  <div
-    className="flex items-center gap-1 px-1 py-0.5"
-    role="status"
-    aria-label="Working"
-  >
-    {[0, 150, 300].map((delay) => (
-      <span
-        key={delay}
-        className="w-1.5 h-1.5 rounded-full bg-text-tertiary animate-bounce"
-        style={{ animationDelay: `${delay}ms` }}
-      />
-    ))}
-  </div>
-);
-
 // The parent places this plain copy icon in a slot that appears on hover.
 // On success, a Sonner toast shows "Copied" for 1.2 seconds. The icon does not change.
 // This makes the action feel dispatched instead of changing the interface.
@@ -178,7 +175,7 @@ const CopyMessageButton: FC<{ content: string }> = ({ content }) => {
       type="button"
       onClick={handleCopy}
       disabled={busy}
-      className="inline-flex items-center rounded-radius-sm text-text-tertiary opacity-70 transition-colors hover:opacity-100 hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/40 disabled:cursor-default"
+      className="touch-target-44 inline-flex items-center justify-center rounded-radius-sm text-text-tertiary opacity-70 transition-colors hover:opacity-100 hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/40 disabled:cursor-default"
       aria-label={t("Copy message")}
       title={t("Copy message")}
     >
@@ -199,12 +196,12 @@ const FullMessageBubbleComponent: FC<{
     return (
       <div className="flex justify-end">
         <div className="group/msg min-w-0 max-w-[90%]">
-          <div className="rounded-radius-xl rounded-br-[4px] border border-primary-500/25 bg-primary-500/10 px-3 py-2.5 text-sm leading-relaxed text-text">
+          <div className="rounded-radius-xl rounded-br-[4px] border border-primary-500/25 bg-primary-500/10 px-3 py-2.5 text-base leading-relaxed text-text lg:text-sm">
             <ChatMarkdown>{m.content}</ChatMarkdown>
           </div>
           <div className="mt-0.5 flex items-center justify-end gap-1.5 text-xs text-text-tertiary">
             {hasContent && (
-              <span className="opacity-0 transition-opacity duration-150 group-hover/msg:opacity-100 focus-within:opacity-100">
+              <span className="opacity-100 transition-opacity duration-150 lg:opacity-0 lg:group-hover/msg:opacity-100 lg:focus-within:opacity-100 pointer-coarse:opacity-100">
                 <CopyMessageButton content={m.content} />
               </span>
             )}
@@ -221,37 +218,16 @@ const FullMessageBubbleComponent: FC<{
   }
 
   const presentation = presentAssistantMessage(m);
-  const hasProcess = Boolean(m.thinking || presentation.activity.length > 0);
-  const hasSources = Array.isArray(m.sources) && m.sources.length > 0;
+  const hasSources = Array.isArray(m.sources) && m.sources.length > 0 &&
+    collectNoteActivity(m.parts ?? [], m.searchContext).length === 0;
   const hasPartError = m.parts?.some((part) => part.type === "error");
 
   return (
     <div className="group/msg space-y-2.5">
-      {hasProcess && (
-        <WorkLog
-          parts={presentation.activity}
-          thinking={m.thinking}
-          thinkingDuration={m.thinkingDuration}
-          active={isStreaming}
-          hasAnswer={presentation.hasAnswer}
-        />
-      )}
-
-      {(presentation.hasAnswer || (isStreaming && !m.error)) && (
-        <div className="glass-card rounded-radius-xl rounded-bl-[4px] px-3 py-2.5 text-sm leading-relaxed text-text">
-          {presentation.hasAnswer ? (
-            <AssistantBody
-              parts={presentation.answer}
-              content={presentation.answerText}
-            />
-          ) : (
-            <TypingDots />
-          )}
-        </div>
-      )}
+      <AssistantBody message={m} active={isStreaming} />
 
       {m.error && !hasPartError && (
-        <div className="rounded-radius-md border border-red-500/25 bg-red-500/10 px-2.5 py-2 text-xs text-red-200">
+        <div className="rounded-radius-md border border-red-500/25 bg-red-500/10 px-2.5 py-2 text-xs text-red-700 dark:text-red-200">
           {m.error}
         </div>
       )}
@@ -268,7 +244,7 @@ const FullMessageBubbleComponent: FC<{
           })}
         </p>
         {presentation.answerText.trim() && (
-          <span className="opacity-0 transition-opacity duration-150 group-hover/msg:opacity-100 focus-within:opacity-100">
+          <span className="opacity-100 transition-opacity duration-150 lg:opacity-0 lg:group-hover/msg:opacity-100 lg:focus-within:opacity-100 pointer-coarse:opacity-100">
             <CopyMessageButton content={presentation.answerText} />
           </span>
         )}
@@ -290,7 +266,8 @@ const CompactMessageBubbleComponent: FC<{
     m.role === "assistant"
       ? Boolean(presentation?.answerText.trim())
       : m.content.trim().length > 0;
-  const hasSources = Array.isArray(m.sources) && m.sources.length > 0;
+  const hasSources = Array.isArray(m.sources) && m.sources.length > 0 &&
+    collectNoteActivity(m.parts ?? [], m.searchContext).length === 0;
   const hasPartError = m.parts?.some((part) => part.type === "error");
 
   return (
@@ -298,52 +275,23 @@ const CompactMessageBubbleComponent: FC<{
       className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
     >
       <div className="group/msg min-w-0 max-w-[90%] space-y-1.5">
-        {m.role === "assistant" &&
-          presentation &&
-          (m.thinking || presentation.activity.length > 0) && (
-            <WorkLog
-              parts={presentation.activity}
-              thinking={m.thinking}
-              thinkingDuration={m.thinkingDuration}
-              active={isStreaming}
-              hasAnswer={presentation.hasAnswer}
-            />
-          )}
-
-        {(m.role === "user" ||
-          presentation?.hasAnswer ||
-          (isStreaming && !m.error)) && (
-          <div
-            className={`px-2 py-[5px] rounded-radius-md text-xs leading-relaxed ${
-              m.role === "user"
-                ? "border border-primary-500/25 bg-primary-500/10 text-text rounded-br-[4px]"
-                : "bg-surface border border-border-subtle text-text-secondary rounded-bl-[4px]"
-            }`}
-          >
-            {m.role === "assistant" ? (
-              presentation?.hasAnswer ? (
-                <AssistantBody
-                  parts={presentation.answer}
-                  content={presentation.answerText}
-                />
-              ) : (
-                <TypingDots />
-              )
-            ) : (
-              <ChatMarkdown>{m.content}</ChatMarkdown>
-            )}
+        {m.role === "assistant" ? (
+          <AssistantBody message={m} active={isStreaming} compact />
+        ) : (
+          <div className="rounded-radius-md rounded-br-[4px] border border-primary-500/25 bg-primary-500/10 px-2 py-[5px] text-base leading-relaxed text-text lg:text-sm">
+            <ChatMarkdown>{m.content}</ChatMarkdown>
           </div>
         )}
 
         {m.role === "assistant" && m.error && !hasPartError && (
-          <div className="rounded-radius-md border border-red-500/25 bg-red-500/10 px-2.5 py-2 text-xs text-red-200">
+          <div className="rounded-radius-md border border-red-500/25 bg-red-500/10 px-2.5 py-2 text-xs text-red-700 dark:text-red-200">
             {m.error}
           </div>
         )}
 
         {hasContent && (
           <div
-            className={`flex opacity-0 transition-opacity duration-150 group-hover/msg:opacity-100 focus-within:opacity-100 ${m.role === "user" ? "justify-end" : "justify-start"}`}
+            className={`flex opacity-100 transition-opacity duration-150 lg:opacity-0 lg:group-hover/msg:opacity-100 lg:focus-within:opacity-100 pointer-coarse:opacity-100 ${m.role === "user" ? "justify-end" : "justify-start"}`}
           >
             <CopyMessageButton
               content={presentation?.answerText ?? m.content}

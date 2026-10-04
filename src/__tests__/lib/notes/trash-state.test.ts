@@ -3,12 +3,17 @@ import { NOTE_DELETED, NOTE_PINNED, NOTE_SHARED } from "@/lib/notes/types/meta";
 
 const mocks = vi.hoisted(() => ({
   removeItem: vi.fn(),
+  publishWorkspaceInvalidation: vi.fn(),
 }));
 
 vi.mock("@/lib/notes/cache/note", () => ({
   default: {
     removeItem: mocks.removeItem,
   },
+}));
+
+vi.mock("@/lib/notes/workspace-invalidation", () => ({
+  publishWorkspaceInvalidation: mocks.publishWorkspaceInvalidation,
 }));
 
 import useTrashStore from "@/lib/notes/state/trash";
@@ -27,12 +32,20 @@ describe("trash state", () => {
   const list = vi.fn();
   const refreshTree = vi.fn();
   const deleteItem = vi.fn();
+  const treeState = {
+    ownerUserId: "user-1" as string | null,
+    generation: 1,
+    refreshTree,
+    deleteItem,
+  };
   const treeStore = {
-    getState: () => ({ refreshTree, deleteItem }),
+    getState: () => treeState,
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
+    treeState.ownerUserId = "user-1";
+    treeState.generation = 1;
     useTrashStore.getState().setDependencies({ list, mutate }, treeStore);
   });
 
@@ -73,6 +86,32 @@ describe("trash state", () => {
     expect(refreshTree).not.toHaveBeenCalled();
   });
 
+  it("publishes a late restore for its original owner without touching the new workspace", async () => {
+    let resolveMutation!: (value: { success: true; parentId: string }) => void;
+    mutate.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveMutation = resolve;
+        }),
+    );
+
+    const restoring = useTrashStore.getState().restoreNote(note);
+    treeState.ownerUserId = "user-2";
+    treeState.generation = 2;
+    resolveMutation({ success: true, parentId: "saved-parent" });
+
+    await expect(restoring).resolves.toMatchObject({
+      pid: "saved-parent",
+      deleted: NOTE_DELETED.NORMAL,
+    });
+    expect(mocks.publishWorkspaceInvalidation).toHaveBeenCalledWith(
+      "user-1",
+      "tree",
+    );
+    expect(mocks.removeItem).not.toHaveBeenCalled();
+    expect(refreshTree).not.toHaveBeenCalled();
+  });
+
   it("loads trash from the server and applies title filtering locally", async () => {
     list.mockResolvedValue([
       {
@@ -99,6 +138,21 @@ describe("trash state", () => {
     ]);
   });
 
+  it("keeps the newest search when an older response arrives last", async () => {
+    let finishOld!: (value: { id: string; title: string; isFolder: boolean }[]) => void;
+    list.mockImplementationOnce(() => new Promise((resolve) => { finishOld = resolve; }))
+      .mockResolvedValueOnce([{ id: "new", title: "Databases", isFolder: false }]);
+    const older = useTrashStore.getState().filterNotes("algo");
+    await useTrashStore.getState().filterNotes("data");
+    finishOld([{ id: "old", title: "Algorithms", isFolder: false }]);
+    await older;
+
+    expect(useTrashStore.getState().keyword).toBe("data");
+    expect(useTrashStore.getState().list).toEqual([
+      expect.objectContaining({ id: "new", title: "Databases" }),
+    ]);
+  });
+
   it("permanently removes local data only after the server succeeds", async () => {
     mutate.mockResolvedValue(undefined);
     await useTrashStore.getState().deleteNote(note.id);
@@ -109,5 +163,28 @@ describe("trash state", () => {
     await useTrashStore.getState().deleteNote(note.id);
     expect(mocks.removeItem).toHaveBeenCalledWith(note.id);
     expect(deleteItem).toHaveBeenCalledWith(note.id);
+  });
+
+  it("publishes a late deletion for its original owner without touching the new workspace", async () => {
+    let resolveMutation!: (value: { success: true }) => void;
+    mutate.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveMutation = resolve;
+        }),
+    );
+
+    const deleting = useTrashStore.getState().deleteNote(note.id);
+    treeState.ownerUserId = "user-2";
+    treeState.generation = 2;
+    resolveMutation({ success: true });
+    await deleting;
+
+    expect(mocks.publishWorkspaceInvalidation).toHaveBeenCalledWith(
+      "user-1",
+      "tree",
+    );
+    expect(mocks.removeItem).not.toHaveBeenCalled();
+    expect(deleteItem).not.toHaveBeenCalled();
   });
 });

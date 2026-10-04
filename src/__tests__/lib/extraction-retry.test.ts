@@ -1,24 +1,50 @@
-import { describe, it, expect } from "vitest";
-import { getExtractionRetryDelaySeconds } from "@/lib/canvas/extraction-retry";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-describe("getExtractionRetryDelaySeconds", () => {
-  it("returns 30s for attempt 0 (first retry)", () => {
-    expect(getExtractionRetryDelaySeconds(0)).toBe(30);
+const { enqueueExtractRetryJob } = vi.hoisted(() => ({
+  enqueueExtractRetryJob: vi.fn(),
+}));
+
+vi.mock("@/lib/queue", () => ({ enqueueExtractRetryJob }));
+
+import { enqueueExtractionRetry } from "@/lib/canvas/extraction-retry";
+
+const message = {
+  noteId: "00000000-0000-4000-8000-000000000001",
+  userId: "00000000-0000-4000-8000-000000000002",
+  s3Key: "uploads/lecture.pdf",
+  filename: "lecture.pdf",
+  mimeType: "application/pdf",
+  parentFolderId: null,
+  attempt: 0,
+};
+
+describe("direct extraction retry publication", () => {
+  beforeEach(() => {
+    enqueueExtractRetryJob.mockReset();
+    enqueueExtractRetryJob.mockResolvedValue(undefined);
   });
 
-  it("returns 120s for attempt 1", () => {
-    expect(getExtractionRetryDelaySeconds(1)).toBe(120);
+  it.each([
+    [0, 30],
+    [1, 120],
+    [2, 480],
+    [3, 900],
+    [99, 900],
+  ])("publishes attempt %i with a %i second delay", async (attempt, delay) => {
+    await expect(
+      enqueueExtractionRetry({ ...message, attempt }),
+    ).resolves.toEqual({ delaySeconds: delay });
+    expect(enqueueExtractRetryJob).toHaveBeenCalledWith(
+      { ...message, attempt: attempt + 1 },
+      delay,
+    );
   });
 
-  it("returns 480s for attempt 2", () => {
-    expect(getExtractionRetryDelaySeconds(2)).toBe(480);
-  });
+  it("propagates queue publication failures", async () => {
+    enqueueExtractRetryJob.mockRejectedValue(new Error("queue unavailable"));
 
-  it("returns 900s for attempt 3 (max retry delay)", () => {
-    expect(getExtractionRetryDelaySeconds(3)).toBe(900);
-  });
-
-  it("caps at 900s for attempts beyond the array", () => {
-    expect(getExtractionRetryDelaySeconds(99)).toBe(900);
+    await expect(enqueueExtractionRetry(message)).rejects.toThrow(
+      "queue unavailable",
+    );
   });
 });

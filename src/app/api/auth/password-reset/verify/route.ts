@@ -1,11 +1,11 @@
-import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import sql from "@/database/pgsql";
 import { createErrorResponse, parseJsonBody } from "@/lib/auth";
-import { validateAuthCredentials } from "@/lib/validation";
+import { validateAuthCredentials } from "@/lib/auth-credentials";
 import { checkRateLimit, getClientIp } from "@/lib/rateLimiter";
 import logger from "@/lib/logger";
 import { assertTrustedOrigin } from "@/lib/api-error";
+import { hashToken } from "@/lib/tokens";
 import type { NextRequest } from "next/server";
 
 export async function POST(request: NextRequest): Promise<Response> {
@@ -37,23 +37,32 @@ export async function POST(request: NextRequest): Promise<Response> {
       });
     }
 
-    // hash the incoming token to compare against the stored hash
-    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const tokenHash = hashToken(token);
+    const user = await sql.begin(async (tx) => {
+      const [candidate] = await tx<{ user_id: string; email: string }[]>`
+        SELECT user_id, email
+        FROM app.login
+        WHERE reset_token = ${tokenHash}
+          AND reset_token_expires > NOW()
+        FOR UPDATE
+      `;
+      if (!candidate) return null;
 
-    const users = await sql<{ user_id: string; email: string }[]>`
-            SELECT user_id, email FROM app.login
-            WHERE reset_token = ${tokenHash} AND reset_token_expires > NOW()
-        `;
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const [updated] = await tx<{ user_id: string; email: string }[]>`
+        UPDATE app.login
+        SET hashed_password = ${hashedPassword},
+            reset_token = NULL,
+            reset_token_expires = NULL
+        WHERE user_id = ${candidate.user_id}::uuid
+          AND reset_token = ${tokenHash}
+        RETURNING user_id, email
+      `;
+      return updated ?? null;
+    });
 
-    if (users.length === 0)
+    if (!user)
       return createErrorResponse("Invalid or expired reset token", 400);
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-    await sql`
-            UPDATE app.login
-            SET hashed_password = ${hashedPassword}, reset_token = NULL, reset_token_expires = NULL
-            WHERE user_id = ${users[0].user_id}
-        `;
 
     return new Response(
       JSON.stringify({ message: "Password reset successful" }),

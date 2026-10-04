@@ -1,3 +1,5 @@
+import { captureImportedPdfCache } from "./import-cache";
+import { CanvasClaimLostError, withCanvasPublication } from "./execution";
 /**
  * Canvas Import — Embedding Phase
  *
@@ -15,6 +17,7 @@ import { cacheInvalidate, cacheKeys } from "@/lib/cache";
 import {
   enqueueExtractionRetry,
   MAX_EXTRACTION_RETRIES,
+  stageCanvasExtractionRetry,
   type ExtractionRetryMessage,
 } from "./extraction-retry.ts";
 import {
@@ -56,6 +59,7 @@ export interface RagPipelineOptions {
   canvasAssignmentId?: string | number | null;
   extractionOverride?: ExtractionResult | null;
   retryOnFailure?: boolean;
+  cacheId?: string | null;
 }
 
 interface FindOrCreateNoteOptions {
@@ -63,6 +67,7 @@ interface FindOrCreateNoteOptions {
   canvasCourseId?: string | number | null;
   canvasModuleId?: string | number | null;
   canvasAssignmentId?: string | number | null;
+  canvasImportId?: string | null;
 }
 
 export interface RagPipelineResult {
@@ -92,10 +97,8 @@ async function invalidateExtractedNote(userId: string, noteId: string) {
 }
 
 async function queueExtractionRetry(retryOpts: ExtractionRetryMessage) {
-  const { delaySeconds } = await enqueueExtractionRetry(retryOpts);
-  console.log(
-    `Queuing extraction retry for note ${retryOpts.noteId} (attempt ${retryOpts.attempt + 1}, delay ${delaySeconds}s)`,
-  );
+  await enqueueExtractionRetry(retryOpts);
+  logger.info("worker_event");
 }
 
 async function isActiveNote(noteId: string, userId: string): Promise<boolean> {
@@ -168,7 +171,7 @@ export async function processRagPipeline(
         return { noteId, chunksStored: 0, skipped: true };
       }
       if (!s3Key) throw new Error("Marker submission requires a stored source file");
-      const markerParentFolderId = await ensurePdfBundle();
+      const markerParentFolderId = await withCanvasPublication(ensurePdfBundle);
       const submitted = await submitMarkerJob({
         sourceKey: s3Key,
         sourceBytes: buffer?.length ?? null,
@@ -256,19 +259,20 @@ export async function processRagPipeline(
     });
 
     if (source === "text") {
-      console.log(
-        `Text extract (${mimeType}): ${chunks.length} chunks for note ${noteId}`,
-      );
+      logger.info("worker_event");
     } else if (source === "marker") {
-      console.log(
-        `Marker: extracted ${chunks.length} chunks for note ${noteId}`,
-      );
+      logger.info("worker_event");
     } else {
-      console.log(
-        `pdf-parse: extracted ${chunks.length} chunks for note ${noteId}`,
-      );
+      logger.info("worker_event");
     }
 
+    return await withCanvasPublication(async () => {
+    const finish = async (result: RagPipelineResult) => {
+      if (ragOpts.cacheId && !result.skipped) {
+        await captureImportedPdfCache({ cacheId: ragOpts.cacheId, sourceNoteId: result.noteId });
+      }
+      return result;
+    };
     if (isText) {
       const searchText = stripMarkdown(rawText);
       // text files: embed on the original note directly (no sibling needed)
@@ -302,8 +306,8 @@ export async function processRagPipeline(
         elapsedSecs: (embeddingElapsedMs / 1000).toFixed(2),
       });
 
-      console.log(`RAG: ${count} chunks embedded on text note ${noteId}`);
-      return { noteId, chunksStored: count };
+      logger.info("worker_event");
+      return finish({ noteId, chunksStored: count });
     }
 
     // Binary files create an extracted .md companion. PDFs share a named
@@ -335,7 +339,7 @@ export async function processRagPipeline(
       if (updated.length === 0) return { noteId, chunksStored: 0, skipped: true };
       await invalidateExtractedNote(userId, noteId);
       const count = await replaceEmbeddings(noteId, userId, chunks);
-      return { noteId, chunksStored: count };
+      return finish({ noteId, chunksStored: count });
     }
 
     if (!(await isActiveNote(noteId, userId))) {
@@ -347,7 +351,8 @@ export async function processRagPipeline(
       userId,
       mdTitle,
       markdownParentFolderId,
-      { content: rawText, canvasCourseId, canvasModuleId, canvasAssignmentId },
+      { content: rawText, canvasCourseId, canvasModuleId, canvasAssignmentId,
+        canvasImportId: importRecordId },
     );
     const storage = getStorageProvider();
     const markerAssets = await persistMarkerAssetsForNote({
@@ -387,15 +392,21 @@ export async function processRagPipeline(
       elapsedSecs: (embeddingElapsedMs / 1000).toFixed(2),
     });
 
-    console.log(
-      `RAG: ${count} chunks embedded on MD note ${mdNoteId} (source: ${noteId}, marker images: ${markerAssets.imageCount})`,
-    );
-    return { noteId: mdNoteId, chunksStored: count };
+    logger.info("worker_event");
+    return finish({ noteId: mdNoteId, chunksStored: count });
+    });
   } catch (error) {
+    if (error instanceof CanvasClaimLostError) throw error;
     if (error instanceof MarkerSubmissionCancelledError) {
       // Cancellation won the durable submission fence. Do not turn that into
       // a generic extraction retry, which could revive the cancelled import.
-      console.log(`Marker submission skipped for inactive import ${noteId}`);
+      logger.info("worker_event");
+      return null;
+    }
+    if (retryOnFailure && jobId && importRecordId) {
+      await stageCanvasExtractionRetry({ noteId, userId, s3Key, filename, mimeType,
+        parentFolderId: extractedParentFolderId, attempt, importRecordId, jobId },
+      error instanceof Error ? error.message : String(error));
       return null;
     }
     if (retryOnFailure && attempt < MAX_EXTRACTION_RETRIES) {
@@ -422,11 +433,11 @@ export async function processRagPipeline(
         RETURNING id
       `;
       if (jobId && stagedImports.length === 0) {
-        console.log(`Extraction retry skipped for inactive Canvas import ${noteId}`);
+        logger.info("worker_event");
         return null;
       }
       if (!jobId && stagedImports.length === 0 && stagedIngestion.length === 0) {
-        console.log(`Extraction retry skipped for inactive note ${noteId}`);
+        logger.info("worker_event");
         return null;
       }
       try {
@@ -462,12 +473,10 @@ export async function processRagPipeline(
         `;
         throw enqueueError;
       }
-      console.log(
-        `Extraction failed for note ${noteId}, queued for retry (attempt ${attempt + 1})`,
-      );
+      logger.info("worker_event");
       return null;
     }
-    console.error(`RAG pipeline error for note ${noteId}:`, error);
+    logger.error("worker_event");
     throw error;
   }
 }

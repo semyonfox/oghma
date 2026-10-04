@@ -16,6 +16,7 @@ export default function Footer() {
       { name: t("Deadlines and planning"), href: "/#features" },
     ],
     support: [
+      { name: t("Downloads"), href: "/downloads" },
       { name: t("Documentation"), href: "/syntax-guide" },
       { name: t("Guides"), href: "/syntax-guide" },
       { name: t("Product information"), href: "/info" },

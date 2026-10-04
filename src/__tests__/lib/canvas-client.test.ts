@@ -8,6 +8,164 @@ afterEach(() => {
   delete process.env.CANVAS_MAX_FILE_BYTES;
 });
 
+describe("Canvas file MIME metadata", () => {
+  it("normalizes the live Canvas File response spelling for imports", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            id: "3768975",
+            display_name: "CT3532_Course_Introduction.pdf",
+            filename: "CT3532_Course_Introduction.pdf",
+            "content-type": "application/pdf",
+            url: "https://example.instructure.com/files/3768975/download",
+            locked_for_user: false,
+            size: 12345,
+          }),
+        ),
+      ),
+    );
+
+    const result = await new CanvasClient("example.instructure.com", "token")
+      .getFile("56273", "3768975");
+
+    expect(result.forbidden).toBe(false);
+    expect(result.data).toMatchObject({
+      id: "3768975",
+      "content-type": "application/pdf",
+      content_type: "application/pdf",
+      locked_for_user: false,
+      size: 12345,
+    });
+  });
+
+  it("normalizes every inventory page and preserves valid fallback metadata", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify([
+              { id: "1", "content-type": " application/pdf " },
+            ]),
+            {
+              headers: {
+                Link: '<https://example.instructure.com/api/v1/courses/1/files?page=2>; rel="next"',
+              },
+            },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify([
+              { id: "2", content_type: "image/png" },
+              {
+                id: "3",
+                "content-type": null,
+                content_type: "text/plain",
+              },
+              {
+                id: "4",
+                "content-type":
+                  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                content_type: "application/octet-stream",
+              },
+            ]),
+          ),
+        ),
+    );
+
+    const result = await new CanvasClient(
+      "example.instructure.com",
+      "token",
+    ).getCourseFiles("1");
+
+    expect(result.data.map((file) => file.content_type)).toEqual([
+      "application/pdf",
+      "image/png",
+      "text/plain",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ]);
+  });
+
+  it("normalizes assignment and submission attachment metadata", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify([
+            {
+              id: "assignment-1",
+              name: "Testing II",
+              attachments: [
+                {
+                  id: "file-1",
+                  display_name: "lecture.pdf",
+                  "content-type": "application/pdf",
+                },
+              ],
+              submission: {
+                attachments: [
+                  {
+                    id: "file-2",
+                    display_name: "answer.docx",
+                    "content-type":
+                      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                  },
+                ],
+              },
+            },
+          ]),
+        ),
+      ),
+    );
+
+    const result = await new CanvasClient("example.instructure.com", "token")
+      .getAssignments("1");
+
+    expect(result.data[0]?.attachments?.[0]?.content_type).toBe(
+      "application/pdf",
+    );
+    expect(result.data[0]?.submission?.attachments?.[0]?.content_type).toBe(
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    );
+  });
+
+  it("keeps generic export responses in their original Canvas shape", async () => {
+    const rawFile = {
+      id: "file-1",
+      display_name: "lecture.pdf",
+      "content-type": "application/pdf",
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(JSON.stringify(rawFile))),
+    );
+
+    const result = await new CanvasClient("example.instructure.com", "token")
+      .getPath("/files/file-1");
+
+    expect(result.data).toEqual(rawFile);
+    expect(result.data).not.toHaveProperty("content_type");
+  });
+
+  it("preserves an actual permission denial instead of treating it as a file", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(null, { status: 403 })),
+    );
+
+    const result = await new CanvasClient(
+      "example.instructure.com",
+      "token",
+    ).getFile("1", "2");
+
+    expect(result).toMatchObject({ data: null, forbidden: true });
+  });
+});
+
 describe("CanvasClient string-ID requests", () => {
   it("requests and preserves string IDs for a single response", async () => {
     const fetchMock = vi.fn().mockResolvedValue(

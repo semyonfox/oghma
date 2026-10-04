@@ -59,31 +59,37 @@ describe("parseSseFrame — tool-call events", () => {
     });
   });
 
-  it("tolerates malformed JSON payload", () => {
+  it("rejects malformed JSON so replay cannot silently skip an event", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const metricSpy = vi.spyOn(Metrics, "sseParseError").mockResolvedValue();
 
     try {
-      const update = parseSseFrame({
-        event: "tool-call",
-        data: "not-json",
-      });
-
-      expect(update).toEqual({
-        type: "tool-call",
-        toolName: "",
-        label: "",
-      });
+      expect(() =>
+        parseSseFrame({ event: "tool-call", data: "not-json" }),
+      ).toThrow("Invalid response stream event");
       expect(metricSpy).toHaveBeenCalledOnce();
       expect(warnSpy).toHaveBeenCalledOnce();
       expect(warnSpy).toHaveBeenCalledWith(
-        "Malformed SSE frame payload",
-        expect.objectContaining({ event: "tool-call" }),
+        "chat_stream_invalid_event",
       );
     } finally {
       warnSpy.mockRestore();
       metricSpy.mockRestore();
     }
+  });
+});
+
+describe("parseSseFrame — note references", () => {
+  it("keeps only safe note IDs and titles from a tool result", () => {
+    expect(parseSseFrame({ event: "tool-result", data: JSON.stringify({
+      toolCallId: "read-1", status: "completed", notes: [
+        { id: "154b1133-54df-4e0e-a154-9b637750f106", title: "Complete Syntax", content: "private" },
+        { id: "bad/path", title: "Bad link" },
+      ],
+    }) })).toEqual({
+      type: "tool-result", toolCallId: "read-1", detail: undefined,
+      status: "completed", notes: [{ id: "154b1133-54df-4e0e-a154-9b637750f106", title: "Complete Syntax" }],
+    });
   });
 });
 
@@ -141,4 +147,20 @@ describe("parseSseFrame — lifecycle events", () => {
       type: "done",
     });
   });
+});
+
+it("keeps private stream messages and details out of development diagnostics", async () => {
+  const { logChatStream } = await import("@/lib/chat/client-stream");
+  vi.stubEnv("NODE_ENV", "development");
+  const spy = vi.spyOn(console, "debug").mockImplementation(() => {});
+  try {
+    logChatStream("debug", "synthetic private note title", { userId: "synthetic-user", content: "synthetic private question" });
+    expect(spy).toHaveBeenCalledOnce();
+    const emitted = JSON.stringify(spy.mock.calls);
+    expect(emitted).not.toContain("synthetic");
+    expect(spy.mock.calls[0]).toHaveLength(1);
+  } finally {
+    spy.mockRestore();
+    vi.unstubAllEnvs();
+  }
 });

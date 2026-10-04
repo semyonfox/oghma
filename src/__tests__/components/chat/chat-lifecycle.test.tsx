@@ -1,0 +1,486 @@
+// @vitest-environment jsdom
+
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import ChatInterface from "@/components/chat/chat-interface";
+
+vi.mock("@/lib/notes/hooks/use-i18n", () => ({
+  default: () => ({ t: (key: string, params?: { count?: number }) => key.replace("{count}", String(params?.count ?? "")) }),
+}));
+vi.mock("@/components/chat/chat-markdown", () => ({
+  default: ({ children }: { children: string }) => <p>{children}</p>,
+}));
+vi.mock("@/components/chat/chat-splash", () => ({
+  default: () => <p>New chat suggestions</p>,
+}));
+
+const noteId = "154b1133-54df-4e0e-a154-9b637750f106";
+
+const oldMessages = [
+  { id: "old-user", role: "user", content: "Old question" },
+  { id: "old-answer", role: "assistant", content: "Old answer" },
+];
+const newMessages = [
+  { id: "new-user", role: "user", content: "New question" },
+  {
+    id: "new-answer",
+    role: "assistant",
+    content: "New answer",
+    parts: [
+      {
+        type: "tool",
+        name: "readNote",
+        label: "Reading note",
+        callId: "read-1",
+        detail: noteId,
+        resultDetail: "Study notes",
+        status: "completed",
+        notes: [{ id: noteId, title: "Study notes" }],
+      },
+      { type: "text", text: "New answer" },
+    ],
+    metadata: { thinking: "Checking the notes", thinkingDuration: 1 },
+  },
+];
+
+function snapshot(messages: unknown[], generating = false) {
+  return Response.json({
+    session: {
+      generation_status: generating ? "generating" : "idle",
+      active_generation_id: generating ? "generation-1" : null,
+    },
+    messages,
+  });
+}
+
+function setupNetwork({
+  existing = true,
+  resuming = false,
+  failTerminalRead = false,
+} = {}) {
+  let completed = false;
+  let accepted = false;
+  let unavailableStreams = 0;
+  let eventId = 0;
+  let controller: ReadableStreamDefaultController<Uint8Array> | undefined;
+  let stream = new ReadableStream<Uint8Array>({
+    start(value) {
+      controller = value;
+    },
+  });
+  const fetchMock = vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === "/api/chat/sessions/session-1") {
+      if (completed && failTerminalRead) {
+        failTerminalRead = false;
+        throw new TypeError("Snapshot temporarily unavailable");
+      }
+      const history = existing ? oldMessages : [];
+      return snapshot(
+        completed
+          ? [...history, ...newMessages]
+          : resuming || accepted
+            ? [...history, newMessages[0]]
+            : history,
+        (resuming || accepted) && !completed,
+      );
+    }
+    if (url === "/api/chat" && options?.method === "POST") {
+      accepted = true;
+      return Response.json(
+        { sessionId: "session-1", generationId: "generation-1" },
+        { status: 202 },
+      );
+    }
+    if (url.startsWith("/api/chat/generations/generation-1/stream")) {
+      if (unavailableStreams > 0) {
+        unavailableStreams--;
+        throw new TypeError("Connection unavailable");
+      }
+      return new Response(stream, {
+        headers: { "Content-Type": "text/event-stream" },
+      });
+    }
+    if (url === "/api/chat/generations/generation-1/cancel") {
+      return Response.json({ ok: true });
+    }
+    if (url === "/api/chat/sessions/session-2") {
+      return snapshot([
+        { id: "other-user", role: "user", content: "Other conversation" },
+      ]);
+    }
+    throw new Error(`Unexpected request: ${url}`);
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  return {
+    fetchMock,
+    async emit(event: string, data: unknown) {
+      await act(async () => {
+        controller?.enqueue(
+          new TextEncoder().encode(
+            `id: ${++eventId}-0\nevent: ${event}\ndata: ${JSON.stringify(data)}\n\n`,
+          ),
+        );
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      });
+    },
+    async disconnect() {
+      await act(async () => {
+        unavailableStreams = 3;
+        controller?.close();
+        stream = new ReadableStream<Uint8Array>({
+          start(value) {
+            controller = value;
+          },
+        });
+      });
+    },
+    async finish() {
+      completed = true;
+      await act(async () => {
+        controller?.enqueue(
+          new TextEncoder().encode("event: done\ndata: {}\n\n"),
+        );
+        controller?.close();
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      });
+    },
+  };
+}
+
+async function sendQuestion() {
+  const input = screen.getByPlaceholderText("chat.ask_placeholder");
+  await waitFor(() => expect(input.hasAttribute("disabled")).toBe(false));
+  fireEvent.change(input, { target: { value: "New question" } });
+  fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+  await screen.findByRole("button", { name: "Stop generating" });
+}
+
+async function emitWorkLog(network: ReturnType<typeof setupNetwork>) {
+  await network.emit("thinking", { text: "Checking the notes" });
+  await network.emit("tool-call", {
+    toolName: "readNote",
+    toolCallId: "read-1",
+    detail: noteId,
+  });
+  await network.emit("tool-result", {
+    toolCallId: "read-1",
+    detail: "Study notes",
+    status: "completed",
+    notes: [{ id: noteId, title: "Study notes" }],
+  });
+  await network.emit("token", { text: "New answer" });
+}
+
+describe("chat session lifecycle", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it.each([false, true])("sends once from a focused composer, compact=%s", async (compact) => {
+    const network = setupNetwork({ existing: false });
+    render(<ChatInterface compact={compact} />);
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, { target: { value: "New question" } });
+    input.focus();
+    const button = screen.getByRole("button", { name: "Send message" });
+    const down = new MouseEvent("pointerdown", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+    });
+    fireEvent(button, down);
+    expect(down.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(input);
+    expect(network.fetchMock).not.toHaveBeenCalled();
+    fireEvent.click(button);
+    await screen.findByText("New question");
+    expect(network.fetchMock.mock.calls.filter(([url]) => url === "/api/chat")).toHaveLength(1);
+  });
+
+  it("only holds focus for a primary press from the focused composer", () => {
+    setupNetwork({ existing: false });
+    render(<ChatInterface />);
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, { target: { value: "New question" } });
+    const button = screen.getByRole("button", { name: "Send message" });
+    const press = (buttonIndex: number) => {
+      const down = new MouseEvent("pointerdown", { bubbles: true, cancelable: true, button: buttonIndex });
+      fireEvent(button, down);
+      return down.defaultPrevented;
+    };
+    input.blur();
+    expect(press(0)).toBe(false);
+    input.focus();
+    expect(press(2)).toBe(false);
+    expect(press(0)).toBe(true);
+  });
+
+  it("resets the composer height after sending", async () => {
+    setupNetwork({ existing: false });
+    render(<ChatInterface />);
+    const input = screen.getByRole("textbox") as HTMLTextAreaElement;
+    fireEvent.change(input, { target: { value: "New question" } });
+    input.style.height = "80px";
+    input.scrollTop = 40;
+    fireEvent.keyDown(input, { key: "Enter" });
+    await screen.findByText("New question");
+    expect(input.style.height).toBe("auto");
+    expect(input.scrollTop).toBe(0);
+  });
+
+  it("keeps composition and Shift+Enter in the draft, then sends on Enter", async () => {
+    const network = setupNetwork({ existing: false });
+    render(<ChatInterface />);
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, { target: { value: "New question" } });
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
+    expect(network.fetchMock).not.toHaveBeenCalled();
+    fireEvent.keyDown(input, { key: "Enter" });
+    await screen.findByText("New question");
+    expect(network.fetchMock.mock.calls.filter(([url]) => url === "/api/chat")).toHaveLength(1);
+  });
+
+  it("shows retry when the initial history request fails and restores on retry", async () => {
+    const network = setupNetwork();
+    network.fetchMock.mockRejectedValueOnce(
+      new TypeError("History unavailable"),
+    );
+    render(<ChatInterface sessionId="session-1" />);
+
+    const retry = await screen.findByRole("button", { name: "Try again" });
+    expect(screen.queryByText("New chat suggestions")).toBeNull();
+    expect(screen.queryByRole("status", { name: "Loading..." })).toBeNull();
+    expect(
+      screen.getByPlaceholderText("chat.ask_placeholder").hasAttribute("disabled"),
+    ).toBe(true);
+
+    fireEvent.click(retry);
+
+    await screen.findByText("Old answer");
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+    expect(
+      screen.getByPlaceholderText("chat.ask_placeholder").hasAttribute("disabled"),
+    ).toBe(false);
+  });
+
+  it("keeps a follow-up reply and the expanded note list after saving", async () => {
+    const network = setupNetwork();
+    const onComplete = vi.fn();
+    render(
+      <ChatInterface sessionId="session-1" onStreamComplete={onComplete} />,
+    );
+    await screen.findByText("Old answer");
+    await sendQuestion();
+    await emitWorkLog(network);
+    const answer = screen.getByText("New answer");
+    const workLog = screen.getByRole("button", { name: /Read 1 note/ });
+    if (workLog.getAttribute("aria-expanded") === "false")
+      fireEvent.click(workLog);
+    expect(workLog.getAttribute("aria-expanded")).toBe("true");
+
+    await network.finish();
+
+    await waitFor(() => expect(onComplete).toHaveBeenCalledWith("session-1"));
+    expect(screen.getByText("New answer")).toBe(answer);
+    expect(screen.getByText("New question")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Read 1 note/ })).toBe(workLog);
+    expect(workLog.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByRole("link", { name: "Study notes" }).getAttribute("href")).toBe(`/notes/${noteId}`);
+    expect(
+      screen
+        .getByPlaceholderText("chat.ask_placeholder")
+        .hasAttribute("disabled"),
+    ).toBe(false);
+  });
+
+  it("recovers the saved answer and note list when replay only supplies done", async () => {
+    const network = setupNetwork();
+    render(<ChatInterface sessionId="session-1" />);
+    await screen.findByText("Old answer");
+    await sendQuestion();
+    await network.finish();
+    expect(screen.getAllByText("New answer")).toHaveLength(1);
+    const workLog = screen.getByRole("button", { name: /Read 1 note/ });
+    if (workLog.getAttribute("aria-expanded") === "false")
+      fireEvent.click(workLog);
+    expect(screen.getByRole("link", { name: "Study notes" }).getAttribute("href")).toBe(`/notes/${noteId}`);
+  });
+
+  it("adopts a newly created session URL without replacing its answer or note list", async () => {
+    const network = setupNetwork({ existing: false });
+    const view = render(<ChatInterface />);
+    await sendQuestion();
+    await emitWorkLog(network);
+    await network.finish();
+    const answer = screen.getByText("New answer");
+    const workLog = screen.getByRole("button", { name: /Read 1 note/ });
+    if (workLog.getAttribute("aria-expanded") === "false")
+      fireEvent.click(workLog);
+    view.rerender(<ChatInterface sessionId="session-1" />);
+    await waitFor(() =>
+      expect(
+        screen
+          .getByPlaceholderText("chat.ask_placeholder")
+          .hasAttribute("disabled"),
+      ).toBe(false),
+    );
+    expect(screen.getByText("New answer")).toBe(answer);
+    expect(screen.getByRole("button", { name: /Read 1 note/ })).toBe(workLog);
+    expect(workLog.getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("retries a failed final snapshot without restoring the stale initial history", async () => {
+    const network = setupNetwork({ failTerminalRead: true });
+    render(<ChatInterface sessionId="session-1" />);
+    await screen.findByText("Old answer");
+    await sendQuestion();
+    await network.finish();
+    await screen.findByText("New answer");
+    expect(screen.getAllByText("New question")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: /Read 1 note/ })).toBeTruthy();
+  });
+
+  it("shows loading instead of new-chat suggestions while restoring history", async () => {
+    let resolve: (response: Response) => void = () => {};
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        () =>
+          new Promise<Response>((done) => {
+            resolve = done;
+          }),
+      ),
+    );
+    render(<ChatInterface sessionId="session-1" />);
+    expect(screen.getByRole("status", { name: "Loading..." })).toBeTruthy();
+    expect(screen.queryByText("New chat suggestions")).toBeNull();
+    expect(
+      screen
+        .getByPlaceholderText("chat.ask_placeholder")
+        .hasAttribute("disabled"),
+    ).toBe(true);
+    await act(async () => resolve(snapshot(oldMessages)));
+    expect(screen.getByText("Old answer")).toBeTruthy();
+  });
+
+  it("resumes a background reply and enables the composer immediately on completion", async () => {
+    const network = setupNetwork({ resuming: true });
+    render(<ChatInterface sessionId="session-1" />);
+    await screen.findByRole("button", { name: "Stop generating" });
+    await emitWorkLog(network);
+    await network.finish();
+    expect(screen.getByText("New answer")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Read 1 note/ })).toBeTruthy();
+    expect(
+      screen
+        .getByPlaceholderText("chat.ask_placeholder")
+        .hasAttribute("disabled"),
+    ).toBe(false);
+  });
+
+  it("detaches a previous chat stream when navigating to another session", async () => {
+    const network = setupNetwork();
+    const onComplete = vi.fn();
+    const view = render(
+      <ChatInterface sessionId="session-1" onStreamComplete={onComplete} />,
+    );
+    await screen.findByText("Old answer");
+    await sendQuestion();
+    await emitWorkLog(network);
+    view.rerender(
+      <ChatInterface sessionId="session-2" onStreamComplete={onComplete} />,
+    );
+    await screen.findByText("Other conversation");
+    expect(screen.queryByText("New answer")).toBeNull();
+    expect(onComplete).not.toHaveBeenCalled();
+  });
+
+  it("reattaches after exhausted retries without losing the partial reply or note list", async () => {
+    const network = setupNetwork({ resuming: true });
+    render(<ChatInterface sessionId="session-1" />);
+    await screen.findByRole("button", { name: "Stop generating" });
+    await emitWorkLog(network);
+    const answer = screen.getByText("New answer");
+    const workLog = screen.getByRole("button", { name: /Read 1 note/ });
+    if (workLog.getAttribute("aria-expanded") === "false")
+      fireEvent.click(workLog);
+    await network.disconnect();
+    await waitFor(
+      () => {
+        const requests = network.fetchMock.mock.calls.filter(([url]) =>
+          url.includes("/stream"),
+        );
+        expect(requests).toHaveLength(5);
+        expect(requests[4][0]).toContain("after=4-0");
+      },
+      { timeout: 5_000 },
+    );
+    expect(screen.getByText("New answer")).toBe(answer);
+    expect(screen.getByRole("button", { name: /Read 1 note/ })).toBe(workLog);
+    await network.finish();
+    expect(screen.getByText("New answer")).toBe(answer);
+    expect(workLog.getAttribute("aria-expanded")).toBe("true");
+  }, 10_000);
+
+  it("recovers a first reply after publishing its URL during a connection failure", async () => {
+    const network = setupNetwork({ existing: false });
+    const onComplete = vi.fn(() => {
+      view.rerender(
+        <ChatInterface sessionId="session-1" onStreamComplete={onComplete} />,
+      );
+    });
+    const view = render(<ChatInterface onStreamComplete={onComplete} />);
+    await sendQuestion();
+    await emitWorkLog(network);
+    const workLog = screen.getByRole("button", { name: /Read 1 note/ });
+    await network.disconnect();
+    await waitFor(
+      () => {
+        expect(
+          network.fetchMock.mock.calls.filter(([url]) =>
+            url.includes("/stream"),
+          ),
+        ).toHaveLength(5);
+      },
+      { timeout: 5_000 },
+    );
+    await network.finish();
+    expect(screen.getAllByText("New answer")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: /Read 1 note/ })).toBe(workLog);
+    expect(
+      screen
+        .getByPlaceholderText("chat.ask_placeholder")
+        .hasAttribute("disabled"),
+    ).toBe(false);
+  }, 10_000);
+
+  it("keeps listening after Stop so the saved reply and new session can settle", async () => {
+    const network = setupNetwork({ existing: false });
+    const onComplete = vi.fn();
+    render(<ChatInterface onStreamComplete={onComplete} />);
+    await sendQuestion();
+    await network.emit("thinking", { text: "Checking the notes" });
+    await network.emit("token", { text: "New" });
+    fireEvent.click(screen.getByRole("button", { name: "Stop generating" }));
+    expect(
+      network.fetchMock.mock.calls.some(([url]) => url.endsWith("/cancel")),
+    ).toBe(true);
+    await network.finish();
+    expect(screen.getAllByText("New answer")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: /Read 1 note/ })).toBeTruthy();
+    expect(onComplete).toHaveBeenCalledWith("session-1");
+  });
+});

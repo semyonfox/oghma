@@ -70,6 +70,29 @@ describe("BullMQ queue prefixing", () => {
     );
   });
 
+  it("uses a fresh queue id when republishing stale chat work", async () => {
+    vi.stubEnv("QUEUE_PREFIX", "oghma-dev");
+
+    const { enqueueRecoveredChatGeneration } = await import("@/lib/queue");
+    await enqueueRecoveredChatGeneration(
+      "11111111-1111-1111-1111-111111111111",
+    );
+
+    expect(queueAdd).toHaveBeenCalledWith(
+      "chat-generation",
+      {
+        type: "chat-generation",
+        generationId: "11111111-1111-1111-1111-111111111111",
+      },
+      expect.objectContaining({
+        jobId: expect.stringMatching(
+          /^recovery-11111111-1111-1111-1111-111111111111-/,
+        ),
+        attempts: 2,
+      }),
+    );
+  });
+
   it("uses QUEUE_PREFIX in the queue names shared by producers and workers", async () => {
     vi.stubEnv("QUEUE_PREFIX", "oghma-dev");
 

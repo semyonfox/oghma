@@ -42,24 +42,6 @@ export function getCurrentBloomLevel(reviews: ReviewRecord[]): BloomLevel {
   return maxAttempted;
 }
 
-// should we advance to the next bloom level?
-export function shouldAdvanceBloom(
-  currentLevel: BloomLevel,
-  reviews: ReviewRecord[],
-): boolean {
-  if (currentLevel >= 4) return false;
-
-  const atLevel = reviews.filter((r) => r.bloom_level === currentLevel);
-  if (atLevel.length < 3) return false;
-
-  const accuracy = atLevel.filter((r) => r.was_correct).length / atLevel.length;
-  if (accuracy < 0.8) return false;
-
-  // check last 3 are consecutive correct
-  const last3 = atLevel.slice(-3);
-  return last3.every((r) => r.was_correct);
-}
-
 // pick a random question type appropriate for the bloom level
 export function pickQuestionType(bloomLevel: BloomLevel): QuestionType {
   const types = BLOOM_QUESTION_TYPES[bloomLevel];

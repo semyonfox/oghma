@@ -1,17 +1,22 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { withErrorHandler, requireAuth, ApiError } from "@/lib/api-error";
 import { generateUUID } from "@/lib/utils/uuid";
 import { filterNoteFields } from "@/lib/notes/utils/filter-fields";
 import {
   mapNoteFromDB,
   type DatabaseNoteRow,
-  type MappedNote,
 } from "@/lib/notes/utils/map-note";
-import { cacheGet, cacheSet, cacheInvalidate, cacheKeys } from "@/lib/cache";
+import { cacheInvalidate, cacheKeys } from "@/lib/cache";
 import sql from "@/database/pgsql";
 import logger from "@/lib/logger";
 import { noteCreateSchema, validateBody } from "@/lib/validations/schemas";
 import { replaceNoteLinks } from "@/lib/notes/storage/note-links";
+import {
+  createNoteWithTree,
+  InvalidNoteParentError,
+  type CreatedNote,
+} from "@/lib/notes/storage/create-note";
 
 // Constants
 const MAX_TITLE_LENGTH = parseInt(process.env.MAX_TITLE_LENGTH ?? "500", 10);
@@ -44,21 +49,33 @@ export const GET = withErrorHandler(async (request) => {
       ? Math.min(Math.max(parsedLimit, 1), 200)
       : undefined;
 
-  // check cache for this page (before field filtering)
-  const listKey = cacheKeys.notesList(user.user_id, skip, limit);
-  const cachedList = query ? null : await cacheGet<MappedNote[]>(listKey);
-  if (!query && cachedList) {
-    const filtered = cachedList.map((note) => filterNoteFields(note, fields));
-    return NextResponse.json(filtered);
+  // List reads are bounded and indexed. Do not cache pages independently:
+  // a create, move, or delete changes pagination boundaries across all pages.
+  const after = url.searchParams.get("after");
+  let cursor: { createdAt: string; noteId: string } | null = null;
+  if (after) {
+    if (after.length > 512) throw new ApiError(400, "Invalid notes cursor");
+    try {
+      const value: unknown = JSON.parse(Buffer.from(after, "base64url").toString("utf8"));
+      cursor = z.object({
+        createdAt: z.iso.datetime({ precision: 6 }).refine(value => !value.startsWith("0000")),
+        noteId: z.uuid(),
+      }).parse(value);
+    } catch {
+      throw new ApiError(400, "Invalid notes cursor");
+    }
+    if (skip !== 0) throw new ApiError(400, "Use after or skip, not both");
   }
 
   // Get user's notes from PostgreSQL with SQL-level pagination
   // content is excluded from the list query — fetch individual notes for full content
   const sqlLimit = query ? 50 : (limit ?? 200);
-  const searchPattern = query ? `%${query}%` : null;
-  const notes = await sql<DatabaseNoteRow[]>`
+  const searchPattern = query ? `%${query.replace(/[\\%_]/g, (value) => `\\${value}`)}%` : null;
+  const queryStartedAt = performance.now();
+  const notes = await sql<(DatabaseNoteRow & { cursor_created_at: string })[]>`
     SELECT n.note_id, n.title, n.is_folder, n.s3_key, n.shared, n.pinned,
            n.created_at, n.updated_at,
+           to_char(n.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_created_at,
            (SELECT a.mime_type FROM app.attachments a
             WHERE a.note_id = n.note_id AND a.user_id = n.user_id AND a.s3_key = n.s3_key
             LIMIT 1) AS mime_type
@@ -66,18 +83,29 @@ export const GET = withErrorHandler(async (request) => {
     WHERE n.user_id = ${user.user_id}::uuid
       AND n.deleted_at IS NULL
       AND (${searchPattern}::text IS NULL OR n.title ILIKE ${searchPattern})
-    ORDER BY n.created_at DESC
+      AND (n.created_at, n.note_id) < (${cursor?.createdAt ?? 'infinity'}::text::timestamptz,
+        ${cursor?.noteId ?? 'ffffffff-ffff-ffff-ffff-ffffffffffff'}::uuid)
+    ORDER BY n.created_at DESC, n.note_id DESC
     LIMIT ${sqlLimit} OFFSET ${skip}
   `;
 
-  // Map to NoteModel format and cache full list (pre-field-filter)
+  // Map only the selected metadata to the public note shape.
+  const queryMs = performance.now() - queryStartedAt;
   const mapped = notes.map(mapNoteFromDB);
-  if (!query) await cacheSet(listKey, mapped, 120);
 
   // Filter fields if requested
   const filtered = mapped.map((note) => filterNoteFields(note, fields));
 
-  return NextResponse.json(filtered);
+  const last = notes.at(-1);
+  const response = NextResponse.json(filtered);
+  response.headers.set("Server-Timing", `db;dur=${queryMs.toFixed(2)}`);
+  if (last && notes.length === sqlLimit) {
+    response.headers.set("X-Next-Cursor", Buffer.from(JSON.stringify({
+      createdAt: last.cursor_created_at,
+      noteId: last.note_id,
+    })).toString("base64url"));
+  }
+  return response;
 });
 
 export const POST = withErrorHandler(async (request) => {
@@ -110,46 +138,29 @@ export const POST = withErrorHandler(async (request) => {
   const parentId = body.pid || null;
 
   const isFolder = body.isFolder === true || body.is_folder === true;
-  const note = await sql.begin(async (tx) => {
-    // Serialize creation with a Trash transition. Otherwise a browser action
-    // already in flight could append a new active child just after its folder
-    // was moved to Trash, leaving that child unexpectedly visible at root.
-    await tx`
-      SELECT pg_advisory_xact_lock(hashtextextended(${user.user_id}::text, 0))
-    `;
-    if (parentId) {
-      const [parent] = await tx`
-        SELECT note_id
-        FROM app.notes
-        WHERE note_id = ${parentId}::uuid
-          AND user_id = ${user.user_id}::uuid
-          AND is_folder = TRUE
-          AND deleted_at IS NULL
-        FOR UPDATE
-      `;
-      if (!parent) throw new ApiError(404, "Parent folder not found");
+  let note: CreatedNote;
+  try {
+    note = await createNoteWithTree({
+      noteId,
+      userId: user.user_id,
+      title: body.title || (isFolder ? "New Folder" : "Untitled"),
+      content: body.content || "\n",
+      isFolder,
+      parentId,
+    });
+  } catch (error) {
+    if (error instanceof InvalidNoteParentError) {
+      throw new ApiError(404, "Parent folder not found");
     }
-
-    const result = await tx`
-      INSERT INTO app.notes (note_id, user_id, title, content, is_folder, created_at, updated_at)
-      VALUES (${noteId}::uuid, ${user.user_id}::uuid, ${body.title || (isFolder ? "New Folder" : "Untitled")}, ${body.content || "\n"}, ${isFolder}, NOW(), NOW())
-      RETURNING note_id, user_id, title, content, is_folder, created_at, updated_at
-    `;
-    const created = result[0];
-    await tx`
-      INSERT INTO app.tree_items (user_id, note_id, parent_id)
-      VALUES (${user.user_id}::uuid, ${created.note_id}::uuid, ${parentId}::uuid)
-      ON CONFLICT (user_id, note_id) DO NOTHING
-    `;
-    return created;
-  });
+    throw error;
+  }
 
   if (body.content) {
     try {
-      await replaceNoteLinks(user.user_id, note.note_id, body.content);
+      await replaceNoteLinks(user.user_id, note.noteId, body.content);
     } catch (linkErr) {
       logger.error("note link index creation failed", {
-        noteId: note.note_id,
+        noteId: note.noteId,
         error: linkErr,
       });
     }
@@ -164,20 +175,20 @@ export const POST = withErrorHandler(async (request) => {
 
   return NextResponse.json(
     {
-      id: note.note_id,
+      id: note.noteId,
       title: note.title,
       content: note.content,
-      isFolder: note.is_folder,
+      isFolder: note.isFolder,
       pid: parentId || undefined,
       deleted: 0, // NOTE_DELETED.NORMAL
       shared: 0, // NOTE_SHARE.PRIVATE
       pinned: 0, // NOTE_PINNED.UNPINNED
       editorsize: null,
-      createdAt: note.created_at
-        ? new Date(note.created_at).toISOString()
+      createdAt: note.createdAt
+        ? new Date(note.createdAt).toISOString()
         : undefined,
-      updatedAt: note.updated_at
-        ? new Date(note.updated_at).toISOString()
+      updatedAt: note.updatedAt
+        ? new Date(note.updatedAt).toISOString()
         : undefined,
     },
     { status: 201 },

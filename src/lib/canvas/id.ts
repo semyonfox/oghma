@@ -1,6 +1,7 @@
 const BIGINT_COLUMN_MAX = BigInt("9223372036854775807");
 
 export interface CanvasCourseSelection {
+  assignmentId?: string;
   id: string;
   name: string;
   course_code: string;
@@ -80,6 +81,9 @@ export function normalizeCanvasCourseSelection(value: unknown): CanvasCourseSele
       "Canvas course code",
     ),
     term: normalizeCanvasTerm(value.term),
+    ...(value.assignmentId === undefined ? {} : {
+      assignmentId: canvasIdForBigintColumn(value.assignmentId, "Canvas assignment ID"),
+    }),
   };
 }
 

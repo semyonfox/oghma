@@ -3,6 +3,7 @@
 // QUEUE_PROVIDER=cloudflare to publish to Cloudflare Queues over HTTP.
 import { Queue, type JobsOptions } from "bullmq";
 import IORedis from "ioredis";
+import { generateUUID } from "@/lib/utils/uuid";
 
 export type QueueProvider = "bullmq" | "cloudflare";
 
@@ -132,6 +133,26 @@ export async function enqueueChatGeneration(generationId: string): Promise<void>
     { type: "chat-generation", generationId },
     {
       jobId: generationId,
+      attempts: 2,
+      backoff: { type: "exponential", delay: 2_000 },
+      removeOnComplete: { count: 200 },
+      removeOnFail: { count: 200 },
+    },
+  );
+}
+
+/** Republish durable work under a fresh queue id after its DB lease expires. */
+export async function enqueueRecoveredChatGeneration(
+  generationId: string,
+): Promise<void> {
+  if (getQueueProvider() !== "bullmq") {
+    throw new Error("Chat generation currently requires the BullMQ queue provider");
+  }
+  await getChatGenerationQueue().add(
+    "chat-generation",
+    { type: "chat-generation", generationId },
+    {
+      jobId: `recovery-${generationId}-${generateUUID()}`,
       attempts: 2,
       backoff: { type: "exponential", delay: 2_000 },
       removeOnComplete: { count: 200 },

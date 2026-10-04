@@ -73,6 +73,7 @@ export async function normalizeScope(
   requestedSessionId: string | undefined,
   message: string,
   requestHistory: ChatMessage[],
+  options: { persistUserMessage?: boolean } = {},
 ): Promise<NormalizedScope> {
   const hasExplicitScope = hasExplicitScopeInBody(body);
 
@@ -143,7 +144,9 @@ export async function normalizeScope(
     requestedSessionId,
     requestHistory,
   );
-  await persistMessage(sessionId, "user", message);
+  if (options.persistUserMessage !== false) {
+    await persistMessage(sessionId, "user", message);
+  }
 
   return {
     sessionId,

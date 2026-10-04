@@ -20,6 +20,7 @@ vi.mock("@/lib/cache", () => ({
 import {
   moveNoteInTree,
   TreeCycleError,
+  TreeMoveConflictError,
   TreeParentError,
 } from "@/lib/notes/storage/pg-tree";
 
@@ -36,11 +37,11 @@ describe("moveNoteInTree", () => {
     );
   });
 
-  it("moves an active note at root while serializing the user tree", async () => {
+  it("moves an active note while serializing the user tree", async () => {
     mocks.tx.mockImplementation((strings: TemplateStringsArray) => {
       const query = strings.join(" ");
-      if (query.includes("FROM app.notes") && query.includes("FOR UPDATE")) {
-        return [{ note_id: "child" }];
+      if (query.includes("FROM app.tree_items tree")) {
+        return [{ note_id: "child", parent_id: "old-folder" }];
       }
       if (query.includes("SELECT note_id, parent_id")) {
         return [
@@ -49,12 +50,19 @@ describe("moveNoteInTree", () => {
         ];
       }
       if (query.includes("UPDATE app.tree_items")) {
-        return [{ note_id: "child" }];
+        return [{ note_id: "child", parent_id: null }];
       }
       return [];
     });
 
-    await expect(moveNoteInTree("user-1", "child", null)).resolves.toBeUndefined();
+    await expect(
+      moveNoteInTree("user-1", "child", null, "old-folder"),
+    ).resolves.toEqual({
+      success: true,
+      noteId: "child",
+      oldParentId: "old-folder",
+      newParentId: null,
+    });
 
     const queries = mocks.tx.mock.calls.map(queryText);
     expect(queries.some((query) => query.includes("pg_advisory_xact_lock"))).toBe(
@@ -71,8 +79,8 @@ describe("moveNoteInTree", () => {
   it("rejects a non-folder or unavailable destination before changing the tree", async () => {
     mocks.tx.mockImplementation((strings: TemplateStringsArray) => {
       const query = strings.join(" ");
-      if (query.includes("FROM app.notes") && query.includes("FOR UPDATE")) {
-        return [{ note_id: "child" }];
+      if (query.includes("FROM app.tree_items tree")) {
+        return [{ note_id: "child", parent_id: null }];
       }
       if (query.includes("is_folder = TRUE")) return [];
       return [];
@@ -94,8 +102,8 @@ describe("moveNoteInTree", () => {
   it("rejects a cycle before changing the tree", async () => {
     mocks.tx.mockImplementation((strings: TemplateStringsArray) => {
       const query = strings.join(" ");
-      if (query.includes("FROM app.notes") && query.includes("FOR UPDATE")) {
-        return [{ note_id: "folder" }];
+      if (query.includes("FROM app.tree_items tree")) {
+        return [{ note_id: "folder", parent_id: null }];
       }
       if (query.includes("is_folder = TRUE")) return [{ note_id: "child" }];
       if (query.includes("SELECT note_id, parent_id")) {
@@ -117,6 +125,26 @@ describe("moveNoteInTree", () => {
         queryText(call).includes("UPDATE app.tree_items"),
       ),
     ).toBe(false);
+    consoleError.mockRestore();
+  });
+
+  it("rejects a stale expected parent before validating or updating the destination", async () => {
+    mocks.tx.mockImplementation((strings: TemplateStringsArray) => {
+      const query = strings.join(" ");
+      if (query.includes("FROM app.tree_items tree")) {
+        return [{ note_id: "child", parent_id: "current-folder" }];
+      }
+      return [];
+    });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(
+      moveNoteInTree("user-1", "child", "new-folder", "old-folder"),
+    ).rejects.toBeInstanceOf(TreeMoveConflictError);
+
+    const queries = mocks.tx.mock.calls.map(queryText);
+    expect(queries.some((query) => query.includes("is_folder = TRUE"))).toBe(false);
+    expect(queries.some((query) => query.includes("UPDATE app.tree_items"))).toBe(false);
     consoleError.mockRestore();
   });
 });

@@ -150,7 +150,7 @@ export async function moveNoteToExtractionBundle(
         ON parent.note_id = t.parent_id AND parent.user_id = t.user_id
       WHERE t.user_id = ${userId}::uuid
         AND t.note_id = ${noteId}::uuid
-      FOR UPDATE
+      FOR UPDATE OF t
     `) as SourceTreeRow[];
     const source = rows[0];
     if (!source) {

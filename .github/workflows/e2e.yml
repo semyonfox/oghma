@@ -30,13 +30,16 @@ env:
   CI: "true"
   NODE_ENV: test
   NEXT_TELEMETRY_DISABLED: "1"
-  E2E_BASE_URL: http://127.0.0.1:3310
-  PLAYWRIGHT_BASE_URL: http://127.0.0.1:3310
-  NEXT_PUBLIC_APP_URL: http://127.0.0.1:3310
-  NEXT_PUBLIC_API_URL: http://127.0.0.1:3310
-  NEXTAUTH_URL: http://127.0.0.1:3310
-  APP_BASE_URL: http://127.0.0.1:3310
-  CORS_ORIGINS: http://127.0.0.1:3310
+  # Build and run the production server within the hosted runner's memory.
+  NODE_OPTIONS: "--max-old-space-size=4096"
+  # Playwright permits production Secure cookies on localhost API requests.
+  E2E_BASE_URL: http://localhost:3310
+  PLAYWRIGHT_BASE_URL: http://localhost:3310
+  NEXT_PUBLIC_APP_URL: http://localhost:3310
+  NEXT_PUBLIC_API_URL: http://localhost:3310
+  NEXTAUTH_URL: http://localhost:3310
+  APP_BASE_URL: http://localhost:3310
+  CORS_ORIGINS: http://localhost:3310
   ENABLE_CREDENTIALS_AUTH: "true"
   JWT_SECRET: e2e-jwt-secret
   NEXTAUTH_SECRET: e2e-nextauth-secret
@@ -45,7 +48,7 @@ env:
   DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/oghma_e2e?search_path=app,public
   MIGRATION_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/oghma_e2e?search_path=app,public
   REDIS_HOST: 127.0.0.1
-  REDIS_PORT: "6379"
+  REDIS_PORT: "56380"
   REDIS_TLS: "false"
   STORAGE_ENDPOINT: http://127.0.0.1:9000
   STORAGE_BUCKET: oghma-e2e
@@ -71,12 +74,32 @@ env:
   QDRANT_COLLECTION: oghma_e2e_chunks
   QDRANT_IMAGE: qdrant/qdrant:latest
   MARKER_API_URL: ""
-  MINIO_IMAGE: minio/minio:RELEASE.2025-09-07T16-13-09Z
+  STORAGE_IMAGE: ghcr.io/rustfs/rustfs:1.0.0@sha256:8cc9801755448b71a786705ce76692c77e14936cccd87cf2fc31842e58f4d1ff
 
 jobs:
+  changes:
+    name: Select E2E checks
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      checks: ${{ steps.changes.outputs.checks }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Select web checks
+        id: changes
+        run: |
+          node --test scripts/select-ci-checks.test.mjs
+          node scripts/select-ci-checks.mjs
+
+  # Keep this check name stable for branch protection. Full invocations run it
+  # on an isolated runner alongside the extended job below.
   smoke:
     name: PR Smoke E2E
-    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.suite == 'smoke') }}
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || contains(fromJSON(needs.changes.outputs.checks || '[]'), 'web')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
 
@@ -97,7 +120,7 @@ jobs:
       redis:
         image: redis:7-alpine
         ports:
-          - 6379:6379
+          - 56380:6379
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s
@@ -135,20 +158,21 @@ jobs:
 
       - name: Start S3-compatible storage
         run: |
-          docker run -d --name oghma-e2e-minio \
+          docker run -d --name oghma-e2e-rustfs \
             -p 9000:9000 -p 9001:9001 \
-            -e MINIO_ROOT_USER="${STORAGE_ACCESS_KEY}" \
-            -e MINIO_ROOT_PASSWORD="${STORAGE_SECRET_KEY}" \
-            "${MINIO_IMAGE}" server /data --console-address ":9001"
+            -e RUSTFS_ACCESS_KEY="${STORAGE_ACCESS_KEY}" \
+            -e RUSTFS_SECRET_KEY="${STORAGE_SECRET_KEY}" \
+            -e RUSTFS_CORS_ALLOWED_ORIGINS="${E2E_BASE_URL}" \
+            "${STORAGE_IMAGE}" /data
 
           for attempt in {1..30}; do
-            if curl -fsS "${STORAGE_ENDPOINT}/minio/health/ready" >/dev/null; then
+            if curl -fsS "${STORAGE_ENDPOINT}/health/ready" >/dev/null; then
               break
             fi
             sleep 2
           done
 
-          curl -fsS "${STORAGE_ENDPOINT}/minio/health/ready" >/dev/null
+          curl -fsS "${STORAGE_ENDPOINT}/health/ready" >/dev/null
           node --experimental-strip-types scripts/e2e/create-storage-bucket.ts
 
       - name: Start Qdrant
@@ -183,10 +207,31 @@ jobs:
           npm run e2e:reset
           npm run test:integration
 
+      - name: Start background worker
+        run: |
+          npm run e2e:worker > worker.log 2>&1 &
+          echo $! > worker.pid
+          sleep 2
+          kill -0 "$(cat worker.pid)"
+          npm run e2e:worker:healthcheck
+
       - name: Run smoke E2E
         # Integration contracts already run reset + seed + bucket setup. Skip
         # the Playwright setup step for those to avoid duplicate work.
-        run: E2E_RESET_DB=0 E2E_CREATE_STORAGE_BUCKET=0 npm run e2e:smoke -- --workers=1
+        run: |
+          # Keep resource evidence in the job log even if the runner dies before
+          # Playwright can upload its report.
+          (
+            while true; do
+              date -u
+              free -m
+              ps -eo pid,comm,rss --sort=-rss | head -12
+              sleep 30
+            done
+          ) &
+          monitor_pid=$!
+          trap 'kill "$monitor_pid" 2>/dev/null || true' EXIT
+          E2E_RESET_DB=0 E2E_CREATE_STORAGE_BUCKET=0 npm run e2e:smoke -- --workers=1
 
       - name: Upload Playwright artifacts
         if: always()
@@ -196,14 +241,16 @@ jobs:
           path: |
             playwright-report/
             test-results/
+            worker.log
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Stop S3-compatible storage
+      - name: Stop E2E processes and services
         if: always()
         run: |
+          if [ -f worker.pid ]; then kill "$(cat worker.pid)" 2>/dev/null || true; fi
           if [ -f fake-ai.pid ]; then kill "$(cat fake-ai.pid)" 2>/dev/null || true; fi
-          docker rm -f oghma-e2e-minio 2>/dev/null || true
+          docker rm -f oghma-e2e-rustfs 2>/dev/null || true
           docker rm -f oghma-e2e-qdrant 2>/dev/null || true
 
   full:
@@ -229,7 +276,7 @@ jobs:
       redis:
         image: redis:7-alpine
         ports:
-          - 6379:6379
+          - 56380:6379
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s
@@ -267,20 +314,21 @@ jobs:
 
       - name: Start S3-compatible storage
         run: |
-          docker run -d --name oghma-e2e-minio \
+          docker run -d --name oghma-e2e-rustfs \
             -p 9000:9000 -p 9001:9001 \
-            -e MINIO_ROOT_USER="${STORAGE_ACCESS_KEY}" \
-            -e MINIO_ROOT_PASSWORD="${STORAGE_SECRET_KEY}" \
-            "${MINIO_IMAGE}" server /data --console-address ":9001"
+            -e RUSTFS_ACCESS_KEY="${STORAGE_ACCESS_KEY}" \
+            -e RUSTFS_SECRET_KEY="${STORAGE_SECRET_KEY}" \
+            -e RUSTFS_CORS_ALLOWED_ORIGINS="${E2E_BASE_URL}" \
+            "${STORAGE_IMAGE}" /data
 
           for attempt in {1..30}; do
-            if curl -fsS "${STORAGE_ENDPOINT}/minio/health/ready" >/dev/null; then
+            if curl -fsS "${STORAGE_ENDPOINT}/health/ready" >/dev/null; then
               break
             fi
             sleep 2
           done
 
-          curl -fsS "${STORAGE_ENDPOINT}/minio/health/ready" >/dev/null
+          curl -fsS "${STORAGE_ENDPOINT}/health/ready" >/dev/null
           node --experimental-strip-types scripts/e2e/create-storage-bucket.ts
 
       - name: Start Qdrant
@@ -310,10 +358,21 @@ jobs:
           cat fake-ai.log
           exit 1
 
+      - name: Prepare E2E state
+        run: npm run e2e:reset
+
+      - name: Start background worker
+        run: |
+          npm run e2e:worker > worker.log 2>&1 &
+          echo $! > worker.pid
+          sleep 2
+          kill -0 "$(cat worker.pid)"
+          npm run e2e:worker:healthcheck
+
       - name: Run full E2E
-        # The E2E script owns reset/migrate/seed so CI and local runs use the
-        # same deterministic setup instead of the deploy-only migration hook.
-        run: npm run e2e:full -- --workers=2
+        # State was prepared before worker startup so the worker never observes
+        # a database without the current schema.
+        run: E2E_RESET_DB=0 E2E_CREATE_STORAGE_BUCKET=0 npm run e2e:full -- --workers=2
 
       - name: Upload Playwright artifacts
         if: always()
@@ -323,12 +382,14 @@ jobs:
           path: |
             playwright-report/
             test-results/
+            worker.log
           if-no-files-found: ignore
           retention-days: 21
 
-      - name: Stop S3-compatible storage
+      - name: Stop E2E processes and services
         if: always()
         run: |
+          if [ -f worker.pid ]; then kill "$(cat worker.pid)" 2>/dev/null || true; fi
           if [ -f fake-ai.pid ]; then kill "$(cat fake-ai.pid)" 2>/dev/null || true; fi
-          docker rm -f oghma-e2e-minio 2>/dev/null || true
+          docker rm -f oghma-e2e-rustfs 2>/dev/null || true
           docker rm -f oghma-e2e-qdrant 2>/dev/null || true

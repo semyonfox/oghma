@@ -3,6 +3,7 @@
 import sql from "../src/database/pgsql.ts";
 import {
   CANVAS_IMPORT_QUEUE,
+  CHAT_GENERATION_QUEUE,
   EXTRACT_RETRY_QUEUE,
   MARKER_DISPATCH_QUEUE,
   getMarkerDispatchQueue,
@@ -34,6 +35,7 @@ async function checkBullMq(
   const connection = getQueueConnection();
   const canvasQueue = new Queue(CANVAS_IMPORT_QUEUE, { connection });
   const retryQueue = new Queue(EXTRACT_RETRY_QUEUE, { connection });
+  const chatQueue = new Queue(CHAT_GENERATION_QUEUE, { connection });
   const markerQueue = markerDispatchConsumerEnabled
     ? getMarkerDispatchQueue()
     : null;
@@ -46,20 +48,23 @@ async function checkBullMq(
     await Promise.all([
       canvasQueue.waitUntilReady(),
       retryQueue.waitUntilReady(),
+      chatQueue.waitUntilReady(),
       ...(markerQueue ? [markerQueue.waitUntilReady()] : []),
     ]);
     await Promise.all([
       canvasQueue.getJobCounts("waiting", "active", "delayed"),
       retryQueue.getJobCounts("waiting", "active", "delayed"),
+      chatQueue.getJobCounts("waiting", "active", "delayed", "failed"),
       ...(markerQueue ? [markerQueue.getJobCounts("waiting", "active", "delayed")] : []),
     ]);
     console.log(
-      `[worker-healthcheck] BullMQ ready: ${CANVAS_IMPORT_QUEUE}, ${EXTRACT_RETRY_QUEUE}${markerQueue ? `, ${MARKER_DISPATCH_QUEUE}` : ""}`,
+      `[worker-healthcheck] BullMQ ready: ${CANVAS_IMPORT_QUEUE}, ${EXTRACT_RETRY_QUEUE}, ${CHAT_GENERATION_QUEUE}${markerQueue ? `, ${MARKER_DISPATCH_QUEUE}` : ""}`,
     );
   } finally {
     await Promise.allSettled([
       canvasQueue.close(),
       retryQueue.close(),
+      chatQueue.close(),
       ...(markerQueue ? [markerQueue.close()] : []),
       connection.quit(),
     ]);

@@ -2,12 +2,17 @@ import type { MessageUpdate } from "@/lib/chat/parse-sse-frame";
 import { parseSseFrame } from "@/lib/chat/parse-sse-frame";
 import { parseSseBlocks } from "@/lib/chat/sse";
 import { noteSearchDetail } from "@/lib/chat/tool-display";
-import type { Message, MessagePart } from "@/lib/chat/types";
+import {
+  appendReasoningPart,
+  interruptRunningTools,
+  type Message,
+  type MessagePart,
+} from "@/lib/chat/types";
 
 export function logChatStream(
   level: "debug" | "info" | "warn" | "error",
-  message: string,
-  details: Record<string, unknown> = {},
+  _message: string,
+  _details: Record<string, unknown> = {},
 ): void {
   if (
     process.env.NODE_ENV !== "development" ||
@@ -16,16 +21,13 @@ export function logChatStream(
     return;
   }
   const logger = console[level] ?? console.log;
-  logger(`[chat-stream] ${message}`, details);
+  logger("chat_stream_event");
 }
 
 function appendTokenPart(parts: MessagePart[], text: string): MessagePart[] {
   const last = parts[parts.length - 1];
   if (last?.type === "text") {
-    return [
-      ...parts.slice(0, -1),
-      { type: "text", text: last.text + text },
-    ];
+    return [...parts.slice(0, -1), { type: "text", text: last.text + text }];
   }
   return [...parts, { type: "text", text }];
 }
@@ -77,6 +79,7 @@ export function applyUpdate(
       return {
         ...message,
         thinking: `${message.thinking ?? ""}${update.text}`,
+        parts: appendReasoningPart(message.parts ?? [], update.text),
       };
     case "token": {
       const duration = thinkingStartRef.current
@@ -101,6 +104,7 @@ export function applyUpdate(
             label: update.label,
             callId: update.toolCallId,
             detail: update.detail,
+            status: "running",
           },
         ],
       };
@@ -109,7 +113,12 @@ export function applyUpdate(
         ...message,
         parts: (message.parts ?? []).map((part) =>
           part.type === "tool" && part.callId === update.toolCallId
-            ? { ...part, detail: update.detail }
+            ? {
+                ...part,
+                resultDetail: update.detail,
+                ...(update.notes && update.notes.length > 0 && { notes: update.notes }),
+                status: update.status ?? "completed",
+              }
             : part,
         ),
       };
@@ -119,7 +128,7 @@ export function applyUpdate(
         partial: true,
         error: update.message,
         parts: [
-          ...(message.parts ?? []),
+          ...interruptRunningTools(message.parts ?? []),
           {
             type: "error",
             text: update.message || "Response interrupted.",
@@ -148,6 +157,14 @@ interface ConsumeStreamOptions {
   onSession: (sessionId: string | undefined, userText: string) => void;
   onEventId?: (id: string) => void;
   translate: (key: string) => string;
+  signal?: AbortSignal;
+  isActive?: () => boolean;
+}
+
+export class ChatGenerationFailedError extends Error {}
+
+function abortError(): DOMException {
+  return new DOMException("Chat stream detached", "AbortError");
 }
 
 export async function consumeChatStream({
@@ -159,31 +176,59 @@ export async function consumeChatStream({
   onSession,
   onEventId,
   translate,
+  signal,
+  isActive = () => true,
 }: ConsumeStreamOptions): Promise<{ timeBlockChanged: boolean }> {
   let timeBlockChanged = false;
-  let sawDone = false;
   let frameCount = 0;
   const reader = body.getReader();
   const decoder = new TextDecoder();
   const parseState = { buffer: "" };
 
-  while (true) {
-    const { value, done } = await reader.read();
-    const chunk = done
-      ? decoder.decode()
-      : decoder.decode(value, { stream: true });
+  const detachReader = () => {
+    void reader.cancel().catch(() => undefined);
+  };
+  signal?.addEventListener("abort", detachReader, { once: true });
 
-    if (chunk) {
-      for (const frame of parseSseBlocks(chunk, parseState)) {
-        if (frame.id) onEventId?.(frame.id);
-        frameCount += 1;
-        const update = parseSseFrame(frame);
-        if (!update) continue;
-        if (update.type === "done") {
-          sawDone = true;
-          continue;
-        }
-        if (update.type === "error") {
+  try {
+    while (true) {
+      if (signal?.aborted || !isActive()) throw abortError();
+      const { value, done } = await reader.read();
+      if (signal?.aborted || !isActive()) throw abortError();
+      const chunk = done
+        ? decoder.decode()
+        : decoder.decode(value, { stream: true });
+
+      if (chunk) {
+        for (const frame of parseSseBlocks(chunk, parseState)) {
+          if (signal?.aborted || !isActive()) throw abortError();
+          frameCount += 1;
+          const update = parseSseFrame(frame);
+          if (frame.id) onEventId?.(frame.id);
+          if (!update) continue;
+          if (update.type === "done") {
+            return { timeBlockChanged };
+          }
+          if (update.type === "error") {
+            setMessages((messages) =>
+              messages.map((message) =>
+                message.id === assistantId
+                  ? applyUpdate(message, update, thinkingStartRef)
+                  : message,
+              ),
+            );
+            throw new ChatGenerationFailedError(
+              update.message || translate("error.something_went_wrong"),
+            );
+          }
+          if (update.type === "meta") onSession(update.sessionId, userText);
+          if (
+            update.type === "tool-call" &&
+            (update.toolName === "addTimeBlock" ||
+              update.toolName === "completeTimeBlock")
+          ) {
+            timeBlockChanged = true;
+          }
           setMessages((messages) =>
             messages.map((message) =>
               message.id === assistantId
@@ -191,45 +236,45 @@ export async function consumeChatStream({
                 : message,
             ),
           );
-          throw new Error(
-            update.message || translate("error.something_went_wrong"),
-          );
         }
-        if (update.type === "meta") onSession(update.sessionId, userText);
-        if (
-          update.type === "tool-call" &&
-          (update.toolName === "addTimeBlock" ||
-            update.toolName === "completeTimeBlock")
-        ) {
-          timeBlockChanged = true;
-        }
-        setMessages((messages) =>
-          messages.map((message) =>
-            message.id === assistantId
-              ? applyUpdate(message, update, thinkingStartRef)
-              : message,
-          ),
-        );
       }
+
+      if (done) break;
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
     }
 
-    if (done) break;
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
-  }
-
-  if (!sawDone) {
     logChatStream("warn", "stream ended without done event", {
       assistantId,
       frameCount,
       bufferedBytes: parseState.buffer.length,
     });
     throw new Error("Response stream ended before completion");
+  } finally {
+    signal?.removeEventListener("abort", detachReader);
+    await reader.cancel().catch(() => undefined);
+    reader.releaseLock();
   }
-  return { timeBlockChanged };
+}
+
+function waitForRetry(delayMs: number, signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return Promise.reject(abortError());
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, delayMs);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(abortError());
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 export async function consumeBackgroundGeneration(input: {
   generationId: string;
+  afterId?: string;
+  onEventId?: (id: string) => void;
   assistantId: string;
   userText: string;
   signal: AbortSignal;
@@ -242,7 +287,7 @@ export async function consumeBackgroundGeneration(input: {
   ) => Promise<{ timeBlockChanged: boolean }>;
 }): Promise<void> {
   input.activeGenerationRef.current = input.generationId;
-  let afterId = "0-0";
+  let afterId = input.afterId ?? "0-0";
   let attempts = 0;
   try {
     while (!input.signal.aborted) {
@@ -260,16 +305,16 @@ export async function consumeBackgroundGeneration(input: {
           input.userText,
           (id) => {
             afterId = id;
+            input.onEventId?.(id);
           },
         );
         return;
       } catch (error) {
-        if (input.signal.aborted) throw error;
+        if (input.signal.aborted || error instanceof ChatGenerationFailedError)
+          throw error;
         attempts += 1;
         if (attempts >= 4) throw error;
-        await new Promise<void>((resolve) =>
-          setTimeout(resolve, attempts * 500),
-        );
+        await waitForRetry(attempts * 500, input.signal);
       }
     }
   } finally {

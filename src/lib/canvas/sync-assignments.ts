@@ -1,3 +1,5 @@
+import logger from "@/lib/logger";
+import { withCanvasPublication } from "./execution";
 /**
  * Canvas Assignment Metadata Sync
  *
@@ -13,6 +15,7 @@
 import sql from "../../database/pgsql";
 import { canvasIdForBigintColumn } from "./id";
 import type { CanvasAssignment } from "./client";
+import { createAsyncLimiter } from "./async-limiter";
 
 interface AssignmentClient {
   getAssignments(courseId: string): Promise<{
@@ -23,10 +26,6 @@ interface AssignmentClient {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
 }
 
 // deterministic color palette for course badges
@@ -99,29 +98,27 @@ export async function syncAssignmentMetadata(
   userId: string,
   courseTitle: string,
   client: AssignmentClient,
+  knownAssignments?: CanvasAssignment[],
 ) {
-  const { data: assignments, error } = await client.getAssignments(courseId);
+  const { data: assignments, error } = knownAssignments
+    ? { data: knownAssignments, error: undefined }
+    : await client.getAssignments(courseId);
 
   if (error || !assignments) {
-    console.warn(
-      `[sync-assignments] failed to fetch assignments for course ${courseId}: ${error}`,
-    );
+    logger.warn("worker_event");
     return { synced: 0, errors: 1 };
   }
 
   const courseColor =
     COURSE_COLORS[hashString(courseTitle) % COURSE_COLORS.length];
-  let synced = 0;
-  let errors = 0;
-
-  for (const a of assignments) {
-    if (!shouldSyncAssignment(a)) continue;
+  const limit = createAsyncLimiter(4);
+  const results = await Promise.all(assignments.filter(shouldSyncAssignment).map((a) => limit(async () => {
     try {
       const status = deriveStatus(a);
       const assignmentType = deriveAssignmentType(a);
       const submission = a.submission;
 
-      await sql`
+      await withCanvasPublication(() => sql`
         INSERT INTO app.assignments (
           user_id, canvas_course_id, canvas_assignment_id,
           title, description, course_name, course_color,
@@ -151,15 +148,16 @@ export async function syncAssignmentMetadata(
           points_possible = EXCLUDED.points_possible,
           assignment_type = EXCLUDED.assignment_type,
           updated_at = NOW()
-      `;
-      synced++;
-    } catch (err) {
-      console.error(
-        `[sync-assignments] failed to upsert assignment ${a.id}: ${errorMessage(err)}`,
-      );
-      errors++;
+      `);
+      return true;
+    } catch {
+      logger.error("worker_event");
+      return false;
     }
-  }
+  })));
 
-  return { synced, errors };
+  return {
+    synced: results.filter(Boolean).length,
+    errors: results.filter((ok) => !ok).length,
+  };
 }

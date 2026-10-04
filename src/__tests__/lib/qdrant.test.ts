@@ -249,3 +249,32 @@ describe("qdrant vector store", () => {
     });
   });
 });
+
+describe('vector request bounds', () => {
+  it('does not broaden an explicitly empty document scope', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const { searchChunkVectors } = await loadQdrant();
+    expect(await searchChunkVectors({ userId: 'u', vector: [1], limit: 10, documentIds: [] })).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('aborts a stalled vector request', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.stubGlobal('fetch', vi.fn((_url: string, init: RequestInit) => new Promise((_resolve, reject) => {
+        init.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true });
+      })));
+      // AbortSignal.timeout uses native timers, so supply a controllable signal
+      // while retaining the production deadline and fetch cancellation path.
+      const controller = new AbortController();
+      const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(controller.signal);
+      const { deleteChunkVectors } = await loadQdrant();
+      const work = deleteChunkVectors(['chunk']);
+      const assertion = expect(work).rejects.toThrow('deadline');
+      controller.abort(new Error('deadline'));
+      await assertion;
+      timeout.mockRestore();
+    } finally { vi.useRealTimers(); }
+  });
+});

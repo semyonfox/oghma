@@ -8,6 +8,7 @@ function handlers(): CanvasJobHandlers {
   return {
     processDiscoverJob: vi.fn().mockResolvedValue(undefined),
     processCanvasFile: vi.fn().mockResolvedValue(undefined),
+    processCanvasExtract: vi.fn().mockResolvedValue(undefined),
     processImportJob: vi.fn().mockResolvedValue(undefined),
     processDirectExtraction: vi.fn().mockResolvedValue(undefined),
     processExtractionRetry: vi.fn().mockResolvedValue(undefined),
@@ -59,6 +60,14 @@ describe("Canvas job dispatch", () => {
     );
 
     expect(target.processDiscoverJob).toHaveBeenCalledWith("job-1", 0);
+  });
+
+  it("routes a persisted Canvas extraction stage", async () => {
+    const target = handlers();
+    const data = { importRecordId: "import-1", jobId: "job-1", userId: "user-1" };
+
+    await expect(dispatchCanvasJob({ name: "canvas-extract", data }, target)).resolves.toBe(true);
+    expect(target.processCanvasExtract).toHaveBeenCalledWith(data);
   });
 
   it("rejects malformed messages before invoking a handler", async () => {

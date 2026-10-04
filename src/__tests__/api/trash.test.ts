@@ -121,4 +121,14 @@ describe("Trash API", () => {
       deletedRoots: 3,
     });
   });
+  it("returns a conflict for an outdated restore confirmation", async () => {
+    vi.mocked(restoreTrashRoot).mockResolvedValue(null);
+    const expectedDeletedAt = "2026-09-15T00:00:00.000Z";
+    const response = await POST(new NextRequest("http://localhost/api/trash", {
+      method: "POST", body: JSON.stringify({ action: "restore", id: ROOT_ID, expectedDeletedAt }),
+    }));
+    expect(response.status).toBe(409);
+    expect(restoreTrashRoot).toHaveBeenCalledWith(USER_ID, ROOT_ID, expectedDeletedAt);
+  });
+
 });

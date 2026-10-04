@@ -4,7 +4,7 @@ test.describe("settings and upload smoke", () => {
   test("settings loads profile and default settings for a real session", async ({
     loggedInPage: page,
   }) => {
-    await expect(page.getByText("Loading...", { exact: true })).toBeHidden();
+    await expect(page.getByText("Loading...", { exact: true })).toHaveCount(0);
     await page.goto("/settings");
 
     await expect(
@@ -71,7 +71,7 @@ test.describe("settings and upload smoke", () => {
     const cdp = await page.context().newCDPSession(page);
     await cdp.send("Page.setBypassCSP", { enabled: true });
     await page.reload();
-    await expect(page.getByText("Loading...", { exact: true })).toBeHidden();
+    await expect(page.getByText("Loading...", { exact: true })).toHaveCount(0);
     const zip = Buffer.from([
       0x50, 0x4b, 0x05, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,

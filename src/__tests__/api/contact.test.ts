@@ -65,7 +65,18 @@ describe("POST /api/contact", () => {
       vi
         .fn()
         .mockResolvedValue(
-          new Response(JSON.stringify({ success: true }), { status: 200 }),
+          new Response(
+            JSON.stringify({
+              success: true,
+              result: {
+                delivered: ["owner@example.com"],
+                queued: [],
+                permanent_bounces: [],
+                suppressed_recipients: [],
+              },
+            }),
+            { status: 200 },
+          ),
         ),
     );
   });

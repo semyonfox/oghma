@@ -1,0 +1,6 @@
+{
+  "platforms": ["android"],
+  "android": {
+    "modules": ["ie.oghmanotes.websession.OghmaWebSessionModule"]
+  }
+}

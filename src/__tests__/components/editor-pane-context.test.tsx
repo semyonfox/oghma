@@ -2,7 +2,7 @@
 import React from "react";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }), useSearchParams: () => new URLSearchParams() }));
 vi.mock("next/dynamic", () => ({ default: () => () => null }));
 vi.mock("@/lib/notes/hooks/use-i18n", () => ({ default: () => ({ t: (key: string) => key }) }));
 vi.mock("@/lib/hooks/use-media-query", () => ({ default: () => true }));
@@ -36,18 +36,23 @@ describe("editor pane context", () => {
   });
   it("keeps the save announcement mounted and exposes an actionable retry", () => {
     const save = vi.fn();
-    useSaveIndicatorStore.setState({ panes: { A: { fileId: a.fileId, state: "dirty", save } } });
+    useSaveIndicatorStore.setState({ files: { [a.fileId]: { state: "dirty", save } } });
     render(<EditorPane pane="A" file={a} />);
     const status = screen.getByRole("status");
-    act(() => useSaveIndicatorStore.getState().setIndicator("A", { fileId: a.fileId, state: "saving", save }));
+    act(() => useSaveIndicatorStore.getState().setIndicator(a.fileId, { state: "saving", save }));
     expect(status.textContent).toBe("Saving...");
-    act(() => useSaveIndicatorStore.getState().setIndicator("A", { fileId: a.fileId, state: "saved", save }));
+    act(() => useSaveIndicatorStore.getState().setIndicator(a.fileId, { state: "saved", save }));
     expect(screen.getByRole("status")).toBe(status);
     expect(status.textContent).toBe("Saved");
-    act(() => useSaveIndicatorStore.getState().setIndicator("A", { fileId: a.fileId, state: "error", save }));
+    act(() => useSaveIndicatorStore.getState().setIndicator(a.fileId, { state: "error", save }));
     expect(status.textContent).toBe("Save failed");
-    fireEvent.click(screen.getByRole("button", { name: "Retry save" }));
+    const retry = screen.getAllByRole("button", { name: "Retry save" })[0];
+    retry.focus();
+    save.mockImplementation(() => useSaveIndicatorStore.getState().setIndicator(a.fileId, { state: "saving", save }));
+    fireEvent.click(retry);
     expect(save).toHaveBeenCalledOnce();
+    expect(document.activeElement?.getAttribute("data-editor-pane")).toBe("A");
+    expect(screen.queryByRole("button", { name: "Retry save" })).toBeNull();
   });
 
 });

@@ -2,7 +2,7 @@
 
 > **Status:** Active engineering workflow
 >
-> **Last verified:** 2026-08-12 against `package.json`, Vitest configuration,
+> **Last verified:** 2026-09-15 against `package.json`, test configuration,
 > and GitHub Actions workflows
 
 Use this page to choose a check that proves the change you made. It describes
@@ -16,7 +16,7 @@ Run the smallest relevant test file while iterating:
 npm run test -- --run src/__tests__/lib/example.test.ts
 ```
 
-For a repository-wide fast quality gate, run:
+For the fast web and Canvas MCP quality gate, run:
 
 ```bash
 npm run lint:all
@@ -24,10 +24,10 @@ npm run lint:all
 
 `lint:all` runs ESLint, the i18n audit, TypeScript 7 checks for the app and
 Canvas MCP, the root Vitest suite (including TSX tests), and the Canvas MCP
-Vitest suite. All first-party source and root tests under `src/` are
-TypeScript/TSX. ESLint rejects explicit `any`; parse untrusted data as
-`unknown` and narrow it at the boundary instead.
-It does not start containers, run integration tests, or run Playwright.
+Vitest suite. All first-party web-app tests under `src/` are TypeScript/TSX.
+ESLint rejects explicit `any`; parse untrusted data as `unknown` and narrow it
+at the boundary instead. This command does not run the separate mobile app,
+Python Marker tests, integration tests, or Playwright.
 
 The i18n audit parses source syntax instead of guessing with regular
 expressions. It proves that literal `t(...)` keys exist in the base catalog,
@@ -35,6 +35,32 @@ every locale has the same string-key shape, and interpolation variables agree.
 Catalog values passed dynamically (for example blog content) are valid runtime
 usage and are not mislabeled as unused. Linguistic quality still needs a
 native-language review; it is not something a static script can establish.
+
+## Mobile and Marker checks
+
+The Android app has its own lockfile and Node contract tests. Install its
+dependencies separately, then run its type check and tests:
+
+```bash
+npm ci --prefix apps/mobile
+npm run mobile:check
+```
+
+The current Marker deployment unit tests cover the hosted-vision adapter and
+the RunPod handler. They use fake Marker and RunPod modules plus a local HTTP
+server, so they do not need a GPU, cloud credentials, or a running service.
+The same command syntax-checks the active Python modules and RunPod shell
+entrypoint.
+Install their pinned test-only dependencies before running them:
+
+```bash
+python3 -m pip install --requirement infra/runpod-marker/requirements-test.txt
+npm run test:marker
+```
+
+The retired AWS-era `infra/marker` pytest files are not part of this command
+or CI. Benchmark harness tests remain an explicit manual check through
+`npm run benchmark:marker:test`.
 
 ## Disposable-service checks
 
@@ -47,23 +73,76 @@ cp .env.e2e.example .env.e2e
 npm run e2e:services:up
 npm run e2e:reset
 npm run test:integration
+# In a second terminal:
+npm run e2e:worker
 npm run e2e:smoke -- --workers=1
 npm run e2e:services:down
 ```
 
-`e2e:reset` intentionally clears the configured test database. Start the
-background worker separately when a scenario needs queued import or indexing
-work; see the [import-worker runbook](../operations/import-worker.md).
+`e2e:reset` intentionally clears the configured test database. The background
+worker is required for streamed chat and other queued work. `e2e:worker` loads
+the same `.env.e2e` files as Playwright, which keeps its database, Redis, queue
+prefix, provider, and storage configuration identical to the app.
+See the [chat runbook](../operations/chat.md) and
+[import-worker runbook](../operations/import-worker.md).
 
 ## CI scope
 
-The GitHub test workflow runs `npm run test:ci`, which executes the root and
-Canvas MCP Vitest suites. The build workflow installs with `npm ci`, runs
-ESLint and the i18n audit, then builds Next.js with placeholder local service
-configuration. Docker-backed integration and Playwright suites are deliberate
-local/release checks, not GitHub Actions defaults.
+The [test workflow](../../.github/workflows/test.yml) runs `npm run test:ci`,
+which executes the root and Canvas MCP Vitest suites. The build workflow runs
+ESLint, the i18n audit, and a Next.js build for pull requests to `dev` and
+`main`, plus pushes to those branches. The path-filtered mobile workflow
+installs the mobile lockfile and runs its type check and Node contract tests.
+The path-filtered Marker workflow installs only pinned Pydantic and Pillow
+dependencies, syntax-checks the active entrypoints, then runs the
+credential-free adapter and RunPod handler tests.
+
+For PRs and pushes to `dev`, `scripts/select-ci-checks.mjs` skips web tests,
+the i18n audit, the Next.js build and smoke E2E when changes only affect
+Markdown documentation, the native app or the separate Marker Python service.
+Mobile changes retain root ESLint coverage. Shared files, web code and unknown
+paths run every web check. Unavailable Git comparisons also run every check;
+renames include both the old and new paths. Pushes to `main` and manual runs
+retain the full scope of their workflows.
+
+Build and Test keep their existing named jobs, with a short selection step
+before installing dependencies. E2E uses a small selection job so unrelated
+PRs can skip starting its databases, browser and worker. Run the selector's
+Git fixture tests locally with `node --test scripts/select-ci-checks.test.mjs`.
+Superseded PR runs cancel automatically.
+
+PR CI also runs integration contracts and the Playwright smoke suite through
+the [E2E workflow](../../.github/workflows/e2e.yml), using disposable services
+and a real background worker. It runs for pull requests to `dev` or `main` and
+for pushes to `dev`. The nightly/manual `full` workflow runs that isolated
+smoke/integration job alongside the extended scenarios under `tests/e2e/full`.
 
 Keep tests focused on observable contracts: response/status behavior, durable
 state, ownership, provider-boundary requests, or race/failure handling. Avoid
 asserting incidental helper calls unless ordering or a transaction boundary is
 the behavior being protected.
+
+## Dependency update constraints
+
+Verified 2026-09-15 against the npm registry and local checks:
+
+- Keep NextAuth on its current v5 beta line. Its npm `latest` tag still points
+  to v4, which would be a downgrade. Keep Node typings on the supported runtime
+  line rather than admitting Node 26 APIs into code that also runs on Node 22.
+- Mobile uses Expo 57's recommended React, React Native, native modules and
+  TypeScript versions. Run `npm exec -- expo install --check` from `apps/mobile`
+  after updates. See the [Expo upgrade guide](https://docs.expo.dev/workflow/upgrading-expo-sdk-walkthrough/).
+- Vitest 5 requires Vite as a peer. Both test packages list Vite explicitly so
+  installation also works when npm's `legacy-peer-deps` setting is enabled.
+- The root `lodash-es` override patches Mermaid/Chevrotain's pinned vulnerable
+  copy. Mobile's scoped `xcode > uuid` override uses the patched CommonJS v11
+  release. Recheck these overrides when the upstream packages update.
+- React-PDF 11 uses PDF.js 6. Copy the matching `build/pdf.worker.mjs` from the
+  `pdfjs-dist` package resolved by `react-pdf` into `public/pdf.worker.js` when
+  upgrading. The worker-version regression prevents mismatched copied assets.
+  `suspense={false}` preserves the viewer's loading/error UI.
+- React-PDF 11 raises browser requirements to Chrome 125 and Safari 18, with
+  additional compatibility work potentially needed below current browsers.
+  See its [upgrade guide](https://github.com/wojtekmaj/react-pdf/wiki/Upgrade-guide-from-version-10.x-to-11.x).
+  Mermaid 12 uses explicit `dagre` layout and `classic` look here to preserve
+  existing diagrams' appearance.

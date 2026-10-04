@@ -7,13 +7,20 @@ import {
   useState,
   useRef,
   useEffect,
+  useCallback,
   KeyboardEvent,
   FormEvent,
+  PointerEvent,
 } from "react";
 import { PaperAirplaneIcon, StopCircleIcon, DocumentTextIcon, FolderIcon } from "@heroicons/react/24/outline";
+import useNoteStore from "@/lib/notes/state/note";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { useChatStream } from "@/lib/chat/hooks/use-chat-stream";
-import { useChatPersistence } from "@/lib/chat/hooks/use-chat-persistence";
+import {
+  reconcileChatMessages,
+  useChatPersistence,
+} from "@/lib/chat/hooks/use-chat-persistence";
+import type { Message } from "@/lib/chat/types";
 import { CompactMessageBubble, FullMessageBubble } from "./message-bubble";
 import ChatSplash from "./chat-splash";
 
@@ -29,7 +36,7 @@ export type {
  * Small pill toggle used above the chat input (RAG / thinking). Shares the
  * active/inactive styling and shows a rich hover card describing the option.
  */
-function TogglePill({
+export function TogglePill({
   active,
   onClick,
   icon,
@@ -37,6 +44,7 @@ function TogglePill({
   tooltipTitle,
   tooltipText,
   dense = false,
+  tooltipAlign = "left",
 }: {
   active: boolean;
   onClick: () => void;
@@ -45,6 +53,7 @@ function TogglePill({
   tooltipTitle: string;
   tooltipText: string;
   dense?: boolean;
+  tooltipAlign?: "left" | "right";
 }) {
   const tooltipId = useId();
   return (
@@ -54,11 +63,13 @@ function TogglePill({
         onClick={onClick}
         aria-pressed={active}
         aria-describedby={tooltipId}
-        className={`flex items-center rounded-radius-md border font-medium transition-colors ${
-          dense ? "min-h-11 gap-1 px-2 text-xs lg:min-h-0 lg:px-1.5 lg:py-[3px]" : "min-h-11 gap-1.5 px-2.5 text-xs sm:min-h-0 sm:py-1"
+        className={`peer flex items-center rounded-radius-md border font-medium transition-colors ${
+          dense
+            ? "min-h-11 gap-1 px-2 text-xs lg:min-h-0 lg:px-1.5 lg:py-[3px]"
+            : "min-h-11 gap-1.5 px-2.5 text-xs lg:min-h-0 lg:py-1"
         } ${
           active
-            ? "text-primary-300 bg-primary-500/10 border-primary-500/20 hover:bg-primary-500/15"
+            ? "text-primary-700 dark:text-primary-300 bg-primary-500/10 border-primary-500/20 hover:bg-primary-500/15"
             : "text-text-tertiary border-border-subtle hover:text-text-secondary hover:border-border"
         }`}
       >
@@ -68,7 +79,9 @@ function TogglePill({
       <div
         id={tooltipId}
         role="tooltip"
-        className="pointer-events-none absolute bottom-full left-0 z-50 mb-1.5 flex w-48 flex-col gap-0.5 rounded-radius-md border border-border-subtle bg-surface-elevated px-2 py-1.5 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+        className={`pointer-events-none absolute bottom-full z-50 mb-1.5 flex w-48 flex-col gap-0.5 rounded-radius-md border border-border-subtle bg-surface-elevated px-2 py-1.5 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 peer-focus-visible:opacity-100 ${
+          tooltipAlign === "right" ? "right-0" : "left-0"
+        }`}
       >
         <span className="text-xs font-semibold text-text">{tooltipTitle}</span>
         <span className="text-[11px] leading-snug text-text-tertiary">
@@ -94,24 +107,19 @@ interface ChatInterfaceProps {
   /** Called when the user clears the current scope */
   onClearContext?: () => void;
   /** Called when a stream completes — useful for refreshing session list order */
-  onStreamComplete?: () => void;
+  onStreamComplete?: (sessionId: string | null) => void;
   onRemoveNote?: (id: string) => void;
   onRemoveFolder?: (id: string) => void;
   /** Optional extra class on the wrapper */
   className?: string;
 }
 
-export function shouldPreserveLiveSession(
+export function isChatComposerReady(
   controlledSessionId: string | undefined,
-  localSessionId: string | null,
-  messageCount: number,
-  ownsLiveStream = false,
+  restored: boolean,
+  busy: boolean,
 ): boolean {
-  return Boolean(
-    messageCount > 0 &&
-      (ownsLiveStream ||
-        (controlledSessionId && controlledSessionId === localSessionId)),
-  );
+  return !busy && (!controlledSessionId || restored);
 }
 
 // retain note questions while the inspector closes or changes layout
@@ -132,12 +140,23 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
 }) => {
   const { t } = useI18n();
 
+  const ownsMessagesRef = useRef(false);
+  const recoveringMessagesRef = useRef(false);
+  const resumedGenerationRef = useRef<string | null>(null);
+  const appliedSnapshotRef = useRef<Message[] | null>(null);
+  const appliedMessagesRef = useRef<Message[] | null>(null);
+
   const {
     thinkingMode,
     toggleThinking,
     useRag,
     toggleRag,
     restoredMessages,
+    restoredGenerating,
+    restored,
+    restoreError,
+    retryRestore,
+    finishBackgroundGeneration,
     backgroundLoading,
     backgroundGenerationId,
     updateRefs,
@@ -145,6 +164,20 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     compact,
     controlledSessionId,
   });
+
+  const retryConversation = useCallback(() => {
+    recoveringMessagesRef.current = true;
+    resumedGenerationRef.current = null;
+    retryRestore();
+  }, [retryRestore]);
+
+  const handleStreamComplete = useCallback(
+    (completedSessionId: string | null, generationId?: string) => {
+      finishBackgroundGeneration(generationId);
+      onStreamComplete?.(completedSessionId);
+    },
+    [finishBackgroundGeneration, onStreamComplete],
+  );
 
   const {
     messages,
@@ -164,67 +197,70 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     selectedFolders,
     thinkingMode,
     useRag,
+    controlledSessionId,
+    sessionReady: !controlledSessionId || restored,
     onSessionCreated,
-    onStreamComplete,
+    onStreamComplete: handleStreamComplete,
+    onTerminalFailure: retryConversation,
   });
   const busy = loading || backgroundLoading;
+  const composerDisabled = !isChatComposerReady(
+    controlledSessionId,
+    restored,
+    busy,
+  );
 
   // Stop must reach the worker even before the background resume attaches,
   // Use this state when the hook does not know the generation ID yet.
   const stopGenerating = () => {
-    if (backgroundGenerationId) {
+    if (backgroundGenerationId && !loading) {
       void fetch(`/api/chat/generations/${backgroundGenerationId}/cancel`, {
         method: "POST",
       }).catch(() => {});
     }
     cancel();
   };
-  const resumedGenerationRef = useRef<string | null>(null);
-  const ownsLiveStreamRef = useRef(false);
-
-  // Latch ownership before the server-assigned session ID is reflected by the
-  // parent. React may render that controlled ID before the hook's local ID,
-  // so comparing IDs alone is not sufficient to protect optimistic messages.
-  if (loading && messages.length > 0) {
-    ownsLiveStreamRef.current = true;
-  }
-
-  // apply restored session messages when available
-  const restoredAppliedRef = useRef(false);
   useEffect(() => {
-    // A new chat receives its server ID while its first reply is still live.
-    // The parent then passes that ID back as controlledSessionId, which starts
-    // a restore request. Preserve the optimistic messages in this mounted
-    // instance: the restore snapshot can be older than the active stream and
-    // would remove the assistant message that incoming tokens target.
+    resumedGenerationRef.current = null;
+    appliedSnapshotRef.current = null;
+    appliedMessagesRef.current = null;
+    // Adopting the URL of a newly created chat must keep its live reply.
+    ownsMessagesRef.current = Boolean(
+      controlledSessionId &&
+        sessionId === controlledSessionId &&
+        messages.length > 0,
+    );
+    if (!ownsMessagesRef.current) recoveringMessagesRef.current = false;
+    // This reset belongs to navigation, not token or session-state updates.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [controlledSessionId]);
+
+  // Hydrate once. After streaming starts, only an explicit recovery may adopt
+  // a new terminal snapshot; changing the spinner state cannot replay history.
+  useEffect(() => {
     if (
-      shouldPreserveLiveSession(
-        controlledSessionId,
-        sessionId,
-        messages.length,
-        ownsLiveStreamRef.current,
-      )
-    ) {
-      restoredAppliedRef.current = true;
-      return;
-    }
-    if (
+      !controlledSessionId ||
+      !restored ||
       !restoredMessages ||
-      (restoredAppliedRef.current && (backgroundLoading || loading))
+      appliedSnapshotRef.current === restoredMessages ||
+      (ownsMessagesRef.current &&
+        (!recoveringMessagesRef.current || restoredGenerating)) ||
+      loading
     ) {
       return;
     }
-    restoredAppliedRef.current = true;
-    if (controlledSessionId) {
-      setSessionId(controlledSessionId);
-    }
-    setMessages(restoredMessages);
+    const nextMessages = reconcileChatMessages(messages, restoredMessages);
+    recoveringMessagesRef.current = false;
+    appliedSnapshotRef.current = restoredMessages;
+    appliedMessagesRef.current = nextMessages;
+    setSessionId(controlledSessionId);
+    setMessages(nextMessages);
   }, [
+    restoredGenerating,
+    messages,
     restoredMessages,
+    restored,
     controlledSessionId,
-    sessionId,
-    messages.length,
-    backgroundLoading,
     loading,
     setMessages,
     setSessionId,
@@ -232,15 +268,26 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
 
   useEffect(() => {
     if (
-      !restoredAppliedRef.current ||
+      !restored ||
+      !restoredMessages ||
+      (!ownsMessagesRef.current && messages !== appliedMessagesRef.current) ||
+      loading ||
       !backgroundGenerationId ||
       resumedGenerationRef.current === backgroundGenerationId
     ) {
       return;
     }
     resumedGenerationRef.current = backgroundGenerationId;
+    ownsMessagesRef.current = true;
     void resume(backgroundGenerationId);
-  }, [backgroundGenerationId, restoredMessages, resume]);
+  }, [
+    backgroundGenerationId,
+    loading,
+    messages,
+    restored,
+    restoredMessages,
+    resume,
+  ]);
 
   // keep persistence refs in sync for unload handlers
   useEffect(() => {
@@ -267,7 +314,8 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages, busy]);
 
-  const draftKey = compact ? noteId : undefined;
+  const workspaceGeneration = useNoteStore((state) => state.generation);
+  const draftKey = compact && noteId ? `${workspaceGeneration}:${noteId}` : undefined;
   const [composer, setComposer] = useState({
     key: draftKey,
     value: draftKey ? noteComposerDrafts.get(draftKey) ?? "" : "",
@@ -275,28 +323,38 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
   const input = composer.key === draftKey
     ? composer.value
     : draftKey ? noteComposerDrafts.get(draftKey) ?? "" : "";
-  const setInput = (value: string) => {
+  const setInput = useCallback((value: string) => {
     if (draftKey) {
       if (value) noteComposerDrafts.set(draftKey, value);
       else noteComposerDrafts.delete(draftKey);
     }
     setComposer({ key: draftKey, value });
-  };
+  }, [draftKey]);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+
+  const previousSessionId = useRef(controlledSessionId);
+  useEffect(() => {
+    if (previousSessionId.current === controlledSessionId) return;
+    previousSessionId.current = controlledSessionId;
+    setInput("");
+    pinnedToBottomRef.current = true;
+  }, [controlledSessionId, setInput]);
 
   const thinkingActive = thinkingMode !== "off";
   const thinkingLabel = thinkingActive ? t("Thinking on") : t("Thinking off");
 
   const handleSend = () => {
     const text = input.trim();
-    if (!text || busy) return;
+    if (!text || composerDisabled) return;
+    ownsMessagesRef.current = true;
 
     // sending a message always re-pins the view to the bottom
     pinnedToBottomRef.current = true;
 
     setInput("");
     if (inputRef.current) {
-      (inputRef.current as HTMLTextAreaElement).style.height = "20px";
+      inputRef.current.style.height = "auto";
+      inputRef.current.scrollTop = 0;
     }
 
     const history = messages
@@ -306,8 +364,16 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     void send(text, history);
   };
 
+  const preserveComposerFocus = (e: PointerEvent<HTMLButtonElement>) => {
+    // Blurring on pointer-down can close the keyboard and move Send before
+    // pointer-up. Keep focus until the normal click/submit has dispatched.
+    if (e.button === 0 && document.activeElement === inputRef.current) {
+      e.preventDefault();
+    }
+  };
+
   const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       handleSend();
     }
@@ -323,12 +389,27 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
         >
           {messages.map((m, index) => (
             <CompactMessageBubble
-              key={m.id}
+              key={m.renderKey ?? m.id}
               message={m}
               isStreaming={busy && index === messages.length - 1}
             />
           ))}
 
+          {restoreError && (
+            <div
+              role="alert"
+              className="flex items-center justify-between gap-2 px-1 text-xs text-error-400"
+            >
+              <span>{t("error.something_went_wrong")}</span>
+              <button
+                type="button"
+                onClick={retryConversation}
+                className="font-medium text-primary-700 dark:text-primary-300 hover:text-primary-200"
+              >
+                {t("Try again")}
+              </button>
+            </div>
+          )}
           {error && <p className="text-xs text-error-400 px-1">{error}</p>}
           <div ref={bottomRef} />
         </div>
@@ -352,9 +433,10 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               label={thinkingLabel}
               tooltipTitle={t("chat.thinking_title")}
               tooltipText={t("chat.thinking_tooltip")}
+              tooltipAlign="right"
             />
           </div>
-          <div className="flex items-center gap-1.5 bg-surface border border-border-subtle rounded-radius-md px-2.5 py-[5px] focus-within:border-primary-500/50 transition-colors">
+          <div className="flex min-h-11 items-center gap-1.5 rounded-radius-md border border-border-subtle bg-surface px-2.5 py-[5px] transition-colors focus-within:border-primary-500/50">
             <input
               ref={inputRef as React.RefObject<HTMLInputElement>}
               type="text"
@@ -363,16 +445,17 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               onKeyDown={handleKeyDown}
               placeholder={t("chat.ask_about_note")}
               aria-label={t("chat.ask_about_note")}
-              disabled={busy}
-              className="flex-1 min-w-0 bg-transparent text-base lg:text-xs text-text-secondary placeholder:text-text-tertiary focus:outline-none disabled:opacity-50"
+              disabled={composerDisabled}
+              className="min-w-0 flex-1 bg-transparent text-base leading-relaxed text-text-secondary placeholder:text-text-tertiary focus:outline-none disabled:opacity-50 lg:text-sm"
             />
             <button
+              onPointerDown={preserveComposerFocus}
               onClick={handleSend}
-              disabled={busy || !input.trim()}
+              disabled={composerDisabled || !input.trim()}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-sm bg-primary-600 text-text-on-primary transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-40 lg:h-9 lg:w-9"
               aria-label={t("Send message")}
-              className="flex h-11 w-11 items-center justify-center lg:h-auto lg:w-auto lg:p-1 bg-primary-600 hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed text-text-on-primary rounded-radius-sm transition-colors flex-shrink-0"
             >
-              <PaperAirplaneIcon className="w-3 h-3" />
+              <PaperAirplaneIcon className="h-4 w-4" />
             </button>
           </div>
         </div>
@@ -387,14 +470,26 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-4 md:px-8 lg:px-10 py-3 obsidian-scrollbar"
+        className="mobile-dock-clearance flex-1 overflow-y-auto px-4 lg:px-10 py-3 obsidian-scrollbar"
       >
         <div
           className={`mx-auto flex w-full max-w-3xl flex-col space-y-2.5 ${
             messages.length === 0 ? "min-h-full justify-center pb-12" : ""
           }`}
         >
-          {messages.length === 0 ? (
+          {controlledSessionId &&
+          (!restored || sessionId !== controlledSessionId) &&
+          (messages.length === 0 || sessionId !== controlledSessionId) ? (
+            restoreError ? null : (
+              <div
+                className="flex justify-center py-8"
+                role="status"
+                aria-label={t("Loading...")}
+              >
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-text-tertiary/30 border-t-text-tertiary" />
+              </div>
+            )
+          ) : messages.length === 0 ? (
             <ChatSplash
               onSelectPrompt={(prompt) => {
                 setInput(prompt);
@@ -404,7 +499,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
           ) : (
             messages.map((m, index) => (
               <FullMessageBubble
-                key={m.id}
+                key={m.renderKey ?? m.id}
                 message={m}
                 sessionId={sessionId}
                 isStreaming={busy && index === messages.length - 1}
@@ -420,14 +515,33 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
             </div>
           )}
 
+          {restoreError && (
+            <div className="flex justify-center">
+              <div
+                role="alert"
+                className="flex items-center gap-2 rounded-radius-lg border border-error-500/20 bg-error-500/10 px-3 py-2 text-xs text-error-400"
+              >
+                <span>{t("error.something_went_wrong")}</span>
+                <button
+                  type="button"
+                  onClick={retryConversation}
+                  className="font-medium text-primary-700 dark:text-primary-300 transition-colors hover:text-primary-200"
+                >
+                  {t("Try again")}
+                </button>
+              </div>
+            </div>
+          )}
+
           <div ref={bottomRef} />
         </div>
       </div>
 
       {/* input area */}
       <div
-        className="flex-shrink-0 border-t border-border-subtle bg-background px-3 py-3 md:px-8 lg:px-10"
-        style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+        data-chat-composer
+        className="flex-shrink-0 px-3 py-3 lg:px-10"
+        style={{ paddingBottom: "max(0.75rem, var(--safe-bottom))" }}
       >
         <div className="mx-auto max-w-3xl">
           {(selectedNotes.length > 0 || selectedFolders.length > 0 || (noteTitle && selectedNotes.length === 0)) && (
@@ -445,7 +559,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                   {onRemoveNote && (
                     <button
                       onClick={() => onRemoveNote(note.id)}
-                      className="-mr-0.5 ml-0.5 rounded-full px-0.5 leading-4 opacity-60 transition-opacity hover:opacity-100"
+                      className="touch-target-44 -mr-0.5 ml-0.5 rounded-full px-0.5 leading-4 opacity-60 transition-opacity hover:opacity-100"
                       aria-label={t("Remove {title}", { title: note.title })}
                       title={t("Remove {title}", { title: note.title })}
                     >
@@ -461,7 +575,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                   {onRemoveFolder && (
                     <button
                       onClick={() => onRemoveFolder(folder.id)}
-                      className="-mr-0.5 ml-0.5 rounded-full px-0.5 leading-4 opacity-60 transition-opacity hover:opacity-100"
+                      className="touch-target-44 -mr-0.5 ml-0.5 rounded-full px-0.5 leading-4 opacity-60 transition-opacity hover:opacity-100"
                       aria-label={t("Remove {title}", { title: folder.title })}
                       title={t("Remove {title}", { title: folder.title })}
                     >
@@ -488,6 +602,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               label={thinkingLabel}
               tooltipTitle={t("chat.thinking_title")}
               tooltipText={t("chat.thinking_tooltip")}
+              tooltipAlign="right"
             />
           </div>
           <form
@@ -495,7 +610,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               e.preventDefault();
               handleSend();
             }}
-            className="flex items-end gap-1.5 rounded-radius-lg border border-border-subtle bg-surface px-2.5 py-1.5 shadow-sm transition-[border-color,box-shadow] focus-within:border-primary-500/50 focus-within:ring-1 focus-within:ring-primary-500/25 md:items-center md:py-2"
+            className="flex items-end gap-1.5 rounded-radius-lg border border-border-subtle bg-surface px-2.5 py-1.5 shadow-sm transition-[border-color,box-shadow] focus-within:border-primary-500/50 focus-within:ring-1 focus-within:ring-primary-500/25 lg:items-center lg:py-2"
           >
             <textarea
               ref={inputRef as React.RefObject<HTMLTextAreaElement>}
@@ -507,16 +622,16 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               }}
               onKeyDown={handleKeyDown}
               placeholder={t("chat.ask_placeholder")}
-              disabled={busy}
+              aria-label={t("chat.ask_placeholder")}
+              disabled={composerDisabled}
               rows={1}
-              className="min-w-0 flex-1 resize-none bg-transparent py-2 text-sm leading-snug text-text placeholder:text-text-tertiary focus:outline-none disabled:opacity-50 md:py-0"
-              style={{ minHeight: "20px", maxHeight: "96px" }}
+              className="min-h-11 max-h-24 min-w-0 flex-1 resize-none bg-transparent py-2 text-base leading-relaxed text-text placeholder:text-text-tertiary focus:outline-none disabled:opacity-50 lg:min-h-5 lg:py-0 lg:text-sm"
             />
             {busy ? (
               <button
                 type="button"
                 onClick={stopGenerating}
-                className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-radius-md bg-error-500/15 text-error-400 transition-colors hover:bg-error-500/25 hover:text-error-300 md:h-8 md:w-8"
+                className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-radius-md bg-error-500/15 text-error-400 transition-colors hover:bg-error-500/25 hover:text-error-300 lg:h-8 lg:w-8"
                 aria-label={t("Stop generating")}
                 title={t("Stop generating")}
               >
@@ -527,8 +642,9 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
             ) : (
               <button
                 type="submit"
-                disabled={!input.trim()}
-                className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-radius-md bg-primary-600 text-text-on-primary transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-40 md:h-8 md:w-8"
+                onPointerDown={preserveComposerFocus}
+                disabled={composerDisabled || !input.trim()}
+                className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-radius-md bg-primary-600 text-text-on-primary transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-40 lg:h-8 lg:w-8"
                 aria-label={t("Send message")}
               >
                 <PaperAirplaneIcon className="h-4 w-4" />
@@ -536,7 +652,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
             )}
           </form>
 
-          <p className="text-center text-xs text-text-tertiary opacity-50 mt-1.5">
+          <p className="text-center text-xs leading-relaxed text-text-tertiary mt-1.5">
             {t("chat.disclaimer")}
           </p>
         </div>

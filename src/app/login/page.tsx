@@ -12,6 +12,13 @@ import {
   buildOAuthSignInOptions,
   isOAuthProviderConfigured,
 } from "@/lib/oauth-client";
+import {
+  getNativeAppBridge,
+  postNativeOAuth,
+  postNativeUpdates,
+  type NativeOAuthProvider,
+  useNativeAppBridge,
+} from "@/lib/native-app";
 
 export default function LoginPage() {
   const { t } = useI18n();
@@ -20,6 +27,7 @@ export default function LoginPage() {
   const errRef = useRef<HTMLDivElement>(null);
   const redirectFallbackRef = useRef<number | null>(null);
   const router = useRouter();
+  const nativeAppBridge = useNativeAppBridge();
 
   const [email, setEmail] = useState("");
   const [pwd, setPwd] = useState("");
@@ -37,7 +45,7 @@ export default function LoginPage() {
   // auth redirect is handled by middleware — no client-side check needed
 
   useEffect(() => {
-    userRef.current?.focus();
+    if (!getNativeAppBridge()) userRef.current?.focus();
     return () => {
       if (redirectFallbackRef.current !== null) {
         window.clearTimeout(redirectFallbackRef.current);
@@ -108,13 +116,15 @@ export default function LoginPage() {
   };
 
   // OAuth login handler - delegates to Auth.js
-  const handleSocialLogin = (provider: string) => {
+  const handleSocialLogin = (provider: NativeOAuthProvider) => {
     if (isProviderDisabled(provider)) {
       setErrMsg(t("This sign-in provider is not configured right now"));
       return;
     }
 
-    signIn(provider, buildOAuthSignInOptions("/notes"));
+    if (!postNativeOAuth(provider)) {
+      signIn(provider, buildOAuthSignInOptions("/notes"));
+    }
   };
 
   const isProviderDisabled = (provider: string) =>
@@ -122,10 +132,10 @@ export default function LoginPage() {
     !isOAuthProviderConfigured(provider, oauthProviders);
 
   return (
-    <main className="flex min-h-screen flex-col justify-center py-12 px-6 lg:px-8 bg-app-page">
+    <main className={nativeAppBridge ? "flex min-h-dvh flex-col justify-center bg-app-page px-5 py-6" : "flex min-h-screen flex-col justify-center py-12 px-6 lg:px-8 bg-app-page"}>
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <Link
-          href="/"
+          href={nativeAppBridge ? "/login" : "/"}
           className="flex items-center justify-center gap-2.5"
           aria-label={t("OghmaNotes")}
         >
@@ -134,7 +144,7 @@ export default function LoginPage() {
             {t("OghmaNotes")}
           </span>
         </Link>
-        <h1 className="mt-8 text-center font-serif text-3xl font-semibold tracking-tight text-text">
+        <h1 className={`${nativeAppBridge ? "mt-5 text-2xl" : "mt-8 text-3xl"} text-center font-serif font-semibold tracking-tight text-text`}>
           {t("Sign in to your account")}
         </h1>
         <p className="mt-3 text-center text-sm text-text-secondary">
@@ -144,8 +154,8 @@ export default function LoginPage() {
         </p>
       </div>
 
-      <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-[460px]">
-        <div className="glass-card rounded-radius-xl px-6 py-10 sm:px-10">
+      <div className={`${nativeAppBridge ? "mt-6" : "mt-10"} sm:mx-auto sm:w-full sm:max-w-[460px]`}>
+        <div className={`glass-card rounded-radius-xl ${nativeAppBridge ? "px-5 py-6" : "px-6 py-10 sm:px-10"}`}>
           <form aria-busy={loading} onSubmit={handleSubmit} method="POST" className="space-y-6">
             {errMsg && (
               <div ref={errRef} role="alert" tabIndex={-1}>
@@ -257,7 +267,7 @@ export default function LoginPage() {
                 {t("Try again")}
               </button>
             )}
-            <div className="mt-10 flex items-center gap-x-6">
+            <div className={`${nativeAppBridge ? "mt-6" : "mt-10"} flex items-center gap-x-6`}>
               <div className="w-full flex-1 border-t border-border-subtle" />
               <p className="text-sm/6 font-medium text-nowrap text-text-tertiary">
                 {t("Or continue with")}
@@ -328,6 +338,15 @@ export default function LoginPage() {
             {t("Create one")}
           </Link>
         </p>
+        {nativeAppBridge && (
+          <button
+            type="button"
+            onClick={postNativeUpdates}
+            className="mx-auto mt-2 block min-h-11 px-3 text-sm text-text-tertiary hover:text-text"
+          >
+            {t("Check for updates")}
+          </button>
+        )}
       </div>
     </main>
   );

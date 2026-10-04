@@ -18,13 +18,25 @@ export const GET = withErrorHandler(async () => {
     SELECT 
       id,
       canvas_course_id::text as "canvasCourseId",
-      course_name as "courseName",
+      COALESCE(
+        (SELECT NULLIF(BTRIM(f.title), '') FROM app.notes f
+         WHERE f.user_id = ucs.user_id
+           AND f.canvas_course_id = ucs.canvas_course_id
+           AND f.is_folder = true
+           AND f.canvas_module_id IS NULL
+           AND f.canvas_assignment_id IS NULL
+           AND f.deleted_at IS NULL
+         ORDER BY f.created_at ASC
+         LIMIT 1),
+        NULLIF(BTRIM(ucs.course_name), ''),
+        'Course ' || ucs.canvas_course_id::text
+      ) as "courseName",
       is_active as "isActive",
       auto_archived as "autoArchived",
       archived_at as "archivedAt"
-    FROM app.user_course_settings
+    FROM app.user_course_settings ucs
     WHERE user_id = ${userId}::uuid
-    ORDER BY course_name
+    ORDER BY "courseName"
   `;
 
   return NextResponse.json({ settings });
@@ -68,6 +80,7 @@ export const POST = withErrorHandler(async (request: Request) => {
     )
     ON CONFLICT (user_id, canvas_course_id) 
     DO UPDATE SET 
+      course_name = EXCLUDED.course_name,
       is_active = EXCLUDED.is_active,
       archived_at = CASE 
         WHEN EXCLUDED.is_active = false THEN NOW() 

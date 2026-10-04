@@ -76,25 +76,21 @@ export default function CanvasIntegrationSettings() {
 
   // import/polling state (custom hook)
   const {
+    pendingReplacement, setPendingReplacement, confirmReplacement, isReplacing,
+    pendingTrash, setPendingTrash, handleTrashChoice, isRestoring,
+    discovery, terminalStatus, retrySourceJobId, handleRetry,
     isImporting,
-    setIsImporting,
     isDiscovering,
     importSummary,
-    setImportSummary,
     progress,
-    setProgress,
     recentLogs,
-    setRecentLogs,
     isSyncing,
     markerColdStarting,
-    setMarkerColdStarting,
     estimatedSecsRemaining,
-    setEstimatedSecsRemaining,
     handleImport,
     handleSync,
     handleCancel,
-    startPolling,
-    stopPolling,
+    resetStatus,
   } = useCanvasImport({
     selectedCourseIds,
     courses,
@@ -177,61 +173,6 @@ export default function CanvasIntegrationSettings() {
             .catch(() => {})
             .finally(() => setSyncChecked(true));
 
-          // resume any in-flight import that was started before page reload
-          const savedJob = JSON.parse(
-            localStorage.getItem(LS_ACTIVE_JOB) ?? "null",
-          );
-          if (savedJob?.jobId) {
-            // ping status — if job is still active, resume polling
-            const statusRes = await fetch("/api/canvas/status");
-            if (statusRes.ok) {
-              const statusData = await statusRes.json();
-              if (statusData.activeJob) {
-                setIsImporting(true);
-                setProgress(statusData.progress);
-                setRecentLogs(statusData.recentLogs ?? []);
-                setMarkerColdStarting(Boolean(statusData.markerColdStarting));
-                setEstimatedSecsRemaining(statusData.estimatedSecsRemaining ?? null);
-                startPolling();
-              } else {
-                setMarkerColdStarting(false);
-                setEstimatedSecsRemaining(null);
-                // job already finished while away
-                localStorage.removeItem(LS_ACTIVE_JOB);
-                if (
-                  statusData.latestJob?.status === "complete" &&
-                  statusData.progress
-                ) {
-                  setImportSummary({
-                    imported: statusData.progress.completed,
-                    forbidden: statusData.issues?.forbidden ?? 0,
-                    failed: statusData.issues?.error ?? 0,
-                    skipped: 0,
-                  });
-                  setProgress(statusData.progress);
-                  const logs = statusData.recentLogs ?? [];
-                  setRecentLogs(logs);
-                  // backfill forbidden from returned logs
-                  const newForbidden: Record<string, boolean> = { ...serverForbidden };
-                  for (const log of logs) {
-                    if (log.status === "forbidden" && log.courseId)
-                      newForbidden[String(log.courseId)] = true;
-                  }
-                  setForbiddenCourses(newForbidden);
-                  localStorage.setItem(
-                    LS_FORBIDDEN,
-                    JSON.stringify(newForbidden),
-                  );
-                } else if (statusData.latestJob?.status === "failed") {
-                  setConnectionError(
-                    statusData.latestJob.errorMessage ?? t("Import failed"),
-                  );
-                } else if (statusData.latestJob?.status === "cancelled") {
-                  setConnectionError(t("Import cancelled."));
-                }
-              }
-            }
-          }
         } else if (res.ok && !data.connected) {
           setConnectionWarning(
             t("Your Canvas token is invalid or expired. Please reconnect."),
@@ -245,7 +186,7 @@ export default function CanvasIntegrationSettings() {
     };
 
     checkConnection();
-    // one-time connection check on mount; startPolling and t are stable
+    // one-time connection check on mount; t is stable
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -321,17 +262,12 @@ export default function CanvasIntegrationSettings() {
     try {
       await fetch("/api/canvas/connect", { method: "DELETE" });
     } finally {
-      stopPolling();
+      resetStatus();
       setIsConnected(false);
       setConnectedDomain("");
       setCourses([]);
       setCourseDiscoveryDegraded(false);
       setSelectedCourseIds([]);
-      setImportSummary(null);
-      setProgress(null);
-      setRecentLogs([]);
-      setMarkerColdStarting(false);
-      setEstimatedSecsRemaining(null);
       setDomain("");
       if (tokenInputRef.current) {
         tokenInputRef.current.value = "";
@@ -550,21 +486,72 @@ export default function CanvasIntegrationSettings() {
               recentLogs={recentLogs}
               markerColdStarting={markerColdStarting}
               estimatedSecsRemaining={estimatedSecsRemaining}
+              discovery={discovery} terminalStatus={terminalStatus}
             />
           )}
 
-          {/* Action buttons */}
-          <div className="flex flex-wrap gap-3">
-            {isImporting ? (
+          {pendingTrash && (
+            <section role="alertdialog" aria-modal="false" aria-labelledby="canvas-trash-title"
+              className="glass-card rounded-radius-md p-4 space-y-3">
+              <h3 id="canvas-trash-title" className="text-sm font-semibold">{t("Restore folders before importing?")}</h3>
+              <p className="text-sm text-text-secondary">
+                {t("These folders are in Trash. Restoring them brings back their contents and keeps your existing notes and edits.")}
+              </p>
+              <ul className="list-disc pl-5 text-sm text-text-secondary">
+                {pendingTrash.folders.map((folder) => <li key={folder.rootId}>{folder.title}</li>)}
+              </ul>
+              <p className="text-xs text-text-tertiary">{t("Keep in Trash imports the remaining available material. Deleted folders stay deleted.")}</p>
+              <div className="flex flex-wrap gap-3">
+                <button type="button" disabled={isRestoring} onClick={() => void handleTrashChoice(true)}
+                  className="rounded-radius-md bg-primary-600 px-3 py-2 text-sm font-semibold text-text-on-primary disabled:opacity-50">
+                  {isRestoring ? t("Working...") : t("Restore and import")}
+                </button>
+                <button type="button" disabled={isRestoring} onClick={() => void handleTrashChoice(false)}
+                  className="rounded-radius-md px-3 py-2 text-sm text-text-secondary">{t("Keep in Trash")}</button>
+                <button type="button" disabled={isRestoring} onClick={() => setPendingTrash(null)}
+                  className="rounded-radius-md px-3 py-2 text-sm text-text-secondary">{t("Cancel")}</button>
+              </div>
+            </section>
+          )}
+          {pendingReplacement && (
+            <section role="alertdialog" aria-modal="false" aria-labelledby="canvas-replace-title"
+              className="glass-card rounded-radius-md p-4 space-y-3">
+              <h3 id="canvas-replace-title" className="text-sm font-semibold">{t("Replace current import?")}</h3>
+              <p className="text-sm text-text-secondary">
+                {pendingReplacement.status === "discovering" ? t("Discovering files...") :
+                  pendingReplacement.status === "queued" ? t("Queued") : t("Importing...")}
+              </p>
+              <p className="text-sm text-text-secondary">{t("Stops remaining work. Files already imported stay available.")}</p>
+              <div className="flex gap-3">
+                <button type="button" disabled={isReplacing} onClick={() => void confirmReplacement()}
+                  className="rounded-radius-md bg-primary-600 px-3 py-2 text-sm font-semibold text-text-on-primary disabled:opacity-50">
+                  {t("Replace current import")}
+                </button>
+                <button type="button" disabled={isReplacing} onClick={() => setPendingReplacement(null)}
+                  className="rounded-radius-md px-3 py-2 text-sm text-text-secondary">
+                  {t("Keep current import")}
+                </button>
+              </div>
+            </section>
+          )}
+          {isImporting && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
               <button
                 type="button"
                 onClick={handleCancel}
-                className="rounded-radius-md bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-400 ring-1 ring-red-500/20 hover:bg-red-500/20"
+                aria-describedby="canvas-stop-description"
+                className="shrink-0 rounded-radius-md bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-400 ring-1 ring-red-500/20 hover:bg-red-500/20"
               >
-                {t("Cancel import")}
+                {t("Stop import")}
               </button>
-            ) : (
-              <button
+              <p id="canvas-stop-description" className="text-xs text-text-secondary">
+                {t("Stops remaining work. Files already imported stay available.")}
+              </p>
+            </div>
+          )}
+          {/* Action buttons */}
+          <div className="flex flex-wrap gap-3">
+            <button
                 type="button"
                 disabled={selectedImportableCourseCount === 0 || isSyncing}
                 onClick={handleImport}
@@ -572,7 +559,6 @@ export default function CanvasIntegrationSettings() {
               >
                 {`${t("Import selected courses")}${selectedImportableCourseCount > 0 ? ` (${selectedImportableCourseCount})` : ""}`}
               </button>
-            )}
             <button
               type="button"
               disabled={
@@ -607,6 +593,10 @@ export default function CanvasIntegrationSettings() {
             >
               {isSyncing ? t("Checking...") : t("Check for updates")}
             </button>
+            {!isImporting && retrySourceJobId && <button type="button" onClick={() => void handleRetry()}
+              className="rounded-radius-md glass-card-interactive px-3 py-2 text-sm font-semibold text-text-secondary">
+              {t("Retry failed files")}
+            </button>}
             <button
               type="button"
               onClick={handleDisconnect}

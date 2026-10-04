@@ -19,7 +19,7 @@ type BudgetToolResultOutput =
   { type: "text"; value: string } | { type: "json"; value: JSONValue };
 
 const TOOL_CALL_LIMIT_MODEL_INSTRUCTION =
-  "The last tool result means tool access is exhausted for this turn. Do not attempt another tool call. " +
+  "The tool-call budget is now exhausted for this turn. Do not attempt another tool call. " +
   "Continue the task and give the user the best final answer using the information already gathered. " +
   "If the available information is incomplete and more tool calls would materially improve the answer, ask the user to send another message to continue with a fresh tool-call budget. " +
   "Do not discard useful progress.";
@@ -27,7 +27,7 @@ const TOOL_CALL_LIMIT_MODEL_INSTRUCTION =
 export function buildToolBudgetInstruction(maxToolSteps: number): string {
   return (
     `TOOL BUDGET: You have up to ${maxToolSteps} tool-call attempts this turn. ` +
-    "After the final allowed call, tool access is removed and you must answer from the results already gathered. " +
+    "After the final allowed call, tool execution is disabled and you must answer from the results already gathered. " +
     "If the remaining work genuinely needs more tools, ask the user to send another message to continue with a fresh budget."
   );
 }
@@ -72,7 +72,9 @@ export function buildToolBudgetControls(
             ];
 
       return {
-        activeTools: [],
+        // Keep schemas in the request: the OpenRouter adapter omits tool_choice
+        // entirely when activeTools is empty. The execution wrapper still rejects
+        // over-budget calls if a provider ignores the explicit prohibition.
         toolChoice: "none",
         instructions: nextInstructions,
       };

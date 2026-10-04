@@ -2,7 +2,7 @@
 
 > **Status:** Active reference
 >
-> **Last reviewed:** 2026-07-11
+> **Last reviewed:** 2026-09-29
 >
 > **Source of truth:** [`src/app/globals.css`](../../src/app/globals.css), [`tailwind.config.js`](../../tailwind.config.js), and this usage guide
 
@@ -44,8 +44,9 @@ The file tree retains its deliberately dense sizing and small radius. Treat it a
 
 ## Typography and colour
 
-- Variable DM Sans (`font-sans`) is the interface and body face. Its open shapes and restrained weight range keep dense controls legible.
-- Variable Source Serif 4 (`font-serif`) is reserved for page-level titles, long-form note headings, and intentional editorial display. Chat headings stay in DM Sans because chat is compact interface content.
+- Variable Source Sans 3 (`font-sans`) is the interface and body face. Its open shapes and restrained weight range keep dense controls legible.
+- Variable Source Serif 4 (`font-serif`) is reserved for intentional editorial display. Note and chat headings use Source Sans 3 to stay consistent with their reading surfaces.
+- Captions use 12px, compact controls use 14px, and reading text uses 16px. Phone inputs use at least 16px to prevent browser zoom.
 - The shared Tailwind scale in `globals.css` pairs each `text-xs` through `text-7xl` size with an explicit line height. Prefer that scale; avoid new arbitrary pixel sizes and one-off line heights.
 - Long-form paragraphs target a maximum measure of `72ch`. Full-width tables, code, media, and application UI are intentional exceptions.
 - Headings use restrained negative tracking and balanced wrapping. Body copy uses normal tracking and at least 1.5 line-height where it may wrap across several lines.
@@ -74,7 +75,21 @@ text-sm text-text placeholder:text-text-tertiary
 focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50
 ```
 
-Large composers may intentionally use a softer radius. All controls still need visible keyboard focus, disabled state, and readable contrast in light and dark themes.
+Large composers may intentionally use a softer radius. All controls still need visible keyboard focus, disabled state, and readable contrast in light and dark themes. Use `text-base md:text-sm` for inputs.
+
+Shared compact icon controls use `.ui-icon-button`: 44px below 1024px and 32px on desktop, with consistent focus, hover and disabled states. Give icon-only actions an accessible label. Actions hidden on hover must remain available on touch devices.
+
+## Application navigation
+
+The main workspaces use a five-destination floating bottom dock below 1024px and in the Android app: Notes, AI Chat, Calendar, Quiz, and More. Desktop browsers use the navigation rail. The More sheet holds secondary destinations such as search, settings, focus, Trash, and the native offline reader when it is available. Give each scroll region end clearance so its last item remains reachable. On chat, the dock floats above the composer without reserving a full-width strip.
+
+The navigation pill is 64px tall with labels, 52px with icons when scrolling down. Its labels fade out as it shrinks and fade in after sustained upward scrolling, route changes, or keyboard focus. In the Android app's WebView, the pill uses a 70% opaque app surface over an 8.75px backdrop blur, and the selected destination adds a 35% opaque elevated surface. The website uses a 90% opaque surface and a 95% opaque selected surface without blur. Neither has a full-width backing bar. Keep 44px touch targets in both states, respect reduced motion, and hide the dock and its clearance while the keyboard is open. Single-line mobile headers start at 56px rather than 80px.
+
+Below 1024px, Notes opens in a library-first view. Folder navigation drills into the selected folder and exposes a clear return path; opening a note moves to its compact editor. Do not render the desktop file tree on a phone. Editor actions sit below the filename, where they remain reachable without crowding the header. From 768px to 1023px, the inspector uses a drawer so it cannot squeeze the editor below its minimum width.
+
+Mobile drawers dismiss toward their opening edge; bottom sheets dismiss downward. Only claim a single-finger outward gesture. Preserve form controls, text selection, multi-touch, and nested scrolling. Bottom-sheet content can start a dismissal only at the top of its scroll region. Keep close buttons and Escape/backdrop dismissal available.
+
+Calendar is agenda-first on phones. A compact week strip selects the day and the month grid expands only when needed; the page header owns the month, Today, and period controls. This avoids duplicate mobile toolbars while retaining the full month view.
 
 ## Guardrails
 

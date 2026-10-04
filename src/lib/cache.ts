@@ -1,6 +1,6 @@
 // server-side Redis cache layer for API responses
 // uses hash tags {userId} so all keys for a user land on the same cluster slot
-import { redis, redisReady } from '@/lib/redis';
+import { redis, redisReady, ensureRedisReady } from '@/lib/redis';
 import logger from '@/lib/logger';
 
 const MAX_CACHEABLE_SIZE = 100 * 1024; // 100KB
@@ -41,8 +41,11 @@ export async function cacheSet(key: string, value: unknown, ttlSeconds: number):
 }
 
 export async function cacheInvalidate(...keys: string[]): Promise<void> {
-  if (!redisReady || keys.length === 0) return;
+  if (keys.length === 0) return;
   try {
+    // Cold route modules must connect before invalidating an existing cache.
+    // Skipping this write leaves other routes serving pre-mutation data.
+    if (!redisReady && !(await ensureRedisReady())) return;
     const start = performance.now();
     await Promise.all(keys.map((k) => redis.del(k)));
     const ms = (performance.now() - start).toFixed(1);

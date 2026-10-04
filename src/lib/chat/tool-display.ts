@@ -1,7 +1,26 @@
+import { normalizeNoteActivityRefs, type NoteActivityRef } from "@/lib/chat/types";
+
 function record(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
     : null;
+}
+
+/** Note titles and IDs only; tool outputs may also contain private note content. */
+export function noteRefsFromToolResult(toolName: string, output: unknown): NoteActivityRef[] {
+  const value = record(output);
+  if (!value) return [];
+  if (toolName === "getChunks") {
+    if (!Array.isArray(value.results)) return [];
+    return normalizeNoteActivityRefs(value.results.map((result) => {
+      const row = record(result);
+      return row ? { id: row.noteId, title: row.title } : null;
+    }));
+  }
+  if (toolName === "readNote") {
+    return normalizeNoteActivityRefs([{ id: value.noteId, title: value.title }]);
+  }
+  return [];
 }
 
 /** A short, non-sensitive description for the activity UI. Never includes note content. */

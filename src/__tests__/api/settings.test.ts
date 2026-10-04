@@ -78,7 +78,7 @@ describe("GET /api/settings", () => {
 });
 
 describe("POST /api/settings", () => {
-  it("persists profile and editor keys", async () => {
+  it("persists profile keys and normalizes legacy editor width", async () => {
     const request = new NextRequest("http://localhost/api/settings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -99,15 +99,36 @@ describe("POST /api/settings", () => {
       firstName: "Ada",
       lastName: "Lovelace",
       timezone: "Europe/Dublin",
-      editorsize: "small",
+      editorsize: "large",
     });
     expect(body).toMatchObject({
       firstName: "Ada",
       lastName: "Lovelace",
       timezone: "Europe/Dublin",
-      editorsize: "small",
+      editorsize: "large",
       ai_model: "deepseek/deepseek-v4-flash",
     });
+  });
+
+  it.each([
+    ["medium", "large"],
+    ["full", "full"],
+    ["large", "large"],
+  ])("stores editor width %s as %s", async (editorsize, stored) => {
+    const request = new NextRequest("http://localhost/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ editorsize }),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(200);
+    expect(saveSettingsToS3).toHaveBeenCalledWith(
+      "user-123",
+      expect.objectContaining({ editorsize: stored }),
+    );
+    expect(await response.json()).toMatchObject({ editorsize: stored });
   });
 
   it("persists the Canvas AI access flag", async () => {

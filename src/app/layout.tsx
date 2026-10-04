@@ -2,6 +2,9 @@ import { Source_Sans_3, Source_Serif_4 } from "next/font/google";
 import "@fontsource-variable/strichpunkt-sans";
 import I18nRootProvider from "@/components/providers/i18n-root-provider";
 import ThemeProvider from "@/components/providers/theme-provider";
+import NativeAppBridge from "@/components/providers/native-app-bridge";
+import WorkspaceLifecycleProvider from "@/components/providers/workspace-lifecycle-provider";
+import CanvasImportNotifications from "@/components/canvas/canvas-import-notifications";
 import PomodoroTimerController from "@/components/pomodoro/pomodoro-timer-controller";
 import ChatPresenceController from "@/components/chat/chat-presence-controller";
 import MarketingTracker from "@/components/marketing-tracker";
@@ -11,6 +14,7 @@ import { loadLocaleData } from "@/lib/i18n/locale-data";
 import { Locale } from "@/locales";
 import { Toaster } from "sonner";
 import type { ReactNode } from "react";
+import type { Viewport } from "next";
 import "katex/dist/katex.min.css";
 import "./globals.css";
 
@@ -25,6 +29,12 @@ const sourceSerif = Source_Serif_4({
   display: "swap",
   variable: "--font-source-serif",
 });
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  interactiveWidget: "resizes-content",
+};
 
 export const metadata = {
   applicationName: "OghmaNotes",
@@ -158,11 +168,16 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       <body className="font-sans antialiased bg-background text-text">
         <I18nRootProvider initialLocaleData={initialLocaleData}>
           <ThemeProvider>
+            <NativeAppBridge />
             <PomodoroTimerController />
             <ChatPresenceController />
             <GlobalSearchRoot />
             <MarketingTracker />
-            {children}
+            <WorkspaceLifecycleProvider>
+              <CanvasImportNotifications>
+                {children}
+              </CanvasImportNotifications>
+            </WorkspaceLifecycleProvider>
             <Toaster position="bottom-center" />
           </ThemeProvider>
         </I18nRootProvider>

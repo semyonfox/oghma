@@ -62,6 +62,9 @@ export async function GET(_request: NextRequest): Promise<Response> {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   } catch (error) {
     logger.error("auth me error", { error });
-    return Response.json({ error: "Invalid token" }, { status: 401 });
+    return Response.json(
+      { error: "Unable to verify session" },
+      { status: 503 },
+    );
   }
 }

@@ -39,6 +39,7 @@ import {
   type CourseVisibilityItem,
 } from "@/components/course-visibility/course-visibility-manager";
 import NewTaskModal from "./new-task-modal";
+import AssignmentDetailsTrigger from "./assignment-details-trigger";
 import AssignmentTypeIcon from "./assignment-type-icon";
 
 interface AssignmentTrackerProps {
@@ -447,7 +448,10 @@ export default function AssignmentTracker({
             <h3
               className={`min-w-0 text-sm font-medium leading-snug ${completed ? "text-text-tertiary line-through" : "text-text-secondary"}`}
             >
-              {assignment.title}
+              <AssignmentDetailsTrigger
+                assignment={assignment}
+                className="min-h-11 w-full cursor-pointer text-left underline decoration-border-subtle underline-offset-4 hover:decoration-current focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+              />
             </h3>
           </div>
 

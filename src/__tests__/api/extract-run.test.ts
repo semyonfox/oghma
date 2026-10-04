@@ -59,7 +59,7 @@ vi.mock("@/lib/rateLimiter", () => ({
 
 import sql from "@/database/pgsql";
 import { replaceNoteEmbeddings } from "@/lib/rag/indexing";
-import { runExtraction } from "@/app/api/extract/route";
+import { runExtraction } from "@/lib/ingestion/run-extraction";
 
 type SqlCall = [TemplateStringsArray, ...unknown[]];
 

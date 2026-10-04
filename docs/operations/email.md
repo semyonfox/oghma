@@ -4,8 +4,8 @@
 >
 > Audience: Application, DNS, and company-mail administrators
 >
-> Last verified: 2026-07-11 against `src/lib/email.ts`, tracked env templates,
-> and official Cloudflare Email Service documentation
+> Last verified: 2026-09-25 against `src/lib/email.ts`, tracked env templates,
+> and official Cloudflare and Resend documentation
 
 OghmaNotes separates human mailboxes, inbound routing, and transactional app
 mail. Do not make one provider responsible for a role it is not configured to
@@ -17,8 +17,8 @@ perform.
 |---|---|
 | Human inboxes on `oghmanotes.ie` | Intended owner: Google Workspace; verify live MX before changes |
 | Shared root-domain addresses such as support or billing | Google Groups, aliases, or collaborative inboxes |
-| Transactional application email | Cloudflare Email Sending |
-| Current application transport | Cloudflare Email Sending REST API from the Node runtime |
+| Transactional application email | Resend during the closed pilot; Cloudflare remains available |
+| Current application transport | Resend or Cloudflare REST API from the Node runtime, selected by `EMAIL_PROVIDER` |
 | Bulk marketing/newsletters | Not Cloudflare Email Sending; choose a purpose-built provider before sending |
 
 Project policy assigns inbound MX for the root `oghmanotes.ie` domain to Google
@@ -61,8 +61,36 @@ Canonical environment variables:
 configuration should use `EMAIL_FROM`. The tracked production template
 currently uses `noreply@oghmanotes.ie`.
 
-Before sending, confirm that the domain portion of `EMAIL_FROM` is onboarded
-for Cloudflare Email Sending in the same account as the API token. If the sender
+### Optional Resend transport for the closed pilot
+
+> **Status:** Optional transport as of 2026-09-25; Cloudflare remains the default.
+
+Resend's free plan currently includes 3,000 outbound emails per month and a
+100-email daily limit. A verified sending domain lets the app send to ordinary
+recipient addresses. Test addresses do not need to be registered one by one.
+The app uses Resend's REST API directly, so no additional package is needed.
+
+To use it in an environment, verify the intended sending domain in the Resend account. Add
+only the DNS records Resend provides for that domain. Check the
+existing MX, SPF, DKIM, and DMARC records before editing DNS; preserve inbound
+mail routing. Then set these in that environment's private runtime file:
+
+| Variable | Value |
+|---|---|
+| `EMAIL_PROVIDER` | `resend` |
+| `RESEND_API_KEY` | Sending-access key; prefer a separate key restricted to the OghmaNotes domain |
+| `EMAIL_FROM` | Address at the verified sending domain |
+
+Leave `EMAIL_PROVIDER` unset or set it to `cloudflare` to keep the existing
+Cloudflare path. Do not put the API key in this repository. Resend returning an
+email ID means it accepted the request, so the app reports it as `queued`.
+Check the Resend delivery log and a controlled inbox for the final outcome.
+To rotate the key, create a replacement in Resend, update the private env file,
+redeploy the affected containers, confirm delivery, and then revoke the old key.
+Changing the env file alone does not update a running container.
+
+For Cloudflare sending, confirm that the domain portion of `EMAIL_FROM` is onboarded
+in the same account as the API token. If the sender
 moves to a transactional subdomain such as `notifications.oghmanotes.ie`,
 onboard that subdomain first and update `EMAIL_FROM` deliberately.
 
@@ -101,6 +129,7 @@ A successful REST response can contain:
   "result": {
     "delivered": ["recipient@example.com"],
     "permanent_bounces": [],
+    "suppressed_recipients": [],
     "queued": []
   }
 }
@@ -110,13 +139,15 @@ HTTP success does not mean every recipient reached an inbox:
 
 - `delivered` means accepted for immediate delivery;
 - `queued` means delivery is pending;
-- `permanent_bounces` means the recipient failed permanently.
+- `permanent_bounces` means the recipient failed permanently;
+- `suppressed_recipients` means the provider dropped the recipient.
 
-The current app checks the HTTP status and top-level `success` value but does
-not persist or classify these result arrays. Treat delivery-outcome
-observability as an implementation gap. Future logging should record counts
-and provider identifiers where useful, not full message bodies or unnecessary
-recipient data.
+The app now checks the recipient in these result arrays. Registration reports
+`delivered`, `queued`, or `failed`; a bounce or suppression is a failure even when
+the HTTP response succeeds. This status cannot show whether an immediately
+delivered message reached the inbox or a spam folder. Verification-send errors
+log a fixed reason, HTTP status, and numeric provider code without the provider
+message or recipient address.
 
 Validation/authentication errors are configuration failures, not retry
 candidates. Rate limits and server failures may support bounded backoff, but
@@ -176,6 +207,9 @@ damage sender reputation.
 - [Email deliverability](https://developers.cloudflare.com/email-service/concepts/deliverability/)
 - [Suppression lists](https://developers.cloudflare.com/email-service/concepts/suppressions/)
 - [Email Sending API schema](https://developers.cloudflare.com/api/resources/email_sending/methods/send/)
+- [Resend pricing](https://resend.com/pricing)
+- [Resend send-email API](https://resend.com/docs/api-reference/emails/send-email)
+- [Resend sending-domain setup](https://resend.com/docs/dashboard/domains/introduction)
 
 Provider behavior changes. Recheck these official sources before changing DNS,
 authentication, retry behavior, limits, or billing assumptions.

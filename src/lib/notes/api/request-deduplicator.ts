@@ -28,7 +28,7 @@ export async function deduplicatedFetch<T>(
     return inflight as Promise<T | undefined>;
   }
 
-  const promise = (async (): Promise<T | undefined> => {
+  const promise = Promise.resolve().then(async (): Promise<T | undefined> => {
     try {
       const response = await fetch(url, options);
 
@@ -42,11 +42,11 @@ export async function deduplicatedFetch<T>(
 
       return (await response.json()) as T;
     } finally {
-      if (shouldDeduplicate) {
+      if (shouldDeduplicate && inflightRequests.get(key) === promise) {
         inflightRequests.delete(key);
       }
     }
-  })();
+  });
 
   if (shouldDeduplicate) {
     inflightRequests.set(key, promise);
