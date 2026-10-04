@@ -1096,7 +1096,6 @@
   "The selected notes will be moved to Trash.": "Выбранные заметки будут перемещены в корзину.",
   "This folder and all its contents will be moved to Trash.": "Эта папка и всё её содержимое будут перемещены в корзину.",
   "This item will be permanently deleted. This cannot be undone.": "Этот элемент будет удалён безвозвратно. Это действие нельзя отменить.",
-  "Trash": "Корзина",
   "Contains {count} items": "Содержит {count} элементов",
   "Expires today": "Истекает сегодня",
   "Expires tomorrow": "Истекает завтра",
@@ -1196,5 +1195,7 @@
   "Restore from Trash to open": "Restore from Trash to open",
   "Restore this course's folders from Trash before importing materials.": "Restore this course's folders from Trash before importing materials.",
   "Starting import...": "Starting import...",
-  "Unavailable in Canvas": "Unavailable in Canvas"
+  "Unavailable in Canvas": "Unavailable in Canvas",
+  "Search results: {count}": "Результаты поиска: {count}",
+  "Retry save": "Повторить сохранение"
 }

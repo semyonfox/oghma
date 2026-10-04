@@ -1,3 +1,4 @@
+import logger from "@/lib/logger";
 /**
  * Vault tree builder — maps between zip paths and note tree hierarchy.
  * Shared by import-worker and export-worker.
@@ -221,7 +222,7 @@ export async function findOrCreateVaultFolder(
       await invalidateTreeAfterPublish(userId, parentId);
       return folderId;
     }
-    console.warn(`Failed to create vault folder "${title}": ${error.message}`);
+    logger.warn("worker_event");
     return parentId;
   }
 }

@@ -25,7 +25,6 @@ import { createParagraphSseWriter } from "@/lib/chat/paragraph-stream";
 import { interruptRunningTools } from "@/lib/chat/types";
 import { prepareChatGeneration } from "@/lib/chat/prepare-generation";
 import { streamFinalAnswer } from "@/lib/chat/final-answer";
-import { recordActivationMilestone } from "@/lib/marketing/events";
 import { TOOL_CALL_LIMIT_USER_MESSAGE } from "@/lib/chat/tool-budget";
 import {
   appendChatGenerationText,
@@ -55,7 +54,7 @@ import {
   failChatGeneration,
 } from "@/lib/chat/generation-store";
 import { enqueueChatGeneration } from "@/lib/queue";
-import { hasPrivacySignal } from "@/lib/marketing/events";
+import { hasPrivacySignal } from "@/lib/telemetry";
 
 function resolveChatThinkingMode(
   requestedThinkingMode: unknown,
@@ -517,17 +516,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 generation.reply,
                 buildChatGenerationMetadata(generation),
               );
-              if (uniqueSources.length > 0) {
-                void recordActivationMilestone(
-                  "first_cited_answer",
-                  userId,
-                  request,
-                ).catch((eventError) =>
-                  logger.warn("failed to record first cited answer milestone", {
-                    error: eventError.message,
-                  }),
-                );
-              }
               sendDone(writer);
               lastEvent = "done";
               logger.info("Chat stream completed", {
@@ -729,17 +717,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       sources: uniqueSources,
       metadata: buildChatGenerationMetadata(generation),
     });
-    if (uniqueSources.length > 0) {
-      void recordActivationMilestone(
-        "first_cited_answer",
-        userId,
-        request,
-      ).catch((eventError) =>
-        logger.warn("failed to record first cited answer milestone", {
-          error: eventError.message,
-        }),
-      );
-    }
     return NextResponse.json({
       reply: generation.reply,
       parts: generation.parts,

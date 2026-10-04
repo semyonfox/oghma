@@ -1096,7 +1096,6 @@
   "The selected notes will be moved to Trash.": "Bogfar na nótaí roghnaithe go dtí an Bruscar.",
   "This folder and all its contents will be moved to Trash.": "Bogfar an fillteán seo agus a inneachar uile go dtí an Bruscar.",
   "This item will be permanently deleted. This cannot be undone.": "Scriosfar an mhír seo go buan. Ní féidir é seo a chealú.",
-  "Trash": "Bruscar",
   "Contains {count} items": "Tá {count} mír ann",
   "Expires today": "Rachaidh sé in éag inniu",
   "Expires tomorrow": "Rachaidh sé in éag amárach",
@@ -1196,5 +1195,7 @@
   "Restore from Trash to open": "Restore from Trash to open",
   "Restore this course's folders from Trash before importing materials.": "Restore this course's folders from Trash before importing materials.",
   "Starting import...": "Starting import...",
-  "Unavailable in Canvas": "Unavailable in Canvas"
+  "Unavailable in Canvas": "Unavailable in Canvas",
+  "Search results: {count}": "Torthaí cuardaigh: {count}",
+  "Retry save": "Bain triail as sábháil arís"
 }

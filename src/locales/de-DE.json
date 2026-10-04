@@ -1096,7 +1096,6 @@
   "The selected notes will be moved to Trash.": "Die ausgewählten Notizen werden in den Papierkorb verschoben.",
   "This folder and all its contents will be moved to Trash.": "Dieser Ordner und sein gesamter Inhalt werden in den Papierkorb verschoben.",
   "This item will be permanently deleted. This cannot be undone.": "Dieses Element wird dauerhaft gelöscht. Dies kann nicht rückgängig gemacht werden.",
-  "Trash": "Papierkorb",
   "Contains {count} items": "Enthält {count} Elemente",
   "Expires today": "Läuft heute ab",
   "Expires tomorrow": "Läuft morgen ab",
@@ -1196,5 +1195,7 @@
   "Restore from Trash to open": "Restore from Trash to open",
   "Restore this course's folders from Trash before importing materials.": "Restore this course's folders from Trash before importing materials.",
   "Starting import...": "Starting import...",
-  "Unavailable in Canvas": "Unavailable in Canvas"
+  "Unavailable in Canvas": "Unavailable in Canvas",
+  "Search results: {count}": "Suchergebnisse: {count}",
+  "Retry save": "Speichern erneut versuchen"
 }

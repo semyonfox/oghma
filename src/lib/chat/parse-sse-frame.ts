@@ -47,10 +47,7 @@ export function parseSseFrame(frame: SseFrame): MessageUpdate | null {
     }
     payload = decoded as Record<string, unknown>;
   } catch {
-    console.warn("Malformed SSE frame payload", {
-      event: frame.event,
-      payloadLength: frame.data.length,
-    });
+    console.warn("chat_stream_invalid_event");
     void Metrics.sseParseError();
     throw new Error("Invalid response stream event");
   }

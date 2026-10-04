@@ -988,7 +988,7 @@
   "Toggle AI assistant panel": "Växla AI assistentpanel",
   "Toggle metadata panel": "Växla metadatapanelen",
   "Toggle sidebar": "Växla sidofält",
-  "Trash": "Papperskorg",
+  "Trash": "Papperskorgen",
   "Trash is empty": "Papperskorgen är tom",
   "Try again": "Försök igen",
   "Turn course material into active-recall cards and review them on a spaced schedule instead of rebuilding decks by hand.": "Förvandla kursmaterial till kort för aktivt återkallande och granska dem enligt ett schemalagt schema istället för att bygga om kortlekar för hand.",
@@ -1096,7 +1096,6 @@
   "The selected notes will be moved to Trash.": "De valda anteckningarna flyttas till papperskorgen.",
   "This folder and all its contents will be moved to Trash.": "Den här mappen och allt innehåll flyttas till papperskorgen.",
   "This item will be permanently deleted. This cannot be undone.": "Det här objektet raderas permanent. Detta kan inte ångras.",
-  "Trash": "Papperskorgen",
   "Contains {count} items": "Innehåller {count} objekt",
   "Expires today": "Upphör i dag",
   "Expires tomorrow": "Upphör i morgon",
@@ -1196,5 +1195,7 @@
   "Restore from Trash to open": "Restore from Trash to open",
   "Restore this course's folders from Trash before importing materials.": "Restore this course's folders from Trash before importing materials.",
   "Starting import...": "Starting import...",
-  "Unavailable in Canvas": "Unavailable in Canvas"
+  "Unavailable in Canvas": "Unavailable in Canvas",
+  "Search results: {count}": "Sökresultat: {count}",
+  "Retry save": "Försök spara igen"
 }

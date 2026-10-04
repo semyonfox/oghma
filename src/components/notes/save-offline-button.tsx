@@ -9,7 +9,7 @@ import {
   useNativeAppBridge,
 } from "@/lib/native-app";
 import useI18n from "@/lib/notes/hooks/use-i18n";
-import useSaveIndicatorStore from "@/lib/notes/state/save-indicator";
+import useSaveIndicatorStore, { saveIndicatorKey } from "@/lib/notes/state/save-indicator";
 
 export default function SaveOfflineButton({
   noteId,
@@ -20,10 +20,13 @@ export default function SaveOfflineButton({
 }) {
   const { t } = useI18n();
   const bridge = useNativeAppBridge();
-  const state = useSaveIndicatorStore((store) => store.files[noteId]?.state);
+  const unsaved = useSaveIndicatorStore((store) => {
+    const indicators = [store.files[noteId], store.files[saveIndicatorKey(noteId, "B")]];
+    return !indicators.some((indicator) => indicator) ||
+      indicators.some((indicator) => indicator && (indicator.ready === false || indicator.state !== "saved"));
+  });
   const [busy, setBusy] = useState(false);
   if (!bridge || !supportsNativeOffline()) return null;
-  const unsaved = !!state && state !== "saved";
   const label = unsaved
     ? t("Save your changes before downloading")
     : t("Save offline");

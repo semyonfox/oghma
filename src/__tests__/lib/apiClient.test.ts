@@ -34,13 +34,12 @@ describe("browser auth API client", () => {
     });
   });
 
-  it("forwards registration attribution and agent claims", async () => {
+  it("forwards agent claims without marketing attribution", async () => {
     vi.mocked(global.fetch).mockResolvedValue(
       jsonResponse({ requiresVerification: true }),
     );
-    const marketing = { source: "homepage" };
 
-    await register("student@example.com", "StrongPass1", marketing, {
+    await register("student@example.com", "StrongPass1", {
       agentClaimToken: "claim-token",
       agentUserCode: "123456",
     });
@@ -50,7 +49,6 @@ describe("browser auth API client", () => {
     expect(JSON.parse(String(request?.[1]?.body))).toEqual({
       email: "student@example.com",
       password: "StrongPass1",
-      marketing,
       agentClaimToken: "claim-token",
       agentUserCode: "123456",
     });

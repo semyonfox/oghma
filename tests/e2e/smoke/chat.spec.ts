@@ -178,7 +178,7 @@ test.describe("chat responsive smoke", () => {
       await expect(page.getByRole("button", { name: "Unpin" })).toBeVisible();
       await expect(page.getByRole("heading", { name: "Pinned" })).toBeVisible();
       await expect(
-        page.getByRole("navigation", { name: "Main navigation" }).getByRole("button", { name: "AI Chat" }),
+        page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "AI Chat" }),
       ).toHaveCount(1);
       await expect(page.locator("[data-mobile-dock]")).not.toBeVisible();
     }

@@ -9,8 +9,7 @@ import Link from "next/link";
 import BrandLogo from "@/components/brand-logo";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import {
-  getMarketingContext,
-  trackMarketingEvent,
+  reportTelemetry,
 } from "@/lib/marketing/client";
 import {
   buildOAuthSignInOptions,
@@ -30,7 +29,6 @@ export default function RegisterPage() {
   const [agentClaimToken, setAgentClaimToken] = useState("");
   const [agentUserCode, setAgentUserCode] = useState("");
   const errRef = useRef<HTMLDivElement>(null);
-  const startedRef = useRef(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -87,48 +85,30 @@ export default function RegisterPage() {
     setErrMsg("");
 
     if (pwd !== confirmPwd) {
-      trackMarketingEvent("registration_error", {
-        source: "register_form",
-        properties: {
-          method: "email",
-          error_type: "password_mismatch",
-        },
-      });
+      reportTelemetry({ kind: "error", name: "validation_failed", route: "onboarding" });
       setErrMsg(t("Passwords do not match"));
       errRef.current?.focus();
       return;
     }
 
     if (pwd.length < 8) {
-      trackMarketingEvent("registration_error", {
-        source: "register_form",
-        properties: {
-          method: "email",
-          error_type: "password_too_short",
-        },
-      });
+      reportTelemetry({ kind: "error", name: "validation_failed", route: "onboarding" });
       setErrMsg(t("Password must be at least 8 characters"));
       errRef.current?.focus();
       return;
     }
 
     setLoading(true);
-    trackMarketingEvent("registration_submit", {
-      source: "register_form",
-      properties: {
-        method: "email",
-      },
-    });
+
     try {
       const result = await register(
         email,
         pwd,
-        getMarketingContext(),
         agentClaimToken
           ? { agentClaimToken, agentUserCode }
           : undefined,
       );
-      // Account creation is recorded once by the server as the canonical milestone.
+      reportTelemetry({ kind: "count", name: "action_completed", route: "onboarding" });
       if (result.requiresVerification) {
         router.replace(`/verify-email?email=${encodeURIComponent(email)}`);
         setTimeout(() => {
@@ -141,13 +121,7 @@ export default function RegisterPage() {
         }, 1000);
       }
     } catch (err) {
-      trackMarketingEvent("registration_error", {
-        source: "register_form",
-        properties: {
-          method: "email",
-          error_type: "api_error",
-        },
-      });
+      reportTelemetry({ kind: "error", name: "request_failed", route: "onboarding" });
       setErrMsg(getErrorMessage(err));
       setPwd("");
       setConfirmPwd("");
@@ -161,14 +135,7 @@ export default function RegisterPage() {
       oauthProviders &&
       !isOAuthProviderConfigured(provider, oauthProviders)
     ) {
-      trackMarketingEvent("registration_oauth_unavailable", {
-        source: "register_form",
-        properties: {
-          method: "oauth",
-          provider,
-          configured: false,
-        },
-      });
+
       setErrMsg(t("This sign-in provider is not configured right now"));
       return;
     }
@@ -179,15 +146,6 @@ export default function RegisterPage() {
       return;
     }
 
-    trackMarketingEvent("registration_oauth_start", {
-      source: "register_form",
-      properties: {
-        method: "oauth",
-        provider,
-        configured: true,
-        destination: "/notes",
-      },
-    });
     const callbackUrl = agentClaimToken
       ? `/register?agent_claim_token=${encodeURIComponent(agentClaimToken)}&agent_oauth=complete`
       : "/notes";
@@ -200,17 +158,6 @@ export default function RegisterPage() {
     if (agentClaimToken || !postNativeOAuth(provider)) {
       signIn(provider, buildOAuthSignInOptions(callbackUrl));
     }
-  };
-
-  const trackFormStart = () => {
-    if (startedRef.current) return;
-    startedRef.current = true;
-    trackMarketingEvent("registration_form_start", {
-      source: "register_form",
-      properties: {
-        method: "email",
-      },
-    });
   };
 
   const isProviderDisabled = (provider: string) =>
@@ -239,8 +186,6 @@ export default function RegisterPage() {
         <div className="glass-card rounded-radius-xl px-6 py-10 sm:px-10">
           <form
             onSubmit={handleSubmit}
-            onFocusCapture={trackFormStart}
-            onChangeCapture={trackFormStart}
             method="POST"
             className="space-y-6"
           >

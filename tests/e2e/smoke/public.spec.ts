@@ -1,13 +1,10 @@
 import { expect, test } from "../fixtures";
 
 test.describe("public smoke", () => {
-  test("mounted tracker records a public page view", async ({ page }) => {
-    const events: Array<Record<string, unknown>> = [];
+  test("public navigation sends no usage reports without configured collection", async ({ page }) => {
+    let eventCount = 0;
     await page.route("**/api/marketing/events", async (route) => {
-      const payload: unknown = route.request().postDataJSON();
-      if (typeof payload === "object" && payload !== null && !Array.isArray(payload)) {
-        events.push(payload as Record<string, unknown>);
-      }
+      eventCount += 1;
       await route.fulfill({
         status: 202,
         contentType: "application/json",
@@ -17,11 +14,14 @@ test.describe("public smoke", () => {
 
     await page.goto("/");
 
-    await expect.poll(() =>
-      events.some(
-        (event) => event.eventName === "page_view" && event.path === "/",
-      ),
-    ).toBe(true);
+    await expect(page.getByRole("heading", {
+      name: /Your whole semester, already loaded/i,
+    })).toBeVisible();
+    await page.goto("/privacy");
+    await expect(page.getByRole("checkbox", {
+      name: "Disable anonymous usage counts",
+    })).toBeVisible();
+    expect(eventCount).toBe(0);
   });
 
   test("key public pages render", async ({ page }) => {

@@ -1,3 +1,4 @@
+import logger from "@/lib/logger";
 import { describe, expect, it, vi } from "vitest";
 import {
   createAsyncLimiter,
@@ -32,7 +33,7 @@ describe("Canvas async limiter", () => {
 
   it("keeps task failures in input order without rejecting the pool", async () => {
     const failure = new Error("broken task");
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const consoleError = vi.spyOn(logger, "error").mockImplementation(() => logger);
 
     await expect(
       pooled(
@@ -50,10 +51,9 @@ describe("Canvas async limiter", () => {
       { status: "rejected", reason: failure },
       { status: "fulfilled", value: "third" },
     ]);
-    expect(consoleError).toHaveBeenCalledWith(
-      "[pooled] task rejected:",
-      failure,
-    );
+    expect(consoleError).toHaveBeenCalledOnce();
+    expect(JSON.stringify(consoleError.mock.calls)).not.toContain("broken task");
+    expect(consoleError.mock.calls[0]).toHaveLength(1);
     consoleError.mockRestore();
   });
 

@@ -45,7 +45,6 @@ import {
 import { decrypt } from "../crypto.ts";
 import logger from "../logger.ts";
 import { sanitizePostgresText } from "../text-sanitize.ts";
-import { recordActivationMilestone } from "../marketing/events.ts";
 import { dispatchFairCanvasFiles } from "./import-scheduler.ts";
 import {
   type ExtractionRetryMessage,
@@ -395,7 +394,7 @@ export async function fetchResource<T>(
       courseId,
       "Canvas course ID",
     );
-    console.log(`Course ${kind} restricted: ${courseTitle}`);
+    logger.info(`Course ${kind} restricted: ${courseTitle}`);
     // A Canvas resource restriction is represented as a synthetic per-course
     // file row so it participates in job progress. Do not use a constant 0:
     // canvas_imports is unique per user/file and a second restriction would
@@ -675,7 +674,7 @@ async function _runFileImport(
 
   if (!resolvedMimeType || !PROCESSABLE_TYPES.has(resolvedMimeType)) {
     if (opts.alreadyClaimed) throw new Error("Unsupported Canvas file type after discovery");
-    console.log(`Skipped (non-processable): ${file.display_name}`);
+    logger.info(`Skipped (non-processable): ${file.display_name}`);
     return { skipped: true };
   }
 
@@ -759,7 +758,7 @@ async function _runFileImport(
         return inserted.length > 0;
       });
   if (!claimed) {
-    console.log(`Already imported or pending, skipping: ${file.display_name}`);
+    logger.info(`Already imported or pending, skipping: ${file.display_name}`);
     return { skipped: true };
   }
 
@@ -820,7 +819,7 @@ async function _runFileImport(
   const downloadElapsedMs = Date.now() - downloadStart;
 
   if (dlForbidden) {
-    console.log(`Download forbidden: ${file.display_name}`);
+    logger.info(`Download forbidden: ${file.display_name}`);
     await setImportStatus(importRecordId, "forbidden", {
       message: "File access denied by lecturer",
     }, opts.jobId);
@@ -1034,7 +1033,7 @@ async function _runFileImport(
     { noteId: ragResult.noteId },
     opts.jobId,
   );
-  console.log(`Processed: ${file.display_name}`);
+  logger.info(`Processed: ${file.display_name}`);
 }
 
 async function runFileImportWithGuard(
@@ -1049,7 +1048,7 @@ async function runFileImportWithGuard(
   // terminal transition.
   return globalFileLimiter(async () => {
     const warning = setTimeout(() => {
-      console.warn(
+      logger.warn(
         `Canvas file exceeded ${Math.round(FILE_TIMEOUT_MS / 60000)} minute supervision threshold: ${file.display_name}`,
       );
     }, FILE_TIMEOUT_MS);
@@ -1066,7 +1065,7 @@ export async function downloadAndStoreFile(file: CanvasFile, opts: FileImportOpt
   try {
     await runFileImportWithGuard(importRecordId, file, opts);
   } catch (error) {
-    console.error(`File processing error (${file.display_name}):`, error);
+    logger.error(`File processing error (${file.display_name}):`, error);
     try {
       await sql`
         UPDATE app.canvas_imports
@@ -1076,7 +1075,7 @@ export async function downloadAndStoreFile(file: CanvasFile, opts: FileImportOpt
           AND status IN ('pending', 'downloading', 'processing', 'indexing')
       `;
     } catch (dbErr) {
-      console.error("Failed to update import record:", dbErr);
+      logger.error("Failed to update import record:", dbErr);
     }
   }
 }
@@ -1125,15 +1124,8 @@ export async function checkAndCompleteJob(jobId: string, userId: string) {
 
   if (!weCompleted) return false;
 
-  console.log(`[${new Date().toISOString()}] Job completed: ${jobId}`);
+  logger.info(`[${new Date().toISOString()}] Job completed: ${jobId}`);
 
-  await recordActivationMilestone("canvas_import_completed", userId).catch(
-    (eventError) => {
-      console.warn(
-        `Failed to record Canvas completion milestone: ${errorMessage(eventError)}`,
-      );
-    },
-  );
 
   try {
     const chunks = await sql<{ id: string }[]>`
@@ -1146,10 +1138,10 @@ export async function checkAndCompleteJob(jobId: string, userId: string) {
       const { seedQuestionsAfterImport } =
         await import("../quiz/generate-background.ts");
       const seeded = await seedQuestionsAfterImport(userId, chunkIds, 5);
-      console.log(`Quiz seed: ${seeded} questions for job ${jobId}`);
+      logger.info(`Quiz seed: ${seeded} questions for job ${jobId}`);
     }
   } catch (seedErr) {
-    console.warn(`Quiz seed failed (non-fatal): ${errorMessage(seedErr)}`);
+    logger.warn(`Quiz seed failed (non-fatal): ${errorMessage(seedErr)}`);
   }
   return true;
 }
@@ -1169,7 +1161,7 @@ export async function processCanvasFile({
   userId,
 }: CanvasFileMessage) {
   const ts = () => new Date().toISOString();
-  console.log(`[${ts()}] Processing canvas file: ${importRecordId}`);
+  logger.info(`[${ts()}] Processing canvas file: ${importRecordId}`);
   let record: CanvasImportRecord | null = null;
   let dbJobId: string | null = null;
   let dbUserId: string | null = null;
@@ -1187,7 +1179,7 @@ export async function processCanvasFile({
       WHERE ci.id = ${importRecordId}::uuid
     `;
     if (!row) {
-      console.error(`[${ts()}] Import record not found: ${importRecordId}`);
+      logger.error(`[${ts()}] Import record not found: ${importRecordId}`);
       return false;
     }
 
@@ -1201,7 +1193,7 @@ export async function processCanvasFile({
     // authority for ownership, so an old at-least-once delivery cannot act on
     // a row that discovery has reused for a newer job.
     if (String(dbJobId) !== String(jobId) || String(dbUserId) !== String(userId)) {
-      console.log(
+      logger.info(
         `[${ts()}] Ignoring stale canvas-file delivery for ${importRecordId}`,
       );
       return true;
@@ -1219,7 +1211,7 @@ export async function processCanvasFile({
         "pending_cache",
       ].includes(record.status)
     ) {
-      console.log(
+      logger.info(
         `[${ts()}] Record ${importRecordId} already terminal: ${record.status}`,
       );
       return true;
@@ -1245,7 +1237,7 @@ export async function processCanvasFile({
       RETURNING ci.id, ci.execution_attempts
     `;
     if (!claimed) {
-      console.log(`[${ts()}] Record ${importRecordId} is already claimed or inactive`);
+      logger.info(`[${ts()}] Record ${importRecordId} is already claimed or inactive`);
       return true;
     }
 
@@ -1307,7 +1299,7 @@ export async function processCanvasFile({
   } catch (err) {
     if (err instanceof CanvasClaimLostError) return true;
     const message = errorMessage(err);
-    console.error(
+    logger.error(
       `[${new Date().toISOString()}] Canvas file error (${importRecordId}):`,
       message,
     );
@@ -1336,7 +1328,7 @@ export async function processCanvasFile({
     return false;
   } finally {
     await dispatchFairCanvasFiles(1).catch((dispatchError: unknown) => {
-      console.error("Failed to release next fair import file:", dispatchError);
+      logger.error("Failed to release next fair import file:", dispatchError);
     });
   }
 }
@@ -1411,7 +1403,7 @@ export async function processCanvasExtract({
 
         await globalFileLimiter(async () => {
           const warning = setTimeout(() => {
-            console.warn(
+            logger.warn(
               `Canvas extraction exceeded ${Math.round(FILE_TIMEOUT_MS / 60000)} minute supervision threshold: ${filename}`,
             );
           }, FILE_TIMEOUT_MS);
@@ -1567,7 +1559,7 @@ export async function recoverPendingCanvasExtracts(limit = 50): Promise<number> 
 export async function processDirectExtraction(msg: DirectExtractionMessage) {
   const { noteId, userId, s3Key, mimeType, filename } = msg;
   const ts = () => new Date().toISOString();
-  console.log(`[${ts()}] Direct extraction for note ${noteId} (${mimeType})`);
+  logger.info(`[${ts()}] Direct extraction for note ${noteId} (${mimeType})`);
 
   // Skip completed work when an at-least-once queue redelivers it.
   const [existing] = await sql`
@@ -1576,7 +1568,7 @@ export async function processDirectExtraction(msg: DirectExtractionMessage) {
     ORDER BY created_at DESC LIMIT 1
   `;
   if (existing?.status === "done") {
-    console.log(`[${ts()}] Note ${noteId} already extracted, skipping`);
+    logger.info(`[${ts()}] Note ${noteId} already extracted, skipping`);
     return;
   }
 
@@ -1596,7 +1588,7 @@ export async function processDirectExtraction(msg: DirectExtractionMessage) {
     RETURNING id
   `;
   if (claimed.length === 0) {
-    console.log(`[${ts()}] Direct extraction skipped for inactive note ${noteId}`);
+    logger.info(`[${ts()}] Direct extraction skipped for inactive note ${noteId}`);
     return;
   }
 
@@ -1611,7 +1603,7 @@ export async function processDirectExtraction(msg: DirectExtractionMessage) {
         AND user_id = ${userId}::uuid
         AND status = 'processing'
     `;
-    console.error(`[${ts()}] S3 object not found for note ${noteId}: ${s3Key}`);
+    logger.error(`[${ts()}] S3 object not found for note ${noteId}: ${s3Key}`);
     return;
   }
 
@@ -1643,13 +1635,13 @@ export async function processDirectExtraction(msg: DirectExtractionMessage) {
           AND user_id = ${userId}::uuid
           AND status = 'processing'
       `;
-      console.log(
+      logger.info(
         `[${ts()}] Extraction deferred for note ${noteId}; retry queued`,
       );
       return;
     }
     if (result.pendingMarker) {
-      console.log(`[${ts()}] Marker queued for note ${noteId}`);
+      logger.info(`[${ts()}] Marker queued for note ${noteId}`);
       return;
     }
 
@@ -1661,7 +1653,7 @@ export async function processDirectExtraction(msg: DirectExtractionMessage) {
         AND user_id = ${userId}::uuid
         AND status = 'processing'
     `;
-    console.log(
+    logger.info(
       `[${ts()}] Direct extraction complete for note ${noteId} (${chunksStored} chunks)`,
     );
   } catch (error) {
@@ -1673,7 +1665,7 @@ export async function processDirectExtraction(msg: DirectExtractionMessage) {
         AND user_id = ${userId}::uuid
         AND status = 'processing'
     `;
-    console.error(
+    logger.error(
       `[${ts()}] Direct extraction failed for note ${noteId}: ${message}`,
     );
   }
@@ -1693,7 +1685,7 @@ export async function processExtractionRetry(msg: ExtractionRetryMessage) {
     importRecordId = null,
     jobId = null,
   } = msg;
-  console.log(
+  logger.info(
     `[${new Date().toISOString()}] Extraction retry for note ${noteId} (attempt ${attempt})`,
   );
 
@@ -1716,7 +1708,7 @@ export async function processExtractionRetry(msg: ExtractionRetryMessage) {
       String(existingImport.id) !== String(importRecordId) ||
       String(existingImport.job_id) !== String(jobId)
     ) {
-      console.log(`Ignoring unbound or stale Canvas extraction retry for ${noteId}`);
+      logger.info(`Ignoring unbound or stale Canvas extraction retry for ${noteId}`);
       return;
     }
     const [claimed] = await sql<ExtractionImportRow[]>`
@@ -1743,12 +1735,12 @@ export async function processExtractionRetry(msg: ExtractionRetryMessage) {
         imported.claim_token, imported.retry_attempts, imported.source_s3_key
     `;
     if (!claimed) {
-      console.log(`Canvas extraction retry ${importRecordId} is already claimed or inactive`);
+      logger.info(`Canvas extraction retry ${importRecordId} is already claimed or inactive`);
       return;
     }
     importRow = claimed;
   } else if (importRecordId || jobId) {
-    console.log(`Ignoring stale Canvas extraction retry for missing import ${importRecordId}`);
+    logger.info(`Ignoring stale Canvas extraction retry for missing import ${importRecordId}`);
     return;
   }
 
@@ -1771,7 +1763,7 @@ export async function processExtractionRetry(msg: ExtractionRetryMessage) {
       // acknowledge a timeout while the original indexing keeps mutating the
       // note in the background. Keep ownership until it exits naturally.
       const warning = setTimeout(() => {
-        console.warn(
+        logger.warn(
           `Extraction retry exceeded ${Math.round(FILE_TIMEOUT_MS / 60000)} minute supervision threshold: ${filename}`,
         );
       }, FILE_TIMEOUT_MS);
@@ -1852,7 +1844,7 @@ export async function processExtractionRetry(msg: ExtractionRetryMessage) {
       if (!(publicationError instanceof CanvasClaimLostError)) throw publicationError;
     }
 
-    console.error(
+    logger.error(
       `[${new Date().toISOString()}] Extraction retry failed for note ${noteId}: ${message}`,
     );
   }
@@ -1927,7 +1919,7 @@ export async function recoverPendingExtractionRetries(limit: number = 50) {
 
       enqueued += 1;
     } catch (error) {
-      console.error(
+      logger.error(
         `Extraction retry recovery enqueue failed for ${row.import_record_id}:`,
         error,
       );
@@ -1995,7 +1987,7 @@ function startMarkerCompletionHeartbeat(markerJob: MarkerJobRow) {
         AND status = 'completing'
         AND completion_attempts = ${markerJob.completion_attempts}
     `.catch((error: unknown) => {
-      console.warn(
+      logger.warn(
         `Marker completion heartbeat failed for ${markerJob.callback_id}:`,
         error,
       );
@@ -2055,7 +2047,7 @@ export async function processMarkerComplete(msg: MarkerContinuationMessage) {
   if (!markerJob) return;
 
   const ts = () => new Date().toISOString();
-  console.log(`[${ts()}] processMarkerComplete: marker job ${markerJobId}`);
+  logger.info(`[${ts()}] processMarkerComplete: marker job ${markerJobId}`);
   let heartbeat: ReturnType<typeof setInterval> | null = null;
 
   try {
@@ -2210,7 +2202,7 @@ export async function processMarkerComplete(msg: MarkerContinuationMessage) {
         await captureImportedPdfCache({ cacheId, sourceNoteId: result.noteId });
         cacheCaptured = true;
       } catch (cacheError) {
-        console.warn(
+        logger.warn(
           `Marker cache capture failed for ${markerJob.callback_id}:`,
           cacheError,
         );
@@ -2235,7 +2227,7 @@ export async function processMarkerComplete(msg: MarkerContinuationMessage) {
   } catch (error) {
     if (error instanceof CanvasClaimLostError) return;
     const message = markerErrorMessage(error);
-    console.error(
+    logger.error(
       `[${ts()}] processMarkerComplete failed for marker job ${markerJobId}: ${message}`,
     );
     const { MarkerResultValidationError } = await import("../marker-result.ts");

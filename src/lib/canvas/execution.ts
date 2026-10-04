@@ -1,3 +1,4 @@
+import logger from "@/lib/logger";
 import { AsyncLocalStorage } from "node:async_hooks";
 import type postgres from "postgres";
 import sql, { withDatabaseTransaction } from "@/database/pgsql";
@@ -30,7 +31,7 @@ export async function withCanvasExecution<T>(owner: CanvasExecution, work: () =>
       void renewCanvasExecution(owner).catch(() => {
         // Publication checks the durable owner again; a heartbeat failure
         // never grants permission to continue writing.
-        console.warn("Canvas execution heartbeat failed", { jobId: owner.jobId });
+        logger.warn("worker_event");
       }).finally(() => { renewing = false; });
     }, 30_000);
     try { return await work(); } finally { clearInterval(heartbeat); }

@@ -39,9 +39,8 @@ export function tryJSON<T>(str?: string | null): T | null {
 
   try {
     return JSON.parse(str) as T;
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    console.error(`Failed to parse JSON: ${errorMsg}`, { input: str.slice(0, 100) });
+  } catch {
+    console.error("storage_json_invalid");
     return null;
   }
 }
@@ -66,8 +65,8 @@ export async function strDecompress(raw?: string | null): Promise<string | undef
 
     const buf = await new Response(stream.readable).arrayBuffer();
     return new TextDecoder().decode(buf);
-  } catch (error) {
-    console.error('Failed to decompress string:', error);
+  } catch {
+    console.error("storage_decompression_failed");
     return undefined;
   }
 }
@@ -86,8 +85,8 @@ export async function strCompress(str?: string): Promise<string> {
 
     const buf = await new Response(stream.readable).arrayBuffer();
     return btoa(String.fromCharCode(...new Uint8Array(buf)));
-  } catch (error) {
-    console.error('Failed to compress string:', error);
+  } catch {
+    console.error("storage_compression_failed");
     return str; // fallback to original string if compression fails
   }
 }

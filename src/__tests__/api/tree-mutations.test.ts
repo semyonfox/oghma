@@ -73,7 +73,8 @@ vi.mock("@/lib/cache", () => ({
   },
 }));
 
-import { parseTreeMutation, POST } from "@/app/api/tree/route";
+import { POST } from "@/app/api/tree/route";
+import { parseTreeMutation } from "@/lib/notes/tree-mutation";
 
 const USER_ID = "11111111-1111-1111-1111-111111111111";
 const NOTE_ID = "22222222-2222-2222-2222-222222222222";

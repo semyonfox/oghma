@@ -1,3 +1,4 @@
+import logger from "@/lib/logger";
 import sql from "../../database/pgsql";
 import type postgres from "postgres";
 import { enqueueCanvasJob } from "../queue.ts";
@@ -103,7 +104,7 @@ export async function dispatchFairCanvasFiles(limit = 10): Promise<number> {
   `;
   const recovered = await recoverStaleCanvasDispatches();
   if (recovered > 0) {
-    console.warn(`Released ${recovered} stale Canvas dispatch lease(s)`);
+    logger.warn("worker_event");
   }
   const selected = await sql.begin(async (tx: postgres.TransactionSql) => {
     await tx`SELECT pg_advisory_xact_lock(hashtext('oghma-import-fair-dispatch'))`;
@@ -205,12 +206,12 @@ export async function dispatchFairCanvasFiles(limit = 10): Promise<number> {
         userId: record.user_id,
       });
       enqueued += 1;
-    } catch (error) {
+    } catch {
       await sql`
         UPDATE app.canvas_imports SET dispatched_at = NULL
         WHERE id = ${record.id}::uuid AND status = 'pending'
       `;
-      console.error(`Fair import dispatch failed for ${record.id}:`, error);
+      logger.error("worker_event");
     }
   }
   return enqueued;

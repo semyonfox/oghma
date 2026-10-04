@@ -1096,7 +1096,6 @@
   "The selected notes will be moved to Trash.": "The selected notes will be moved to Trash.",
   "This folder and all its contents will be moved to Trash.": "This folder and all its contents will be moved to Trash.",
   "This item will be permanently deleted. This cannot be undone.": "This item will be permanently deleted. This cannot be undone.",
-  "Trash": "Trash",
   "Contains {count} items": "Contains {count} items",
   "Expires today": "Expires today",
   "Expires tomorrow": "Expires tomorrow",
@@ -1196,5 +1195,7 @@
   "Restore from Trash to open": "Restore from Trash to open",
   "Restore this course's folders from Trash before importing materials.": "Restore this course's folders from Trash before importing materials.",
   "Starting import...": "Starting import...",
-  "Unavailable in Canvas": "Unavailable in Canvas"
+  "Unavailable in Canvas": "Unavailable in Canvas",
+  "Search results: {count}": "Search results: {count}",
+  "Retry save": "Retry save"
 }

@@ -1,3 +1,4 @@
+import logger from "@/lib/logger";
 import { withCanvasPublication } from "./execution";
 /**
  * Canvas folder deduplication and naming utilities.
@@ -24,10 +25,6 @@ interface CanvasFolderRow {
 
 function isUniqueViolation(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === "23505";
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 export const ASSIGNMENTS_PARENT_MODULE_ID = -1;
@@ -174,7 +171,7 @@ export async function findOrCreateFolder(
       await invalidateTreeAfterPublish(userId, parentId);
       return folderId;
     }
-    console.warn(`Failed to create folder "${title}": ${errorMessage(error)}`);
+    logger.warn("worker_event");
     return parentId;
   }
 

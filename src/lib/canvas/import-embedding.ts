@@ -97,10 +97,8 @@ async function invalidateExtractedNote(userId: string, noteId: string) {
 }
 
 async function queueExtractionRetry(retryOpts: ExtractionRetryMessage) {
-  const { delaySeconds } = await enqueueExtractionRetry(retryOpts);
-  console.log(
-    `Queuing extraction retry for note ${retryOpts.noteId} (attempt ${retryOpts.attempt + 1}, delay ${delaySeconds}s)`,
-  );
+  await enqueueExtractionRetry(retryOpts);
+  logger.info("worker_event");
 }
 
 async function isActiveNote(noteId: string, userId: string): Promise<boolean> {
@@ -261,17 +259,11 @@ export async function processRagPipeline(
     });
 
     if (source === "text") {
-      console.log(
-        `Text extract (${mimeType}): ${chunks.length} chunks for note ${noteId}`,
-      );
+      logger.info("worker_event");
     } else if (source === "marker") {
-      console.log(
-        `Marker: extracted ${chunks.length} chunks for note ${noteId}`,
-      );
+      logger.info("worker_event");
     } else {
-      console.log(
-        `pdf-parse: extracted ${chunks.length} chunks for note ${noteId}`,
-      );
+      logger.info("worker_event");
     }
 
     return await withCanvasPublication(async () => {
@@ -314,7 +306,7 @@ export async function processRagPipeline(
         elapsedSecs: (embeddingElapsedMs / 1000).toFixed(2),
       });
 
-      console.log(`RAG: ${count} chunks embedded on text note ${noteId}`);
+      logger.info("worker_event");
       return finish({ noteId, chunksStored: count });
     }
 
@@ -400,9 +392,7 @@ export async function processRagPipeline(
       elapsedSecs: (embeddingElapsedMs / 1000).toFixed(2),
     });
 
-    console.log(
-      `RAG: ${count} chunks embedded on MD note ${mdNoteId} (source: ${noteId}, marker images: ${markerAssets.imageCount})`,
-    );
+    logger.info("worker_event");
     return finish({ noteId: mdNoteId, chunksStored: count });
     });
   } catch (error) {
@@ -410,7 +400,7 @@ export async function processRagPipeline(
     if (error instanceof MarkerSubmissionCancelledError) {
       // Cancellation won the durable submission fence. Do not turn that into
       // a generic extraction retry, which could revive the cancelled import.
-      console.log(`Marker submission skipped for inactive import ${noteId}`);
+      logger.info("worker_event");
       return null;
     }
     if (retryOnFailure && jobId && importRecordId) {
@@ -443,11 +433,11 @@ export async function processRagPipeline(
         RETURNING id
       `;
       if (jobId && stagedImports.length === 0) {
-        console.log(`Extraction retry skipped for inactive Canvas import ${noteId}`);
+        logger.info("worker_event");
         return null;
       }
       if (!jobId && stagedImports.length === 0 && stagedIngestion.length === 0) {
-        console.log(`Extraction retry skipped for inactive note ${noteId}`);
+        logger.info("worker_event");
         return null;
       }
       try {
@@ -483,12 +473,10 @@ export async function processRagPipeline(
         `;
         throw enqueueError;
       }
-      console.log(
-        `Extraction failed for note ${noteId}, queued for retry (attempt ${attempt + 1})`,
-      );
+      logger.info("worker_event");
       return null;
     }
-    console.error(`RAG pipeline error for note ${noteId}:`, error);
+    logger.error("worker_event");
     throw error;
   }
 }
