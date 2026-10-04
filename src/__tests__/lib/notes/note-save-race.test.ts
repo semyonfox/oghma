@@ -214,9 +214,9 @@ describe("note save/fetch coordination", () => {
     useNoteStore.getState().resetForSession("user-1");
     useNoteStore.getState().setDependencies(api, treeStore(), vi.fn());
 
-    await useNoteStore
-      .getState()
-      .mutateNote(NOTE_ID, { content: "late autosave" });
+    await expect(
+      useNoteStore.getState().mutateNote(NOTE_ID, { content: "late autosave" }),
+    ).rejects.toThrow("Note save unavailable");
 
     expect(mutate).not.toHaveBeenCalled();
   });
