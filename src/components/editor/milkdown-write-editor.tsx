@@ -518,7 +518,7 @@ export default function MilkdownWriteEditor({
       listener.markdownUpdated((_ctx, markdown) => {
         // Milkdown may normalize Markdown while mounting or rendering content.
         // Only a change from the rendered document represents a new edit.
-        if (!crepeRef.current || markdown === lastDocumentMarkdownRef.current) return;
+        if (!crepeRef.current || markdown !== crepeRef.current.getMarkdown() || markdown === lastDocumentMarkdownRef.current) return;
         lastDocumentMarkdownRef.current = markdown;
         lastLocallyEmittedValueRef.current = markdown;
         onChangeRef.current(markdown, false);
@@ -583,12 +583,12 @@ export default function MilkdownWriteEditor({
     const crepe = crepeRef.current;
     if (
       !crepe ||
-      !shouldApplyExternalMarkdown(value, lastLocallyEmittedValueRef.current) ||
-      crepe.getMarkdown() === value
+      !shouldApplyExternalMarkdown(value, lastLocallyEmittedValueRef.current)
     ) {
       return;
     }
-    replaceExternalMarkdown(crepe, value);
+    lastLocallyEmittedValueRef.current = null;
+    if (crepe.getMarkdown() !== value) replaceExternalMarkdown(crepe, value);
     lastDocumentMarkdownRef.current = crepe.getMarkdown();
   }, [value]);
 
