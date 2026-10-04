@@ -76,20 +76,22 @@ function errorProperty(error: unknown, key: string): unknown {
 }
 
 async function getApplied(): Promise<MigrationRow[]> {
-  try {
-    return await sql<MigrationRow[]>`
-      SELECT version, name, applied_at
-      FROM app.schema_migrations
-      ORDER BY version`;
-  } catch {
-    return [];
-  }
+  return await sql<MigrationRow[]>`
+    SELECT version, name, applied_at
+    FROM app.schema_migrations
+    ORDER BY version`;
 }
 
 async function status(): Promise<void> {
   console.log('database:', masked);
 
-  const applied = await getApplied();
+  let applied: MigrationRow[];
+  try {
+    applied = await getApplied();
+  } catch (error) {
+    if (errorProperty(error, 'code') !== '42P01') throw error;
+    applied = [];
+  }
   const files = readMigrationFiles(migrationsDir);
 
   if (applied.length === 0) {

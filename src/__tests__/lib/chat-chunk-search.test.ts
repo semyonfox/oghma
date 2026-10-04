@@ -89,6 +89,68 @@ describe("searchChatChunks", () => {
     expect(vi.mocked(sql).mock.calls[1]).toContainEqual(scopedNoteIds);
   });
 
+  it.each(["semantic", "exact", "both"] as const)(
+    "does not search outside an explicitly empty scope in %s mode",
+    async (mode) => {
+      vi.mocked(sql).mockResolvedValue([
+        {
+          note_id: "11111111-1111-1111-1111-111111111111",
+          title: "Outside scope",
+          chunk_id: "22222222-2222-2222-2222-222222222222",
+          chunk_text: "Unrelated content",
+        },
+      ]);
+
+      await expect(
+        searchChatChunks({
+          userId: "33333333-3333-3333-3333-333333333333",
+          query: "content",
+          mode,
+          scopedNoteIds: [],
+        }),
+      ).resolves.toEqual([]);
+      expect(embedText).not.toHaveBeenCalled();
+      expect(searchChunkVectors).not.toHaveBeenCalled();
+      expect(sql).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["semantic", "exact", "both"] as const)(
+    "keeps global and nonempty scopes distinct in %s mode",
+    async (mode) => {
+      const noteIds = ["44444444-4444-4444-4444-444444444444"];
+      for (const scopedNoteIds of [null, noteIds]) {
+        vi.clearAllMocks();
+        vi.mocked(sql).mockResolvedValue([]);
+        vi.mocked(embedText).mockResolvedValue([0.1, 0.2, 0.3]);
+        vi.mocked(searchChunkVectors).mockResolvedValue([]);
+
+        await searchChatChunks({
+          userId: "33333333-3333-3333-3333-333333333333",
+          query: "content",
+          mode,
+          scopedNoteIds,
+        });
+
+        if (mode === "semantic" || mode === "both") {
+          expect(searchChunkVectors).toHaveBeenCalledWith(
+            expect.objectContaining({ documentIds: scopedNoteIds }),
+          );
+        } else {
+          expect(searchChunkVectors).not.toHaveBeenCalled();
+        }
+        if (mode === "exact" || mode === "both") {
+          expect(sql).toHaveBeenCalledTimes(2);
+          for (const call of vi.mocked(sql).mock.calls) {
+            expect(call.includes(noteIds)).toBe(scopedNoteIds !== null);
+          }
+        } else {
+          expect(sql).not.toHaveBeenCalled();
+        }
+      }
+    },
+  );
+
   it("does not require embeddings for exact-only search", async () => {
     vi.mocked(sql)
       .mockResolvedValueOnce([])

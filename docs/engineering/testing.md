@@ -6,14 +6,15 @@
 > and GitHub Actions workflows
 
 Use this page to choose a check that proves the change you made. It describes
-local verification; CI remains the final branch-protection authority.
+local verification; a CI run provides check evidence but does not by itself prove
+that a branch requires the check.
 
 ## Fast checks
 
 Run the smallest relevant test file while iterating:
 
 ```bash
-npm run test -- --run src/__tests__/lib/example.test.ts
+npm run test -- --run src/__tests__/lib/validation.test.ts
 ```
 
 For the fast web and Canvas MCP quality gate, run:

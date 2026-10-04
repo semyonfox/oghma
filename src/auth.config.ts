@@ -12,6 +12,12 @@ import {
 } from "@/lib/auth-oauth";
 import type { OAuthProfile } from "@/lib/auth-oauth";
 import { getRequestLocale } from "@/lib/i18n/server";
+import {
+  isAccountLocked,
+  isRateLimited,
+  recordFailedAttempt,
+  clearFailedAttempts,
+} from "@/lib/loginLockout";
 
 const providers: NextAuthConfig["providers"] = [];
 
@@ -19,6 +25,7 @@ interface LoginCredentialsUser {
   user_id: string;
   email: string;
   hashed_password: string;
+  email_verified: boolean;
 }
 
 interface LoginProfileRow {
@@ -107,8 +114,11 @@ if (process.env.ENABLE_CREDENTIALS_AUTH !== "false") {
           }
 
           try {
+            if (await isAccountLocked(email)) return null;
+            if (await isRateLimited(email)) return null;
+
             const users = (await sql`
-                            SELECT user_id, email, hashed_password
+                            SELECT user_id, email, hashed_password, email_verified
                             FROM app.login
                             WHERE email = ${email}
                               AND is_active = true
@@ -116,6 +126,7 @@ if (process.env.ENABLE_CREDENTIALS_AUTH !== "false") {
                         `) as LoginCredentialsUser[];
 
             if (users.length === 0) {
+              await recordFailedAttempt(email);
               return null;
             }
 
@@ -126,8 +137,12 @@ if (process.env.ENABLE_CREDENTIALS_AUTH !== "false") {
             );
 
             if (!isPasswordValid) {
+              await recordFailedAttempt(email);
               return null;
             }
+
+            await clearFailedAttempts(email);
+            if (!user.email_verified) return null;
 
             return { id: user.user_id, email: user.email };
           } catch (error) {

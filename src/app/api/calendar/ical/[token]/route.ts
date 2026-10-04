@@ -16,6 +16,8 @@ export async function GET(
   const [loginRow] = await sql`
     SELECT user_id FROM app.login
     WHERE calendar_export_token = ${token}::uuid
+      AND is_active = true
+      AND deleted_at IS NULL
   `;
 
   if (!loginRow) {
