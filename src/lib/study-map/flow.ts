@@ -73,7 +73,7 @@ export interface ModuleLayout {
   positions: Map<string, { x: number; y: number; manual: boolean }>;
 }
 
-const HEIGHTS: Record<FlowCardKind, number> = { note: 150, file: 150, pdf: 206, image: 206, assignment: 166 };
+const HEIGHTS: Record<FlowCardKind, number> = { note: 140, file: 140, pdf: 196, image: 196, assignment: 140 };
 const EXPLICIT_WEEK = /\b(?:week|wk)\s*[-_#:.]?\s*0?(\d{1,2})\b/i;
 const SHORT_WEEK = /(?:^|[\s_([-])w0?(\d{1,2})(?=$|[\s_)\].:-])/i;
 const SESSION = /\b(?:lecture|lect|lec|lab|tutorial|tut|practical|session|class|seminar|workshop)\s*[-_#:.]?\s*0?(\d{1,2})\b/i;

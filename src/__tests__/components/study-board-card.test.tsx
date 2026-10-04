@@ -191,12 +191,11 @@ describe("StudyFlowCard", () => {
     const view = render(card(itemFor(material())));
     expect(screen.getByRole("heading", { name: "Week 3: graph search" })).toBeTruthy();
     expect(screen.getByText("Graph search Breadth-first search visits each graph layer. See queues.")).toBeTruthy();
-    expect(screen.getByText("Week 3")).toBeTruthy();
-    expect(screen.getByText("Notes")).toBeTruthy();
+    expect(screen.getByText("Notes · Week 3")).toBeTruthy();
 
     view.rerender(card(itemFor(material({ title: "Graph search revised", excerpt: "The edited source excerpt." }))));
     expect(screen.getByRole("heading", { name: "Graph search revised" })).toBeTruthy();
-    expect(screen.getByText("No week")).toBeTruthy();
+    expect(screen.getByText("Notes · No week")).toBeTruthy();
     expect(screen.getByText("The edited source excerpt.")).toBeTruthy();
     expect(fetchBoundary).not.toHaveBeenCalled();
   });
@@ -211,8 +210,8 @@ describe("StudyFlowCard", () => {
     });
     const topics = [topic(), topic(otherTopicId, "Queues")];
     render(card(itemFor(suggested, topics), topics));
-    expect(screen.getByText("Your note")).toBeTruthy();
-    expect(screen.getByText("Review")).toBeTruthy();
+    expect(screen.getByText("Your note · Week 3")).toBeTruthy();
+    expect(screen.getByLabelText("Topics to review")).toBeTruthy();
     const chip = screen.getByRole("button", { name: "Graphs" });
     expect(chip.getAttribute("data-topic")).toBe(topicId);
     expect(chip.getAttribute("title")).toBe("Graphs: core, suggested, needs review");
@@ -230,8 +229,7 @@ describe("StudyFlowCard", () => {
     const brief = items.find((entry) => entry.kind === "assignment")!;
     render(<>{card(brief)}{card(items[0], [topic()], { usedBy: [{ id: assignment.id, short: "A2", title: assignment.title }] })}</>);
     const assignmentCard = screen.getByRole("article", { name: assignment.title });
-    expect(within(assignmentCard).getByText("Assignment")).toBeTruthy();
-    expect(within(assignmentCard).getByText(/^Due /)).toBeTruthy();
+    expect(within(assignmentCard).getByText(/^Assignment · Due /)).toBeTruthy();
     expect(within(assignmentCard).getByText("Use Graphs to find shortest paths.")).toBeTruthy();
     expect(within(assignmentCard).getByRole("button", { name: "Graphs" }).getAttribute("title")).toBe("Graphs: core, named in the brief");
     const backlink = within(screen.getByRole("article", { name: "Week 3: graph search" })).getByRole("button", { name: "↩ A2" });
@@ -377,7 +375,7 @@ describe("StudyFlowCard", () => {
 
   it("does not request previews for unsupported attachment types", () => {
     render(card(itemFor(material({ isFile: true, mimeType: "application/zip", excerpt: "Archive of lab files" }))));
-    expect(screen.getByText("File")).toBeTruthy();
+    expect(screen.getByText("File · Week 3")).toBeTruthy();
     expect(screen.getByText("Archive of lab files")).toBeTruthy();
     expect(fetchBoundary).not.toHaveBeenCalled();
     expect(screen.queryByRole("img")).toBeNull();

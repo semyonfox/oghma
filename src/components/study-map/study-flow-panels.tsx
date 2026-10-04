@@ -270,7 +270,6 @@ export function TrailPanel({ topic, moduleName, parentName, trail, stop, support
     <aside
       aria-label={`${topic.name} through the course`}
       className="absolute left-3 top-3 z-30 flex max-h-[calc(100%-5.5rem)] w-[min(320px,calc(100%-1.5rem))] flex-col overflow-hidden rounded-radius-xl border border-border-subtle bg-surface shadow-lg"
-      style={{ borderTop: `3px solid ${topic.colour}` }}
     >
       <div className="flex items-start gap-2 px-4 pt-3">
         <span className="mt-1.5 h-3 w-3 shrink-0 rounded-full" style={{ background: topic.colour }} aria-hidden="true" />

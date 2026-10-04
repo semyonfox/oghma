@@ -289,11 +289,11 @@ const CardLayer = memo(function CardLayer({ placed, topics, linkCount, usedBy, c
             data-card={item.ref}
             tabIndex={0}
             aria-label={`${item.title || "Untitled"}, ${item.week === null ? "no week" : `week ${item.week}`}, ${module.name}`}
-            className={`absolute rounded-radius-lg outline-2 outline-offset-2 transition-[opacity,box-shadow] duration-150 focus-visible:outline focus-visible:outline-primary-500 ${flags.includes("selected") ? "outline outline-primary-500" : ""} ${flags.includes("related") ? "shadow-[0_0_0_2px_var(--color-primary-400)]" : ""} ${flags.includes("dim") ? "opacity-15" : ""} ${flags.includes("supporting") ? "outline-dashed outline-primary-400/70" : ""} ${flags.includes("flash") ? "animate-pulse" : ""}`}
+            className={`absolute rounded-radius-lg outline-offset-2 transition-[opacity,box-shadow] duration-150 focus-visible:outline-2 focus-visible:outline focus-visible:outline-primary-500 ${flags.includes("selected") ? "outline outline-[1.5px] outline-primary-500/80" : ""} ${flags.includes("related") ? "shadow-[0_0_0_1px_var(--color-primary-300)]" : ""} ${flags.includes("dim") ? "opacity-15" : ""} ${flags.includes("supporting") ? "opacity-60" : ""} ${flags.includes("flash") ? "animate-pulse" : ""}`}
             style={{ left: x, top: y, width: CARD_WIDTH, height: item.height, cursor: pinned ? "default" : "grab" }}
           >
             {far ? (
-              <div className="h-full w-full rounded-radius-lg" style={{ background: primary?.colour ?? "var(--color-text-tertiary)", opacity: 0.45 }} />
+              <div className="h-full w-full rounded-radius-lg" style={{ background: primary?.colour ?? "var(--color-text-tertiary)", opacity: 0.22 }} />
             ) : (
               <StudyFlowCard
                 item={item}
@@ -305,7 +305,7 @@ const CardLayer = memo(function CardLayer({ placed, topics, linkCount, usedBy, c
               />
             )}
             {stop !== undefined && (
-              <span className="absolute -left-3 -top-3 grid h-6 w-6 place-items-center rounded-full text-xs font-bold text-white shadow ring-2 ring-background" style={{ background: focusColour ?? "var(--color-primary-600)" }}>
+              <span className="absolute -left-2.5 -top-2.5 grid h-5 w-5 place-items-center rounded-full text-[11px] font-semibold text-white" style={{ background: focusColour ?? "var(--color-primary-600)" }}>
                 {stop + 1}
               </span>
             )}
@@ -960,7 +960,7 @@ export default function StudyFlow({ modules, viewKey, toolbar, onBoardChange, on
     const labels: Array<{ key: string; x: number; y: number; text: string; link?: FlowLink; tone: "plain" | "cross" | "strong" }> = [];
     for (const module of model.modules) {
       for (const column of module.layout.columns) {
-        under.push(<line key={`col-${module.mapId}-${column.week}`} x1={column.x} x2={column.x} y1={module.originY + MODULE_HEADER - 20} y2={module.originY + module.layout.height - 40} stroke="var(--color-border)" strokeDasharray="4 8" />);
+        under.push(<line key={`col-${module.mapId}-${column.week}`} x1={column.x} x2={column.x} y1={module.originY + MODULE_HEADER - 20} y2={module.originY + module.layout.height - 40} stroke="var(--color-border-subtle)" />);
       }
       for (const row of module.layout.rows) {
         if (!row.topic) continue;
@@ -972,7 +972,7 @@ export default function StudyFlow({ modules, viewKey, toolbar, onBoardChange, on
         const points = [{ x: LEGEND_WIDTH - 30, y: module.originY + row.y }, ...items.map((placed) => ({ x: placed.x + CARD_WIDTH / 2, y: placed.y + Math.min(placed.item.height / 2, 70) }))];
         const on = focus ? focus.topicId === row.topic.id : hoverTopic === row.topic.id;
         under.push(
-          <path key={`ribbon-${row.topic.id}`} d={ribbon(points)} fill="none" stroke={topic?.colour} strokeWidth={on ? 46 : 36} strokeLinecap="round" strokeLinejoin="round" opacity={focus ? (on ? 0.3 : 0.04) : on ? 0.28 : 0.1} />,
+          <path key={`ribbon-${row.topic.id}`} d={ribbon(points)} fill="none" stroke={topic?.colour} strokeWidth={on ? 34 : 26} strokeLinecap="round" strokeLinejoin="round" opacity={focus ? (on ? 0.18 : 0.03) : on ? 0.16 : 0.06} />,
         );
       }
     }
@@ -985,7 +985,7 @@ export default function StudyFlow({ modules, viewKey, toolbar, onBoardChange, on
         const cross = a.item.mapId !== b.item.mapId;
         const strong = activeRef === link.source || activeRef === link.target || (focus !== null && stops.has(link.source) && stops.has(link.target));
         const path = (
-          <path key={link.id} d={geometry.d} fill="none" stroke={strong ? "var(--color-text-secondary)" : "var(--color-text-tertiary)"} strokeWidth={strong ? 2.4 : 1.4} strokeDasharray={cross ? "8 6" : link.origin === "note" ? undefined : "2 4"} opacity={strong ? 0.95 : focus || activeRef ? 0.12 : 0.45} markerEnd="url(#flow-arrow)" />
+          <path key={link.id} d={geometry.d} fill="none" stroke={strong ? "var(--color-text-secondary)" : "var(--color-text-tertiary)"} strokeWidth={strong ? 2.4 : 1.4} strokeDasharray={cross ? "8 6" : link.origin === "note" ? undefined : "2 4"} opacity={strong ? 0.85 : focus || activeRef ? 0.08 : 0.28} markerEnd="url(#flow-arrow)" />
         );
         if (strong) {
           over.push(<path key={`${link.id}-halo`} d={geometry.d} fill="none" stroke="var(--color-background)" strokeWidth={8} opacity={0.8} />, path);
@@ -1114,7 +1114,7 @@ export default function StudyFlow({ modules, viewKey, toolbar, onBoardChange, on
           aria-label="Study map. Weeks run left to right and topics top to bottom. Tab moves between cards, Enter reads one, Space previews it."
           tabIndex={0}
           className="relative min-h-0 flex-1 touch-none select-none overflow-hidden bg-background focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary-500"
-          style={{ backgroundImage: "radial-gradient(var(--color-border) 1px, transparent 1.2px)" }}
+          style={{ backgroundImage: "radial-gradient(var(--color-border-subtle) 1px, transparent 1.2px)" }}
           onPointerDown={onPointerDown}
           onPointerOver={onPointerOver}
           onPointerLeave={() => {
@@ -1133,7 +1133,7 @@ export default function StudyFlow({ modules, viewKey, toolbar, onBoardChange, on
               <section
                 key={module.mapId}
                 aria-label={`${module.name} ${module.year}`}
-                className="absolute rounded-[28px] border border-border-subtle bg-surface/40"
+                className="absolute rounded-[28px] bg-surface/40"
                 style={{ left: -24, top: module.originY, width: model.width + 48, height: module.layout.height }}
               >
                 <header className="absolute left-10 flex items-baseline gap-4 whitespace-nowrap" style={{ top: far ? 4 : 32, fontSize: far ? 60 : compact ? 44 : 34 }}>
@@ -1165,7 +1165,7 @@ export default function StudyFlow({ modules, viewKey, toolbar, onBoardChange, on
                   <div
                     key={`week-${column.week}`}
                     data-week-label={column.week ?? "none"}
-                    className="absolute whitespace-nowrap font-semibold text-text-secondary"
+                    className="absolute whitespace-nowrap font-medium text-text-tertiary"
                     style={{ left: column.x + 22, top: module.originY + MODULE_HEADER - (far ? 64 : 52), fontSize: far ? 44 : compact ? 26 : 15 }}
                   >
                     {column.week === null ? "No week" : `Week ${column.week}`}
@@ -1182,11 +1182,11 @@ export default function StudyFlow({ modules, viewKey, toolbar, onBoardChange, on
                       data-legend={row.topic ? row.key : undefined}
                       disabled={!row.topic}
                       aria-pressed={row.topic ? on : undefined}
-                      className={`absolute flex flex-col items-start whitespace-nowrap rounded-radius-lg border px-3 py-2 text-left transition-shadow ${on ? "border-primary-500 bg-surface shadow-md" : "border-border-subtle bg-surface/90 hover:border-primary-400"} ${lowerQuery && row.topic && !row.topic.name.toLocaleLowerCase().includes(lowerQuery) ? "opacity-40" : ""}`}
+                      className={`absolute flex flex-col items-start whitespace-nowrap rounded-radius-lg px-3 py-1.5 text-left transition-colors ${on ? "bg-primary-500/10" : "hover:bg-primary-500/5"} ${lowerQuery && row.topic && !row.topic.name.toLocaleLowerCase().includes(lowerQuery) ? "opacity-40" : ""}`}
                       style={{ left: 16, top: module.originY + row.y - (far ? 60 : 32), width: far ? undefined : LEGEND_WIDTH - 56, paddingLeft: parent ? 24 : 12 }}
                     >
                       <span className="flex items-center gap-2 font-semibold text-text" style={{ fontSize: far ? 64 : compact ? 24 : 15 }}>
-                        <span className="shrink-0 rounded-full" style={{ width: far ? 28 : 11, height: far ? 28 : 11, background: topic?.colour ?? "var(--color-text-tertiary)" }} aria-hidden="true" />
+                        <span className="shrink-0 rounded-full" style={{ width: far ? 24 : 8, height: far ? 24 : 8, background: topic?.colour ?? "var(--color-text-tertiary)" }} aria-hidden="true" />
                         {row.topic ? row.topic.name : "Not classified yet"}
                       </span>
                       {!far && (

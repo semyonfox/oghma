@@ -173,7 +173,7 @@ describe("layout", () => {
     const b = layout.positions.get(`note:${onlyPointers.noteId}`)!;
     expect(a.x).toBe(b.x);
     const [upper, lower] = a.y < b.y ? [a, b] : [b, a];
-    expect(lower.y - upper.y).toBeGreaterThanOrEqual(150);
+    expect(lower.y - upper.y).toBeGreaterThanOrEqual(140);
     expect(layout.positions.get(`note:${later.noteId}`)!.x).toBeGreaterThan(a.x);
     const moved = layoutModule(MAP, [pointers, memory, bits], items, [{ id: `note:${both.noteId}`, x: 9, y: 11, pinned: true, topicId: null }]);
     expect(moved.positions.get(`note:${both.noteId}`)).toEqual({ x: 9, y: 11, manual: true });

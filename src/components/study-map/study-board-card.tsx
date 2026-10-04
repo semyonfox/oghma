@@ -1,14 +1,7 @@
 "use client";
 
 import { memo, useEffect, useRef, useState } from "react";
-import {
-  AcademicCapIcon,
-  DocumentTextIcon,
-  LinkIcon,
-  PencilSquareIcon,
-  PhotoIcon,
-  PresentationChartBarIcon,
-} from "@heroicons/react/24/outline";
+import { LinkIcon } from "@heroicons/react/24/outline";
 import { useSignedUrl } from "@/components/editor/use-signed-url";
 import { CARD_WIDTH, type FlowItem } from "@/lib/study-map/flow";
 import type { StudyMaterial, StudyTopic } from "@/lib/study-map/types";
@@ -257,15 +250,6 @@ export function reviewNeeded(item: FlowItem): boolean {
   return material.status === "stale" || material.status === "failed" || item.tags.some((tag) => tag.suggested);
 }
 
-function KindIcon({ item }: { item: FlowItem }) {
-  const className = "h-3.5 w-3.5 shrink-0";
-  if (item.kind === "assignment") return <AcademicCapIcon className={className} aria-hidden="true" />;
-  if (item.kind === "image") return <PhotoIcon className={className} aria-hidden="true" />;
-  if (item.kind === "pdf") return <PresentationChartBarIcon className={className} aria-hidden="true" />;
-  if (item.material && !item.material.imported) return <PencilSquareIcon className={className} aria-hidden="true" />;
-  return <DocumentTextIcon className={className} aria-hidden="true" />;
-}
-
 const dueFormat = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" });
 
 export interface StudyFlowCardProps {
@@ -283,10 +267,9 @@ export const StudyFlowCard = memo(function StudyFlowCard({ item, topics, linkCou
   const [visible, setVisible] = useState(false);
   const preview = item.material ? previewKind(item.material) : null;
   const tags = item.tags.filter((tag) => topics.has(tag.topicId));
-  const shown = tags.slice(0, 3);
-  const primary = tags[0] ? topics.get(tags[0].topicId) : undefined;
+  const shown = tags.slice(0, 2);
   const assignment = item.assignment;
-  const owned = item.material !== null && !item.material.imported && item.kind === "note";
+  const review = reviewNeeded(item);
 
   useEffect(() => {
     const card = cardRef.current;
@@ -303,45 +286,31 @@ export const StudyFlowCard = memo(function StudyFlowCard({ item, topics, linkCou
     return () => observer.disconnect();
   }, [preview]);
 
+  const meta = [cardLabel(item), assignment?.due_at ? `Due ${dueFormat.format(new Date(assignment.due_at))}` : weekLabel(item)];
   return (
     <div
       ref={cardRef}
-      className={`flex h-full w-full flex-col overflow-hidden rounded-radius-lg border bg-surface px-3 pb-2.5 pt-2 font-sans text-text shadow-sm ${owned ? "border-dashed border-primary-500/40" : assignment ? "border-ai-500/50" : "border-border-subtle"}`}
-      style={{ width: CARD_WIDTH, borderTopWidth: 3, borderTopStyle: "solid", borderTopColor: assignment ? "var(--color-ai-500)" : primary?.colour ?? "var(--color-border)" }}
+      className="flex h-full w-full flex-col overflow-hidden rounded-radius-lg bg-surface px-3.5 pb-3 pt-2.5 font-sans text-text shadow-[0_1px_2px_rgb(15_23_42/0.06),0_0_0_1px_var(--color-border-subtle)]"
+      style={{ width: CARD_WIDTH }}
     >
-      <div className="flex min-w-0 items-center justify-between gap-2 text-xs text-text-tertiary">
-        <span className="flex min-w-0 items-center gap-1.5">
-          <KindIcon item={item} />
-          <span className="truncate">{cardLabel(item)}</span>
-        </span>
-        <span className="flex shrink-0 items-center gap-1.5">
-          {pinned && <span className="text-primary-600 dark:text-primary-300">Pinned</span>}
-          {reviewNeeded(item) && (
-            <span className="flex items-center gap-1 text-ai-700 dark:text-ai-300">
-              <span className="h-1.5 w-1.5 rounded-full bg-ai-500" aria-hidden="true" />
-              Review
-            </span>
-          )}
-          {assignment?.due_at ? (
-            <span className="rounded-full bg-ai-500/15 px-1.5 text-ai-800 dark:text-ai-200">Due {dueFormat.format(new Date(assignment.due_at))}</span>
-          ) : (
-            <span className="rounded-full bg-background px-1.5">{weekLabel(item)}</span>
-          )}
-        </span>
-      </div>
-      <h3 className={`mt-1 break-words font-semibold leading-snug ${compact ? "line-clamp-3 text-xl" : "line-clamp-2 text-sm"}`}>{item.title || "Untitled"}</h3>
+      <p className={`flex min-w-0 items-center gap-1.5 text-[11px] ${assignment ? "text-ai-700 dark:text-ai-300" : "text-text-tertiary"}`}>
+        <span className="truncate">{meta.join(" · ")}</span>
+        {pinned && <span className="sr-only">, pinned</span>}
+        {review && <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-ai-500" title="Topics to review" aria-label="Topics to review" />}
+      </p>
+      <h3 className={`mt-0.5 break-words font-semibold leading-snug ${compact ? "line-clamp-3 text-xl" : "line-clamp-2 text-sm"}`}>{item.title || "Untitled"}</h3>
       {!compact && (
         <>
           {preview && item.material ? (
-            <div className="mt-1.5 flex h-[84px] items-center justify-center overflow-hidden rounded-radius-md border border-border-subtle bg-background">
+            <div className="mt-2 flex h-[84px] items-center justify-center overflow-hidden rounded-radius-md bg-background">
               {visible ? <FilePreview key={`${item.material.noteId}:${item.material.currentHash}`} material={item.material} kind={preview} /> : <span className="text-xs text-text-tertiary">Preview</span>}
             </div>
           ) : (
-            <p className="mt-1 line-clamp-3 break-words text-xs leading-relaxed text-text-secondary">
-              {assignment ? readableExcerpt(assignment.description?.replace(/<[^>]+>/g, " ") ?? "") || "No brief has been imported." : readableExcerpt(item.material?.excerpt ?? "") || "Open the original to read it."}
+            <p className="mt-1 line-clamp-2 break-words text-xs leading-relaxed text-text-secondary">
+              {assignment ? readableExcerpt(assignment.description?.replace(/<[^>]+>/g, " ") ?? "") || "No brief has been imported." : readableExcerpt((item.material?.excerpt ?? "").replace(/^\s*#\s+[^\n]*\n+/, "")) || "Open the original to read it."}
             </p>
           )}
-          <div className="mt-auto flex min-w-0 flex-wrap items-center gap-1 pt-1.5">
+          <div className="mt-auto flex min-w-0 items-center gap-2.5 pt-2 text-[11px] text-text-tertiary">
             {shown.map((tag) => {
               const topic = topics.get(tag.topicId)!;
               return (
@@ -349,21 +318,17 @@ export const StudyFlowCard = memo(function StudyFlowCard({ item, topics, linkCou
                   key={tag.topicId}
                   type="button"
                   data-topic={tag.topicId}
-                  className={`flex max-w-[9.5rem] items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] leading-none text-text-secondary hover:text-text ${tag.suggested ? "border-dashed border-ai-500/70" : "border-border-subtle"}`}
+                  className="flex min-w-0 items-center gap-1 hover:text-text"
                   title={`${topic.name}: ${tag.relevance}${tag.suggested ? ", suggested, needs review" : tag.mentioned ? ", named in the brief" : ""}`}
                 >
-                  <span
-                    className={`h-2 w-2 shrink-0 rounded-full ${tag.relevance === "core" ? "" : "border-2 bg-transparent"}`}
-                    style={tag.relevance === "core" ? { background: topic.colour } : { borderColor: topic.colour }}
-                    aria-hidden="true"
-                  />
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: topic.colour, opacity: tag.relevance === "core" ? 1 : 0.45 }} aria-hidden="true" />
                   <span className="truncate">{topic.name}</span>
                 </button>
               );
             })}
-            {tags.length > shown.length && <span className="text-[11px] text-text-tertiary">+{tags.length - shown.length}</span>}
+            {tags.length > shown.length && <span className="shrink-0">+{tags.length - shown.length}</span>}
             {(linkCount > 0 || usedBy.length > 0) && (
-              <span className="ml-auto flex items-center gap-1.5 text-[11px] text-text-tertiary">
+              <span className="ml-auto flex shrink-0 items-center gap-2">
                 {linkCount > 0 && (
                   <span className="flex items-center gap-0.5" title={`${linkCount} linked ${linkCount === 1 ? "note" : "notes"}`}>
                     <LinkIcon className="h-3 w-3" aria-hidden="true" />
@@ -371,7 +336,7 @@ export const StudyFlowCard = memo(function StudyFlowCard({ item, topics, linkCou
                   </span>
                 )}
                 {usedBy.slice(0, 2).map((use) => (
-                  <button key={use.id} type="button" data-go={`assignment:${use.id}`} className="rounded-full border border-ai-500/40 px-1.5 font-semibold text-ai-800 hover:bg-ai-500/10 dark:text-ai-200" title={`Used in ${use.title}`}>
+                  <button key={use.id} type="button" data-go={`assignment:${use.id}`} className="hover:text-text" title={`Used in ${use.title}`}>
                     ↩ {use.short}
                   </button>
                 ))}
