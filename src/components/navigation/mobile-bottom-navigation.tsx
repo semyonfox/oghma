@@ -36,10 +36,8 @@ const destinations = [
 
 export default function MobileBottomNavigation({
   className = "",
-  aboveComposer = false,
 }: {
   className?: string;
-  aboveComposer?: boolean;
 }) {
   const { t } = useI18n();
   const pathname = usePathname();
@@ -50,34 +48,7 @@ export default function MobileBottomNavigation({
   const dockRef = useRef<HTMLDivElement>(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
-  const [composerHeight, setComposerHeight] = useState(0);
   const restingHeight = useRef(0);
-  useEffect(() => {
-    if (!aboveComposer) return;
-    const parent = dockRef.current?.parentElement;
-    if (!parent) return;
-    let composer: HTMLElement | null = null;
-    const resizeObserver = new ResizeObserver(() => {
-      if (composer) setComposerHeight(composer.getBoundingClientRect().height);
-    });
-    const bindComposer = () => {
-      if (composer?.isConnected) return;
-      if (composer) resizeObserver.unobserve(composer);
-      const next = parent.querySelector("[data-chat-composer]");
-      composer = next instanceof HTMLElement ? next : null;
-      if (composer) {
-        resizeObserver.observe(composer);
-        setComposerHeight(composer.getBoundingClientRect().height);
-      }
-    };
-    bindComposer();
-    const mutationObserver = new MutationObserver(bindComposer);
-    mutationObserver.observe(parent, { childList: true, subtree: true });
-    return () => {
-      mutationObserver.disconnect();
-      resizeObserver.disconnect();
-    };
-  }, [aboveComposer]);
   useEffect(() => {
     setMoreOpen(false);
     setExpanded(true);
@@ -165,8 +136,7 @@ export default function MobileBottomNavigation({
         ref={dockRef}
         data-mobile-dock
         data-native-dock={nativeDock ? "" : undefined}
-        className={`${keyboardOpen ? "hidden" : "block"} pointer-events-none fixed inset-x-0 z-30 h-[var(--mobile-dock-space)] ${nativeDock ? "" : "lg:hidden"} ${className}`}
-        style={{ bottom: aboveComposer ? composerHeight : 0 }}
+        className={`${keyboardOpen ? "hidden" : "block"} pointer-events-none fixed inset-x-0 bottom-0 z-30 h-[var(--mobile-dock-space)] ${nativeDock ? "" : "lg:hidden"} ${className}`}
       >
         <nav
           aria-label={t("Main navigation")}
@@ -174,7 +144,7 @@ export default function MobileBottomNavigation({
           onFocusCapture={(event) => {
             if (event.target.matches(":focus-visible")) setExpanded(true);
           }}
-          className={`pointer-events-auto absolute ${aboveComposer ? "bottom-3" : "bottom-[calc(12px+var(--safe-bottom))]"} left-1/2 flex -translate-x-1/2 items-stretch overflow-hidden rounded-full ring-1 p-1 shadow-lg transition-[width,height] duration-[280ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${nativeDock ? "bg-surface/70 ring-border-subtle backdrop-blur-[8.75px]" : "bg-surface/90 ring-border-subtle"} ${expanded ? "h-16 w-[min(420px,calc(100%_-_28px))]" : "h-[52px] w-[clamp(228px,calc(100%_-_80px),350px)]"}`}
+          className={`pointer-events-auto absolute bottom-[calc(12px+var(--safe-bottom))] left-1/2 flex -translate-x-1/2 items-stretch overflow-hidden rounded-full ring-1 p-1 shadow-lg transition-[width,height] duration-[280ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${nativeDock ? "bg-surface/70 ring-border-subtle backdrop-blur-[8.75px]" : "bg-surface/90 ring-border-subtle"} ${expanded ? "h-16 w-[min(420px,calc(100%_-_28px))]" : "h-[52px] w-[clamp(228px,calc(100%_-_80px),350px)]"}`}
         >
           {destinations.map(({ href, label, icon: Icon }) => {
             const active = !moreActive && pathname?.startsWith(href);
