@@ -204,100 +204,58 @@ async function expectNoPageOverflow(page: Page) {
   expect(dimensions.pageWidth).toBeLessThanOrEqual(dimensions.viewportWidth);
 }
 
-function canvasCard(page: Page, noteId: string) {
-  return page.locator(`[data-study-reference="note:${noteId}"]`);
+function flowCard(page: Page, noteId: string) {
+  return page.locator(`[data-card="note:${noteId}"]`);
 }
 
-async function expectCardStaysInView(page: Page, noteId: string) {
-  await expect(canvasCard(page, noteId)).toBeInViewport({ ratio: 0.99 });
-  const stayedVisible = await page.evaluate(async (selector) => {
-    const started = performance.now();
-    while (performance.now() - started < 750) {
-      const card = document.querySelector(selector);
-      const canvas = document.querySelector("canvas.excalidraw__canvas.interactive");
-      if (!card || !canvas) return false;
-      const box = card.getBoundingClientRect();
-      const viewport = canvas.getBoundingClientRect();
-      const width = Math.max(0, Math.min(box.right, viewport.right) - Math.max(box.left, viewport.left));
-      const height = Math.max(0, Math.min(box.bottom, viewport.bottom) - Math.max(box.top, viewport.top));
-      if (!box.width || !box.height || width * height / (box.width * box.height) < 0.99) return false;
-      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-    }
-    return true;
-  }, `[data-study-reference="note:${noteId}"]`);
-  expect(stayedVisible, "the source card remains inside the canvas for 750ms").toBe(true);
+function studyMap(page: Page) {
+  return page.getByRole("application", { name: /^Study map\./ });
 }
 
-async function cardPosition(card: Locator) {
+async function openMap(page: Page, mapId: string) {
+  await page.goto(`/study-map?map=${mapId}&tab=canvas`);
+  await expect(studyMap(page)).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: /^Layout saved$/ })).toBeVisible();
+}
+
+function boardSaved(page: Page, mapId: string) {
+  return page.waitForResponse((response) => new URL(response.url()).pathname === `/api/study-maps/${mapId}/board`
+    && response.request().method() === "PUT");
+}
+
+async function cardBox(card: Locator) {
+  await expect(card).toBeVisible();
   const box = await card.boundingBox();
-  if (!box) throw new Error("The live study card is not visible");
-  return { x: box.x, y: box.y };
+  if (!box) throw new Error("The study card is not visible");
+  return box;
 }
 
-async function readDraftBoard(page: Page, mapId: string) {
-  const stored = await page.evaluate((key) => sessionStorage.getItem(key), `oghma-study-map-draft:${mapId}`);
-  if (!stored) throw new Error("The board has no local drawing draft");
-  return z.object({ board: boardSchema }).parse(JSON.parse(stored)).board;
-}
-
-async function draftCardPosition(page: Page, mapId: string, noteId: string) {
-  const board = await readDraftBoard(page, mapId);
-  const element = board.scene?.elements.find((entry) => !entry.isDeleted && entry.type === "embeddable" && entry.customData.studyRef.kind === "note" && entry.customData.studyRef.id === noteId);
-  if (!element) throw new Error(`The local drawing draft is missing note ${noteId}`);
-  return { x: element.x, y: element.y };
-}
-
-function savedScene(snapshot: Awaited<ReturnType<typeof readSnapshot>>) {
-  const scene = snapshot.map.board.scene;
-  if (!scene) throw new Error("The board has no saved drawing scene");
-  return scene;
-}
-
-function sceneCard(snapshot: Awaited<ReturnType<typeof readSnapshot>>, noteId: string) {
-  const element = savedScene(snapshot).elements.find((entry) => !entry.isDeleted && entry.type === "embeddable" && entry.customData.studyRef.kind === "note" && entry.customData.studyRef.id === noteId);
-  if (!element) throw new Error(`The saved board is missing note ${noteId}`);
-  return element;
-}
-
-async function selectBoardCard(page: Page, title: string) {
-  const board = page.getByRole("region", { name: "Study map canvas", exact: true });
-  await board.getByRole("button", { name: "Add to board", exact: true }).click();
-  const tray = board.getByRole("complementary", { name: "Add study references to board", exact: true });
-  await tray.getByRole("searchbox", { name: "Search materials and topics", exact: true }).fill(title);
-  await tray.locator("li").filter({ hasText: title }).getByRole("button", { name: "Find on board", exact: true }).click();
-  await expect(tray).toHaveCount(0);
-  await expect(board.getByRole("group", { name: "Board selection", exact: true })).toContainText(title);
-}
-
-async function dragBoardCard(page: Page, noteId: string, dx: number) {
-  const card = canvasCard(page, noteId);
-  await expect(card).toBeInViewport();
-  const box = await card.boundingBox();
-  if (!box) throw new Error("The live study card is not visible");
+async function dragCard(page: Page, card: Locator, dx: number, dy: number) {
+  const box = await cardBox(card);
   const x = box.x + box.width / 2;
-  const y = box.y + 30;
+  const y = box.y + 18;
   await page.mouse.move(x, y);
   await page.mouse.down();
-  await page.mouse.move(x + dx, y, { steps: 12 });
+  await page.mouse.move(x + dx, y + dy, { steps: 12 });
   await page.mouse.up();
 }
 
-async function saveLayout(page: Page, mapId: string) {
-  const saving = page.waitForResponse((response) => new URL(response.url()).pathname === `/api/study-maps/${mapId}/board` && response.request().method() === "PUT");
-  await page.getByRole("button", { name: "Save layout", exact: true }).click();
-  expect((await saving).ok()).toBe(true);
-  await expect(page.getByRole("button", { name: "Save layout", exact: true })).toBeDisabled();
-  return readSnapshot(page, mapId);
+async function selectCard(page: Page, card: Locator) {
+  const box = await cardBox(card);
+  await page.mouse.click(box.x + box.width / 2, box.y + 18);
+  const toolbar = page.getByRole("toolbar", { name: /^Actions for / });
+  await expect(toolbar).toBeVisible();
+  return toolbar;
 }
 
-async function addBoardLink(page: Page, source: string, target: string, label: string) {
-  const board = page.getByRole("region", { name: "Study map canvas", exact: true });
-  await board.getByRole("button", { name: "Add link", exact: true }).filter({ hasText: /^Add link$/ }).click();
-  await board.getByRole("combobox", { name: "From", exact: true }).selectOption({ label: source });
-  await board.getByRole("combobox", { name: "To", exact: true }).selectOption({ label: target });
-  await board.getByRole("textbox", { name: "Relationship", exact: true }).fill(label);
-  await board.getByRole("button", { name: "Save link", exact: true }).click();
-  await expect(board.getByRole("textbox", { name: "Relationship", exact: true })).toHaveCount(0);
+async function closePreview(page: Page) {
+  const close = page.getByRole("button", { name: "Close preview", exact: true });
+  if (await close.isVisible()) await close.click();
+  // clicking empty canvas clears the selection and its floating toolbar
+  const board = await studyMap(page).boundingBox();
+  if (!board) throw new Error("The study map is not visible");
+  await page.mouse.click(board.x + 12, board.y + 12);
+  await expect(page.getByRole("toolbar", { name: /^Actions for / })).toHaveCount(0);
 }
 
 test("a student creates a map, chooses a syllabus, approves topics and classifies a library note", async ({
@@ -342,7 +300,7 @@ test("a student creates a map, chooses a syllabus, approves topics and classifie
   const body: unknown = await createResponse.json();
   const { mapId } = mapResponseSchema.parse(body);
   owned.maps.push(mapId);
-  await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name, exact: true }).first()).toBeVisible();
 
   await page
     .getByRole("button", { name: "Add materials", exact: true })
@@ -439,277 +397,232 @@ test("a student creates a map, chooses a syllabus, approves topics and classifie
   expect(browserErrors).toEqual([]);
 });
 
-test("drawing drafts survive original-note visits and reload before pins, stickies and connectors are saved", async ({ loggedInPage: page, owned, browserErrors }, testInfo) => {
+test("notes sit in their week and between their topics, preview on hover, and moved cards save automatically", async ({ loggedInPage: page, owned, browserErrors }, testInfo) => {
   const suffix = randomUUID().slice(0, 8);
-  const name = `Canvas algorithms ${suffix}`;
-  const mapId = await createMap(page, owned, name);
+  const mapId = await createMap(page, owned, `Flow algorithms ${suffix}`);
   const topics = await addReviewedTopics(page, mapId, ["Graphs", "Complexity"]);
-  const first = await createNote(page, owned, `Canvas graph note ${suffix}`, "Graphs and Complexity describe graph traversal and its runtime.");
-  const second = await createNote(page, owned, `Canvas runtime note ${suffix}`, "Complexity compares growth in the runtime of algorithms.");
-  await addMaterials(page, mapId, [first.id, second.id]);
-  await reviewMaterial(page, mapId, first.id, { [topics[0].id]: "core", [topics[1].id]: "supporting" }, ["revision"]);
-  await reviewMaterial(page, mapId, second.id, { [topics[1].id]: "core" }, []);
-  await page.goto(`/study-map?map=${mapId}`);
-  await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
-  const board = page.getByRole("region", { name: "Study map canvas", exact: true });
-  await expect(board.locator("canvas.excalidraw__canvas.interactive")).toBeVisible();
-  await page.getByRole("button", { name: "Focus board", exact: true }).click();
-  const freshCard = canvasCard(page, first.id);
-  await freshCard.getByRole("button", { name: `Inspect ${first.title}`, exact: true }).click({ timeout: 15_000 });
-  const directInspector = page.getByRole("complementary", { name: "Selected material or topic", exact: true });
-  await expect(directInspector.getByRole("heading", { name: first.title, exact: true })).toBeVisible();
-  await directInspector.getByRole("button", { name: "Close inspector", exact: true }).click();
-  await freshCard.getByRole("button", { name: "Show Graphs, accepted core topic", exact: true }).click({ timeout: 15_000 });
-  await expect(directInspector.getByRole("heading", { name: "Graphs", exact: true })).toBeVisible();
-  await directInspector.getByRole("button", { name: "Close inspector", exact: true }).click();
-  await freshCard.getByRole("link", { name: "Open original", exact: true }).click({ timeout: 15_000 });
-  await expect(page).toHaveURL(new RegExp(`/notes/${first.id}$`));
-  await page.goBack();
-  await expect(board.locator("canvas.excalidraw__canvas.interactive")).toBeVisible();
-  const baseline = await saveLayout(page, mapId);
-  await selectBoardCard(page, first.title);
-  const strokeControl = board.locator(".selected-shape-actions").getByRole("button", { name: "Stroke", exact: true });
-  await expect(strokeControl).not.toBeVisible();
-  const before = await cardPosition(canvasCard(page, first.id));
-  await dragBoardCard(page, first.id, 72);
-  await expect.poll(async () => (await cardPosition(canvasCard(page, first.id))).x).toBeGreaterThan(before.x + 40);
-  await board.getByRole("group", { name: "Board selection", exact: true }).getByRole("button", { name: "Pin selection", exact: true }).click();
-  await expect(board.getByRole("button", { name: "Unpin selection", exact: true })).toBeVisible();
-  await board.getByRole("button", { name: "Sticky note", exact: true }).click();
-  await expect(strokeControl).toBeVisible();
-  await addBoardLink(page, first.title, second.title, "supports analysis");
-  await selectBoardCard(page, first.title);
-  const draftPosition = await draftCardPosition(page, mapId, first.id);
-  await expect(page.getByText("Unsaved layout", { exact: true })).toBeVisible();
-  expect((await readSnapshot(page, mapId)).map.board).toEqual(baseline.map.board);
-  await board.getByRole("group", { name: "Board selection", exact: true }).getByRole("link", { name: "Open original", exact: true }).click();
-  await expect(page).toHaveURL(new RegExp(`/notes/${first.id}$`));
-  for (const navigation of ["back", "reload"] as const) {
-    if (navigation === "back") await page.goBack();
-    else await page.reload();
-    await expect(page.getByRole("tab", { name: "Canvas", exact: true })).toHaveAttribute("aria-selected", "true");
-    await expect(page.getByText("Unsaved layout", { exact: true })).toBeVisible();
-    await selectBoardCard(page, first.title);
-    await expect(board.getByRole("button", { name: "Unpin selection", exact: true })).toBeVisible();
-    expect(await draftCardPosition(page, mapId, first.id)).toEqual(draftPosition);
-    await expect(canvasCard(page, first.id)).toHaveCount(1);
-    expect((await readSnapshot(page, mapId)).map.board).toEqual(baseline.map.board);
-  }
-  await screenshot(page, testInfo, "desktop-restored-unsaved-drawing");
-  const saved = await saveLayout(page, mapId);
-  const firstElement = sceneCard(saved, first.id);
-  const secondElement = sceneCard(saved, second.id);
-  expect(firstElement).toMatchObject({ locked: true });
-  expect(firstElement.x).toBeGreaterThan(sceneCard(baseline, first.id).x + 40);
-  const scene = savedScene(saved);
-  expect(scene.elements.some((entry) => !entry.isDeleted && entry.type === "text" && entry.text === "Your idea")).toBe(true);
-  const connector = scene.elements.find((entry) => !entry.isDeleted && entry.type === "arrow");
-  expect(connector).toMatchObject({ startBinding: { elementId: firstElement.id }, endBinding: { elementId: secondElement.id } });
-  expect(scene.elements.some((entry) => !entry.isDeleted && entry.type === "text" && entry.text === "supports analysis" && entry.containerId === connector?.id)).toBe(true);
+  const early = await createNote(page, owned, `Week 1: graph basics ${suffix}`, "# Graph basics\n\nGraphs describe vertices and edges. Traversal visits reachable vertices.");
+  const both = await createNote(page, owned, `Week 3: traversal cost ${suffix}`, "Breadth first search runs in time proportional to vertices and edges.");
+  const late = await createNote(page, owned, `Week 5: growth rates ${suffix}`, "Complexity compares how runtime grows with input size.");
+  await addMaterials(page, mapId, [early.id, both.id, late.id]);
+  await reviewMaterial(page, mapId, early.id, { [topics[0].id]: "core" }, []);
+  await reviewMaterial(page, mapId, both.id, { [topics[0].id]: "core", [topics[1].id]: "core" }, []);
+  await reviewMaterial(page, mapId, late.id, { [topics[1].id]: "core" }, []);
+  await openMap(page, mapId);
+
+  await expect(studyMap(page).locator("[data-week-label]")).toHaveText(["Week 1", "Week 3", "Week 5"]);
+  const [earlyBox, bothBox, lateBox] = await Promise.all([early, both, late].map((note) => cardBox(flowCard(page, note.id))));
+  expect(earlyBox.x).toBeLessThan(bothBox.x);
+  expect(bothBox.x).toBeLessThan(lateBox.x);
+  const graphsRow = await cardBox(studyMap(page).locator(`[data-legend="${topics[0].id}"]`));
+  const complexityRow = await cardBox(studyMap(page).locator(`[data-legend="${topics[1].id}"]`));
+  const middle = (box: { y: number; height: number }) => box.y + box.height / 2;
+  expect(Math.abs(middle(earlyBox) - middle(graphsRow))).toBeLessThan(Math.abs(middle(earlyBox) - middle(complexityRow)));
+  expect(middle(bothBox)).toBeGreaterThan(middle(earlyBox));
+  expect(middle(bothBox)).toBeLessThan(middle(lateBox));
+
+  await flowCard(page, early.id).hover();
+  const preview = page.getByRole("dialog", { name: `Preview of ${early.title}`, exact: true });
+  await expect(preview).toContainText("Graphs describe vertices and edges.");
+  await expect(preview.getByRole("heading", { name: "Graph basics", exact: true })).toHaveCount(0);
+  await expect(preview.getByRole("link", { name: /Open in editor/ })).toHaveAttribute("href", `/notes/${early.id}`);
+  await screenshot(page, testInfo, "desktop-flow-preview");
+  await page.mouse.move(5, 5);
+
+  const saved = boardSaved(page, mapId);
+  await dragCard(page, flowCard(page, late.id), 0, 140);
+  expect((await saved).ok()).toBe(true);
+  const placement = (await readSnapshot(page, mapId)).map.board.placements.find((entry) => entry.id === `note:${late.id}`);
+  expect(placement).toMatchObject({ pinned: false });
   await page.reload();
-  await selectBoardCard(page, first.title);
-  await expect(board.getByRole("button", { name: "Unpin selection", exact: true })).toBeVisible();
-  expect(sceneCard(await readSnapshot(page, mapId), first.id)).toMatchObject({ x: firstElement.x, y: firstElement.y, locked: true });
-  if (await page.getByRole("button", { name: "Save layout", exact: true }).isEnabled()) {
-    await saveLayout(page, mapId);
-  }
-  await expectNoPageOverflow(page);
-  await screenshot(page, testInfo, "desktop-saved-drawing");
-  await board.getByRole("group", { name: "Board selection", exact: true }).getByRole("link", { name: "Open original", exact: true }).click();
-  await expect(page).toHaveURL(new RegExp(`/notes/${first.id}$`));
-  const labels = page.getByRole("region", { name: "Note study labels", exact: true });
-  await expect(labels.getByRole("link", { name, exact: true })).toBeVisible();
-  await expect(labels.getByRole("link", { name: "Graphs, core, accepted", exact: true })).toBeVisible();
-  await expect(labels.getByRole("link", { name: "Complexity, supporting, accepted", exact: true })).toBeVisible();
-  await expect(labels.getByText("revision · your label", { exact: true })).toBeVisible();
-  const original = await page.request.get(`/api/notes/${first.id}`);
-  expect(z.object({ content: z.string() }).parse(await original.json()).content).toBe(first.content);
+  await expect(studyMap(page)).toBeVisible();
+  await expect.poll(async () => (await cardBox(flowCard(page, late.id))).y - (await cardBox(flowCard(page, both.id))).y).toBeGreaterThan(100);
+
+  const toolbar = await selectCard(page, flowCard(page, late.id));
+  const pinned = boardSaved(page, mapId);
+  await toolbar.getByRole("button", { name: "Pin", exact: true }).click();
+  expect((await pinned).ok()).toBe(true);
+  await expect.poll(async () => (await readSnapshot(page, mapId)).map.board.placements.find((entry) => entry.id === `note:${late.id}`)?.pinned).toBe(true);
+  await closePreview(page);
+  const tidied = boardSaved(page, mapId);
+  await dragCard(page, flowCard(page, early.id), 0, 160);
+  expect((await tidied).ok()).toBe(true);
+  const tidy = boardSaved(page, mapId);
+  await page.getByRole("button", { name: "Tidy layout", exact: true }).click();
+  expect((await tidy).ok()).toBe(true);
+  await expect.poll(async () => (await readSnapshot(page, mapId)).map.board.placements.map((entry) => entry.id)).toEqual([`note:${late.id}`]);
   expect(browserErrors).toEqual([]);
 });
 
-test("native frames and arrows persist, and conflicting drawing drafts keep the saved version", async ({ loggedInPage: page, owned, browserErrors }) => {
-  const mapId = await createMap(page, owned, `Native drawing ${randomUUID().slice(0, 8)}`);
-  await page.goto(`/study-map?map=${mapId}`);
-  await page.getByRole("button", { name: "Focus board", exact: true }).click();
-  const board = page.getByRole("region", { name: "Study map canvas", exact: true });
-  const canvas = board.locator("canvas.excalidraw__canvas.interactive");
-  await expect(canvas).toBeVisible();
-  const box = await canvas.boundingBox();
-  if (!box) throw new Error("The drawing canvas is unavailable");
-  await board.getByRole("button", { name: "Frame", exact: true }).click();
-  await page.mouse.move(box.x + 340, box.y + 180);
-  await page.mouse.down();
-  await page.mouse.move(box.x + 640, box.y + 390, { steps: 12 });
-  await page.mouse.up();
-  await board.getByRole("button", { name: "Connect", exact: true }).click();
-  await page.mouse.move(box.x + 740, box.y + 220);
-  await page.mouse.down();
-  await page.mouse.move(box.x + 960, box.y + 350, { steps: 12 });
-  await page.mouse.up();
-  await page.keyboard.press("Escape");
-  const initial = await saveLayout(page, mapId);
-  expect(savedScene(initial).elements.some((entry) => !entry.isDeleted && entry.type === "frame")).toBe(true);
-  expect(savedScene(initial).elements.some((entry) => !entry.isDeleted && entry.type === "arrow")).toBe(true);
-  await board.getByRole("button", { name: "Sticky note", exact: true }).click();
-  const other = await page.context().newPage();
-  other.on("pageerror", (error) => browserErrors.push(error.message));
-  other.on("console", (message) => { if (message.type() === "error") browserErrors.push(message.text()); });
-  let remote: Awaited<ReturnType<typeof readSnapshot>>;
-  try {
-    await other.goto(`/study-map?map=${mapId}`);
-    await other.getByRole("region", { name: "Study map canvas", exact: true }).getByRole("button", { name: "Sticky note", exact: true }).click();
-    remote = await saveLayout(other, mapId);
-    expect(remote.map.boardVersion).toBe(initial.map.boardVersion + 1);
-  } finally {
-    await other.close();
-  }
-  await page.reload();
-  await expect(page.getByRole("alert").filter({ hasText: "The layout changed in another tab" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Save layout", exact: true })).toBeDisabled();
-  expect((await readSnapshot(page, mapId)).map.board).toEqual(remote.map.board);
-  await page.getByRole("button", { name: "Reload saved layout", exact: true }).click();
-  await expect(page.getByText("Discard your unsaved layout and load the saved version?", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Discard and reload", exact: true }).click();
-  await expect(page.getByRole("alert").filter({ hasText: "The layout changed in another tab" })).toHaveCount(0);
-  expect(savedScene(await readSnapshot(page, mapId)).elements).toEqual(savedScene(remote).elements);
-  expect(browserErrors).toEqual([]);
-});
-
-test("removing drawing references keeps originals, while removing a material prunes cards and connector bindings", async ({ loggedInPage: page, owned, browserErrors }) => {
+test("following a topic steps through its notes in week order and the reader opens notes in place", async ({ loggedInPage: page, owned, browserErrors }, testInfo) => {
   const suffix = randomUUID().slice(0, 8);
-  const mapId = await createMap(page, owned, `Reference removal ${suffix}`);
-  const first = await createNote(page, owned, `Reference first ${suffix}`, "First original content.");
-  const second = await createNote(page, owned, `Reference second ${suffix}`, "Second original content.");
-  await addMaterials(page, mapId, [first.id, second.id]);
-  await page.goto(`/study-map?map=${mapId}`);
-  const board = page.getByRole("region", { name: "Study map canvas", exact: true });
-  await selectBoardCard(page, first.title);
-  await addBoardLink(page, first.title, second.title, "references");
-  const original = await saveLayout(page, mapId);
-  const firstElement = sceneCard(original, first.id);
-  await selectBoardCard(page, first.title);
-  await board.getByRole("group", { name: "Board selection", exact: true }).getByRole("button", { name: "Remove from board", exact: true }).click();
-  const removed = await saveLayout(page, mapId);
-  expect(savedScene(removed).elements.some((entry) => !entry.isDeleted && entry.id === firstElement.id)).toBe(false);
-  expect(removed.materials.some((entry) => entry.noteId === first.id)).toBe(true);
-  await board.getByRole("button", { name: "Add to board", exact: true }).click();
-  const tray = board.getByRole("complementary", { name: "Add study references to board", exact: true });
-  await tray.getByRole("searchbox", { name: "Search materials and topics", exact: true }).fill(first.title);
-  await tray.locator("li").filter({ hasText: first.title }).getByRole("button", { name: "Add to board", exact: true }).click();
-  await expect(tray).toHaveCount(0);
-  const restored = await saveLayout(page, mapId);
-  const restoredElement = sceneCard(restored, first.id);
-  expect(restoredElement.id).not.toBe(firstElement.id);
-  await selectBoardCard(page, first.title);
-  await board.getByRole("group", { name: "Board selection", exact: true }).getByRole("button", { name: /^Inspect(?: reference)?$/ }).click();
-  const inspector = page.getByRole("complementary", { name: "Selected material or topic", exact: true });
-  await inspector.getByRole("button", { name: "Remove from map", exact: true }).click();
-  await inspector.getByRole("button", { name: "Confirm removal", exact: true }).click();
-  await expect.poll(async () => (await readSnapshot(page, mapId)).materials.some((entry) => entry.noteId === first.id)).toBe(false);
-  const pruned = savedScene(await readSnapshot(page, mapId));
-  expect(pruned.elements.some((entry) => entry.type === "embeddable" && entry.customData.studyRef.id === first.id)).toBe(false);
-  expect(pruned.elements.filter((entry) => entry.type === "arrow").every((entry) => entry.startBinding?.elementId !== firstElement.id && entry.endBinding?.elementId !== firstElement.id && entry.startBinding?.elementId !== restoredElement.id && entry.endBinding?.elementId !== restoredElement.id)).toBe(true);
-  const note = await page.request.get(`/api/notes/${first.id}`);
-  expect(note.ok()).toBe(true);
-  expect(z.object({ content: z.string() }).parse(await note.json()).content).toBe(first.content);
+  const mapId = await createMap(page, owned, `Trail algorithms ${suffix}`);
+  const [graphs, complexity] = await addReviewedTopics(page, mapId, ["Graphs", "Complexity"]);
+  const notes = [];
+  for (const [week, text] of [[4, "Shortest paths relax edges."], [2, "Graphs have vertices and edges."], [6, "Spanning trees connect every vertex."]] as const) {
+    notes.push(await createNote(page, owned, `Week ${week}: graphs part ${week} ${suffix}`, text));
+  }
+  const supporting = await createNote(page, owned, `Week 3: complexity ${suffix}`, "Complexity of graph algorithms.");
+  await addMaterials(page, mapId, [...notes.map((note) => note.id), supporting.id]);
+  for (const note of notes) await reviewMaterial(page, mapId, note.id, { [graphs.id]: "core" }, []);
+  await reviewMaterial(page, mapId, supporting.id, { [complexity.id]: "core", [graphs.id]: "supporting" }, []);
+  await openMap(page, mapId);
+
+  await studyMap(page).locator(`[data-legend="${graphs.id}"]`).click();
+  const trail = page.getByRole("complementary", { name: "Graphs through the course", exact: true });
+  await expect(trail).toContainText("Stop 1 of 3");
+  await expect(trail.getByRole("listitem")).toHaveText([/Week 2/, /Week 4/, /Week 6/]);
+  await expect(trail).toContainText(`Week 3: complexity ${suffix}`);
+  await trail.getByRole("button", { name: "Next ›", exact: true }).click();
+  await expect(trail).toContainText("Stop 2 of 3");
+  await expect(flowCard(page, notes[0].id)).toBeFocused();
+  await expect(flowCard(page, supporting.id)).not.toHaveClass(/opacity-15/);
+  await screenshot(page, testInfo, "desktop-topic-trail");
+  await page.keyboard.press("Enter");
+  const reader = page.getByRole("complementary", { name: `Reading ${notes[0].title}`, exact: true });
+  await expect(reader).toContainText("Shortest paths relax edges.");
+  await expect(reader.getByRole("link", { name: /Open in editor/ })).toHaveAttribute("href", `/notes/${notes[0].id}`);
+  await reader.getByRole("button", { name: "Close reader", exact: true }).click();
+  await trail.getByRole("button", { name: "Stop following this topic", exact: true }).click();
+  await expect(trail).toHaveCount(0);
   expect(browserErrors).toEqual([]);
 });
 
-test("a remounted board adds new materials and shows changed source content without moving saved cards", async ({ loggedInPage: page, owned, browserErrors }) => {
+test("note references, your own labelled links, week overrides and conflicts stay explicit", async ({ loggedInPage: page, owned, browserErrors }) => {
+  const suffix = randomUUID().slice(0, 8);
+  const mapId = await createMap(page, owned, `Links algorithms ${suffix}`);
+  const otherMap = await createMap(page, owned, `Links runtime ${suffix}`);
+  const [graphs] = await addReviewedTopics(page, mapId, ["Graphs"]);
+  const target = await createNote(page, owned, `Week 1: vertices ${suffix}`, "Vertices and edges.");
+  const elsewhere = await createNote(page, owned, `Week 2: runtime ${suffix}`, "Runtime in another module.");
+  const source = await createNote(page, owned, `Week 2: traversal ${suffix}`, `Traversal builds on [vertices](/notes/${target.id}) and [runtime](/notes/${elsewhere.id}).`);
+  await addMaterials(page, mapId, [target.id, source.id]);
+  await addMaterials(page, otherMap, [elsewhere.id]);
+  for (const note of [target, source]) await reviewMaterial(page, mapId, note.id, { [graphs.id]: "core" }, []);
+  await openMap(page, mapId);
+
+  await flowCard(page, source.id).hover();
+  const preview = page.getByRole("dialog", { name: `Preview of ${source.title}`, exact: true });
+  await expect(preview.getByRole("button", { name: new RegExp(`links to → ${target.title}`) })).toContainText("in note");
+  await page.mouse.move(5, 5);
+
+  const toolbar = await selectCard(page, flowCard(page, source.id));
+  await toolbar.getByRole("button", { name: "Link to…", exact: true }).click();
+  await flowCard(page, target.id).click({ position: { x: 120, y: 18 } });
+  await page.getByRole("button", { name: "builds on", exact: true }).click();
+  const linked = boardSaved(page, mapId);
+  await page.getByRole("button", { name: "Save link", exact: true }).click();
+  expect((await linked).ok()).toBe(true);
+  await expect.poll(async () => (await readSnapshot(page, mapId)).map.board.links)
+    .toEqual([expect.objectContaining({ source: `note:${source.id}`, target: `note:${target.id}`, label: "builds on" })]);
+
+  const weekToolbar = await selectCard(page, flowCard(page, target.id));
+  const weekSaved = boardSaved(page, mapId);
+  await weekToolbar.getByRole("combobox", { name: "Week", exact: true }).selectOption("5");
+  expect((await weekSaved).ok()).toBe(true);
+  await expect(studyMap(page).locator('[data-week-label="5"]')).toBeVisible();
+  expect((await readSnapshot(page, mapId)).map.board.weeks).toEqual({ [`note:${target.id}`]: 5 });
+  await closePreview(page);
+
+  const current = await readSnapshot(page, mapId);
+  const elsewhereSave = await page.request.put(`/api/study-maps/${mapId}/board`, { headers: origin(page), data: { version: current.map.boardVersion, board: { ...current.map.board, weeks: {} } } });
+  expect(elsewhereSave.ok()).toBe(true);
+  const conflicted = boardSaved(page, mapId);
+  await dragCard(page, flowCard(page, source.id), 0, 120);
+  expect((await conflicted).status()).toBe(409);
+  // the browser logs the deliberate conflict response; every other error still fails the test
+  await expect.poll(() => browserErrors.filter((error) => error.includes("409 (Conflict)")).length).toBe(1);
+  browserErrors.splice(browserErrors.findIndex((error) => error.includes("409 (Conflict)")), 1);
+  const banner = page.getByRole("alert").filter({ hasText: "changed in another tab or device" });
+  await expect(banner).toBeVisible();
+  await banner.getByRole("button", { name: "Use the latest", exact: true }).click();
+  await expect(banner).toHaveCount(0);
+  await expect(studyMap(page).locator('[data-week-label="5"]')).toHaveCount(0);
+
+  await page.getByRole("button", { name: /^All modules/ }).click();
+  await expect(studyMap(page).getByRole("region", { name: `Links runtime ${suffix} 2025/26`, exact: true })).toBeVisible();
+  await flowCard(page, source.id).hover();
+  await expect(page.getByRole("dialog", { name: `Preview of ${source.title}`, exact: true }).getByRole("button", { name: new RegExp(`links to → ${elsewhere.title}`) }))
+    .toContainText(`Links runtime ${suffix}`);
+  expect(browserErrors).toEqual([]);
+});
+
+test("removing a material prunes its card and links, and source edits update cards without moving them", async ({ loggedInPage: page, owned, browserErrors }) => {
   const suffix = randomUUID().slice(0, 8);
   const mapId = await createMap(page, owned, `Source sync ${suffix}`);
-  const first = await createNote(page, owned, `Source graph ${suffix}`, "Graphs describe the connections between vertices.");
-  const second = await createNote(page, owned, `Source runtime ${suffix}`, "Runtime describes how the number of operations grows.");
-  await addMaterials(page, mapId, [first.id]);
-  await page.goto(`/study-map?map=${mapId}`);
-  const board = page.getByRole("region", { name: "Study map canvas", exact: true });
-  await expect(board.locator("canvas.excalidraw__canvas.interactive")).toBeVisible();
-  const initial = await saveLayout(page, mapId);
-  const firstElement = sceneCard(initial, first.id);
-  await page.getByRole("button", { name: "Reload saved layout", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Save layout", exact: true })).toBeDisabled();
-  await expect(board.getByRole("button", { name: "Add to board", exact: true })).toBeEnabled();
-  await page.getByRole("button", { name: "Add materials", exact: true }).click();
-  await page.getByLabel("Search library by title", { exact: true }).fill(second.title);
-  await page.getByRole("checkbox", { name: second.title, exact: true }).check();
-  await page.getByRole("button", { name: "Add 1 material", exact: true }).click();
-  await selectBoardCard(page, second.title);
-  await expect(canvasCard(page, second.id)).toContainText(second.content);
-  const imported = await saveLayout(page, mapId);
-  expect(sceneCard(imported, first.id)).toMatchObject({ id: firstElement.id, x: firstElement.x, y: firstElement.y });
-  expect(savedScene(imported).elements.filter((entry) => !entry.isDeleted && entry.type === "embeddable" && entry.customData.studyRef.id === second.id)).toHaveLength(1);
-  const title = `Updated graph ${suffix}`;
-  const content = "A graph now describes a revised set of vertices and their connections.";
-  const updated = await page.request.put(`/api/notes/${first.id}`, { headers: origin(page), data: { title, content } });
+  const first = await createNote(page, owned, `Week 1: graph ${suffix}`, "Graphs describe the connections between vertices.");
+  const second = await createNote(page, owned, `Week 2: runtime ${suffix}`, "Runtime describes how the number of operations grows.");
+  await addMaterials(page, mapId, [first.id, second.id]);
+  const before = await readSnapshot(page, mapId);
+  const placement = { id: `note:${first.id}`, x: 640, y: 420, pinned: true, topicId: null };
+  const link = { id: randomUUID(), source: `note:${second.id}`, target: `note:${first.id}`, label: "uses" };
+  const saved = await page.request.put(`/api/study-maps/${mapId}/board`, { headers: origin(page), data: { version: before.map.boardVersion, board: { ...before.map.board, placements: [placement], links: [link] } } });
+  expect(saved.ok()).toBe(true);
+  await openMap(page, mapId);
+  const position = await cardBox(flowCard(page, first.id));
+
+  const title = `Week 1: updated graph ${suffix}`;
+  const updated = await page.request.put(`/api/notes/${first.id}`, { headers: origin(page), data: { title, content: "A graph now describes a revised set of vertices." } });
   expect(updated.ok()).toBe(true);
   await page.goto(`/notes/${first.id}`);
   await page.goBack();
-  await selectBoardCard(page, title);
-  await expect(canvasCard(page, first.id)).toContainText(title);
-  await expect(canvasCard(page, first.id)).toContainText(content);
-  expect(sceneCard(await readSnapshot(page, mapId), first.id)).toMatchObject({ id: firstElement.id, x: firstElement.x, y: firstElement.y });
+  await expect(flowCard(page, first.id)).toContainText(title);
+  await expect(flowCard(page, first.id)).toContainText("A graph now describes a revised set of vertices.");
+  expect(await cardBox(flowCard(page, first.id))).toMatchObject({ x: position.x, y: position.y });
+
+  const removed = await page.request.delete(`/api/study-maps/${mapId}/materials`, { headers: origin(page), data: { noteId: second.id } });
+  expect(removed.ok()).toBe(true);
+  await page.reload();
+  await expect(studyMap(page)).toBeVisible();
+  await expect(flowCard(page, second.id)).toHaveCount(0);
+  expect((await readSnapshot(page, mapId)).map.board).toMatchObject({ placements: [placement], links: [] });
+  const library = await page.request.get(`/api/notes/${second.id}`);
+  expect(library.ok()).toBe(true);
   expect(browserErrors).toEqual([]);
 });
 
-test("finding offscreen file cards keeps their camera position and renders uploaded previews", async ({ loggedInPage: page, owned, browserErrors }, testInfo) => {
+test("file cards preview uploaded PDFs and images, and the reader shows PDF pages", async ({ loggedInPage: page, owned, browserErrors }, testInfo) => {
   const suffix = randomUUID().slice(0, 8);
   const mapId = await createMap(page, owned, `File previews ${suffix}`);
-  const fillers = [];
-  for (let index = 0; index < 10; index++) {
-    fillers.push(await createNote(page, owned, `A preview filler ${index} ${suffix}`, "A separate reference on the study board."));
-  }
-  const pdf = await uploadNote(page, owned, `zz-preview-${suffix}.pdf`, "application/pdf", tinyPdf("[Page 1]\nGraphs and their connections.\n[Page 2]\nRuntime and complexity."));
-  const image = await uploadNote(page, owned, `zz-preview-${suffix}.png`, "image/png", Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"));
-  await addMaterials(page, mapId, [...fillers.map((entry) => entry.id), pdf.id, image.id]);
-  await page.goto(`/study-map?map=${mapId}`);
-  await page.getByRole("button", { name: "Focus board", exact: true }).click();
-  const board = page.getByRole("region", { name: "Study map canvas", exact: true });
-  await expect(board.getByRole("button", { name: "Add to board", exact: true })).toBeEnabled();
-  await expect(canvasCard(page, pdf.id)).not.toBeInViewport();
-  await board.getByRole("button", { name: "Sticky note", exact: true }).click();
-  const sticky = (await readDraftBoard(page, mapId)).scene?.elements.find((entry) => !entry.isDeleted && entry.type === "text" && entry.text === "Your idea");
-  if (!sticky) throw new Error("The unsaved sticky note was not added");
-  await selectBoardCard(page, pdf.title);
-  await expectCardStaysInView(page, pdf.id);
-  const renderedPdf = canvasCard(page, pdf.id).locator("canvas.react-pdf__Page__canvas");
+  const pdf = await uploadNote(page, owned, `week-02-slides-${suffix}.pdf`, "application/pdf", tinyPdf("[Page 1]\nGraphs and their connections.\n[Page 2]\nRuntime and complexity."));
+  const image = await uploadNote(page, owned, `week-03-diagram-${suffix}.png`, "image/png", Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"));
+  await addMaterials(page, mapId, [pdf.id, image.id]);
+  await openMap(page, mapId);
+
+  const renderedPdf = flowCard(page, pdf.id).locator("canvas.react-pdf__Page__canvas");
   await expect(renderedPdf).toBeVisible();
   expect(await renderedPdf.evaluate((canvas) => canvas instanceof HTMLCanvasElement && canvas.width > 0 && canvas.height > 0)).toBe(true);
-  await expectCardStaysInView(page, pdf.id);
-  expect((await readDraftBoard(page, mapId)).scene?.elements).toEqual(expect.arrayContaining([expect.objectContaining({ id: sticky.id, type: "text", text: "Your idea", isDeleted: false })]));
-  const saved = await saveLayout(page, mapId);
-  expect(savedScene(saved).elements).toEqual(expect.arrayContaining([expect.objectContaining({ id: sticky.id, type: "text", text: "Your idea", isDeleted: false })]));
-  await screenshot(page, testInfo, "desktop-live-pdf-preview");
-  await selectBoardCard(page, image.title);
-  await expectCardStaysInView(page, image.id);
-  const renderedImage = canvasCard(page, image.id).getByRole("img", { name: `Preview of ${image.title}`, exact: true });
+  const renderedImage = flowCard(page, image.id).getByRole("img", { name: `Preview of ${image.title}`, exact: true });
   await expect.poll(() => renderedImage.evaluate((element) => element instanceof HTMLImageElement ? element.naturalWidth : 0)).toBeGreaterThan(0);
-  await expectCardStaysInView(page, image.id);
+  await screenshot(page, testInfo, "desktop-file-previews");
+
+  await flowCard(page, pdf.id).dblclick({ position: { x: 120, y: 18 } });
+  const reader = page.getByRole("complementary", { name: `Reading ${pdf.title}`, exact: true });
+  await expect(reader.locator("canvas.react-pdf__Page__canvas")).toHaveCount(2);
   expect(browserErrors).toEqual([]);
 });
 
-test("finding a seeded SVG card keeps its preview visible", async ({ loggedInPage: page, owned, browserErrors }, testInfo) => {
-  const noteId = "71000000-0000-4000-8000-000000000032";
-  const response = await page.request.get(`/api/notes/${noteId}`);
-  test.skip(response.status() === 404, "process-states.svg is available only in the synthetic study-map preview seed");
-  expect(response.ok()).toBe(true);
-  const note = z.object({ id: z.uuid(), title: z.string(), mimeType: z.literal("image/svg+xml") }).parse(await response.json());
-  const suffix = randomUUID().slice(0, 8);
-  const mapId = await createMap(page, owned, `SVG preview ${suffix}`);
-  const fillers = [];
-  for (let index = 0; index < 10; index++) {
-    fillers.push(await createNote(page, owned, `A SVG filler ${index} ${suffix}`, "A separate reference on the study board."));
-  }
-  await addMaterials(page, mapId, [...fillers.map((entry) => entry.id), note.id]);
-  await page.goto(`/study-map?map=${mapId}`);
-  await page.getByRole("button", { name: "Focus board", exact: true }).click();
-  await expect(page.getByRole("region", { name: "Study map canvas", exact: true }).getByRole("button", { name: "Add to board", exact: true })).toBeEnabled();
-  await expect(canvasCard(page, note.id)).not.toBeInViewport();
-  await selectBoardCard(page, note.title);
-  await expectCardStaysInView(page, note.id);
-  const rendered = canvasCard(page, note.id).getByRole("img", { name: `Preview of ${note.title}`, exact: true });
-  await expect.poll(() => rendered.evaluate((element) => element instanceof HTMLImageElement ? element.naturalWidth : 0)).toBeGreaterThan(0);
-  await expectCardStaysInView(page, note.id);
-  await screenshot(page, testInfo, "desktop-live-svg-preview");
+test("the seeded module shows assignments, their source notes and one card per extracted PDF", async ({ loggedInPage: page, browserErrors }, testInfo) => {
+  const seeded = z.object({ id: z.uuid(), name: z.string() }).array().parse(await (await page.request.get("/api/study-maps")).json())
+    .find((map) => map.name === "Operating Systems");
+  test.skip(!seeded, "The Operating Systems module exists only in the synthetic study-map preview seed");
+  const pdfId = "71000000-0000-4000-8000-000000000030";
+  const markdownId = "71000000-0000-4000-8000-000000000031";
+  const svgId = "71000000-0000-4000-8000-000000000032";
+  await openMap(page, seeded!.id);
+  await expect(flowCard(page, pdfId)).toBeVisible();
+  await expect(flowCard(page, markdownId)).toHaveCount(0);
+  const assignment = studyMap(page).locator("[data-card^='assignment:']").filter({ hasText: "Assignment 1: scheduler simulator" });
+  await assignment.scrollIntoViewIfNeeded();
+  await assignment.hover();
+  const preview = page.getByRole("dialog", { name: "Preview of Assignment 1: scheduler simulator", exact: true });
+  await expect(preview).toContainText("Draws on");
+  await expect(preview).toContainText("Scheduler simulator starter notes");
+  await expect(studyMap(page).locator("[data-card] button[data-go^='assignment:']").first()).toBeVisible();
+  const svg = flowCard(page, svgId).getByRole("img", { name: "Preview of process-states.svg", exact: true });
+  await svg.scrollIntoViewIfNeeded();
+  await expect.poll(() => svg.evaluate((element) => element instanceof HTMLImageElement ? element.naturalWidth : 0)).toBeGreaterThan(0);
+  await screenshot(page, testInfo, "desktop-seeded-flow");
   expect(browserErrors).toEqual([]);
 });
 
@@ -897,7 +810,7 @@ test("original-note labels, map pickers and all-module facets agree on desktop a
   ).toHaveAttribute("aria-selected", "true");
   await page.getByRole("tab", { name: "Materials", exact: true }).click();
   await expect(
-    page.getByRole("tab", { name: "Canvas", exact: true }),
+    page.getByRole("tab", { name: "Map", exact: true }),
   ).toHaveAttribute("aria-selected", "false");
   await expectNoPageOverflow(page);
   await page

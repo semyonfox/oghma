@@ -1,34 +1,23 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import {
-  ArrowTopRightOnSquareIcon,
+  AcademicCapIcon,
   DocumentTextIcon,
+  LinkIcon,
+  PencilSquareIcon,
   PhotoIcon,
+  PresentationChartBarIcon,
 } from "@heroicons/react/24/outline";
 import { useSignedUrl } from "@/components/editor/use-signed-url";
-import {
-  effectiveAssociations,
-  type StudyMaterial,
-  type StudyTopic,
-} from "@/lib/study-map/types";
-
-export interface StudyBoardCardProps {
-  material: StudyMaterial;
-  topics: StudyTopic[];
-  taxonomyVersion: number;
-  onInspect: () => void;
-  onTopic: (id: string) => void;
-}
+import { CARD_WIDTH, type FlowItem } from "@/lib/study-map/flow";
+import type { StudyMaterial, StudyTopic } from "@/lib/study-map/types";
 
 type PdfModule = typeof import("react-pdf");
-type PreviewKind = "image" | "pdf";
+export type PreviewKind = "image" | "pdf";
 const MAX_SVG_PREVIEW_BYTES = 5 * 1024 * 1024;
-const actionClass =
-  "inline-flex min-h-8 items-center justify-center gap-1.5 rounded-radius-md px-2.5 py-1 text-xs font-medium hover:bg-primary-500/10 hover:text-primary-500 focus-visible:outline-2 focus-visible:outline-primary-500";
 
-function previewKind(material: StudyMaterial): PreviewKind | null {
+export function previewKind(material: StudyMaterial): PreviewKind | null {
   if (!material.isFile) return null;
   if (material.mimeType?.startsWith("image/")) return "image";
   if (material.mimeType === "application/pdf") return "pdf";
@@ -39,7 +28,7 @@ function previewKind(material: StudyMaterial): PreviewKind | null {
   return null;
 }
 
-function PdfPreview({ url }: { url: string }) {
+function PdfPreview({ url, pageNumber = 1 }: { url: string; pageNumber?: number }) {
   const [pdf, setPdf] = useState<PdfModule | null>(null);
   const [failed, setFailed] = useState(false);
   const [aspectRatio, setAspectRatio] = useState(1 / Math.SQRT2);
@@ -81,7 +70,7 @@ function PdfPreview({ url }: { url: string }) {
     <div
       ref={containerRef}
       className="flex h-full w-full items-center justify-center overflow-hidden"
-      aria-label="First page preview"
+      aria-label={`Page ${pageNumber} preview`}
     >
       {failed ? (
         <p className="px-3 text-center text-xs text-text-tertiary">Preview unavailable</p>
@@ -95,7 +84,7 @@ function PdfPreview({ url }: { url: string }) {
           className="flex items-center justify-center"
         >
           <pdf.Page
-            pageNumber={1}
+            pageNumber={pageNumber}
             suspense={false}
             width={width}
             devicePixelRatio={1}
@@ -187,12 +176,14 @@ function SvgPreview({ url, title }: { url: string; title: string }) {
   );
 }
 
-function FilePreview({
+export function FilePreview({
   material,
   kind,
+  pageNumber,
 }: {
   material: StudyMaterial;
   kind: PreviewKind;
+  pageNumber?: number;
 }) {
   const { url, loading, error } = useSignedUrl(undefined, material.noteId);
   const [imageFailed, setImageFailed] = useState(false);
@@ -203,7 +194,7 @@ function FilePreview({
   if (error || !url || imageFailed) {
     return <p className="px-3 text-center text-xs text-text-tertiary">Preview unavailable. Open the original to read it.</p>;
   }
-  if (kind === "pdf") return <PdfPreview url={url} />;
+  if (kind === "pdf") return <PdfPreview url={url} pageNumber={pageNumber} />;
   if (material.mimeType === "image/svg+xml" || (!material.mimeType && /\.svg$/i.test(material.title))) {
     return <SvgPreview key={url} url={url} title={material.title} />;
   }
@@ -220,141 +211,175 @@ function FilePreview({
   );
 }
 
-function reviewState(material: StudyMaterial, taxonomyVersion: number): string {
-  const reviewed = material.overrides.sourceHash === material.currentHash &&
-    material.overrides.taxonomyVersion === taxonomyVersion &&
-    !material.taxonomyEvidenceStale;
-  const stale = material.status === "stale" || material.taxonomyEvidenceStale ||
-    (material.sourceHash !== "" && material.sourceHash !== material.currentHash) ||
-    (material.classifiedAt !== null && material.taxonomyVersion !== taxonomyVersion);
-  if (reviewed) return "Reviewed by you";
-  if (stale) return "Needs review";
-  if (material.status === "failed") return "Classification failed";
-  if (material.status === "classified") return "Classified";
-  return "Not classified";
+const DOCUMENT_LABELS: Record<StudyMaterial["kind"], string> = {
+  notes: "Notes",
+  slides: "Slides",
+  syllabus: "Syllabus",
+  past_paper: "Past paper",
+  worked_example: "Worked example",
+  reading: "Reading",
+  other: "Material",
+};
+
+/** card excerpts show prose, not Markdown syntax */
+export function readableExcerpt(text: string): string {
+  return text
+    .replace(/```[\s\S]*?(```|$)/g, " ")
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/\[\[([^\]|]*)(?:\|([^\]]*))?\]\]/g, (_match, target: string, label?: string) => label ?? target)
+    .replace(/^\s{0,3}(#{1,6}|>|[-*+]|\d+\.)\s+/gm, "")
+    .replace(/\[Page \d+\]/gi, " ")
+    .replace(/[*_`~]+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-export function StudyBoardCard({
-  material,
-  topics,
-  taxonomyVersion,
-  onInspect,
-  onTopic,
-}: StudyBoardCardProps) {
-  const cardRef = useRef<HTMLElement>(null);
+export function weekLabel(item: FlowItem): string {
+  if (item.week === null) return "No week";
+  return `Week ${item.week}`;
+}
+
+export function cardLabel(item: FlowItem): string {
+  if (item.assignment) return item.assignment.assignment_type === "quiz" ? "Quiz" : "Assignment";
+  const material = item.material;
+  if (!material) return "Material";
+  if (item.kind === "pdf") return material.kind === "notes" || material.kind === "other" ? "PDF" : `${DOCUMENT_LABELS[material.kind]} · PDF`;
+  if (item.kind === "image") return "Image";
+  if (item.kind === "file") return "File";
+  if (!material.imported) return "Your note";
+  return DOCUMENT_LABELS[material.kind];
+}
+
+export function reviewNeeded(item: FlowItem): boolean {
+  const material = item.material;
+  if (!material) return false;
+  return material.status === "stale" || material.status === "failed" || item.tags.some((tag) => tag.suggested);
+}
+
+function KindIcon({ item }: { item: FlowItem }) {
+  const className = "h-3.5 w-3.5 shrink-0";
+  if (item.kind === "assignment") return <AcademicCapIcon className={className} aria-hidden="true" />;
+  if (item.kind === "image") return <PhotoIcon className={className} aria-hidden="true" />;
+  if (item.kind === "pdf") return <PresentationChartBarIcon className={className} aria-hidden="true" />;
+  if (item.material && !item.material.imported) return <PencilSquareIcon className={className} aria-hidden="true" />;
+  return <DocumentTextIcon className={className} aria-hidden="true" />;
+}
+
+const dueFormat = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" });
+
+export interface StudyFlowCardProps {
+  item: FlowItem;
+  topics: Map<string, StudyTopic & { colour: string }>;
+  linkCount: number;
+  usedBy: Array<{ id: string; short: string; title: string }>;
+  compact: boolean;
+  pinned: boolean;
+}
+
+/** a fixed-size reference to a library note or assignment; the board never stores its content */
+export const StudyFlowCard = memo(function StudyFlowCard({ item, topics, linkCount, usedBy, compact, pinned }: StudyFlowCardProps) {
+  const cardRef = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
-  const kind = previewKind(material);
-  const associations = useMemo(() => {
-    const topicsById = new Map(topics.map((topic) => [topic.id, topic]));
-    return effectiveAssociations(material, taxonomyVersion).flatMap((association) => {
-      const topic = topicsById.get(association.topicId);
-      return topic ? [{ topic, association }] : [];
-    });
-  }, [material, topics, taxonomyVersion]);
-  const badges = associations.slice(0, 3);
-  const labels = material.overrides.labels ?? material.labels;
-  const format = kind === "pdf" ? "PDF" : kind === "image" ? "Image" : material.isFile ? "File" : "Note";
-  const Icon = kind === "image" ? PhotoIcon : DocumentTextIcon;
+  const preview = item.material ? previewKind(item.material) : null;
+  const tags = item.tags.filter((tag) => topics.has(tag.topicId));
+  const shown = tags.slice(0, 3);
+  const primary = tags[0] ? topics.get(tags[0].topicId) : undefined;
+  const assignment = item.assignment;
+  const owned = item.material !== null && !item.material.imported && item.kind === "note";
 
   useEffect(() => {
     const card = cardRef.current;
-    if (!card || !kind) return;
+    if (!card || !preview) return;
     if (typeof IntersectionObserver === "undefined") {
       setVisible(true);
       return;
     }
+    // offscreen previews unmount so a large map does not keep every PDF page rendered
     const observer = new IntersectionObserver(([entry]) => {
       if (entry) setVisible(entry.isIntersecting);
     });
     observer.observe(card);
     return () => observer.disconnect();
-  }, [kind]);
+  }, [preview]);
 
   return (
-    <article
+    <div
       ref={cardRef}
-      className="flex h-full w-full min-w-0 flex-col overflow-auto rounded-radius-lg border border-border-subtle bg-surface font-sans text-text shadow-sm"
-      aria-label={`${material.title || "Untitled note"}, ${format}`}
+      className={`flex h-full w-full flex-col overflow-hidden rounded-radius-lg border bg-surface px-3 pb-2.5 pt-2 font-sans text-text shadow-sm ${owned ? "border-dashed border-primary-500/40" : assignment ? "border-ai-500/50" : "border-border-subtle"}`}
+      style={{ width: CARD_WIDTH, borderTopWidth: 3, borderTopStyle: "solid", borderTopColor: assignment ? "var(--color-ai-500)" : primary?.colour ?? "var(--color-border)" }}
     >
-      <header className="shrink-0 space-y-2 border-b border-border-subtle px-4 py-3">
-        <div className="flex min-w-0 items-center justify-between gap-2 text-xs">
-          <span className="flex min-w-0 items-center gap-1.5 font-medium text-text-secondary">
-            <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-            {format}
-            <span className="truncate font-normal text-text-tertiary">· {(material.overrides.kind ?? material.kind).replaceAll("_", " ")}</span>
-          </span>
-          <span className="shrink-0 text-text-tertiary">Live source</span>
-        </div>
-        <h3 className="line-clamp-2 break-words text-base font-semibold">{material.title || "Untitled note"}</h3>
-      </header>
-
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
-        {kind && (
-          <div className="flex h-32 items-center justify-center overflow-hidden rounded-radius-md border border-border-subtle bg-background">
-            {visible ? (
-              <FilePreview key={`${material.noteId}:${material.currentHash}`} material={material} kind={kind} />
-            ) : <span className="text-xs text-text-tertiary">{format} preview</span>}
-          </div>
-        )}
-        {!kind && material.isFile && (
-          <p className="break-words text-xs text-text-tertiary">{material.mimeType || "File attachment"}</p>
-        )}
-        <p className="line-clamp-3 break-words text-sm text-text-secondary">{material.excerpt || "Open the original material to read it."}</p>
-
-        {badges.length > 0 && (
-          <div className="flex flex-wrap gap-1.5" aria-label="Related topics">
-            {badges.map(({ topic, association }) => {
-              const source = association.evidence[0]?.anchor;
+      <div className="flex min-w-0 items-center justify-between gap-2 text-xs text-text-tertiary">
+        <span className="flex min-w-0 items-center gap-1.5">
+          <KindIcon item={item} />
+          <span className="truncate">{cardLabel(item)}</span>
+        </span>
+        <span className="flex shrink-0 items-center gap-1.5">
+          {pinned && <span className="text-primary-600 dark:text-primary-300">Pinned</span>}
+          {reviewNeeded(item) && (
+            <span className="flex items-center gap-1 text-ai-700 dark:text-ai-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-ai-500" aria-hidden="true" />
+              Review
+            </span>
+          )}
+          {assignment?.due_at ? (
+            <span className="rounded-full bg-ai-500/15 px-1.5 text-ai-800 dark:text-ai-200">Due {dueFormat.format(new Date(assignment.due_at))}</span>
+          ) : (
+            <span className="rounded-full bg-background px-1.5">{weekLabel(item)}</span>
+          )}
+        </span>
+      </div>
+      <h3 className={`mt-1 break-words font-semibold leading-snug ${compact ? "line-clamp-3 text-xl" : "line-clamp-2 text-sm"}`}>{item.title || "Untitled"}</h3>
+      {!compact && (
+        <>
+          {preview && item.material ? (
+            <div className="mt-1.5 flex h-[84px] items-center justify-center overflow-hidden rounded-radius-md border border-border-subtle bg-background">
+              {visible ? <FilePreview key={`${item.material.noteId}:${item.material.currentHash}`} material={item.material} kind={preview} /> : <span className="text-xs text-text-tertiary">Preview</span>}
+            </div>
+          ) : (
+            <p className="mt-1 line-clamp-3 break-words text-xs leading-relaxed text-text-secondary">
+              {assignment ? readableExcerpt(assignment.description?.replace(/<[^>]+>/g, " ") ?? "") || "No brief has been imported." : readableExcerpt(item.material?.excerpt ?? "") || "Open the original to read it."}
+            </p>
+          )}
+          <div className="mt-auto flex min-w-0 flex-wrap items-center gap-1 pt-1.5">
+            {shown.map((tag) => {
+              const topic = topics.get(tag.topicId)!;
               return (
-                <div key={topic.id} className="flex max-w-full items-center rounded-radius-md bg-primary-500/5">
-                  <button
-                    type="button"
-                    className={`${actionClass} min-w-0 flex-col items-start gap-0 text-left text-text-secondary`}
-                    onClick={() => onTopic(topic.id)}
-                    aria-label={`Show ${topic.name}, ${association.status === "suggested" ? "suggested" : "accepted"} ${association.relevance} topic`}
-                  >
-                    <span className="max-w-full truncate">{topic.name}</span>
-                    <span className="text-xs font-normal text-text-tertiary">{association.status === "suggested" ? "Suggested · " : ""}{association.relevance}</span>
-                  </button>
-                  {source && (
-                    <Link href={`/notes/${source.noteId}`} className={`${actionClass} shrink-0 px-1.5 text-text-secondary`} aria-label={`Open source for ${topic.name}`} title={`Source evidence${source.page ? `, page ${source.page}` : `, line ${source.line}`}`}>
-                      <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" aria-hidden="true" />
-                    </Link>
-                  )}
-                </div>
+                <button
+                  key={tag.topicId}
+                  type="button"
+                  data-topic={tag.topicId}
+                  className={`flex max-w-[9.5rem] items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] leading-none text-text-secondary hover:text-text ${tag.suggested ? "border-dashed border-ai-500/70" : "border-border-subtle"}`}
+                  title={`${topic.name}: ${tag.relevance}${tag.suggested ? ", suggested, needs review" : tag.mentioned ? ", named in the brief" : ""}`}
+                >
+                  <span
+                    className={`h-2 w-2 shrink-0 rounded-full ${tag.relevance === "core" ? "" : "border-2 bg-transparent"}`}
+                    style={tag.relevance === "core" ? { background: topic.colour } : { borderColor: topic.colour }}
+                    aria-hidden="true"
+                  />
+                  <span className="truncate">{topic.name}</span>
+                </button>
               );
             })}
-            {associations.length > badges.length && (
-              <button type="button" className={`${actionClass} text-text-secondary`} onClick={onInspect}>+{associations.length - badges.length} topics</button>
+            {tags.length > shown.length && <span className="text-[11px] text-text-tertiary">+{tags.length - shown.length}</span>}
+            {(linkCount > 0 || usedBy.length > 0) && (
+              <span className="ml-auto flex items-center gap-1.5 text-[11px] text-text-tertiary">
+                {linkCount > 0 && (
+                  <span className="flex items-center gap-0.5" title={`${linkCount} linked ${linkCount === 1 ? "note" : "notes"}`}>
+                    <LinkIcon className="h-3 w-3" aria-hidden="true" />
+                    {linkCount}
+                  </span>
+                )}
+                {usedBy.slice(0, 2).map((use) => (
+                  <button key={use.id} type="button" data-go={`assignment:${use.id}`} className="rounded-full border border-ai-500/40 px-1.5 font-semibold text-ai-800 hover:bg-ai-500/10 dark:text-ai-200" title={`Used in ${use.title}`}>
+                    ↩ {use.short}
+                  </button>
+                ))}
+              </span>
             )}
           </div>
-        )}
-        {labels.length > 0 && <p className="line-clamp-1 text-xs text-text-tertiary" title={labels.join(", ")}>{labels.join(" · ")}</p>}
-
-        {material.references.length > 0 && (
-          <div className="space-y-1 border-t border-border-subtle pt-2">
-            <p className="text-xs text-text-tertiary">{material.references.length} linked {material.references.length === 1 ? "material" : "materials"}</p>
-            {material.references.slice(0, 2).map((reference) => (
-              <Link key={reference.id} href={`/notes/${reference.id}`} aria-label={`${reference.title || "Untitled note"}, ${reference.kind === "file" ? "file" : reference.kind === "embedded" ? "embedded note" : "note"}`} className="flex min-w-0 items-center gap-1.5 rounded-radius-sm py-1 text-xs text-primary-700 hover:underline focus-visible:outline-2 focus-visible:outline-primary-500 dark:text-primary-300">
-                <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                <span className="truncate">{reference.title || "Untitled note"}</span>
-                <span className="shrink-0 text-text-tertiary">{reference.kind === "file" ? "File" : reference.kind === "embedded" ? "Embedded" : "Note"}</span>
-              </Link>
-            ))}
-            {material.references.length > 2 && <button type="button" className={`${actionClass} text-text-secondary`} onClick={onInspect}>View all linked materials</button>}
-          </div>
-        )}
-      </div>
-
-      <footer className="shrink-0 border-t border-border-subtle px-3 py-2">
-        <p className="px-1 pb-1 text-xs text-text-tertiary">{reviewState(material, taxonomyVersion)}</p>
-        <div className="flex flex-wrap items-center justify-between gap-1">
-          <Link href={`/notes/${material.noteId}`} className={`${actionClass} text-primary-700 dark:text-primary-300`}>
-            Open original <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" aria-hidden="true" />
-          </Link>
-          <button type="button" className={`${actionClass} text-text-secondary`} onClick={onInspect} aria-label={`Inspect ${material.title || "Untitled note"}`}>Inspect</button>
-        </div>
-      </footer>
-    </article>
+        </>
+      )}
+    </div>
   );
-}
+});

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { boardSceneSchema } from "./board-scene";
+import type { Assignment } from "@/lib/notes/state/assignments.zustand";
 
 export const documentKinds = ["notes", "slides", "syllabus", "past_paper", "worked_example", "reading", "other"] as const;
 export const documentKindSchema = z.enum(documentKinds);
@@ -87,6 +87,8 @@ export interface MaterialReference {
   id: string;
   title: string;
   kind: "note" | "file" | "embedded";
+  /** how the reference was found; map snapshots include it, search results do not */
+  relation?: "embedded" | "extraction" | "attachment";
 }
 
 export interface StudyMaterial {
@@ -108,10 +110,22 @@ export interface StudyMaterial {
   isFile: boolean;
   mimeType: string | null;
   references: MaterialReference[];
+  /** parent folder title, used to infer the teaching week */
+  folder: string | null;
+  createdAt: string;
+  /** arrived through a Canvas import rather than being written in OghmaNotes */
+  imported: boolean;
 }
 
+/** an existing assignment row for the map's Canvas course, plus map materials imported from its Canvas files */
+export interface StudyAssignment extends Assignment {
+  noteIds: string[];
+}
+
+const cardReference = z.string().regex(/^(note|topic|assignment):[a-f0-9-]{36}$/);
+const noteReference = z.string().regex(/^note:[a-f0-9-]{36}$/);
 export const boardPlacementSchema = z.object({
-  id: z.string().regex(/^(note|topic):[a-f0-9-]{36}$/),
+  id: cardReference,
   x: z.number().finite().min(-100_000).max(100_000),
   y: z.number().finite().min(-100_000).max(100_000),
   pinned: z.boolean(),
@@ -119,13 +133,15 @@ export const boardPlacementSchema = z.object({
 });
 export const boardLinkSchema = z.object({
   id: z.uuid(),
-  source: z.string().regex(/^(note|topic):[a-f0-9-]{36}$/),
-  target: z.string().regex(/^(note|topic):[a-f0-9-]{36}$/),
+  source: cardReference,
+  target: cardReference,
   label: z.string().trim().min(1).max(80),
 }).refine((value) => value.source !== value.target, "Choose two different cards");
+// layout 2 is the course flow: placements are manual offsets inside the module frame and weeks override inferred weeks
 export const boardSchema = z.object({
-  scene: boardSceneSchema.optional(),
+  layout: z.literal(2).optional(),
   placements: z.array(boardPlacementSchema).max(1_000),
+  weeks: z.record(z.string().regex(/^(note|assignment):[a-f0-9-]{36}$/), z.number().int().min(0).max(60)).default({}),
   links: z.array(boardLinkSchema).max(1_000),
   viewport: z.object({
     x: z.number().finite().min(-1_000_000).max(1_000_000),
@@ -213,6 +229,7 @@ export interface StudyMap extends StudyMapSummary {
 export interface StudyMapSnapshot {
   map: StudyMap;
   materials: StudyMaterial[];
+  assignments: StudyAssignment[];
   papers: StudyPaper[];
   jobs: StudyJob[];
   provider: { classifier: "jev" | "generative" | "mock"; ready: boolean; generationReady: boolean };
@@ -258,7 +275,16 @@ export const paperUpdateSchema = z.object({
   structure: examStructureSchema,
 });
 
-export const emptyBoard = (): StudyBoard => ({ placements: [], links: [], viewport: null });
+export const emptyBoard = (): StudyBoard => ({ layout: 2, placements: [], weeks: {}, links: [], viewport: null });
+
+/** earlier boards stored positions for other layouts; keep their note links and start the flow layout fresh */
+export function currentBoard(board: StudyBoard): StudyBoard {
+  if (board.layout === 2) return board;
+  return {
+    ...emptyBoard(),
+    links: board.links.filter((link) => noteReference.safeParse(link.source).success && noteReference.safeParse(link.target).success),
+  };
+}
 
 export function effectiveAssociations(material: StudyMaterial, taxonomyVersion: number): TopicAssociation[] {
   const correctionsCurrent = material.overrides.sourceHash === material.currentHash

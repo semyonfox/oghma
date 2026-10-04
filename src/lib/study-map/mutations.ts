@@ -2,7 +2,6 @@ import type postgres from "postgres";
 import type { z } from "zod";
 import sql from "@/database/pgsql";
 import { ApiError } from "@/lib/api-errors";
-import { getSceneReference, pruneAvailableRefs } from "./board-scene";
 import { sourceDocument, isCurrentAnchor } from "./evidence";
 import { isStudyBinary } from "./source-kind";
 import { analyseExamStructure } from "./exam-stats";
@@ -284,25 +283,22 @@ export async function saveStudyBoard(userId: string, mapId: string, input: z.inf
         AND NOT n.is_folder AND NOT n.is_import_cache_source
         AND EXISTS (SELECT 1 FROM app.tree_items tree WHERE tree.note_id = n.note_id AND tree.user_id = n.user_id)
     `;
-    const valid = new Set([...topicIds].map((id) => `topic:${id}`).concat(materials.map((row) => `note:${row.note_id}`)));
-    const placements = input.board.placements;
-    const links = input.board.links;
+    const assignments = map.canvas_course_id ? await tx<{ id: string }[]>`
+      SELECT id FROM app.assignments WHERE user_id = ${userId}::uuid AND canvas_course_id = ${map.canvas_course_id}::bigint
+    ` : [];
+    const valid = new Set([
+      ...[...topicIds].map((id) => `topic:${id}`),
+      ...materials.map((row) => `note:${row.note_id}`),
+      ...assignments.map((row) => `assignment:${row.id}`),
+    ]);
+    const { placements, links, weeks } = input.board;
     if (new Set(placements.map((p) => p.id)).size !== placements.length || new Set(links.map((link) => link.id)).size !== links.length
       || placements.some((p) => !valid.has(p.id) || (p.topicId !== null && !topicIds.has(p.topicId)))
+      || Object.keys(weeks).some((ref) => !valid.has(ref))
       || links.some((link) => !valid.has(link.source) || !valid.has(link.target))) {
       throw new ApiError(400, "The layout contains duplicate or unavailable cards or links");
     }
-    if (input.board.scene?.elements.some((element) => {
-      const reference = getSceneReference(element);
-      if (reference === null) return false;
-      const linkedMap = reference.kind === "topic" && element.link
-        ? new URL(element.link, "https://local.invalid").searchParams.get("map")
-        : null;
-      return !valid.has(`${reference.kind}:${reference.id}`) || (linkedMap !== null && linkedMap !== mapId);
-    })) throw new ApiError(400, "The board contains material or topics that are no longer available in this map");
-    const board = input.board.scene
-      ? { ...input.board, scene: pruneAvailableRefs(input.board.scene, valid) }
-      : input.board;
+    const board = { ...input.board, layout: 2 as const };
     const [row] = await tx<{ board_version: number }[]>`
       UPDATE app.study_maps SET board = ${JSON.stringify(board)}::text::jsonb, board_version = board_version + 1, updated_at = NOW()
       WHERE id = ${mapId}::uuid AND user_id = ${userId}::uuid RETURNING board_version

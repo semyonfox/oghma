@@ -4,7 +4,7 @@
 // reruns preserve completed maps and resume only unfinished synthetic maps
 // this script never resets the database or deletes existing notes
 
-import { effectiveAssociations, type BoardPlacement, type StudyMaterial } from "../../src/lib/study-map/types.ts";
+import { emptyBoard } from "../../src/lib/study-map/types.ts";
 import { pathToFileURL } from "node:url";
 
 const userId = "11111111-1111-4111-8111-111111111111";
@@ -17,6 +17,14 @@ const dbSyllabus = fixedId(4);
 const pdfId = fixedId(30);
 const companionId = fixedId(31);
 const diagramId = fixedId(32);
+const checklistId = fixedId(33);
+const starterId = fixedId(34);
+const osCourse = "910001";
+const dbCourse = "910002";
+// teaching weeks come from Canvas-style module folders, as in a real import
+const weekFolder = (module: "os" | "db", week: number): string => fixedId((module === "os" ? 200 : 300) + week);
+const osWeeks = [1, 2, 3, 4, 4, 5, 6, 7, 8, 8, 9, 9];
+const dbWeeks = [1, 2, 3, 4];
 let seedStage = "preflight";
 
 class SeedError extends Error {}
@@ -91,14 +99,22 @@ const osNotes: SeedNote[] = [
   ["Security: isolation and least privilege", "Security", "Security uses process isolation and least privilege to limit the impact of bugs. Authentication identifies a user; authorization decides which resources that user may access.\n\nComparison: a privileged service can bind a protected port, then drop unnecessary permissions before handling input. Validate requests at the privilege boundary rather than trusting a caller's claimed identity."],
   ["Security reading: sandbox trade-offs", "Security", "Reading: Security sandboxes constrain system calls, file access and network access. Processes may still communicate through explicitly permitted channels.\n\nA sandbox is one layer of isolation. Consider the trade-off between convenient access to shared files and a small permission set. This reading remains a suggestion until its topic associations are reviewed."],
 ].map(([title, topic, body], index) => ({
-  id: fixedId(10 + index), title, content: `# ${title}\n\n${body}\n\n## Revision prompt\n\nExplain ${topic} using one concrete example and identify a failure case.`, parent: osFolder,
+  id: fixedId(10 + index), title, content: `# ${title}\n\n${body}\n\n## Revision prompt\n\nExplain ${topic} using one concrete example and identify a failure case.`, parent: weekFolder("os", osWeeks[index]),
 }));
+osNotes[3].content += `\n\nSee [mutexes and semaphores](/notes/${osNotes[4].id}) for the locking side.`;
+osNotes[7].content += `\n\nBuilds on [address translation](/notes/${osNotes[6].id}).`;
+osNotes[9].content += `\n\nPermissions are stored in the [inode](/notes/${osNotes[8].id}).`;
 
 const dbNotes: SeedNote[] = [
-  { id: fixedId(50), title: "Relational Model and SQL Queries", parent: dbFolder, content: "# Relational Model\n\nThe Relational Model uses primary keys to identify rows and foreign keys to preserve relationships.\n\n# SQL Queries\n\nWorked example: join enrolment to students on student_id, then GROUP BY module_id to count registrations. Compare an inner join with an outer join when a student has no enrolments." },
-  { id: fixedId(51), title: "Normalization worked example", parent: dbFolder, content: "# Normalization\n\nNormalization removes repeated lecturer details from an enrolment relation. The dependency module_id -> lecturer_id suggests a separate module relation.\n\nProve that the join is lossless using the shared key, then check which functional dependencies remain enforceable." },
-  { id: fixedId(52), title: "Transactions and Recovery", parent: dbFolder, content: "# Transactions\n\nTransactions make both sides of a bank transfer atomic. Concurrent updates require an isolation policy that prevents lost updates.\n\n# Recovery\n\nRecovery uses write-ahead logging so committed changes survive failure. A checkpoint shortens redo work; rollback removes the effects of an aborted transaction." },
-  { id: fixedId(53), title: "Indexes and query plans", parent: dbFolder, content: "# Indexes\n\nIndexes reduce the rows scanned by selective SQL Queries. A compound index on module_id and student_id supports searches beginning with module_id.\n\nComparison: a table scan may beat an index scan when most rows match. Read EXPLAIN output before adding another index, because every write must maintain it." },
+  { id: fixedId(50), title: "Relational Model and SQL Queries", parent: weekFolder("db", 1), content: "# Relational Model\n\nThe Relational Model uses primary keys to identify rows and foreign keys to preserve relationships.\n\n# SQL Queries\n\nWorked example: join enrolment to students on student_id, then GROUP BY module_id to count registrations. Compare an inner join with an outer join when a student has no enrolments." },
+  { id: fixedId(51), title: "Normalization worked example", parent: weekFolder("db", 2), content: "# Normalization\n\nNormalization removes repeated lecturer details from an enrolment relation. The dependency module_id -> lecturer_id suggests a separate module relation.\n\nProve that the join is lossless using the shared key, then check which functional dependencies remain enforceable." },
+  { id: fixedId(52), title: "Transactions and Recovery", parent: weekFolder("db", 4), content: "# Transactions\n\nTransactions make both sides of a bank transfer atomic. Concurrent updates require an isolation policy that prevents lost updates.\n\n# Recovery\n\nRecovery uses write-ahead logging so committed changes survive failure. A checkpoint shortens redo work; rollback removes the effects of an aborted transaction." },
+  { id: fixedId(53), title: "Indexes and query plans", parent: weekFolder("db", 3), content: "# Indexes\n\nIndexes reduce the rows scanned by selective SQL Queries. A compound index on module_id and student_id supports searches beginning with module_id.\n\nComparison: a table scan may beat an index scan when most rows match. Read EXPLAIN output before adding another index, because every write must maintain it." },
+];
+dbNotes[2].content += `\n\nThe same lost-update problem appears in [Operating Systems deadlock and ordering](/notes/${osNotes[5].id}).`;
+const ownNotes: SeedNote[] = [
+  { id: checklistId, title: "My deadlock checklist", parent: weekFolder("os", 5), content: `# My deadlock checklist\n\nFour conditions: mutual exclusion, hold and wait, no preemption, circular wait. Breaking any one prevents Synchronization deadlock.\n\nWorked through in [deadlock and ordering](/notes/${osNotes[5].id}).` },
+  { id: starterId, title: "Scheduler simulator starter notes", parent: weekFolder("os", 5), content: "# Scheduler simulator starter notes\n\nThe simulator reads process arrivals and bursts, then prints a Scheduling trace for first-come first-served and round robin. Track Processes in a ready queue and record turnaround time." },
 ];
 
 function pastPaper(year: number, version: string, alternate = false): string {
@@ -191,9 +207,17 @@ async function main(): Promise<void> {
     await createNote({ id: osSyllabus, title: "Operating Systems syllabus 2025/26", content: syllabus(osTopics), parent: osFolder });
     await createNote({ id: dbSyllabus, title: "Database Systems syllabus 2025/26", content: syllabus(dbTopics), parent: dbFolder });
 
+    for (const [module, root, weeks] of [["os", osFolder, osWeeks], ["db", dbFolder, dbWeeks]] as const) {
+      for (const week of [...new Set(weeks)]) await createNote({ id: weekFolder(module, week), title: `Week ${week}`, content: "", parent: root }, true);
+    }
     const firstNote = osNotes[0];
     firstNote.content += `\n\n![Process state diagram](/api/notes/${firstNote.id}/assets?name=process-states.svg)\n\n[Process state diagram file](/notes/${diagramId})`;
-    for (const note of [...osNotes, ...dbNotes, ...papers]) await createNote(note);
+    for (const note of [...osNotes, ...dbNotes, ...ownNotes, ...papers]) await createNote(note);
+    // lecture material arrives through the Canvas import; the two own notes do not
+    await sql`UPDATE app.notes SET canvas_course_id = ${osCourse}::bigint WHERE user_id = ${userId}::uuid
+      AND note_id = ANY(${[...osNotes.map((note) => note.id), pdfId, companionId, diagramId]}::uuid[]) AND canvas_course_id IS NULL`;
+    await sql`UPDATE app.notes SET canvas_course_id = ${dbCourse}::bigint WHERE user_id = ${userId}::uuid
+      AND note_id = ANY(${dbNotes.map((note) => note.id)}::uuid[]) AND canvas_course_id IS NULL`;
 
     const slideText = "[Page 1]\n# Slides: Virtual Memory\n\nVirtual Memory maps a process page number to a physical frame. A page fault loads missing backing data.\n\n[Page 2]\n# Slides: Scheduling and Processes\n\nScheduling chooses runnable Processes. A context switch restores the next process registers.\n";
     const pdfKey = `notes/${pdfId}/lecture-slides.pdf`;
@@ -201,8 +225,8 @@ async function main(): Promise<void> {
     const pdf = tinyPdf(slideText);
     await storage.putObject(pdfKey, pdf, { contentType: "application/pdf" });
     await storage.putObject(mdKey, Buffer.from(slideText), { contentType: "text/markdown" });
-    await createNote({ id: pdfId, title: "lecture-slides.pdf", content: "", parent: osFolder }, false, pdfKey);
-    await createNote({ id: companionId, title: "lecture-slides.md", content: slideText, parent: osFolder }, false, mdKey);
+    await createNote({ id: pdfId, title: "lecture-slides.pdf", content: "", parent: weekFolder("os", 6) }, false, pdfKey);
+    await createNote({ id: companionId, title: "lecture-slides.md", content: slideText, parent: weekFolder("os", 6) }, false, mdKey);
     await sql`UPDATE app.notes SET extracted_text = ${slideText} WHERE user_id = ${userId}::uuid AND note_id = ${pdfId}::uuid AND COALESCE(extracted_text, '') = ''`;
     await sql`UPDATE app.notes SET extracted_from_note_id = ${pdfId}::uuid WHERE user_id = ${userId}::uuid AND note_id = ${companionId}::uuid AND extracted_from_note_id IS NULL`;
     await attachment(pdfId, "lecture-slides.pdf", pdfKey, "application/pdf", pdf.length);
@@ -211,12 +235,33 @@ async function main(): Promise<void> {
     const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="720" height="200" viewBox="0 0 720 200"><rect width="720" height="200" fill="#f1f5f9"/><g fill="#dbeafe" stroke="#2563eb" stroke-width="2"><rect x="35" y="65" width="170" height="70" rx="14"/><rect x="275" y="65" width="170" height="70" rx="14"/><rect x="515" y="65" width="170" height="70" rx="14"/></g><g fill="#0f172a" font-family="sans-serif" font-size="22" text-anchor="middle"><text x="120" y="108">Ready</text><text x="360" y="108">Running</text><text x="600" y="108">Blocked</text></g><g stroke="#2563eb" stroke-width="3"><path d="M210 100h55m-10-7 10 7-10 7M450 100h55m-10-7 10 7-10 7" fill="none"/></g></svg>';
     const svgKey = `notes/${diagramId}/process-states.svg`;
     await storage.putObject(svgKey, Buffer.from(svg), { contentType: "image/svg+xml" });
-    await createNote({ id: diagramId, title: "process-states.svg", content: "", parent: osFolder }, false, svgKey);
+    await createNote({ id: diagramId, title: "process-states.svg", content: "", parent: weekFolder("os", 1) }, false, svgKey);
     await sql`UPDATE app.notes SET extracted_text = 'Processes transition between ready, running and blocked states.'
       WHERE user_id = ${userId}::uuid AND note_id = ${diagramId}::uuid AND COALESCE(extracted_text, '') = ''`;
     await attachment(diagramId, "process-states.svg", svgKey, "image/svg+xml", Buffer.byteLength(svg));
     await attachment(firstNote.id, "process-states.svg", svgKey, "image/svg+xml", Buffer.byteLength(svg));
-    await links.replaceNoteLinks(userId, firstNote.id, firstNote.content);
+    for (const note of [...osNotes, ...dbNotes, ...ownNotes]) {
+      if (note.content.includes("/notes/")) await links.replaceNoteLinks(userId, note.id, note.content);
+    }
+
+    seedStage = "create synthetic assignments";
+    const day = 24 * 60 * 60 * 1000;
+    const assignments = [
+      { course: osCourse, canvasId: "920001", title: "Assignment 1: scheduler simulator", due: 10, description: "<p>Build a simulator that compares first-come first-served and round robin <b>Scheduling</b>. Report turnaround and response time for each of the Processes.</p>" },
+      { course: osCourse, canvasId: "920002", title: "Assignment 2: file permissions audit", due: 38, description: "<p>Audit File Systems permissions on a shared server and explain each Security decision using least privilege.</p>" },
+      { course: dbCourse, canvasId: "920003", title: "Assignment: library schema", due: 17, description: "<p>Design a library schema with the Relational Model, apply Normalization to third normal form, and write five SQL Queries against it.</p>" },
+    ];
+    for (const assignment of assignments) {
+      // manual source keeps the synthetic preview from calling Canvas when the details dialog opens
+      await sql`
+        INSERT INTO app.assignments (user_id, canvas_course_id, canvas_assignment_id, title, description, course_name, due_at, status, source, assignment_type)
+        VALUES (${userId}::uuid, ${assignment.course}::bigint, ${assignment.canvasId}::bigint, ${assignment.title}, ${assignment.description},
+          ${assignment.course === osCourse ? "Operating Systems" : "Database Systems"}, ${new Date(Date.now() + assignment.due * day).toISOString()}::timestamptz,
+          'upcoming', 'manual', 'assignment')
+        ON CONFLICT (user_id, canvas_assignment_id) WHERE canvas_assignment_id IS NOT NULL DO NOTHING
+      `;
+    }
+    await sql`UPDATE app.notes SET canvas_assignment_id = 920001 WHERE user_id = ${userId}::uuid AND note_id = ${starterId}::uuid`;
 
     async function drainJobs(mapId: string, kind: "classify" | "paper"): Promise<void> {
       let processed = 0;
@@ -233,14 +278,14 @@ async function main(): Promise<void> {
     }
 
     for (const module of [
-      { name: "Operating Systems", root: osFolder, syllabus: osSyllabus, reviewIds: osNotes.slice(0, 10).map((note) => note.id) },
-      { name: "Database Systems", root: dbFolder, syllabus: dbSyllabus, reviewIds: dbNotes.slice(0, 3).map((note) => note.id) },
+      { name: "Operating Systems", root: osFolder, syllabus: osSyllabus, course: osCourse, reviewIds: [...osNotes.slice(0, 10), ...ownNotes].map((note) => note.id) },
+      { name: "Database Systems", root: dbFolder, syllabus: dbSyllabus, course: dbCourse, reviewIds: dbNotes.slice(0, 3).map((note) => note.id) },
     ]) {
       const previous = existing.find((map) => map.root_note_id === module.root);
       if (previous && previous.board_version > 0) continue;
       seedStage = `${module.name}: create map and propose topics`;
       const mapId = previous?.id ?? await mutations.createStudyMap(userId, { name: module.name, academicYear,
-        rootNoteId: module.root, canvasCourseId: null, syllabusNoteId: module.syllabus });
+        rootNoteId: module.root, canvasCourseId: module.course, syllabusNoteId: module.syllabus });
       await mutations.syncStudyMaterials(userId, mapId);
       const map = await repository.getStudyMap(userId, mapId);
       if (!map.topics.length) {
@@ -275,38 +320,11 @@ async function main(): Promise<void> {
       }
       seedStage = `${module.name}: save initial board`;
       snapshot = await repository.getStudyMapSnapshot(userId, mapId);
-      const buckets = new Map<string | null, StudyMaterial[]>(snapshot.map.topics.map((topic) => [topic.id, []]));
-      buckets.set(null, []);
-      for (const material of snapshot.materials) {
-        const topicId = effectiveAssociations(material, snapshot.map.taxonomyVersion)
-          .filter((association) => buckets.has(association.topicId))
-          .sort((left, right) => Number(right.status === "accepted") - Number(left.status === "accepted")
-            || Number(right.relevance === "core") - Number(left.relevance === "core")
-            || (right.probability ?? 0) - (left.probability ?? 0))[0]?.topicId ?? null;
-        buckets.get(topicId)?.push(material);
+      const board = emptyBoard();
+      if (module.root === osFolder) {
+        board.links.push({ id: fixedId(900), source: `note:${osNotes[2].id}`, target: `note:${osNotes[0].id}`, label: "applies" });
       }
-      const placements: BoardPlacement[] = [];
-      function placeNotes(topicId: string | null, x: number, y: number): void {
-        for (const [index, material] of (buckets.get(topicId) ?? []).entries()) {
-          placements.push({ id: `note:${material.noteId}`, x: x + 24 + (index % 2) * 336,
-            y: y + 92 + Math.floor(index / 2) * 300, pinned: material.noteId === fixedId(10), topicId });
-        }
-      }
-      let rowY = 0;
-      for (let start = 0; start < snapshot.map.topics.length; start += 3) {
-        const row = snapshot.map.topics.slice(start, start + 3);
-        let maxCards = 0;
-        row.forEach((topic, column) => {
-          const x = column * 820;
-          maxCards = Math.max(maxCards, buckets.get(topic.id)?.length ?? 0);
-          placements.push({ id: `topic:${topic.id}`, x, y: rowY, pinned: true, topicId: null });
-          placeNotes(topic.id, x, rowY);
-        });
-        rowY += Math.max(420, 100 + Math.ceil(maxCards / 2) * 300) + 100;
-      }
-      placeNotes(null, -820, 0);
-      await mutations.saveStudyBoard(userId, mapId, { version: snapshot.map.boardVersion,
-        board: { placements, links: [], viewport: { x: 40, y: 40, zoom: 0.7 } } });
+      await mutations.saveStudyBoard(userId, mapId, { version: snapshot.map.boardVersion, board });
       console.log(`[study-map] Seeded ${module.name}: ${snapshot.map.topics.length} reviewed topics, ${snapshot.materials.length} classified materials, ${snapshot.papers.length} papers.`);
     }
 

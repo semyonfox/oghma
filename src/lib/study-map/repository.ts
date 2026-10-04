@@ -1,12 +1,13 @@
 import { z } from "zod";
 import sql from "@/database/pgsql";
 import { ApiError } from "@/lib/api-errors";
-import { pruneAvailableRefs } from "./board-scene";
 import { isStudyBinary } from "./source-kind";
 import { studyProviderStatus } from "./config";
 import { isCurrentAnchor, sourceDocument, sourceExcerpt } from "./evidence";
+import { normalizeAssignmentType } from "@/lib/notes/utils/assignment-type";
 import {
   boardSchema,
+  currentBoard,
   documentKindSchema,
   examStructureSchema,
   materialOverridesSchema,
@@ -15,6 +16,7 @@ import {
   type MaterialReference,
   type SourceAnchor,
   type SourceDocument,
+  type StudyAssignment,
   type StudyJob,
   type StudyMap,
   type StudyMapSnapshot,
@@ -50,6 +52,31 @@ interface NoteRow {
   mime_type: string | null;
   extracted_from_note_id: string | null;
   updated_at: Date | string;
+  created_at: Date | string;
+  folder_title: string | null;
+  imported: boolean;
+}
+
+interface AssignmentRow {
+  id: string;
+  canvas_course_id: string | null;
+  canvas_assignment_id: string | null;
+  title: string;
+  description: string | null;
+  course_name: string | null;
+  course_color: string | null;
+  due_at: Date | string | null;
+  status: string;
+  estimated_hours: number | null;
+  logged_hours: number;
+  source: string;
+  assignment_type: string;
+  submitted_at: Date | string | null;
+  score: number | null;
+  points_possible: number | null;
+  created_at: Date | string;
+  updated_at: Date | string;
+  note_ids: string[];
 }
 
 interface MaterialRow {
@@ -138,7 +165,12 @@ async function readNotes(userId: string, noteIds: string[]): Promise<NoteRow[]> 
   if (!noteIds.length) return [];
   return sql<NoteRow[]>`
     SELECT n.note_id, n.title, n.content, n.extracted_text, n.s3_key,
-      n.extracted_from_note_id, n.updated_at,
+      n.extracted_from_note_id, n.updated_at, n.created_at,
+      (n.canvas_course_id IS NOT NULL OR n.canvas_import_id IS NOT NULL) AS imported,
+      (SELECT parent.title FROM app.tree_items tree
+       JOIN app.notes parent ON parent.note_id = tree.parent_id AND parent.user_id = tree.user_id
+       WHERE tree.note_id = n.note_id AND tree.user_id = n.user_id AND parent.deleted_at IS NULL
+       LIMIT 1) AS folder_title,
       (SELECT a.mime_type FROM app.attachments a
        WHERE a.note_id = n.note_id AND a.user_id = n.user_id AND a.s3_key = n.s3_key
        ORDER BY a.id LIMIT 1) AS mime_type
@@ -154,7 +186,12 @@ async function readDerivedNotes(userId: string, noteIds: string[]): Promise<Note
   if (!noteIds.length) return [];
   return sql<NoteRow[]>`
     SELECT n.note_id, n.title, n.content, n.extracted_text, n.s3_key,
-      n.extracted_from_note_id, n.updated_at,
+      n.extracted_from_note_id, n.updated_at, n.created_at,
+      (n.canvas_course_id IS NOT NULL OR n.canvas_import_id IS NOT NULL) AS imported,
+      (SELECT parent.title FROM app.tree_items tree
+       JOIN app.notes parent ON parent.note_id = tree.parent_id AND parent.user_id = tree.user_id
+       WHERE tree.note_id = n.note_id AND tree.user_id = n.user_id AND parent.deleted_at IS NULL
+       LIMIT 1) AS folder_title,
       (SELECT a.mime_type FROM app.attachments a
        WHERE a.note_id = n.note_id AND a.user_id = n.user_id AND a.s3_key = n.s3_key
        ORDER BY a.id LIMIT 1) AS mime_type
@@ -244,7 +281,7 @@ async function mapFromRow(userId: string, row: MapRow): Promise<StudyMap> {
           WHERE tree.note_id = n.note_id AND tree.user_id = n.user_id)
     `,
   ]);
-  const board = boardSchema.parse(row.board);
+  const board = currentBoard(boardSchema.parse(row.board));
   const cardIds = new Set([
     ...topics.map((topic) => `topic:${topic.id}`),
     ...materials.map((material) => `note:${material.note_id}`),
@@ -262,8 +299,7 @@ async function mapFromRow(userId: string, row: MapRow): Promise<StudyMap> {
     topics: redactTopics(topics, sourceNotes),
     board: {
       ...board,
-      ...(board.scene ? { scene: pruneAvailableRefs(board.scene, cardIds) } : {}),
-      placements: board.placements.filter((placement) => cardIds.has(placement.id)).map((placement) => ({
+      placements: board.placements.filter((placement) => cardIds.has(placement.id) || placement.id.startsWith("assignment:")).map((placement) => ({
         ...placement,
         topicId: placement.topicId && topics.some((topic) => topic.id === placement.topicId) ? placement.topicId : null,
       })),
@@ -326,6 +362,52 @@ async function readReferences(userId: string, noteIds: string[]): Promise<Refere
   `;
 }
 
+const assignmentStatusSchema = z.enum(["upcoming", "in_progress", "done", "late"]);
+
+async function readAssignments(userId: string, canvasCourseId: string | null, materialIds: string[]): Promise<StudyAssignment[]> {
+  if (!canvasCourseId) return [];
+  const rows = await sql<AssignmentRow[]>`
+    SELECT a.id, a.canvas_course_id::text AS canvas_course_id, a.canvas_assignment_id::text AS canvas_assignment_id,
+      a.title, a.description, a.course_name, a.course_color, a.due_at, a.estimated_hours, a.logged_hours,
+      a.source, a.assignment_type, a.submitted_at, a.score, a.points_possible, a.created_at, a.updated_at,
+      CASE
+        WHEN a.status <> 'done' AND a.due_at IS NOT NULL AND a.due_at < NOW() THEN 'late'
+        WHEN a.status = 'late' AND (a.due_at IS NULL OR a.due_at >= NOW()) THEN 'upcoming'
+        ELSE a.status
+      END AS status,
+      COALESCE((SELECT array_agg(n.note_id::text ORDER BY n.note_id) FROM app.notes n
+        WHERE n.user_id = a.user_id AND a.canvas_assignment_id IS NOT NULL
+          AND n.canvas_assignment_id = a.canvas_assignment_id
+          AND n.note_id = ANY(${materialIds}::uuid[])), '{}') AS note_ids
+    FROM app.assignments a
+    WHERE a.user_id = ${userId}::uuid AND a.canvas_course_id = ${canvasCourseId}::bigint
+    ORDER BY a.due_at ASC NULLS LAST, a.title, a.id
+    LIMIT 200
+  `;
+  const optionalDate = (value: Date | string | null) => (value === null ? null : timestamp(value));
+  return rows.map((row) => ({
+    id: row.id,
+    canvas_course_id: row.canvas_course_id,
+    canvas_assignment_id: row.canvas_assignment_id,
+    title: row.title,
+    description: row.description,
+    course_name: row.course_name,
+    course_color: row.course_color,
+    due_at: optionalDate(row.due_at),
+    status: assignmentStatusSchema.catch("upcoming").parse(row.status),
+    estimated_hours: row.estimated_hours,
+    logged_hours: row.logged_hours,
+    source: row.source === "canvas" ? "canvas" : "manual",
+    assignment_type: normalizeAssignmentType(row.assignment_type),
+    submitted_at: optionalDate(row.submitted_at),
+    score: row.score,
+    points_possible: row.points_possible,
+    created_at: timestamp(row.created_at),
+    updated_at: timestamp(row.updated_at),
+    noteIds: row.note_ids,
+  }));
+}
+
 function referencesFor(noteId: string, rows: ReferenceRow[]): MaterialReference[] {
   const references = new Map<string, MaterialReference>();
   for (const row of rows) {
@@ -335,6 +417,7 @@ function referencesFor(noteId: string, rows: ReferenceRow[]): MaterialReference[
       id: row.target_id,
       title: row.title ?? "Untitled",
       kind: row.relation === "embedded" ? "embedded" : row.s3_key || isStudyBinary({ ...row, title: row.title ?? "" }) ? "file" : "note",
+      relation: row.relation,
     });
   }
   return [...references.values()];
@@ -368,10 +451,11 @@ export async function getStudyMapSnapshot(userId: string, mapId: string): Promis
     throw new ApiError(422, "This study map has more than 500 active materials. Remove materials or split them into smaller maps.");
   }
   const noteIds = rows.map((row) => row.note_id);
-  const [notes, derivedNotes, references, paperRows, jobRows] = await Promise.all([
+  const [notes, derivedNotes, references, assignments, paperRows, jobRows] = await Promise.all([
     readNotes(userId, noteIds),
     readDerivedNotes(userId, noteIds),
     readReferences(userId, noteIds),
+    readAssignments(userId, map.canvasCourseId, noteIds),
     sql<PaperRow[]>`
       SELECT paper.note_id, paper.source_hash, paper.taxonomy_version, paper.reviewed, paper.structure
       FROM app.study_papers paper
@@ -455,6 +539,9 @@ export async function getStudyMapSnapshot(userId: string, mapId: string): Promis
       isFile: Boolean(note.s3_key) || isStudyBinary({ ...note, title: note.title ?? "" }),
       mimeType: note.mime_type,
       references: referencesFor(row.note_id, references),
+      folder: note.folder_title,
+      createdAt: timestamp(note.created_at),
+      imported: note.imported,
     }];
   });
   const papers: StudyPaper[] = parsedPapers.flatMap(({ row, structure }) => {
@@ -489,6 +576,7 @@ export async function getStudyMapSnapshot(userId: string, mapId: string): Promis
   const cardIds = new Set([
     ...map.topics.map((topic) => `topic:${topic.id}`),
     ...materials.map((material) => `note:${material.noteId}`),
+    ...assignments.map((assignment) => `assignment:${assignment.id}`),
   ]);
   return {
     map: {
@@ -496,12 +584,13 @@ export async function getStudyMapSnapshot(userId: string, mapId: string): Promis
       materialCount: materials.length,
       board: {
         ...map.board,
-        ...(map.board.scene ? { scene: pruneAvailableRefs(map.board.scene, cardIds) } : {}),
         placements: map.board.placements.filter((placement) => cardIds.has(placement.id)),
+        weeks: Object.fromEntries(Object.entries(map.board.weeks).filter(([ref]) => cardIds.has(ref))),
         links: map.board.links.filter((link) => cardIds.has(link.source) && cardIds.has(link.target)),
       },
     },
     materials,
+    assignments,
     papers,
     jobs,
     provider: studyProviderStatus(),

@@ -6,7 +6,6 @@ import { createNoteWithTree } from "@/lib/notes/storage/create-note";
 import * as classification from "@/lib/study-map/classification";
 import * as generation from "@/lib/study-map/generation";
 import { anchorFromQuote } from "@/lib/study-map/evidence";
-import type { BoardSceneElement, StudyBoardScene } from "@/lib/study-map/board-scene";
 import { enqueueStudyJobs, processNextStudyJob, reconcileStudyMaps } from "@/lib/study-map/jobs";
 import {
   addStudyMaterials, createStudyMap, removeStudyMaterial, reviewStudyMaterial,
@@ -39,67 +38,13 @@ let otherNoteId: string;
 let mapId: string;
 let topic: StudyTopic;
 
-function sceneBase(id: string) {
-  return {
-    id,
-    x: 0,
-    y: 0,
-    width: 160,
-    height: 64,
-    angle: 0,
-    strokeColor: "#172554",
-    backgroundColor: "transparent",
-    fillStyle: "solid" as const,
-    strokeWidth: 1,
-    strokeStyle: "solid" as const,
-    roundness: null,
-    roughness: 0,
-    opacity: 100,
-    seed: 1,
-    version: 1,
-    versionNonce: 1,
-    index: id.replace(/[^A-Za-z0-9]/g, "") || "element",
-    isDeleted: false,
-    groupIds: [],
-    frameId: null,
-    boundElements: null,
-    updated: 1,
-    link: null,
-    locked: false,
-  };
-}
-
-function textSceneElement(id: string, text: string, containerId: string | null = null): BoardSceneElement {
-  return {
-    ...sceneBase(id),
-    type: "text",
-    fontSize: 18,
-    fontFamily: 5,
-    text,
-    originalText: text,
-    textAlign: "left",
-    verticalAlign: "top",
-    containerId,
-    autoResize: true,
-    lineHeight: 1.25,
-  };
-}
-
-function embeddableSceneElement(kind: "note" | "topic", id: string, linkedMapId = mapId): BoardSceneElement {
-  return {
-    ...sceneBase(`ref-${kind}-${id}`),
-    type: "embeddable",
-    customData: { studyRef: { kind, id } },
-    link: kind === "note" ? `/notes/${id}` : `/study-map?topic=${id}&map=${linkedMapId}`,
-  };
-}
-
-function boardScene(elements: BoardSceneElement[] = []): StudyBoardScene {
-  return {
-    version: 1,
-    elements,
-    appState: { scrollX: 0, scrollY: 0, zoom: { value: 1 }, viewBackgroundColor: "#ffffff" },
-  };
+async function canvasAssignment(owner: string, course: string, canvasId: string, title: string): Promise<string> {
+  const [row] = await fixture<{ id: string }[]>`
+    INSERT INTO app.assignments (user_id, canvas_course_id, canvas_assignment_id, title, description, source)
+    VALUES (${owner}::uuid, ${course}::bigint, ${canvasId}::bigint, ${title}, ${"<p>Explain algorithms.</p>"}, 'canvas')
+    RETURNING id
+  `;
+  return row.id;
 }
 
 async function makeNote(owner: string, title: string, content: string, folder = false, parentId: string | null = null): Promise<string> {
@@ -411,31 +356,31 @@ describe("study map storage and durable jobs", () => {
   it("keeps the saved board when another tab submits an older board version", async () => {
     const board = {
       ...emptyBoard(),
-      scene: boardScene([textSceneElement("annotation", "Keep the definition beside its source."), embeddableSceneElement("note", noteId)]),
       placements: [{ id: `note:${noteId}`, x: 120, y: 80, pinned: true, topicId: null }],
+      weeks: { [`note:${noteId}`]: 3 },
     };
     expect(await saveStudyBoard(userId, mapId, { version: 0, board })).toBe(1);
-    const newerScene = boardScene([textSceneElement("new-annotation", "A newer layout draft.")]);
-    await expect(saveStudyBoard(userId, mapId, { version: 0, board: { ...emptyBoard(), scene: newerScene } }))
+    await expect(saveStudyBoard(userId, mapId, { version: 0, board: { ...emptyBoard(), weeks: { [`note:${noteId}`]: 5 } } }))
       .rejects.toMatchObject({ statusCode: 409 });
     expect((await getStudyMap(userId, mapId)).board).toEqual(board);
   });
 
-  it("round-trips native annotations and canonical note and topic embeds", async () => {
-    const scene = boardScene([
-      textSceneElement("annotation", "Algorithms are finite procedures."),
-      embeddableSceneElement("note", noteId),
-      embeddableSceneElement("topic", topic.id),
-    ]);
-    const board = { ...emptyBoard(), scene };
-
+  it("round-trips flow positions, week overrides and labelled links in both map reads", async () => {
+    const secondId = await makeNote(userId, "Week 2: recursion", "Algorithms can call themselves.", false, rootId);
+    await addStudyMaterials(userId, mapId, [secondId]);
+    const board = {
+      ...emptyBoard(),
+      placements: [{ id: `note:${secondId}`, x: 600, y: 320, pinned: false, topicId: null }],
+      weeks: { [`note:${noteId}`]: 0 },
+      links: [{ id: randomUUID(), source: `note:${secondId}`, target: `note:${noteId}`, label: "builds on" }],
+    };
     expect(await saveStudyBoard(userId, mapId, { version: 0, board })).toBe(1);
-    expect((await getStudyMap(userId, mapId)).board.scene).toEqual(scene);
-    expect((await getStudyMapSnapshot(userId, mapId)).map.board.scene).toEqual(scene);
+    expect((await getStudyMap(userId, mapId)).board).toEqual(board);
+    expect((await getStudyMapSnapshot(userId, mapId)).map.board).toEqual(board);
   });
 
   it.each(["other owner", "nonmember", "hidden", "import cache", "folder"])(
-    "rejects board embeds for an unavailable %s note",
+    "rejects board cards, weeks and links for an unavailable %s note",
     async (kind) => {
       let targetId: string;
       if (kind === "other owner") {
@@ -452,76 +397,72 @@ describe("study map storage and durable jobs", () => {
             VALUES (${mapId}::uuid, ${userId}::uuid, ${targetId}::uuid)`;
         }
       }
-
-      const board = { ...emptyBoard(), scene: boardScene([embeddableSceneElement("note", targetId)]) };
-      await expect(saveStudyBoard(userId, mapId, { version: 0, board })).rejects.toMatchObject({ statusCode: 400 });
+      const ref = `note:${targetId}`;
+      for (const board of [
+        { ...emptyBoard(), placements: [{ id: ref, x: 0, y: 0, pinned: false, topicId: null }] },
+        { ...emptyBoard(), weeks: { [ref]: 2 } },
+        { ...emptyBoard(), links: [{ id: randomUUID(), source: `note:${noteId}`, target: ref, label: "links to" }] },
+      ]) {
+        await expect(saveStudyBoard(userId, mapId, { version: 0, board })).rejects.toMatchObject({ statusCode: 400 });
+      }
     },
   );
 
-  it("prunes removed and deleted note embeds from both map reads and repairs surviving scene bindings", async () => {
+  it("prunes removed and deleted notes from positions, weeks and links on both map reads", async () => {
     const deletedNoteId = await makeNote(userId, "Deleted synthetic source", "This source will be deleted.", false, rootId);
-    await addStudyMaterials(userId, mapId, [deletedNoteId]);
-    const rectangle: BoardSceneElement = {
-      ...sceneBase("shape"),
-      type: "rectangle",
-      boundElements: [{ id: "annotation", type: "text" }, { id: "arrow", type: "arrow" }],
+    const keptId = await makeNote(userId, "Kept synthetic source", "Algorithms remain here.", false, rootId);
+    await addStudyMaterials(userId, mapId, [deletedNoteId, keptId]);
+    const kept = { id: `note:${keptId}`, x: 40, y: 40, pinned: true, topicId: null };
+    const board = {
+      ...emptyBoard(),
+      placements: [kept, { id: `note:${noteId}`, x: 0, y: 0, pinned: false, topicId: null }],
+      weeks: { [`note:${keptId}`]: 4, [`note:${deletedNoteId}`]: 2 },
+      links: [
+        { id: randomUUID(), source: `note:${keptId}`, target: `note:${noteId}`, label: "uses" },
+        { id: randomUUID(), source: `note:${deletedNoteId}`, target: `note:${keptId}`, label: "uses" },
+      ],
     };
-    const annotation = textSceneElement("annotation", "Study note", "shape");
-    const removedEmbed = embeddableSceneElement("note", noteId);
-    const deletedEmbed = embeddableSceneElement("note", deletedNoteId);
-    const topicEmbed = embeddableSceneElement("topic", topic.id);
-    const arrow: BoardSceneElement = {
-      ...sceneBase("arrow"),
-      type: "arrow",
-      points: [[0, 0], [40, 30]],
-      lastCommittedPoint: null,
-      startBinding: { elementId: removedEmbed.id, focus: 0, gap: 4 },
-      endBinding: { elementId: "shape", focus: 0, gap: 4 },
-      startArrowhead: null,
-      endArrowhead: "arrow",
-      elbowed: false,
-    };
-    const scene = boardScene([rectangle, annotation, arrow, removedEmbed, deletedEmbed, topicEmbed]);
-    await saveStudyBoard(userId, mapId, { version: 0, board: { ...emptyBoard(), scene } });
-
+    await saveStudyBoard(userId, mapId, { version: 0, board });
     await removeStudyMaterial(userId, mapId, noteId);
     await fixture`UPDATE app.notes SET deleted_at = NOW() WHERE user_id = ${userId}::uuid AND note_id = ${deletedNoteId}::uuid`;
 
-    const map = await getStudyMap(userId, mapId);
+    expect((await getStudyMap(userId, mapId)).board.placements).toEqual([kept]);
     const snapshot = await getStudyMapSnapshot(userId, mapId);
-    for (const returnedScene of [map.board.scene, snapshot.map.board.scene]) {
-      expect(returnedScene).toBeDefined();
-      const elements = returnedScene?.elements ?? [];
-      expect(elements.map((element) => element.id)).toEqual(["shape", "annotation", "arrow", topicEmbed.id]);
-      const byId = new Map(elements.map((element) => [element.id, element]));
-      expect(byId.get("shape")?.boundElements).toEqual([{ id: "annotation", type: "text" }, { id: "arrow", type: "arrow" }]);
-      expect(byId.get("annotation")).toMatchObject({ type: "text", containerId: "shape" });
-      expect(byId.get("arrow")).toMatchObject({
-        type: "arrow", startBinding: null, endBinding: { elementId: "shape", focus: 0, gap: 4 },
-      });
-    }
-    const [stored] = await fixture<Array<{ board: { scene: StudyBoardScene } }>>`
-      SELECT board FROM app.study_maps WHERE user_id = ${userId}::uuid AND id = ${mapId}::uuid
-    `;
-    expect(stored.board.scene.elements.map((element) => element.id)).toEqual(scene.elements.map((element) => element.id));
+    expect(snapshot.map.board).toEqual({ ...emptyBoard(), placements: [kept], weeks: { [`note:${keptId}`]: 4 } });
   });
 
-  it("persists valid deleted scene-element tombstones without reviving them", async () => {
-    const tombstone: BoardSceneElement = {
-      ...embeddableSceneElement("note", noteId),
-      isDeleted: true,
-    };
-    const scene = boardScene([textSceneElement("annotation", "Keep this note off the board."), tombstone]);
-    await saveStudyBoard(userId, mapId, { version: 0, board: { ...emptyBoard(), scene } });
+  it("starts boards saved by the earlier editor fresh while keeping their note links", async () => {
+    const secondId = await makeNote(userId, "Second synthetic source", "Algorithms again.", false, rootId);
+    await addStudyMaterials(userId, mapId, [secondId]);
+    const link = { id: randomUUID(), source: `note:${secondId}`, target: `note:${noteId}`, label: "builds on" };
+    await fixture`UPDATE app.study_maps SET board = ${JSON.stringify({
+      placements: [{ id: `note:${noteId}`, x: 900, y: 900, pinned: true, topicId: topic.id }],
+      links: [link, { id: randomUUID(), source: `topic:${topic.id}`, target: `note:${noteId}`, label: "defines" }],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      scene: { version: 1, elements: [] },
+    })}::text::jsonb WHERE id = ${mapId}::uuid`;
+    expect((await getStudyMapSnapshot(userId, mapId)).map.board).toEqual({ ...emptyBoard(), links: [link] });
+  });
 
-    for (const returnedScene of [
-      (await getStudyMap(userId, mapId)).board.scene,
-      (await getStudyMapSnapshot(userId, mapId)).map.board.scene,
-    ]) {
-      expect(returnedScene?.elements.find((element) => element.id === tombstone.id)).toMatchObject({
-        type: "embeddable", isDeleted: true, customData: { studyRef: { kind: "note", id: noteId } },
-      });
-    }
+  it("includes only the owner's assignments for the map's Canvas course with their imported files", async () => {
+    const map = await getStudyMap(userId, mapId);
+    await updateStudyMap(userId, mapId, { ...map, canvasCourseId: "4401", version: map.version, autoClassify: false });
+    const assignmentId = await canvasAssignment(userId, "4401", "5501", "Assignment 1: algorithms");
+    await canvasAssignment(userId, "4402", "5502", "Another course");
+    await canvasAssignment(otherUserId, "4401", "5503", "Another student");
+    const starterId = await makeNote(userId, "Starter code", "Algorithms skeleton.", false, rootId);
+    await addStudyMaterials(userId, mapId, [starterId]);
+    await fixture`UPDATE app.notes SET canvas_assignment_id = 5501 WHERE note_id = ${starterId}::uuid`;
+
+    const snapshot = await getStudyMapSnapshot(userId, mapId);
+    expect(snapshot.assignments).toEqual([expect.objectContaining({
+      id: assignmentId, title: "Assignment 1: algorithms", canvas_course_id: "4401", source: "canvas", noteIds: [starterId],
+    })]);
+    const placement = { id: `assignment:${assignmentId}`, x: 10, y: 10, pinned: false, topicId: null };
+    expect(await saveStudyBoard(userId, mapId, { version: 0, board: { ...emptyBoard(), placements: [placement], weeks: { [`assignment:${assignmentId}`]: 6 } } })).toBe(1);
+    const [foreign] = await fixture<{ id: string }[]>`SELECT id FROM app.assignments WHERE user_id = ${otherUserId}::uuid`;
+    await expect(saveStudyBoard(userId, mapId, { version: 1, board: { ...emptyBoard(), weeks: { [`assignment:${foreign.id}`]: 2 } } }))
+      .rejects.toMatchObject({ statusCode: 400 });
   });
 
   it("rejects a source edited during processing and requires a manual retry", async () => {

@@ -17,24 +17,24 @@ import {
   DialogTitle,
 } from "@headlessui/react";
 import { z } from "zod";
-import { pruneAvailableRefs } from "@/lib/study-map/board-scene";
 import useSwipeDismiss from "@/components/navigation/use-swipe-dismiss";
-import StudyCanvas from "./study-canvas";
+import StudyCanvas, { type FlowScope } from "./study-canvas";
 import StudyInspector from "./study-inspector";
 import StudyExams from "./study-exams";
 import StudySearch from "./study-search";
 import {
-  boardSchema,
+  messageFor,
+  requestJson,
+  snapshotSchema,
+  summarySchema,
+} from "./study-client";
+import {
   documentKinds,
   documentKindSchema,
   effectiveAssociations,
-  examStructureSchema,
   mapCreateSchema,
   mapUpdateSchema,
-  materialOverridesSchema,
-  topicAssociationSchema,
   topicSchema,
-  type StudyBoard,
   type StudyMap,
   type StudyMapSnapshot,
   type StudyMapSummary,
@@ -49,14 +49,9 @@ export interface StudyWorkspaceProps {
 }
 
 type Selection = { kind: "note" | "topic"; id: string };
-type BoardDraft = { board: StudyBoard; version: number; dirty: boolean };
-const storedBoardSchema = z.object({
-  board: boardSchema,
-  version: z.number().int().nonnegative(),
-});
 type MapFields = z.infer<typeof mapCreateSchema> & { autoClassify: boolean };
 const workspaceTabs = [
-  { id: "canvas", name: "Canvas" },
+  { id: "canvas", name: "Map" },
   { id: "materials", name: "Materials" },
   { id: "exams", name: "Exam history" },
 ] as const;
@@ -83,81 +78,6 @@ function updateLocation(parameters: Record<string, string | null>) {
     `${url.pathname}${url.search}${url.hash}`,
   );
 }
-const summarySchema = z.object({
-  id: z.uuid(),
-  name: z.string(),
-  academicYear: z.string(),
-  topicCount: z.number(),
-  materialCount: z.number(),
-  updatedAt: z.string(),
-});
-const snapshotSchema = z.object({
-  map: summarySchema.extend({
-    rootNoteId: z.uuid().nullable(),
-    canvasCourseId: z.string().nullable(),
-    syllabusNoteId: z.uuid().nullable(),
-    taxonomyVersion: z.number().int(),
-    version: z.number().int(),
-    boardVersion: z.number().int(),
-    autoClassify: z.boolean(),
-    topics: topicSchema.array(),
-    board: boardSchema,
-  }),
-  materials: z
-    .object({
-      noteId: z.uuid(),
-      mapId: z.uuid(),
-      title: z.string(),
-      excerpt: z.string(),
-      kind: documentKindSchema,
-      labels: z.string().array(),
-      associations: topicAssociationSchema.array(),
-      overrides: materialOverridesSchema,
-      status: z.enum(["unclassified", "classified", "stale", "failed"]),
-      sourceHash: z.string(),
-      currentHash: z.string(),
-      taxonomyVersion: z.number().int(),
-      taxonomyEvidenceStale: z.boolean().optional(),
-      updatedAt: z.string(),
-      classifiedAt: z.string().nullable(),
-      isFile: z.boolean(),
-      mimeType: z.string().nullable(),
-      references: z
-        .object({
-          id: z.uuid(),
-          title: z.string(),
-          kind: z.enum(["note", "file", "embedded"]),
-        })
-        .array(),
-    })
-    .array(),
-  papers: z
-    .object({
-      noteId: z.uuid(),
-      title: z.string(),
-      sourceHash: z.string(),
-      currentHash: z.string(),
-      taxonomyVersion: z.number().int(),
-      reviewed: z.boolean(),
-      structure: examStructureSchema,
-    })
-    .array(),
-  jobs: z
-    .object({
-      id: z.uuid(),
-      kind: z.enum(["taxonomy", "classify", "paper"]),
-      noteId: z.uuid().nullable(),
-      state: z.enum(["pending", "running", "completed", "failed"]),
-      error: z.string().nullable(),
-      createdAt: z.string(),
-    })
-    .array(),
-  provider: z.object({
-    classifier: z.enum(["jev", "generative", "mock"]),
-    ready: z.boolean(),
-    generationReady: z.boolean(),
-  }),
-});
 const noteSchema = z.object({
   id: z.uuid(),
   title: z.string(),
@@ -173,47 +93,6 @@ const primaryClass = `${buttonClass} bg-primary-600 text-text-on-primary hover:b
 const dangerClass = `${buttonClass} text-error-700 hover:bg-error-500/10 dark:text-error-300`;
 const errorClass =
   "break-words rounded-radius-md bg-error-500/10 p-3 text-sm text-error-700 dark:text-error-300";
-
-class RequestError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-  ) {
-    super(message);
-  }
-}
-
-function messageFor(error: unknown): string {
-  return error instanceof Error
-    ? error.message
-    : "The request could not be completed. Try again.";
-}
-
-async function requestJson(
-  url: string,
-  options?: RequestInit,
-): Promise<unknown> {
-  const response = await fetch(url, {
-    credentials: "same-origin",
-    cache: "no-store",
-    ...options,
-    headers: {
-      ...(options?.body ? { "Content-Type": "application/json" } : {}),
-      ...options?.headers,
-    },
-  });
-  const data: unknown = await response.json().catch(() => null);
-  if (!response.ok) {
-    const failure = z.object({ error: z.string() }).safeParse(data);
-    throw new RequestError(
-      failure.success
-        ? failure.data.error
-        : `The request failed (${response.status}). Try again.`,
-      response.status,
-    );
-  }
-  return data;
-}
 
 function defaultFields(): MapFields {
   const now = new Date();
@@ -1002,7 +881,10 @@ function ModuleWorkspace({
   initialNoteId,
   noteRequest,
   tabPreference,
-  drafts,
+  maps,
+  scope,
+  onScopeChange,
+  onOpenModule,
   onRefreshMaps,
   onDeleted,
   onBusyChange,
@@ -1011,25 +893,21 @@ function ModuleWorkspace({
   initialNoteId?: string | null;
   noteRequest: number;
   tabPreference: TabPreference;
-  drafts: Map<string, BoardDraft>;
+  maps: StudyMapSummary[];
+  scope: FlowScope;
+  onScopeChange: (scope: FlowScope) => void;
+  onOpenModule: (mapId: string, noteId?: string | null) => void;
   onRefreshMaps: () => Promise<void>;
   onDeleted: () => Promise<void>;
   onBusyChange: (busy: boolean) => void;
 }) {
   const [snapshot, setSnapshot] = useState<StudyMapSnapshot | null>(null);
-  const [boardDraft, setBoardDraft] = useState<BoardDraft | null>(
-    drafts.get(mapId) ?? null,
-  );
-  const boardRef = useRef(boardDraft);
   const snapshotRef = useRef(snapshot);
   const requestSequence = useRef(0);
   const mounted = useRef(true);
   const operationRef = useRef(false);
-  const storageHydrated = useRef(false);
-  const storageKey = `oghma-study-map-draft:${mapId}`;
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [storageError, setStorageError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [tab, setTab] = useState<WorkspaceTab>(
     tabPreference.chosen ?? "canvas",
@@ -1041,10 +919,6 @@ function ModuleWorkspace({
   const [adding, setAdding] = useState(false);
   const [topicForm, setTopicForm] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
-  const [reloadConfirm, setReloadConfirm] = useState(false);
-  const [boardConflict, setBoardConflict] = useState(false);
-  const [boardError, setBoardError] = useState<string | null>(null);
-  const [canvasRevision, setCanvasRevision] = useState(0);
   const [wide, setWide] = useState(false);
   const [topicsOpen, setTopicsOpen] = useState<boolean | null>(null);
   const [boardFocused, setBoardFocused] = useState(false);
@@ -1108,28 +982,6 @@ function ModuleWorkspace({
     onClose: closeInspector,
   });
 
-  const updateDraft = useCallback(
-    (draft: BoardDraft) => {
-      boardRef.current = draft;
-      drafts.set(mapId, draft);
-      setBoardDraft(draft);
-      try {
-        if (draft.dirty) {
-          window.sessionStorage.setItem(
-            storageKey,
-            JSON.stringify({ board: draft.board, version: draft.version }),
-          );
-        } else window.sessionStorage.removeItem(storageKey);
-        setStorageError(null);
-      } catch {
-        setStorageError(
-          "Your browser could not keep this layout between pages. Save it before navigating away.",
-        );
-      }
-    },
-    [drafts, mapId, storageKey],
-  );
-
   const refresh = useCallback(
     async (signal?: AbortSignal) => {
       const sequence = ++requestSequence.current;
@@ -1142,91 +994,10 @@ function ModuleWorkspace({
         sequence !== requestSequence.current
       )
         return;
-      let draft = boardRef.current;
-      if (!storageHydrated.current) {
-        storageHydrated.current = true;
-        if (!draft?.dirty) {
-          try {
-            const stored = window.sessionStorage.getItem(storageKey);
-            if (stored !== null) {
-              const value: unknown = JSON.parse(stored);
-              const parsed = storedBoardSchema.safeParse(value);
-              if (parsed.success) {
-                draft = { ...parsed.data, dirty: true };
-                updateDraft(draft);
-                setMessage(
-                  "Your unsaved layout has been restored for this session.",
-                );
-              } else {
-                setMessage(
-                  "A stored layout could not be restored. The saved layout is shown.",
-                );
-                window.sessionStorage.removeItem(storageKey);
-              }
-            }
-          } catch {
-            setStorageError(
-              "Your browser could not restore a local layout. Save changes before navigating away.",
-            );
-          }
-        } else updateDraft(draft);
-      }
-      if (
-        draft &&
-        (draft.dirty || draft.version === incoming.map.boardVersion)
-      ) {
-        const topicIds = new Set(incoming.map.topics.map((topic) => topic.id));
-        const cardIds = new Set([
-          ...incoming.map.topics.map((topic) => `topic:${topic.id}`),
-          ...incoming.materials.map((material) => `note:${material.noteId}`),
-        ]);
-        const placements = draft.board.placements
-          .filter((entry) => cardIds.has(entry.id))
-          .map((entry) =>
-            entry.topicId && !topicIds.has(entry.topicId)
-              ? { ...entry, topicId: null }
-              : entry,
-          );
-        const links = draft.board.links.filter(
-          (entry) => cardIds.has(entry.source) && cardIds.has(entry.target),
-        );
-        const scene = draft.board.scene
-          ? pruneAvailableRefs(draft.board.scene, cardIds)
-          : undefined;
-        if (
-          scene !== draft.board.scene ||
-          placements.length !== draft.board.placements.length ||
-          links.length !== draft.board.links.length ||
-          placements.some(
-            (entry, index) => entry !== draft?.board.placements[index],
-          )
-        ) {
-          draft = {
-            ...draft,
-            board: { ...draft.board, placements, links, ...(scene ? { scene } : {}) },
-            dirty: true,
-          };
-          updateDraft(draft);
-          setCanvasRevision((value) => value + 1);
-        }
-      }
-      if (
-        !draft ||
-        (!draft.dirty && draft.version !== incoming.map.boardVersion)
-      ) {
-        if (draft) setCanvasRevision((value) => value + 1);
-        updateDraft({
-          board: incoming.map.board,
-          version: incoming.map.boardVersion,
-          dirty: false,
-        });
-        setBoardConflict(false);
-      } else if (draft.dirty && draft.version !== incoming.map.boardVersion)
-        setBoardConflict(true);
       snapshotRef.current = incoming;
       setSnapshot(incoming);
     },
-    [mapId, storageKey, updateDraft],
+    [mapId],
   );
 
   useEffect(() => {
@@ -1383,67 +1154,7 @@ function ModuleWorkspace({
       );
   }
 
-  async function saveBoard() {
-    if (boardError) return;
-    const submitted = boardRef.current;
-    if (!submitted || !submitted.dirty) return;
-    await operate(
-      "board",
-      async () => {
-        try {
-          const result = z
-            .object({ version: z.number().int().nonnegative() })
-            .parse(
-              await requestJson(`/api/study-maps/${mapId}/board`, {
-                method: "PUT",
-                body: JSON.stringify({
-                  version: submitted.version,
-                  board: submitted.board,
-                }),
-              }),
-            );
-          const current = boardRef.current ?? submitted;
-          updateDraft({
-            board: current.board,
-            version: result.version,
-            dirty: current.board !== submitted.board,
-          });
-          setBoardConflict(false);
-        } catch (error) {
-          if (error instanceof RequestError && error.status === 409)
-            setBoardConflict(true);
-          throw error;
-        }
-      },
-      "Layout saved.",
-    );
-  }
-
-  async function reloadBoard() {
-    await operate(
-      "reload",
-      async () => {
-        const incoming = snapshotSchema.parse(
-          await requestJson(`/api/study-maps/${mapId}`),
-        );
-        requestSequence.current++;
-        snapshotRef.current = incoming;
-        setSnapshot(incoming);
-        updateDraft({
-          board: incoming.map.board,
-          version: incoming.map.boardVersion,
-          dirty: false,
-        });
-        setCanvasRevision((value) => value + 1);
-        setBoardConflict(false);
-        setReloadConfirm(false);
-      },
-      "Saved layout loaded.",
-      false,
-    );
-  }
-
-  if (!snapshot || !boardDraft)
+  if (!snapshot)
     return (
       <section className="space-y-3 rounded-radius-xl border border-border-subtle p-5">
         {error ? (
@@ -1476,10 +1187,6 @@ function ModuleWorkspace({
   const reviewedMaterials = snapshot.materials.filter(
     (material) => reviewState(material, map.taxonomyVersion) === "reviewed",
   ).length;
-  const canvasSnapshot: StudyMapSnapshot = {
-    ...snapshot,
-    map: { ...map, board: boardDraft.board },
-  };
   const inspector = selection && (
     <StudyInspector
       snapshot={snapshot}
@@ -1547,11 +1254,6 @@ function ModuleWorkspace({
           {message}
         </p>
       )}
-      {storageError && boardDraft.dirty && (
-        <p role="status" className={errorClass}>
-          {storageError}
-        </p>
-      )}
       {settings && (
         <div className="space-y-3">
           <MapForm
@@ -1588,12 +1290,6 @@ function ModuleWorkspace({
                           await requestJson(`/api/study-maps/${mapId}`, {
                             method: "DELETE",
                           });
-                          drafts.delete(mapId);
-                          try {
-                            window.sessionStorage.removeItem(storageKey);
-                          } catch {
-                            /* storage may be unavailable */
-                          }
                           await onDeleted();
                         },
                         "Module deleted.",
@@ -1893,11 +1589,6 @@ function ModuleWorkspace({
             </button>
           ))}
         </div>
-        {boardDraft.dirty && (
-          <span className="pb-3 text-xs text-text-secondary">
-            Unsaved layout
-          </span>
-        )}
       </div>
       <div className="relative min-w-0">
         <div className="min-w-0">
@@ -1914,86 +1605,27 @@ function ModuleWorkspace({
                   : "relative flex h-[calc(100dvh-20rem)] min-h-[520px] flex-col gap-2 lg:h-[calc(100dvh-16rem)]"
             }
           >
-            <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  className={`${primaryClass} lg:min-h-8 lg:py-1`}
-                disabled={busy !== null || !boardDraft.dirty || boardConflict || boardError !== null}
-                title={boardError ?? undefined}
-                  onClick={() => launch(saveBoard())}
-                >
-                  {busy === "board" ? "Saving layout..." : "Save layout"}
-                </button>
-                <button
-                  type="button"
-                  className={`${secondaryClass} lg:min-h-8 lg:py-1`}
-                  disabled={busy !== null}
-                  onClick={() => {
-                    if (boardDraft.dirty) setReloadConfirm(true);
-                    else launch(reloadBoard());
-                  }}
-                >
-                  Reload saved layout
-                </button>
-              </div>
-              <button
-                type="button"
-                className={`${secondaryClass} lg:min-h-8 lg:py-1`}
-                aria-pressed={boardFocused}
-                onClick={() => setBoardFocused((value) => !value)}
-              >
-                {boardFocused ? "Exit board focus" : "Focus board"}
-              </button>
-              {boardFocused && boardDraft.dirty && (
-                <span className="text-xs text-text-secondary">Unsaved layout</span>
-              )}
-            </div>
-            <p className="shrink-0 text-xs text-text-tertiary">
-              A freeform board for this module. Draw, connect ideas, and move
-              materials wherever they fit.
-            </p>
-            {boardConflict && (
-              <p role="alert" className={errorClass}>
-                The layout changed in another tab. Your local layout is still
-                here. Reload the saved layout to resolve this conflict.
-              </p>
-            )}
-            {reloadConfirm && (
-              <div className="flex flex-wrap items-center gap-2 rounded-radius-lg border border-border-subtle p-3">
-                <p className="text-sm">
-                  Discard your unsaved layout and load the saved version?
-                </p>
-                <button
-                  type="button"
-                  className={dangerClass}
-                  disabled={busy !== null}
-                  onClick={() => launch(reloadBoard())}
-                >
-                  Discard and reload
-                </button>
-                <button
-                  type="button"
-                  className={secondaryClass}
-                  disabled={busy !== null}
-                  onClick={() => setReloadConfirm(false)}
-                >
-                  Keep editing
-                </button>
-              </div>
-            )}
             <div className="flex min-h-0 flex-1 flex-col">
               <StudyCanvas
-                key={`${mapId}:${canvasRevision}`}
-                snapshot={canvasSnapshot}
-                selected={selection}
-                onSelect={selectInspector}
-                onBoardError={setBoardError}
-                onBoardChange={(board) => {
-                  const current = boardRef.current;
-                  if (current)
-                    updateDraft({ board, version: current.version, dirty: true });
+                snapshot={snapshot}
+                maps={maps}
+                scope={scope}
+                onScopeChange={onScopeChange}
+                onReview={(reviewMap, noteId) => {
+                  if (reviewMap === mapId) selectInspector({ kind: "note", id: noteId });
+                  else onOpenModule(reviewMap, noteId);
                 }}
+                onOpenModule={(target) => onOpenModule(target)}
+                actions={
+                  <button
+                    type="button"
+                    className="inline-flex min-h-8 items-center rounded-radius-md border border-border-subtle px-2.5 text-xs font-medium text-text-secondary hover:text-text"
+                    aria-pressed={boardFocused}
+                    onClick={() => setBoardFocused((value) => !value)}
+                  >
+                    {boardFocused ? "Exit full screen" : "Full screen"}
+                  </button>
+                }
               />
             </div>
             {selection && wide && tab === "canvas" && (
@@ -2081,7 +1713,7 @@ export default function StudyWorkspace({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const drafts = useMemo(() => new Map<string, BoardDraft>(), []);
+  const [scope, setScope] = useState<FlowScope>("module");
   const tabPreference = useMemo<TabPreference>(() => ({ chosen: null }), []);
   useEffect(() => {
     const parameters = new URLSearchParams(window.location.search);
@@ -2089,6 +1721,7 @@ export default function StudyWorkspace({
     const restoredNote = z.uuid().safeParse(parameters.get("note"));
     if (restoredMap.success) setMapId(restoredMap.data);
     if (restoredNote.success) setNoteId(restoredNote.data);
+    if (parameters.get("scope") === "all") setScope("all");
     updateLocation({ map: restoredMap.success ? restoredMap.data : mapId });
   }, [mapId]);
 
@@ -2247,7 +1880,18 @@ export default function StudyWorkspace({
             initialNoteId={noteId}
             noteRequest={noteRequest}
             tabPreference={tabPreference}
-            drafts={drafts}
+            maps={maps}
+            scope={scope}
+            onScopeChange={(next) => {
+              setScope(next);
+              updateLocation({ scope: next === "all" ? "all" : null });
+            }}
+            onOpenModule={(target, note) => {
+              updateLocation({ map: target, note: note ?? null, ...clearedFilters });
+              setMapId(target);
+              setNoteId(note ?? null);
+              if (note) setNoteRequest((value) => value + 1);
+            }}
             onRefreshMaps={refreshMaps}
             onDeleted={deleted}
             onBusyChange={setBusy}

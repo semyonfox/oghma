@@ -3,8 +3,9 @@
 import React, { type ReactNode } from "react";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { StudyBoardCard } from "@/components/study-map/study-board-card";
-import type { StudyMaterial, StudyTopic } from "@/lib/study-map/types";
+import { StudyFlowCard, readableExcerpt } from "@/components/study-map/study-board-card";
+import { moduleItems, type FlowItem } from "@/lib/study-map/flow";
+import { emptyBoard, type StudyAssignment, type StudyMapSnapshot, type StudyMaterial, type StudyTopic } from "@/lib/study-map/types";
 
 const pdfBoundary = vi.hoisted(() => ({ workerOptions: { workerSrc: "" } }));
 
@@ -83,9 +84,10 @@ function visibility(element: Element, visible: boolean) {
 }
 
 const noteId = "30000000-0000-4000-8000-000000000001";
-const pairedId = "30000000-0000-4000-8000-000000000002";
 const hiddenId = "30000000-0000-4000-8000-000000000003";
+const mapId = "10000000-0000-4000-8000-000000000001";
 const topicId = "20000000-0000-4000-8000-000000000001";
+const otherTopicId = "20000000-0000-4000-8000-000000000002";
 const hash = "a".repeat(64);
 const signedUrl = "https://files.example.test/attachment";
 const svgSource = '<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50"><rect width="50" height="50" /></svg>';
@@ -93,9 +95,9 @@ const svgSource = '<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50
 function material(changes: Partial<StudyMaterial> = {}): StudyMaterial {
   return {
     noteId,
-    mapId: "10000000-0000-4000-8000-000000000001",
-    title: "Graph search",
-    excerpt: "Breadth-first search visits each graph layer.",
+    mapId,
+    title: "Week 3: graph search",
+    excerpt: "## Graph search\n\nBreadth-first search visits each **graph** layer. See [queues](/notes/x).",
     kind: "notes",
     labels: [],
     associations: [],
@@ -109,6 +111,9 @@ function material(changes: Partial<StudyMaterial> = {}): StudyMaterial {
     isFile: false,
     mimeType: null,
     references: [],
+    folder: null,
+    createdAt: "2026-10-03T12:00:00Z",
+    imported: true,
     ...changes,
   };
 }
@@ -117,24 +122,28 @@ function topic(id = topicId, name = "Graphs"): StudyTopic {
   return { id, name, definition: "Graph algorithms", includes: "", excludes: "", aliases: [], parentId: null, sources: [], reviewed: true };
 }
 
-function suggestedMaterial(): StudyMaterial {
-  return material({ associations: [{
-    topicId,
-    relevance: "core",
-    probability: 0.9,
-    status: "suggested",
-    origin: "automatic",
-    evidence: [{
-      relevance: "core",
-      probability: 0.9,
-      confidence: 0.9,
-      anchor: { noteId: pairedId, field: "extracted_text", hash, start: 0, end: 12, quote: "Graph search", line: 1, page: 2 },
-    }],
-  }] });
+function snapshot(materials: StudyMaterial[], topics: StudyTopic[] = [topic()], assignments: StudyAssignment[] = []): StudyMapSnapshot {
+  return {
+    map: { id: mapId, name: "Algorithms", academicYear: "2025/26", topicCount: topics.length, materialCount: materials.length, updatedAt: "2026-10-03T12:00:00Z",
+      rootNoteId: null, canvasCourseId: "7", syllabusNoteId: null, taxonomyVersion: 1, version: 1, boardVersion: 0, autoClassify: false, topics, board: emptyBoard() },
+    materials, assignments, papers: [], jobs: [], provider: { classifier: "mock", ready: true, generationReady: true },
+  };
 }
 
-const onInspect = vi.fn();
-const onTopic = vi.fn();
+function itemFor(current: StudyMaterial, topics: StudyTopic[] = [topic()]): FlowItem {
+  return moduleItems(snapshot([current], topics), emptyBoard())[0];
+}
+
+const palette = (topics: StudyTopic[] = [topic()]) => new Map(topics.map((entry, index) => [entry.id, { ...entry, colour: ["#6366f1", "#0d9488"][index] }]));
+
+function card(item: FlowItem, topics: StudyTopic[] = [topic()], options: { compact?: boolean; usedBy?: Array<{ id: string; short: string; title: string }> } = {}) {
+  return (
+    <article aria-label={item.title} key={item.ref}>
+      <StudyFlowCard item={item} topics={palette(topics)} linkCount={0} usedBy={options.usedBy ?? []} compact={options.compact ?? false} pinned={false} />
+    </article>
+  );
+}
+
 const fetchBoundary = vi.fn<typeof fetch>();
 const createObjectUrl = vi.fn<(blob: Blob | MediaSource) => string>();
 const revokeObjectUrl = vi.fn<(url: string) => void>();
@@ -145,8 +154,10 @@ function downloadSignal(): AbortSignal {
   return signal;
 }
 
-function card(current = material(), topics: StudyTopic[] = []) {
-  return <StudyBoardCard material={current} topics={topics} taxonomyVersion={1} onInspect={onInspect} onTopic={onTopic} />;
+function preview(element: HTMLElement) {
+  const box = element.querySelector("article > div");
+  if (!box) throw new Error("Expected a card");
+  return box;
 }
 
 beforeEach(() => {
@@ -175,79 +186,82 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("StudyBoardCard", () => {
-  it("refreshes the source title and excerpt while retaining the canonical note link", () => {
-    const view = render(card());
-    expect(screen.getByRole("heading", { name: "Graph search" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Open original" }).getAttribute("href")).toBe(`/notes/${noteId}`);
+describe("StudyFlowCard", () => {
+  it("shows the live title, readable prose and inferred week, and follows source edits", () => {
+    const view = render(card(itemFor(material())));
+    expect(screen.getByRole("heading", { name: "Week 3: graph search" })).toBeTruthy();
+    expect(screen.getByText("Graph search Breadth-first search visits each graph layer. See queues.")).toBeTruthy();
+    expect(screen.getByText("Week 3")).toBeTruthy();
+    expect(screen.getByText("Notes")).toBeTruthy();
 
-    view.rerender(card(material({ title: "Updated graph search", excerpt: "The edited source excerpt." })));
-    expect(screen.queryByRole("heading", { name: "Graph search" })).toBeNull();
-    expect(screen.getByRole("heading", { name: "Updated graph search" })).toBeTruthy();
+    view.rerender(card(itemFor(material({ title: "Graph search revised", excerpt: "The edited source excerpt." }))));
+    expect(screen.getByRole("heading", { name: "Graph search revised" })).toBeTruthy();
+    expect(screen.getByText("No week")).toBeTruthy();
     expect(screen.getByText("The edited source excerpt.")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Open original" }).getAttribute("href")).toBe(`/notes/${noteId}`);
     expect(fetchBoundary).not.toHaveBeenCalled();
   });
 
-  it("preserves file-to-Markdown and Markdown-to-file source links", () => {
-    render(<>
-      {card(material({ title: "Lecture PDF", isFile: true, mimeType: "application/pdf", references: [{ id: pairedId, title: "Lecture Markdown", kind: "note" }] }))}
-      {card(material({ noteId: pairedId, title: "Lecture Markdown", references: [{ id: noteId, title: "Lecture PDF", kind: "file" }] }))}
-    </>);
-    const file = screen.getByRole("article", { name: "Lecture PDF, PDF" });
-    const note = screen.getByRole("article", { name: "Lecture Markdown, Note" });
-    expect(within(file).getByRole("link", { name: "Open original" }).getAttribute("href")).toBe(`/notes/${noteId}`);
-    expect(within(file).getByRole("link", { name: "Lecture Markdown, note" }).getAttribute("href")).toBe(`/notes/${pairedId}`);
-    expect(within(note).getByRole("link", { name: "Open original" }).getAttribute("href")).toBe(`/notes/${pairedId}`);
-    expect(within(note).getByRole("link", { name: "Lecture PDF, file" }).getAttribute("href")).toBe(`/notes/${noteId}`);
-    expect(fetchBoundary).not.toHaveBeenCalled();
+  it("distinguishes your own notes and marks suggestions for review without hiding them", () => {
+    const suggested = material({
+      imported: false,
+      associations: [
+        { topicId, relevance: "core", probability: 0.9, evidence: [], status: "suggested", origin: "automatic" },
+        { topicId: otherTopicId, relevance: "supporting", probability: 0.7, evidence: [], status: "accepted", origin: "automatic" },
+      ],
+    });
+    const topics = [topic(), topic(otherTopicId, "Queues")];
+    render(card(itemFor(suggested, topics), topics));
+    expect(screen.getByText("Your note")).toBeTruthy();
+    expect(screen.getByText("Review")).toBeTruthy();
+    const chip = screen.getByRole("button", { name: "Graphs" });
+    expect(chip.getAttribute("data-topic")).toBe(topicId);
+    expect(chip.getAttribute("title")).toBe("Graphs: core, suggested, needs review");
+    expect(screen.getByRole("button", { name: "Queues" }).getAttribute("title")).toBe("Queues: supporting");
   });
 
-  it("opens the inspector and selects a suggested topic while linking its actual evidence source", () => {
-    render(card(suggestedMaterial(), [topic()]));
-    fireEvent.click(screen.getByRole("button", { name: "Inspect Graph search" }));
-    expect(onInspect).toHaveBeenCalledOnce();
-    fireEvent.click(screen.getByRole("button", { name: "Show Graphs, suggested core topic" }));
-    expect(onTopic).toHaveBeenCalledExactlyOnceWith(topicId);
-    const source = screen.getByRole("link", { name: "Open source for Graphs" });
-    expect(source.getAttribute("href")).toBe(`/notes/${pairedId}`);
-    expect(source.getAttribute("title")).toBe("Source evidence, page 2");
-    expect(onInspect).toHaveBeenCalledOnce();
+  it("shows assignments with their due date, a plain-text brief and backlinks on the notes they use", () => {
+    const assignment: StudyAssignment = {
+      id: "40000000-0000-4000-8000-000000000001", canvas_course_id: "7", canvas_assignment_id: "8", title: "Assignment 2: shortest paths",
+      description: "<p>Use <b>Graphs</b> to find shortest paths.</p>", course_name: "Algorithms", course_color: null, due_at: "2026-11-20T12:00:00Z",
+      status: "upcoming", estimated_hours: null, logged_hours: 0, source: "canvas", assignment_type: "assignment", submitted_at: null, score: null,
+      points_possible: 20, created_at: "2026-10-01T00:00:00Z", updated_at: "2026-10-01T00:00:00Z", noteIds: [],
+    };
+    const items = moduleItems(snapshot([material()], [topic()], [assignment]), emptyBoard());
+    const brief = items.find((entry) => entry.kind === "assignment")!;
+    render(<>{card(brief)}{card(items[0], [topic()], { usedBy: [{ id: assignment.id, short: "A2", title: assignment.title }] })}</>);
+    const assignmentCard = screen.getByRole("article", { name: assignment.title });
+    expect(within(assignmentCard).getByText("Assignment")).toBeTruthy();
+    expect(within(assignmentCard).getByText(/^Due /)).toBeTruthy();
+    expect(within(assignmentCard).getByText("Use Graphs to find shortest paths.")).toBeTruthy();
+    expect(within(assignmentCard).getByRole("button", { name: "Graphs" }).getAttribute("title")).toBe("Graphs: core, named in the brief");
+    const backlink = within(screen.getByRole("article", { name: "Week 3: graph search" })).getByRole("button", { name: "↩ A2" });
+    expect(backlink.getAttribute("data-go")).toBe(`assignment:${assignment.id}`);
   });
 
-  it("accepts current manual topic corrections and drops them when the source changes", () => {
-    const current = suggestedMaterial();
-    current.overrides = { topics: { [topicId]: "supporting" }, sourceHash: hash, taxonomyVersion: 1 };
-    const view = render(card(current, [topic()]));
-    expect(screen.getByRole("button", { name: "Show Graphs, accepted supporting topic" })).toBeTruthy();
-    expect(screen.getByText("Reviewed by you")).toBeTruthy();
-
-    view.rerender(card({ ...current, currentHash: "b".repeat(64) }, [topic()]));
-    expect(screen.getByText("Needs review")).toBeTruthy();
-    expect(screen.queryByText("Reviewed by you")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Show Graphs, accepted supporting topic" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Show Graphs, suggested core topic" })).toBeTruthy();
+  it("keeps only the title when zoomed out", () => {
+    render(card(itemFor(material({ associations: [{ topicId, relevance: "core", probability: 0.9, evidence: [], status: "accepted", origin: "automatic" }] })), [topic()], { compact: true }));
+    expect(screen.getByRole("heading", { name: "Week 3: graph search" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Graphs" })).toBeNull();
+    expect(screen.queryByText(/Breadth-first/)).toBeNull();
   });
 
-  it("flags classification from an older taxonomy for review", () => {
-    render(card(material({ taxonomyVersion: 0 })));
-    expect(screen.getByText("Needs review")).toBeTruthy();
-    expect(screen.queryByText("Classified")).toBeNull();
+  it("strips Markdown, wiki links and page markers from excerpts", () => {
+    expect(readableExcerpt("[Page 1]\n# Title\n- **Bold** `code` [[Target|label]] ![img](x.png)\n```js\nconst x = 1;\n```")).toBe("Title Bold code label");
   });
 
   it.each([
-    { name: "SVG image", mimeType: "image/svg+xml", format: "Image", pdf: false, svg: true },
-    { name: "PNG image", mimeType: "image/png", format: "Image", pdf: false, svg: false },
-    { name: "PDF", mimeType: "application/pdf", format: "PDF", pdf: true, svg: false },
-  ])("loads only the visible $name card and unmounts its preview when hidden", async ({ mimeType, format, pdf, svg }) => {
-    const visibleMaterial = material({ title: "Visible file", isFile: true, mimeType });
-    const hiddenMaterial = material({ noteId: hiddenId, title: "Hidden file", isFile: true, mimeType });
-    render(<>{card(visibleMaterial)}{card(hiddenMaterial)}</>);
-    const visibleCard = screen.getByRole("article", { name: `Visible file, ${format}` });
-    const hiddenCard = screen.getByRole("article", { name: `Hidden file, ${format}` });
+    { name: "SVG image", mimeType: "image/svg+xml", pdf: false, svg: true },
+    { name: "PNG image", mimeType: "image/png", pdf: false, svg: false },
+    { name: "PDF", mimeType: "application/pdf", pdf: true, svg: false },
+  ])("loads only the visible $name card and unmounts its preview when hidden", async ({ mimeType, pdf, svg }) => {
+    const visibleItem = itemFor(material({ title: "Visible file", isFile: true, mimeType }));
+    const hiddenItem = itemFor(material({ noteId: hiddenId, title: "Hidden file", isFile: true, mimeType }));
+    render(<>{card(visibleItem)}{card(hiddenItem)}</>);
+    const visibleCard = screen.getByRole("article", { name: "Visible file" });
+    const hiddenCard = screen.getByRole("article", { name: "Hidden file" });
     expect(fetchBoundary).not.toHaveBeenCalled();
 
-    visibility(visibleCard, true);
+    visibility(preview(visibleCard), true);
     if (pdf) {
       const page = await within(visibleCard).findByTestId("pdf-page");
       expect(screen.getAllByTestId("pdf-page")).toHaveLength(1);
@@ -275,7 +289,7 @@ describe("StudyBoardCard", () => {
       expect(downloadSignal().aborted).toBe(false);
     } else expect(createObjectUrl).not.toHaveBeenCalled();
 
-    visibility(visibleCard, false);
+    visibility(preview(visibleCard), false);
     expect(within(visibleCard).queryByRole("img")).toBeNull();
     expect(within(visibleCard).queryByTestId("pdf-document")).toBeNull();
     expect(fetchBoundary).toHaveBeenCalledTimes(expectedRequests);
@@ -287,12 +301,12 @@ describe("StudyBoardCard", () => {
 
   it("replaces the SVG preview after a source edit and releases both image URLs", async () => {
     const current = material({ isFile: true, mimeType: "image/svg+xml" });
-    const view = render(card(current));
-    visibility(screen.getByRole("article"), true);
+    const view = render(card(itemFor(current)));
+    visibility(preview(screen.getByRole("article")), true);
     expect((await screen.findByRole("img")).getAttribute("src")).toBe("blob:svg-preview-1");
     const firstDownload = downloadSignal();
 
-    view.rerender(card({ ...current, currentHash: "b".repeat(64) }));
+    view.rerender(card(itemFor({ ...current, currentHash: "b".repeat(64) })));
     expect((await screen.findByRole("img")).getAttribute("src")).toBe("blob:svg-preview-2");
     expect(firstDownload.aborted).toBe(true);
     expect(revokeObjectUrl).toHaveBeenCalledExactlyOnceWith("blob:svg-preview-1");
@@ -308,8 +322,8 @@ describe("StudyBoardCard", () => {
     fetchBoundary.mockImplementation((input, options) => input === signedUrl
       ? new Promise<Response>((resolve) => { finishDownload = resolve; })
       : defaultFetch(input, options));
-    const view = render(card(material({ isFile: true, mimeType: "image/svg+xml" })));
-    visibility(screen.getByRole("article"), true);
+    const view = render(card(itemFor(material({ isFile: true, mimeType: "image/svg+xml" }))));
+    visibility(preview(screen.getByRole("article")), true);
     await waitFor(() => expect(fetchBoundary).toHaveBeenCalledWith(signedUrl, expect.objectContaining({ signal: expect.any(AbortSignal) })));
     const signal = downloadSignal();
     view.unmount();
@@ -321,7 +335,7 @@ describe("StudyBoardCard", () => {
     expect(revokeObjectUrl).not.toHaveBeenCalled();
   });
 
-  it.each(["announced size", "streamed size"])("rejects oversized SVG previews using their %s and retains the original link", async (sizeSource) => {
+  it.each(["announced size", "streamed size"])("rejects oversized SVG previews using their %s", async (sizeSource) => {
     const defaultFetch = fetchBoundary.getMockImplementation();
     if (!defaultFetch) throw new Error("Expected the preview network boundary");
     const cancelStream = vi.fn();
@@ -338,41 +352,34 @@ describe("StudyBoardCard", () => {
       });
       return Promise.resolve(new Response(body));
     });
-    render(card(material({ isFile: true, mimeType: "image/svg+xml" })));
-    visibility(screen.getByRole("article"), true);
+    render(card(itemFor(material({ isFile: true, mimeType: "image/svg+xml" }))));
+    visibility(preview(screen.getByRole("article")), true);
     expect(await screen.findByText("Preview unavailable. Open the original to read it.")).toBeTruthy();
     expect(screen.queryByRole("img")).toBeNull();
     expect(createObjectUrl).not.toHaveBeenCalled();
     expect(downloadSignal().aborted).toBe(true);
-    expect(screen.getByRole("link", { name: "Open original" }).getAttribute("href")).toBe(`/notes/${noteId}`);
     if (sizeSource === "streamed size") expect(cancelStream).toHaveBeenCalledOnce();
   });
 
-  it("keeps the original accessible when attachment signing fails", async () => {
+  it("shows a readable fallback when signing or the image fails", async () => {
     fetchBoundary.mockResolvedValueOnce(new Response(null, { status: 404 }));
-    render(card(material({ isFile: true, mimeType: "application/pdf" })));
-    visibility(screen.getByRole("article"), true);
+    const view = render(card(itemFor(material({ isFile: true, mimeType: "application/pdf" }))));
+    visibility(preview(screen.getByRole("article")), true);
     expect(await screen.findByText("Preview unavailable. Open the original to read it.")).toBeTruthy();
     expect(screen.queryByTestId("pdf-document")).toBeNull();
-    expect(screen.getByRole("link", { name: "Open original" }).getAttribute("href")).toBe(`/notes/${noteId}`);
-    fireEvent.click(screen.getByRole("button", { name: "Inspect Graph search" }));
-    expect(onInspect).toHaveBeenCalledOnce();
-  });
+    view.unmount();
 
-  it("shows a readable fallback when an image cannot load", async () => {
-    render(card(material({ isFile: true, mimeType: "image/png" })));
-    visibility(screen.getByRole("article"), true);
+    render(card(itemFor(material({ isFile: true, mimeType: "image/png" }))));
+    visibility(preview(screen.getByRole("article")), true);
     fireEvent.error(await screen.findByRole("img"));
     expect(screen.getByText("Preview unavailable. Open the original to read it.")).toBeTruthy();
-    expect(screen.queryByRole("img")).toBeNull();
-    expect(screen.getByRole("link", { name: "Open original" })).toBeTruthy();
   });
 
   it("does not request previews for unsupported attachment types", () => {
-    render(card(material({ isFile: true, mimeType: "application/zip" })));
-    expect(screen.getByText("application/zip")).toBeTruthy();
+    render(card(itemFor(material({ isFile: true, mimeType: "application/zip", excerpt: "Archive of lab files" }))));
+    expect(screen.getByText("File")).toBeTruthy();
+    expect(screen.getByText("Archive of lab files")).toBeTruthy();
     expect(fetchBoundary).not.toHaveBeenCalled();
     expect(screen.queryByRole("img")).toBeNull();
-    expect(screen.queryByTestId("pdf-document")).toBeNull();
   });
 });
