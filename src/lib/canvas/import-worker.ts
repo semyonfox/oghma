@@ -47,10 +47,12 @@ async function runJobPipeline(
   const client = new CanvasClient(creds.canvas_domain, plainToken);
   const storage = getStorageProvider();
   const ctx = { client, storage, jobId };
-  await pooled(
+  const results = await pooled(
     courses.map((course) => () => processCourse(course, userId, ctx)),
     3,
   );
+  const failure = results.find((result) => result.status === "rejected");
+  if (failure?.status === "rejected") throw failure.reason;
 }
 
 // ── Job entry point (legacy single-pass) ────────────────────────────────────

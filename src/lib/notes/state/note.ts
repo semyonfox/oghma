@@ -193,8 +193,7 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
     const { noteAPI, treeStore, generation, ownerUserId, sessionReady } = state;
 
     if (!noteAPI || !treeStore || !sessionReady) {
-      console.warn("noteAPI or treeStore not initialized yet");
-      return;
+      throw new Error("Note save unavailable");
     }
 
     let note = await noteCache.getItem(id);

@@ -129,11 +129,11 @@ function uniqueStrings(values: Array<string | null | undefined>): string[] {
 }
 
 function isSafeCleanupPrefix(userId: string, prefix: string): boolean {
-  return (
-    prefix === `marker/${userId}/` ||
-    prefix === `vault/${userId}/` ||
-    prefix === `vault-uploads/${userId}/`
-  );
+  const vaultRoot = `vault/${userId}/`;
+  return prefix.startsWith(vaultRoot) &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/$/i.test(
+      prefix.slice(vaultRoot.length),
+    );
 }
 
 function asIsoDate(value: Date | string | null | undefined): string {
@@ -589,22 +589,31 @@ async function removeNoteRowsPermanently(
     WHERE user_id = ${userId}::uuid
       AND note_id = ANY(${ownedIds}::uuid[])
   `;
+  // a later import can have a retained note below a folder in this snapshot
+  await tx`
+    UPDATE app.canvas_imports
+    SET parent_folder_id = NULL, updated_at = NOW()
+    WHERE user_id = ${userId}::uuid
+      AND parent_folder_id = ANY(${ownedIds}::uuid[])
+      AND (note_id IS NULL OR NOT note_id = ANY(${ownedIds}::uuid[]))
+  `;
+  await tx`
+    UPDATE app.canvas_import_jobs
+    SET parent_folder_id = NULL, updated_at = NOW()
+    WHERE user_id = ${userId}::uuid
+      AND parent_folder_id = ANY(${ownedIds}::uuid[])
+  `;
   await tx`
     DELETE FROM app.canvas_imports
     WHERE user_id = ${userId}::uuid
-      AND (
-        note_id = ANY(${ownedIds}::uuid[])
-        OR parent_folder_id = ANY(${ownedIds}::uuid[])
-      )
+      AND note_id = ANY(${ownedIds}::uuid[])
   `;
   await tx`
     DELETE FROM app.marker_jobs
     WHERE user_id = ${userId}::uuid
       AND note_id = ANY(${ownedIds}::uuid[])
   `;
-  // A separately trashed child can still point at this bundle's parent. Make
-  // it a root before deleting that parent so the parent_id FK cannot cascade
-  // away its sole tree row and make a later restore invisible.
+  // keep notes outside this snapshot reachable before parent FKs cascade
   await tx`
     UPDATE app.tree_items
     SET parent_id = NULL, updated_at = NOW()
@@ -664,12 +673,7 @@ export async function permanentlyDeleteNotes(
   return result;
 }
 
-/**
- * Clear every note for one user under the same tree lock used by Trash.
- * This is intentionally distinct from accepting a caller-supplied ID list:
- * Clear Vault must see notes created by a worker that was already in flight
- * when cancellation began, rather than selecting an ID snapshot beforehand.
- */
+// legacy whole-user delete; Clear Vault passes its snapshot to permanentlyDeleteNotes
 export async function permanentlyDeleteAllUserNotes(
   userId: string,
 ): Promise<PermanentDeleteResult> {
@@ -879,24 +883,26 @@ async function processNoteDeletionCleanupTask(taskId: string): Promise<boolean> 
     SET lease_token = gen_random_uuid(), lease_expires_at = NOW() + INTERVAL '5 minutes'
     WHERE id = ${taskId}::uuid AND completed_at IS NULL
       AND (lease_expires_at IS NULL OR lease_expires_at <= NOW())
+      AND (last_error IS NULL OR last_error NOT LIKE 'Cleanup requires review:%')
     RETURNING id, user_id, note_ids, chunk_ids, object_keys, object_prefixes, lease_token
   `;
   if (!task) return false;
 
   try {
+    const prefixes = uniqueStrings(task.object_prefixes ?? []);
+    if (prefixes.some((prefix) => !isSafeCleanupPrefix(task.user_id, prefix))) {
+      throw new Error(
+        "Cleanup requires review: broad or invalid storage prefix has no immutable deletion scope",
+      );
+    }
     const chunkIds = uniqueStrings(task.chunk_ids ?? []);
     if (chunkIds.length > 0) await deleteChunkVectors(chunkIds);
     const objectKeys = uniqueStrings(task.object_keys ?? [])
       .filter((key) => !isSharedImportedFileKey(key));
-    if (objectKeys.length || task.object_prefixes?.length || task.note_ids?.length) {
+    if (objectKeys.length || prefixes.length || task.note_ids?.length) {
       const storage = getStorageProvider();
       for (const key of objectKeys) await storage.deleteObject(key);
-      for (const prefix of uniqueStrings(task.object_prefixes ?? [])) {
-        if (!isSafeCleanupPrefix(task.user_id, prefix)) {
-          throw new Error("Refusing to delete an unsafe lifecycle storage prefix");
-        }
-        await storage.deletePrefix(prefix);
-      }
+      for (const prefix of prefixes) await storage.deletePrefix(prefix);
       for (const noteId of uniqueStrings(task.note_ids ?? [])) {
         await storage.deletePrefix(markerAssetPrefix(task.user_id, noteId));
       }
@@ -920,17 +926,29 @@ async function processNoteDeletionCleanupTask(taskId: string): Promise<boolean> 
   }
 }
 
-/**
- * Clear Vault also owns raw zip uploads and intermediate Vault objects that
- * may not have reached a note row when cancellation occurred. Persist their
- * user-scoped prefix cleanup in the same retry journal as note deletion.
- */
-export async function queueVaultStorageCleanup(userId: string): Promise<boolean> {
-  const prefixes = [`vault/${userId}/`, `vault-uploads/${userId}/`];
+export interface VaultCleanupJob {
+  id: string;
+  type: string;
+  input_s3_key: string | null;
+}
+
+// persist the cancelled imports' zip keys and job scopes before deleting jobs
+export async function queueVaultStorageCleanup(
+  userId: string,
+  jobs: readonly VaultCleanupJob[],
+): Promise<boolean> {
+  const vaultJobs = jobs.filter((job) => job.type === "vault-import");
+  const prefixes = uniqueStrings(vaultJobs.map((job) => `vault/${userId}/${job.id}/`));
+  const keys = uniqueStrings(vaultJobs.map((job) => job.input_s3_key));
+  if (prefixes.some((prefix) => !isSafeCleanupPrefix(userId, prefix)) ||
+      keys.some((key) => !key.startsWith(`vault-uploads/${userId}/`))) {
+    throw new Error("Refusing to queue an invalid vault cleanup scope");
+  }
+  if (prefixes.length === 0 && keys.length === 0) return false;
   const [task] = await sql`
     INSERT INTO app.note_deletion_cleanup_tasks
-      (user_id, object_prefixes)
-    VALUES (${userId}::uuid, ${prefixes}::text[])
+      (user_id, object_prefixes, object_keys)
+    VALUES (${userId}::uuid, ${prefixes}::text[], ${keys}::text[])
     RETURNING id
   `;
   if (!task?.id) return false;
@@ -944,6 +962,7 @@ export async function processPendingNoteDeletionCleanup(): Promise<number> {
     FROM app.note_deletion_cleanup_tasks
     WHERE completed_at IS NULL
       AND (lease_expires_at IS NULL OR lease_expires_at <= NOW())
+      AND (last_error IS NULL OR last_error NOT LIKE 'Cleanup requires review:%')
     ORDER BY created_at ASC
     LIMIT ${retentionBatchSize()}
   `) as Array<{ id: string }>;

@@ -4,8 +4,9 @@ import { withErrorHandler, requireAuth } from "@/lib/api-error";
 import { checkRateLimit } from "@/lib/rateLimiter";
 import { cancelActiveCanvasImportJobs } from "@/lib/canvas/cancel-import-jobs";
 import {
-  permanentlyDeleteAllUserNotes,
+  permanentlyDeleteNotes,
   queueVaultStorageCleanup,
+  type VaultCleanupJob,
 } from "@/lib/notes/storage/note-lifecycle";
 import sql from "@/database/pgsql";
 
@@ -23,12 +24,23 @@ export const DELETE = withErrorHandler(async () => {
   const limited = await checkRateLimit("vault-delete", user.user_id);
   if (limited) return limited;
 
-  await sql.begin(async (tx: postgres.TransactionSql) => {
+  const snapshot = await sql.begin(async (tx: postgres.TransactionSql) => {
     await cancelActiveCanvasImportJobs(
       tx,
       user.user_id,
       "Vault permanently cleared by user",
     );
+    const jobs = await tx<VaultCleanupJob[]>`
+      SELECT id, type, input_s3_key
+      FROM app.canvas_import_jobs
+      WHERE user_id = ${user.user_id}::uuid
+      FOR UPDATE
+    `;
+    const imports = await tx<Array<{ id: string }>>`
+      SELECT id FROM app.canvas_imports
+      WHERE user_id = ${user.user_id}::uuid
+      FOR UPDATE
+    `;
     // Vault imports are not covered by the Canvas-only helper above. Fence
     // every active job before any notes are removed so late workers cannot
     // recreate data after a clear.
@@ -36,29 +48,44 @@ export const DELETE = withErrorHandler(async () => {
       UPDATE app.canvas_import_jobs
       SET status = 'cancelled', completed_at = NOW(), updated_at = NOW()
       WHERE user_id = ${user.user_id}::uuid
+        AND id = ANY(${jobs.map((job) => job.id)}::uuid[])
         AND status IN ('queued', 'discovering', 'processing')
     `;
+    const notes = await tx<Array<{ note_id: string }>>`
+      SELECT note_id FROM app.notes
+      WHERE user_id = ${user.user_id}::uuid
+    `;
+    return {
+      jobs,
+      importIds: imports.map((row) => row.id),
+      noteIds: notes.map((row) => row.note_id),
+    };
   });
 
-  const result = await permanentlyDeleteAllUserNotes(user.user_id);
+  const result = await permanentlyDeleteNotes(user.user_id, snapshot.noteIds);
   const vaultStorageCleanupPending = await queueVaultStorageCleanup(
     user.user_id,
+    snapshot.jobs,
   );
 
   // A cancelled job can have discovery rows without a note yet. They are not
   // a Trash item, so Clear Vault removes them immediately too.
-  const [importsResult, jobsResult] = await Promise.all([
-    sql`
+  const { importsResult, jobsResult } = await sql.begin(async (tx: postgres.TransactionSql) => {
+    const importsResult = await tx`
       DELETE FROM app.canvas_imports
       WHERE user_id = ${user.user_id}::uuid
+        AND id = ANY(${snapshot.importIds}::uuid[])
+        AND (job_id IS NULL OR job_id = ANY(${snapshot.jobs.map((job) => job.id)}::uuid[]))
       RETURNING id
-    `,
-    sql`
+    `;
+    const jobsResult = await tx`
       DELETE FROM app.canvas_import_jobs
       WHERE user_id = ${user.user_id}::uuid
+        AND id = ANY(${snapshot.jobs.map((job) => job.id)}::uuid[])
       RETURNING id
-    `,
-  ]);
+    `;
+    return { importsResult, jobsResult };
+  });
 
   return NextResponse.json({
     success: true,
