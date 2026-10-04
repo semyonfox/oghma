@@ -397,7 +397,7 @@ export class StoreS3 extends StoreProvider {
         .map((entry) => entry.Key)
         .filter((key): key is string => Boolean(key));
       if (objects.length > 0) {
-        await this.client.send(
+        const deleted = await this.client.send(
           new DeleteObjectsCommand({
             Bucket: this.config.bucket,
             Delete: {
@@ -406,6 +406,11 @@ export class StoreS3 extends StoreProvider {
             },
           }),
         );
+        if (deleted.Errors?.length) {
+          throw new Error(
+            `Failed to delete ${deleted.Errors.length} storage object${deleted.Errors.length === 1 ? "" : "s"}`,
+          );
+        }
       }
       continuationToken = listed.IsTruncated
         ? listed.NextContinuationToken

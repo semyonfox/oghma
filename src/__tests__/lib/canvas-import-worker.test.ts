@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   sql: vi.fn(),
   CanvasClient: vi.fn(),
-  pooled: vi.fn(),
   parseJobCourses: vi.fn(),
   processCourse: vi.fn(),
   checkAndCompleteJob: vi.fn(),
@@ -13,7 +12,6 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/database/pgsql", () => ({ default: mocks.sql }));
 vi.mock("@/lib/canvas/client", () => ({ CanvasClient: mocks.CanvasClient }));
-vi.mock("@/lib/canvas/async-limiter", () => ({ pooled: mocks.pooled }));
 vi.mock("@/lib/canvas/import-discovery", () => ({
   parseJobCourses: mocks.parseJobCourses,
   processCourse: mocks.processCourse,
@@ -46,7 +44,7 @@ describe("legacy Canvas import delivery", () => {
     await expect(processImportJob("job-1")).resolves.toBe(false);
 
     expect(mocks.CanvasClient).not.toHaveBeenCalled();
-    expect(mocks.pooled).not.toHaveBeenCalled();
+    expect(mocks.processCourse).not.toHaveBeenCalled();
   });
 
   it("claims the queued generation before running the compatibility pipeline", async () => {
@@ -61,9 +59,7 @@ describe("legacy Canvas import delivery", () => {
     mocks.parseJobCourses.mockReturnValue(courses);
     mocks.decrypt.mockReturnValue("plain-token");
     mocks.getStorageProvider.mockReturnValue({});
-    mocks.pooled.mockImplementation(async (tasks: Array<() => Promise<unknown>>) => {
-      await Promise.all(tasks.map((task) => task()));
-    });
+    mocks.processCourse.mockResolvedValue(undefined);
     mocks.checkAndCompleteJob.mockResolvedValue(true);
 
     await expect(processImportJob("job-1")).resolves.toBe(true);
@@ -77,5 +73,27 @@ describe("legacy Canvas import delivery", () => {
       "job-1",
       "user-1",
     );
+  });
+
+  it("fails a legacy job when any course walk rejects", async () => {
+    mocks.sql
+      .mockResolvedValueOnce([
+        { id: "job-1", user_id: "user-1", course_ids: [{ id: "course-1" }] },
+      ])
+      .mockResolvedValueOnce([
+        { canvas_token: "encrypted-token", canvas_domain: "canvas.example" },
+      ])
+      .mockResolvedValueOnce([]);
+    mocks.parseJobCourses.mockReturnValue([{ id: "course-1" }]);
+    mocks.decrypt.mockReturnValue("plain-token");
+    mocks.getStorageProvider.mockReturnValue({});
+    mocks.processCourse.mockRejectedValue(new Error("Canvas course unavailable"));
+
+    await expect(processImportJob("job-1")).resolves.toBe(false);
+
+    expect(mocks.checkAndCompleteJob).not.toHaveBeenCalled();
+    expect(mocks.sql).toHaveBeenCalledTimes(3);
+    expect((mocks.sql.mock.calls[2][0] as TemplateStringsArray).join("?"))
+      .toContain("SET status = 'failed'");
   });
 });

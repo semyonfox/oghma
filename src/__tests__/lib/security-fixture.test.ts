@@ -277,7 +277,13 @@ describe.skipIf(!fixture)("security contracts in disposable PostgreSQL", () => {
         (${userId}::uuid,'upload',${oldUpload},12,NOW() + INTERVAL '1 day',NOW() - INTERVAL '1 day',false),
         (${userId}::uuid,'upload',${newUpload},14,NOW() + INTERVAL '1 day',NOW() + INTERVAL '1 minute',true)`;
     mocks.deleteObject.mockRejectedValueOnce(new Error("synthetic retry"));
-    expect(await queueVaultStorageCleanup(userId, new Date())).toBe(true);
+    // the clear's snapshot holds only the job that existed before it
+    const snapshot = [
+      { id: oldJobId, type: "vault-import", input_s3_key: oldUpload },
+    ];
+    expect(await queueVaultStorageCleanup(userId, snapshot, new Date())).toBe(
+      true,
+    );
     const [pending] =
       await sql`SELECT object_keys, object_prefixes FROM app.note_deletion_cleanup_tasks`;
     expect([...pending.object_keys].sort()).toEqual([oldKey, oldUpload].sort());
@@ -308,7 +314,7 @@ describe.skipIf(!fixture)("security contracts in disposable PostgreSQL", () => {
       new Error("synthetic deferred clear"),
     );
     expect(
-      await queueVaultStorageCleanup(userId, new Date(Date.now() + 1000)),
+      await queueVaultStorageCleanup(userId, [], new Date(Date.now() + 1000)),
     ).toBe(true);
     const newKey = await reserveVaultUpload(
       userId,

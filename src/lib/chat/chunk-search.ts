@@ -48,6 +48,7 @@ export async function searchChatChunks({
   mode,
   scopedNoteIds,
 }: SearchChatChunksParams): Promise<ChatChunkHit[]> {
+  if (scopedNoteIds?.length === 0) return [];
   const scoped = !!(scopedNoteIds && scopedNoteIds.length > 0);
   const seenChunkIds = new Set<string>();
   const results: ChatChunkHit[] = [];
