@@ -162,13 +162,17 @@ node --experimental-strip-types scripts/dev/run-mock.ts npm exec --no -- tsx scr
 
 Mock mode validates the runner and lexical fixtures without contacting a provider or connecting to the database. Its environment guard still requires a local E2E database URL. Report paths must be new `.json` files in the workspace or `/tmp`; existing files are never overwritten.
 
-The optional live command uses the configured Jev credential from the environment. It can spend money and is not part of setup or the mock run. No live evaluation has been run for this implementation; no evaluation key was created and no paid evaluation calls were made.
+The optional live command uses the configured Jev credential from the environment, including the existing chat credential when its endpoint is OpenRouter. It can spend money and is not part of setup or the mock run. A separate Jev key is optional.
 
 ```sh
 npm exec --no -- tsx scripts/dev/evaluate-study-classifier.ts --provider jev --allow-paid --max-calls 12 --report /tmp/study-classifier-jev.json
 ```
 
 `--max-calls` accepts 1–20 and caps HTTP attempts, including retries. Each case has 11 questions; input is guarded at 15,000 bytes per request. A 12-attempt run can finish fewer than 12 cases if retries occur. This is not a dollar cap, failed requests may incur charges, and missing usage remains unknown. Use a larger independently labelled course sample and a held-out evaluation before changing production thresholds.
+
+The live evaluation on 2026-10-04 reused the configured OpenRouter chat credential in place, with authorization for a $0.10 budget. All 12 synthetic cases completed in 12 HTTP attempts, without retries or request errors. The returned model was `typesafe/jev-1.13-20260917`; reported usage was 37,725 input tokens and $0.00158445. No new key was created, no personal material was sent, and no application configuration or live database was changed.
+
+Topic relevance matched the expected categories in 47 of 48 comparisons: 12 relevant pairs were detected, with one additional supporting-topic suggestion and no missed relevant pairs. The extra suggestion linked the call-stack prerequisite to graph traversal. Two expected content labels were missed: `code` for the factorial explanation and `worked example` for string concatenation. This verifies live response compatibility on these fixtures; it does not establish course-specific accuracy or justify changing the provisional thresholds.
 
 ## Design decisions and verification
 
@@ -189,4 +193,4 @@ Verification on 2026-10-04:
 - Nine browser workflows passed against the standalone app, database, and worker: topic approval and classification; saved and unsaved drawings; frames, connectors, conflict handling, card removal and source updates; PDF, PNG and SVG previews; desktop/mobile labels and filters; reviewed exam accounting. They check browser errors, direct card actions, and preservation of unsaved drawings during PDF loading. The SVG case uses the synthetic seed and skips outside that setup because the normal upload route rejects SVG files.
 - Lint, locale audit, TypeScript, and production build passed. Browser login and SVG/PDF previews also passed through the private HTTPS origin. A separate check opened the existing two-page PDF viewer without errors or remote font requests.
 
-The preview uses synthetic data and mock classification. Live Jev response compatibility and course-specific calibration still require the optional evaluation above. Production databases and the main branch were not changed by this verification.
+The preview uses synthetic data and mock classification. Live Jev response compatibility was checked separately by the synthetic evaluation above; course-specific calibration remains unverified. Production databases and the main branch were not changed by this verification.
