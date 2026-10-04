@@ -8,13 +8,14 @@ import { stripMarkdown } from "@/lib/strip-markdown";
 import { extractContentFromBuffer } from "@/lib/ingestion/extraction-core";
 import sql from "@/database/pgsql";
 import { withErrorHandler } from "@/lib/api-error";
-import { ApiError } from "@/lib/api-error";
+import { ApiError, parseJsonObject } from "@/lib/api-error";
 import { checkRateLimit } from "@/lib/rateLimiter";
 import { xraySubsegment } from "@/lib/xray";
 import { getStorageProvider } from "@/lib/storage/init";
 import logger from "@/lib/logger";
 import { enqueueExtractionRetry } from "@/lib/canvas/extraction-retry";
 import { persistMarkerAssetsForNote } from "@/lib/marker-output";
+import { isValidUUID } from "@/lib/utils/uuid";
 
 function isAllowedUrl(raw: string): boolean {
   let parsed: URL;
@@ -179,20 +180,39 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const limited = await checkRateLimit("extract", userId);
   if (limited) return limited;
 
-  const { url, documentId } = await request.json();
-  if (!url || !documentId)
+  const { url, documentId } = await parseJsonObject(request);
+  if (typeof url !== "string" || !isValidUUID(documentId))
     throw new ApiError(400, "url and documentId are required");
   if (!isAllowedUrl(url)) throw new ApiError(400, "Invalid or disallowed URL");
 
   // verify documentId belongs to the authenticated user before extraction
   const [ownedNote] = await sql`
     SELECT 1 FROM app.notes
-    WHERE note_id = ${documentId}::uuid AND user_id = ${userId}::uuid
+    WHERE note_id = ${documentId}::uuid
+      AND user_id = ${userId}::uuid
+      AND deleted_at IS NULL
     LIMIT 1
   `;
   if (!ownedNote) throw new ApiError(404, "Note not found");
 
   const s3Key = new URL(url).pathname.replace(/^\//, "");
+  const [ownedSource] = await sql`
+    SELECT 1 FROM app.notes source
+    WHERE source.user_id = ${userId}::uuid
+      AND source.deleted_at IS NULL
+      AND (
+        source.s3_key = ${s3Key}
+        OR EXISTS (
+          SELECT 1 FROM app.attachments attachment
+          WHERE attachment.note_id = source.note_id
+            AND attachment.user_id = source.user_id
+            AND attachment.s3_key = ${s3Key}
+        )
+      )
+    LIMIT 1
+  `;
+  if (!ownedSource) throw new ApiError(404, "File not found");
+
   const mimeType = "application/pdf";
 
   const result = await runExtraction(documentId, userId, s3Key, mimeType);

@@ -74,7 +74,7 @@ describe("StoreS3.getObjectMeta", () => {
         IsTruncated: true,
         NextContinuationToken: "next-page",
       })
-      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({ Errors: [] })
       .mockResolvedValueOnce({
         Contents: [{ Key: "marker/user/note/three.png" }],
         IsTruncated: false,
@@ -100,5 +100,24 @@ describe("StoreS3.getObjectMeta", () => {
     expect((send.mock.calls[2][0] as ListObjectsV2Command).input).toMatchObject({
       ContinuationToken: "next-page",
     });
+  });
+
+  it("rejects a partial bulk delete without exposing failed object keys", async () => {
+    send
+      .mockResolvedValueOnce({
+        Contents: [
+          { Key: "marker/user/note/one.png" },
+          { Key: "marker/user/note/private-name.png" },
+        ],
+        IsTruncated: false,
+      })
+      .mockResolvedValueOnce({
+        Errors: [{ Key: "marker/user/note/private-name.png", Code: "AccessDenied" }],
+      });
+
+    await expect(storage.deletePrefix("marker/user/note/")).rejects.toThrow(
+      /^Failed to delete 1 storage object$/,
+    );
+    expect(send).toHaveBeenCalledTimes(2);
   });
 });

@@ -131,8 +131,7 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
     const { noteAPI, treeStore } = state;
 
     if (!noteAPI || !treeStore) {
-      console.warn("noteAPI or treeStore not initialized yet");
-      return;
+      throw new Error("Note save unavailable");
     }
 
     let note = await noteCache.getItem(id);
@@ -158,7 +157,8 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
 
     noteWriteVersions.set(id, (noteWriteVersions.get(id) ?? 0) + 1);
 
-    await noteAPI.mutate(id, payload);
+    const result = await noteAPI.mutate(id, payload);
+    if (!result) throw new Error("Note save failed");
 
     noteWriteVersions.set(id, (noteWriteVersions.get(id) ?? 0) + 1);
 

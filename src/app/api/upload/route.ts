@@ -104,7 +104,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   }
 
   const fileName = sanitizeFileName(file.name || "unnamed");
-  const storagePath = `notes/${noteId}/${fileName}`;
+  const attachmentId = generateUUID();
+  const storagePath = `notes/${noteId}/${attachmentId}/${fileName}`;
 
   const storage = getStorageProvider();
   try {
@@ -123,7 +124,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   const signedUrl = `/api/upload?path=${encodeURIComponent(storagePath)}&stream=1`;
 
-  const attachmentId = generateUUID();
   try {
     const database = sql as postgres.Sql;
     await database.begin(async (tx) => {

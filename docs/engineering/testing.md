@@ -2,18 +2,19 @@
 
 > **Status:** Active engineering workflow
 >
-> **Last verified:** 2026-08-12 against `package.json`, Vitest configuration,
-> and GitHub Actions workflows
+> **Last verified:** 2026-09-26 against `package.json`, Vitest configuration,
+> local GitHub Actions workflow definitions; see the infrastructure runbook for deployment gates
 
 Use this page to choose a check that proves the change you made. It describes
-local verification; CI remains the final branch-protection authority.
+local verification; a CI run provides check evidence but does not by itself prove
+that a branch requires the check.
 
 ## Fast checks
 
 Run the smallest relevant test file while iterating:
 
 ```bash
-npm run test -- --run src/__tests__/lib/example.test.ts
+npm run test -- --run src/__tests__/lib/validation.test.ts
 ```
 
 For a repository-wide fast quality gate, run:
@@ -57,11 +58,23 @@ work; see the [import-worker runbook](../operations/import-worker.md).
 
 ## CI scope
 
-The GitHub test workflow runs `npm run test:ci`, which executes the root and
-Canvas MCP Vitest suites. The build workflow installs with `npm ci`, runs
-ESLint and the i18n audit, then builds Next.js with placeholder local service
-configuration. Docker-backed integration and Playwright suites are deliberate
-local/release checks, not GitHub Actions defaults.
+The local workflow snapshot has separate test, lint, build, and E2E workflows.
+It includes working-tree changes that are not evidence of deployed configuration. On pushes
+and pull requests to `main` and `dev`, the test workflow runs
+`npm run test:ci` (root and Canvas MCP Vitest suites); the lint workflow runs
+ESLint, the i18n audit, and typechecking; and the build workflow runs
+`npm run ci:deploy-contract` and `npm run build`. The E2E workflow also runs
+integration contracts and the Playwright smoke suite on those pushes and pull
+requests. Its full Playwright suite runs nightly and can also be selected with
+`workflow_dispatch`.
+
+Workflow triggers tell you when checks run; they do not establish that GitHub
+requires those statuses before merging. As checked on 2026-09-26, the remote
+repository has no classic branch protection for `main` and no repository
+rulesets. Jenkins runs a separate deployment flow. The reviewed local job definitions
+check app and worker health after deployment; they do not run the public
+browser smoke suite. See the [homelab runbook](../../infra/HOMELAB.md) for
+required check names and deployment gates.
 
 Keep tests focused on observable contracts: response/status behavior, durable
 state, ownership, provider-boundary requests, or race/failure handling. Avoid
