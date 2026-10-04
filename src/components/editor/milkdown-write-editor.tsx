@@ -618,12 +618,25 @@ export default function MilkdownWriteEditor({
     setPickerOpen(false);
   };
 
+  const publishCurrentMarkdown = () => {
+    const crepe = crepeRef.current;
+    if (!crepe) return;
+    const markdown = crepe.getMarkdown();
+    if (markdown === lastDocumentMarkdownRef.current) return;
+    // the debounced listener can lag behind an immediate save or blur
+    lastDocumentMarkdownRef.current = markdown;
+    lastLocallyEmittedValueRef.current = markdown;
+    onChangeRef.current(markdown, false);
+  };
+
   return (
     <div
       className="oghma-milkdown-editor mobile-dock-clearance relative h-full min-h-0 overflow-auto bg-app-page"
+      onBlurCapture={publishCurrentMarkdown}
       onKeyDownCapture={(event) => {
         if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
           event.preventDefault();
+          publishCurrentMarkdown();
           onSave?.();
         }
       }}

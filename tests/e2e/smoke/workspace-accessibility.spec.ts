@@ -4,6 +4,7 @@ const noteId = "550e8400-e29b-41d4-a716-446655440000";
 
 async function mockWorkspace(page: Page, baseURL: string, empty = false) {
   let rejectSaves = true;
+  let savedContent = "# Systems lecture\n\nThreads share process memory.";
   await page.context().addCookies([{
     name: "session",
     value: "synthetic-local-ui-only",
@@ -20,13 +21,21 @@ async function mockWorkspace(page: Page, baseURL: string, empty = false) {
         { id: noteId, title: "Systems lecture", isFolder: false },
       ] };
     } else if (path === `/api/notes/${noteId}`) {
-      if (["PUT", "PATCH"].includes(route.request().method()) && rejectSaves) {
+      const updating = ["PUT", "PATCH"].includes(route.request().method());
+      if (updating && !rejectSaves) {
+        const payload: unknown = route.request().postDataJSON();
+        const content: unknown = payload && typeof payload === "object"
+          ? Reflect.get(payload, "content") : undefined;
+        if (typeof content !== "string") throw new Error("Save omitted Markdown content");
+        savedContent = content;
+      }
+      if (updating && rejectSaves) {
         status = 503;
         body = { error: "Synthetic save unavailable" };
       } else {
         body = {
           id: noteId, title: "Systems lecture", isFolder: false, pinned: 0,
-          content: "# Systems lecture\n\nThreads share process memory.",
+          content: savedContent,
           createdAt: "2026-10-01T10:00:00Z", updatedAt: "2026-10-01T10:00:00Z",
         };
       }
@@ -39,7 +48,7 @@ async function mockWorkspace(page: Page, baseURL: string, empty = false) {
     }
     await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
   });
-  return { allowSave: () => { rejectSaves = false; } };
+  return { allowSave: () => { rejectSaves = false; }, savedContent: () => savedContent };
 }
 
 test.use({ trace: "off", video: "off" });
@@ -64,6 +73,7 @@ test("keyboard retry keeps focus in the editor when its save action disappears",
   await expect(page.locator('[data-editor-pane="A"]').first()).toBeFocused();
   await expect(page.getByRole("status").filter({ hasText: "Saved" })).toBeVisible();
   await expect(editor).toContainText("Synthetic revision");
+  expect(workspace.savedContent()).toContain("Synthetic revision");
   await page.screenshot({ path: testInfo.outputPath("ux-save-retry-focus.png") });
 });
 
@@ -87,6 +97,7 @@ test("all mobile destinations and empty-library content remain reachable with en
     expect(bounds.x).toBeGreaterThanOrEqual(0);
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(320);
   }
+  await page.screenshot({ path: testInfo.outputPath("ux-enlarged-navigation.png") });
   const message = page.getByRole("heading", { name: "A place for your notes" });
   await message.evaluate((element) => element.scrollIntoView({ block: "center" }));
   const messageBounds = await message.boundingBox();
