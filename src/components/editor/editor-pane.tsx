@@ -6,7 +6,7 @@ import { FC, memo, useCallback, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { FileSpec, PaneId } from "@/lib/notes/state/layout.zustand";
+import { FileSpec, PaneId, type RightPanelTab } from "@/lib/notes/state/layout.zustand";
 import {
   ArrowPathIcon,
   ArrowLeftIcon,
@@ -23,6 +23,7 @@ import {
 import useLayoutStore from "@/lib/notes/state/layout.zustand";
 import useSaveIndicatorStore, {
   FileSaveIndicator,
+  saveIndicatorKey,
 } from "@/lib/notes/state/save-indicator";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import useNoteTreeStore from "@/lib/notes/state/tree";
@@ -74,6 +75,9 @@ const EditorPane: FC<EditorPaneProps> = ({
   );
 
   // granular selectors — only re-render when values this component reads change
+  const activePane = useLayoutStore((s) => s.activePane);
+  const setRightPanelTab = useLayoutStore((s) => s.setRightPanelTab);
+  const setRightPanelOpen = useLayoutStore((s) => s.setRightPanelOpen);
   const rightPanelOpen = useLayoutStore((s) => s.rightPanelOpen);
   const rightPanelTab = useLayoutStore((s) => s.rightPanelTab);
   const setPaneA = useLayoutStore((s) => s.setPaneA);
@@ -81,9 +85,15 @@ const EditorPane: FC<EditorPaneProps> = ({
   const placeFileInPane = useLayoutStore((s) => s.placeFileInPane);
   const setActivePane = useLayoutStore((s) => s.setActivePane);
   const saveIndicator = useSaveIndicatorStore((s) =>
-    file?.fileId ? s.files[file.fileId] : undefined,
+    file?.fileId ? s.files[saveIndicatorKey(file.fileId, file.draftOwner ?? pane)] : undefined,
   );
-  const openRightPanelTab = useLayoutStore((s) => s.openRightPanelTab);
+  const openRightPanelTab = (tab: RightPanelTab) => {
+    const sameContext = activePane === pane || tab === "tasks";
+    const closing = sameContext && rightPanelOpen && rightPanelTab === tab;
+    if (tab !== "tasks") setActivePane(pane);
+    setRightPanelTab(tab);
+    setRightPanelOpen(!closing);
+  };
   const initLoaded = useNoteTreeStore((s) => s.initLoaded);
   const rootChildCount = useNoteTreeStore(
     (s) => s.tree.items.root?.children?.length ?? 0,
@@ -208,8 +218,8 @@ const EditorPane: FC<EditorPaneProps> = ({
 
   const showFirstRunOnboarding =
     pane === "A" && initLoaded && rootChildCount === 0;
-  const aiChatIsOpen = rightPanelOpen && rightPanelTab === "ai";
-  const metadataIsOpen = rightPanelOpen && rightPanelTab === "meta";
+  const aiChatIsOpen = activePane === pane && rightPanelOpen && rightPanelTab === "ai";
+  const metadataIsOpen = activePane === pane && rightPanelOpen && rightPanelTab === "meta";
   const tasksAreOpen = rightPanelOpen && rightPanelTab === "tasks";
   const aiChatLabel = aiChatIsOpen
     ? `${t("Close")} ${t("AI Chat")}`
@@ -219,8 +229,8 @@ const EditorPane: FC<EditorPaneProps> = ({
   if (!file || !file.fileId) {
     if (showFirstRunOnboarding) {
       return (
-        <div className="h-full flex items-center justify-center p-6">
-          <div className="w-full max-w-lg rounded-radius-lg border border-border-subtle bg-surface/70 p-6">
+        <div className="flex h-full flex-col overflow-y-auto p-6">
+          <div className="mx-auto my-auto w-full max-w-lg rounded-radius-lg border border-border-subtle bg-surface/70 p-6">
             <h2 className="text-lg font-semibold text-text-secondary">
               {t("Welcome to OghmaNotes")}
             </h2>
@@ -285,12 +295,24 @@ const EditorPane: FC<EditorPaneProps> = ({
   return (
     <div
       ref={paneRef}
+      data-editor-pane={pane}
+      tabIndex={-1}
       className={`relative h-full flex flex-col bg-background transition-opacity ${isDragging ? "opacity-60" : ""}`}
-      onMouseDown={() => setActivePane(pane)}
+      onMouseDown={(event) => {
+        if (event.target instanceof Element && !event.target.closest("[data-inspector-toggle]")) setActivePane(pane);
+      }}
+      onFocusCapture={(event) => {
+        if (event.target instanceof HTMLElement && !event.target.closest("[data-inspector-toggle]")) setActivePane(pane);
+      }}
       onDragOver={splitInteractionsEnabled ? handleDragOver : undefined}
       onDragLeave={splitInteractionsEnabled ? handleDragLeave : undefined}
       onDrop={splitInteractionsEnabled ? handleDrop : undefined}
     >
+      <span role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+        {saveIndicator ? saveIndicator.state === "saving" ? t("Saving...")
+          : saveIndicator.state === "saved" ? t("Saved")
+            : saveIndicator.state === "error" ? t("Save failed") : t("Unsaved") : ""}
+      </span>
       {dropTarget && (
         <div
           aria-hidden="true"
@@ -322,6 +344,7 @@ const EditorPane: FC<EditorPaneProps> = ({
         <button
           type="button"
           className="ui-icon-button shrink-0"
+          data-inspector-toggle
           onClick={() => openRightPanelTab("ai")}
           aria-label={aiChatLabel}
           aria-expanded={aiChatIsOpen}
@@ -402,7 +425,8 @@ const EditorPane: FC<EditorPaneProps> = ({
           )}
           <button
             type="button"
-            onClick={() => openRightPanelTab("meta")}
+            data-inspector-toggle
+          onClick={() => openRightPanelTab("meta")}
             className={`ui-icon-button w-auto gap-1.5 px-2 lg:w-8 lg:px-0 ${
               metadataIsOpen
                 ? "bg-primary-500/10 text-primary-700 dark:text-primary-300"
@@ -417,7 +441,8 @@ const EditorPane: FC<EditorPaneProps> = ({
           </button>
           <button
             type="button"
-            onClick={() => openRightPanelTab("ai")}
+            data-inspector-toggle
+          onClick={() => openRightPanelTab("ai")}
             className={`ui-icon-button w-auto gap-1.5 px-2 lg:w-8 lg:px-0 ${
               aiChatIsOpen
                 ? "bg-primary-500/10 text-primary-700 dark:text-primary-300"
@@ -434,7 +459,8 @@ const EditorPane: FC<EditorPaneProps> = ({
           </button>
           <button
             type="button"
-            onClick={() => openRightPanelTab("tasks")}
+            data-inspector-toggle
+          onClick={() => openRightPanelTab("tasks")}
             className={`ui-icon-button w-auto gap-1.5 px-2 lg:w-8 lg:px-0 ${
               tasksAreOpen
                 ? "bg-primary-500/10 text-primary-700 dark:text-primary-300"
@@ -504,7 +530,6 @@ const SaveIndicatorButton: FC<SaveIndicatorButtonProps> = ({
         className="flex h-6 w-6 shrink-0 items-center justify-center text-text-tertiary"
         title={t("Saving...")}
         aria-label={t("Saving...")}
-        role="status"
       >
         <ArrowPathIcon className="h-4 w-4 animate-spin" aria-hidden="true" />
       </span>
@@ -512,12 +537,17 @@ const SaveIndicatorButton: FC<SaveIndicatorButtonProps> = ({
   }
 
   const isError = state === "error";
-  const label = isError ? t("Save failed") : t("Save (Ctrl+S)");
+  const label = isError ? t("Retry save") : t("Save (Ctrl+S)");
 
   return (
     <button
       type="button"
-      onClick={save}
+      data-save-action
+      onClick={(event) => {
+        const paneElement = event.currentTarget.closest("[data-editor-pane]");
+        if (paneElement instanceof HTMLElement) paneElement.focus({ preventScroll: true });
+        save();
+      }}
       title={label}
       aria-label={label}
       className={`flex min-h-11 shrink-0 items-center gap-1 rounded-radius-md px-2 text-xs font-medium transition-colors lg:min-h-7 ${

@@ -1270,5 +1270,7 @@
   "Hide Canvas URL": "Dölj Canvas-adress",
   "Canvas URL": "Canvas-adress",
   "Paste your Canvas URL or enter its address, for example": "Klistra in din Canvas-adress eller skriv in den, till exempel",
-  "Use a Canvas address ending in .instructure.com": "Använd en Canvas-adress som slutar på .instructure.com"
+  "Use a Canvas address ending in .instructure.com": "Använd en Canvas-adress som slutar på .instructure.com",
+  "Search results: {count}": "Sökresultat: {count}",
+  "Retry save": "Försök spara igen"
 }

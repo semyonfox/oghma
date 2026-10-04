@@ -193,8 +193,7 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
     const { noteAPI, treeStore, generation, ownerUserId, sessionReady } = state;
 
     if (!noteAPI || !treeStore || !sessionReady) {
-      console.warn("noteAPI or treeStore not initialized yet");
-      return;
+      throw new Error("Note save unavailable");
     }
 
     let note = await noteCache.getItem(id);
@@ -241,18 +240,17 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
       publishWorkspaceInvalidation(ownerUserId, "tree");
     }
 
-    if (get().generation !== generation) return;
-    if ((noteWriteVersions.get(id) ?? 0) !== mutationVersion) return;
-
     if (!result) {
-      set((currentState) => ({
-        note:
-          currentState.note?.id === id
-            ? withDefaultContent(note)
-            : currentState.note,
-      }));
+      if (get().generation === generation && noteWriteVersions.get(id) === mutationVersion) {
+        set((currentState) => ({
+          note: currentState.note?.id === id ? withDefaultContent(note) : currentState.note,
+        }));
+      }
       throw new Error(noteAPI.error || "Failed to save note");
     }
+
+    if (get().generation !== generation) return;
+    if ((noteWriteVersions.get(id) ?? 0) !== mutationVersion) return;
 
     noteWriteVersions.set(id, mutationVersion + 1);
 

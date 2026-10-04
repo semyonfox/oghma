@@ -1270,5 +1270,7 @@
   "Hide Canvas URL": "إخفاء عنوان Canvas",
   "Canvas URL": "عنوان Canvas",
   "Paste your Canvas URL or enter its address, for example": "الصق عنوان Canvas أو اكتب عنوانه، على سبيل المثال",
-  "Use a Canvas address ending in .instructure.com": "استخدم عنوان Canvas ينتهي بـ .instructure.com"
+  "Use a Canvas address ending in .instructure.com": "استخدم عنوان Canvas ينتهي بـ .instructure.com",
+  "Search results: {count}": "نتائج البحث: {count}",
+  "Retry save": "إعادة محاولة الحفظ"
 }

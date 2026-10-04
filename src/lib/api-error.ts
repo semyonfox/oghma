@@ -73,21 +73,19 @@ function extractErrorInfo(error: unknown) {
       statusCode: error.statusCode,
       logMeta: {
         statusCode: error.statusCode,
-        internal: error.internalDetails,
       },
     };
   }
-  const raw = error instanceof Error ? error.message : String(error);
   return {
     userMessage: "Internal server error",
     statusCode: 500,
-    logMeta: { message: raw, stack: (error as Error)?.stack },
+    logMeta: { statusCode: 500 },
   };
 }
 
 export function apiErrorResponse(error: unknown): NextResponse {
   const { userMessage, statusCode, logMeta } = extractErrorInfo(error);
-  logger.error(userMessage, logMeta);
+  logger.error("operation_failed", logMeta);
   return NextResponse.json(
     { error: userMessage, traceId: getTraceId() },
     { status: statusCode },
@@ -104,30 +102,20 @@ export function tracedError(message: string, status: number): NextResponse {
 
 // ── Route wrapper ────────────────────────────────────────────────────────────
 
-type RouteHandler<Context = unknown> = (
-  request: NextRequest,
-  context: Context,
-) => Promise<NextResponse>;
-
-type WrappedRouteHandler<Context = unknown> = (
-  request: NextRequest,
-  context?: Context,
-) => Promise<NextResponse>;
-
 export type RouteParamsContext<
   Params extends Record<string, string> = Record<string, string>,
 > = {
   params: Promise<Params>;
 };
 
-export function withErrorHandler<Context = unknown>(
-  handler: RouteHandler<Context>,
-): WrappedRouteHandler<Context> {
-  return (request, context) =>
+export function withErrorHandler<ContextArgs extends unknown[] = []>(
+  handler: (request: NextRequest, ...context: ContextArgs) => Promise<NextResponse>,
+): (request: NextRequest, ...context: ContextArgs) => Promise<NextResponse> {
+  return (request, ...context) =>
     withTrace(async () => {
       try {
         assertTrustedOrigin(request);
-        return await handler(request, context as Context);
+        return await handler(request, ...context);
       } catch (error) {
         return apiErrorResponse(error);
       }

@@ -1,3 +1,4 @@
+import logger from "@/lib/logger";
 import { withCanvasPublication } from "./execution";
 /**
  * Canvas Assignment Metadata Sync
@@ -25,10 +26,6 @@ interface AssignmentClient {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
 }
 
 // deterministic color palette for course badges
@@ -108,9 +105,7 @@ export async function syncAssignmentMetadata(
     : await client.getAssignments(courseId);
 
   if (error || !assignments) {
-    console.warn(
-      `[sync-assignments] failed to fetch assignments for course ${courseId}: ${error}`,
-    );
+    logger.warn("worker_event");
     return { synced: 0, errors: 1 };
   }
 
@@ -155,10 +150,8 @@ export async function syncAssignmentMetadata(
           updated_at = NOW()
       `);
       return true;
-    } catch (err) {
-      console.error(
-        `[sync-assignments] failed to upsert assignment ${a.id}: ${errorMessage(err)}`,
-      );
+    } catch {
+      logger.error("worker_event");
       return false;
     }
   })));

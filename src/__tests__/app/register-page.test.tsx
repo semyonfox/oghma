@@ -30,8 +30,7 @@ vi.mock("@/lib/notes/hooks/use-i18n", () => ({
   }),
 }));
 vi.mock("@/lib/marketing/client", () => ({
-  getMarketingContext: () => ({}),
-  trackMarketingEvent: vi.fn(),
+  reportTelemetry: vi.fn(),
 }));
 vi.mock("@/lib/native-app", () => ({
   useNativeAppBridge: () => null,

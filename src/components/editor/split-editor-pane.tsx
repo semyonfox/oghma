@@ -1,6 +1,6 @@
 "use client";
 
-import { FC, useEffect } from "react";
+import { FC, useEffect, useRef } from "react";
 import {
   Group as PanelGroup,
   Panel,
@@ -16,6 +16,14 @@ const SplitEditorPane: FC = () => {
   const paneB = useLayoutStore((s) => s.paneB);
   const setActivePane = useLayoutStore((s) => s.setActivePane);
   const isSplitActive = Boolean(paneB?.fileId);
+  const wasSplitActive = useRef(isSplitActive);
+
+  useEffect(() => {
+    if (wasSplitActive.current && !isSplitActive) {
+      document.querySelector<HTMLElement>('[data-editor-pane="A"]')?.focus();
+    }
+    wasSplitActive.current = isSplitActive;
+  }, [isSplitActive]);
 
   useEffect(() => {
     if (isDesktop === false) setActivePane("A");

@@ -1,3 +1,4 @@
+import logger from "../logger";
 import { checkAndCompleteJob } from "./import-extraction";
 import { recoverCanvasExecutions } from "./execution-recovery";
 /**
@@ -57,7 +58,6 @@ import {
 import { dispatchFairCanvasFiles } from "./import-scheduler";
 import { runImportedFileCacheRetention } from "./import-cache-retention";
 import {
-  canvasJobType,
   dispatchCanvasJob,
   requireJobString,
   type CanvasJob,
@@ -94,10 +94,6 @@ const CF_QUEUE_EMPTY_POLL_INTERVAL_MS = parseInt(
   10,
 );
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 async function failStuckJobs(): Promise<void> {
   const recovered = await recoverCanvasExecutions();
   const settled = await sql<{ id: string }[]>`
@@ -115,29 +111,19 @@ async function failStuckJobs(): Promise<void> {
 async function runMarketingCleanup(): Promise<void> {
   try {
     await pruneChatGenerationPayloads();
-    const result = await cleanupMarketingData();
-    console.log(
-      `[${new Date().toISOString()}] Marketing retention cleanup: ${result.eventsDeleted} event(s), ${result.leadsDeleted} lead(s) deleted`,
-    );
-  } catch (err) {
-    console.error(
-      `[${new Date().toISOString()}] Marketing retention cleanup failed:`,
-      errorMessage(err),
-    );
+    await cleanupMarketingData();
+    logger.info("worker_event");
+  } catch {
+    logger.error("worker_event");
   }
 }
 
 async function runImportCacheRetention(): Promise<void> {
   try {
-    const result = await runImportedFileCacheRetention();
-    console.log(
-      `[${new Date().toISOString()}] Imported-file cache retention: ${result.cachesMarkedFailed} abandoned, ${result.cachesMarkedOrphaned} marked orphaned, ${result.cachesRevived} revived, ${result.cachesPurged} purged, ${result.purgeFailures} failed`,
-    );
-  } catch (err) {
-    console.error(
-      `[${new Date().toISOString()}] Imported-file cache retention failed:`,
-      errorMessage(err),
-    );
+    await runImportedFileCacheRetention();
+    logger.info("worker_event");
+  } catch {
+    logger.error("worker_event");
   }
 }
 
@@ -146,17 +132,12 @@ async function runNoteLifecycleRetention(): Promise<void> {
     // Purging expired Trash roots can create external-cleanup tasks, so run
     // task processing second and let a single daily pass finish both when
     // Qdrant and object storage are healthy.
-    const trashRootsPurged = await purgeExpiredTrash();
-    const cleanupTasksCompleted = await processPendingNoteDeletionCleanup();
-    const hiddenTrashVectors = await reconcileTrashedVectorVisibility();
-    console.log(
-      `[${new Date().toISOString()}] Note lifecycle retention: ${trashRootsPurged} Trash root(s) purged, ${cleanupTasksCompleted} cleanup task(s) completed, ${hiddenTrashVectors} vector(s) hidden`,
-    );
-  } catch (err) {
-    console.error(
-      `[${new Date().toISOString()}] Note lifecycle retention failed:`,
-      errorMessage(err),
-    );
+    await purgeExpiredTrash();
+    await processPendingNoteDeletionCleanup();
+    await reconcileTrashedVectorVisibility();
+    logger.info("worker_event");
+  } catch {
+    logger.error("worker_event");
   }
 }
 
@@ -176,38 +157,22 @@ async function claimOrphanedJobs(): Promise<boolean> {
   const orphaned = queuedOrphans;
   if (orphaned.length === 0) return false;
 
-  console.log(
-    `[${new Date().toISOString()}] DB poll: re-queuing ${orphaned.length} orphaned job(s)`,
-  );
+  logger.info("worker_event");
   for (const row of orphaned) {
     try {
       await enqueueCanvasJob("canvas-discover", {
         jobId: row.id,
         userId: row.user_id,
       });
-    } catch (err) {
-      console.error(
-        `[${new Date().toISOString()}] orphan re-enqueue failed:`,
-        errorMessage(err),
-      );
+    } catch {
+      logger.error("worker_event");
     }
   }
   return true;
 }
 
 export async function processCanvasJob(job: CanvasJob): Promise<void> {
-  const ts = () => new Date().toISOString();
-  const data = job.data ?? {};
-  const type = canvasJobType(job);
-  const startedAt = Date.now();
-  const sinceEnqueuedMs = typeof job.timestamp === "number" &&
-    Number.isFinite(job.timestamp) && job.timestamp <= startedAt
-    ? startedAt - job.timestamp
-    : null;
-  let outcome = "failed";
-  console.log(
-    `[${ts()}] Received ${type}: ${data.jobId ?? data.userId ?? job.id}`,
-  );
+  logger.info("worker_event");
 
   try {
     const handled = await dispatchCanvasJob(job, {
@@ -224,17 +189,14 @@ export async function processCanvasJob(job: CanvasJob): Promise<void> {
       processVaultImport,
     });
     if (!handled) {
-      console.warn(`[${ts()}] Unknown job type: ${type}`);
+      logger.warn("worker_event");
     }
-    outcome = handled ? "handled" : "unknown";
   } finally {
-    console.log(`[${ts()}] ${type} ${outcome}: ${data.jobId ?? data.userId ?? job.id}; processingMs=${Date.now() - startedAt}; sinceEnqueuedMs=${sinceEnqueuedMs ?? "unknown"}`);
+    logger.info("worker_event");
   }
 }
 
-console.log(
-  `[${new Date().toISOString()}] Canvas Import Worker started (${getQueueProvider()} + DB poll, concurrency=${MAX_CONCURRENT_JOBS}, marker-dispatch=${MARKER_DISPATCH_CONSUMER_ENABLED ? MAX_CONCURRENT_MARKER_DISPATCHES : "disabled"})`,
-);
+logger.info("worker_event");
 
 async function recoverChatGenerations(): Promise<void> {
   if (getQueueProvider() !== "bullmq") return;
@@ -245,9 +207,7 @@ async function recoverChatGenerations(): Promise<void> {
     ),
   );
   if (staleChatGenerations.length > 0) {
-    console.log(
-      `[${new Date().toISOString()}] DB recovery: republished ${staleChatGenerations.length} chat generation(s)`,
-    );
+    logger.info("worker_event");
   }
 }
 
@@ -266,30 +226,21 @@ setInterval(async () => {
     await recoverChatGenerations();
     const recoveredExtractionRetries = await recoverPendingExtractionRetries();
     if (recoveredExtractionRetries > 0) {
-      console.log(
-        `[${new Date().toISOString()}] DB poll: recovered ${recoveredExtractionRetries} extraction retry job(s)`,
-      );
+      logger.info("worker_event");
     }
     const recoveredCanvasExtracts = await recoverPendingCanvasExtracts();
     if (recoveredCanvasExtracts > 0) {
-      console.log(
-        `[${new Date().toISOString()}] DB poll: republished ${recoveredCanvasExtracts} Canvas extraction stage(s)`,
-      );
+      logger.info("worker_event");
     }
     if (MARKER_DISPATCH_CONSUMER_ENABLED) {
       const recoveredMarkerJobs = await recoverMarkerDispatchJobs();
       if (recoveredMarkerJobs > 0) {
-        console.log(
-          `[${new Date().toISOString()}] DB poll: recovered ${recoveredMarkerJobs} Marker dispatch job(s)`,
-        );
+        logger.info("worker_event");
       }
     }
     await dispatchFairCanvasFiles(MAX_CONCURRENT_JOBS);
-  } catch (err) {
-    console.error(
-      `[${new Date().toISOString()}] DB poll error:`,
-      errorMessage(err),
-    );
+  } catch {
+    logger.error("worker_event");
   }
 }, DB_POLL_INTERVAL_MS);
 
@@ -334,11 +285,8 @@ async function processCloudflareQueueBatch(
       try {
         await processCanvasJob(cloudflareJobFromMessage(message));
         acks.push(message.lease_id);
-      } catch (err) {
-        console.error(
-          `[${new Date().toISOString()}] Cloudflare queue job ${message.id} failed:`,
-          errorMessage(err),
-        );
+      } catch {
+        logger.error("worker_event");
         retries.push({
           lease_id: message.lease_id,
           delay_seconds: CF_QUEUE_RETRY_DELAY_SECONDS,
@@ -355,9 +303,7 @@ async function startCloudflarePullLoop(
   queueName: string,
   concurrency: number,
 ): Promise<void> {
-  console.log(
-    `[${new Date().toISOString()}] Starting Cloudflare pull consumer for ${queueName}`,
-  );
+  logger.info("worker_event");
 
   while (!shuttingDown) {
     try {
@@ -368,11 +314,8 @@ async function startCloudflarePullLoop(
       if (!hadMessages) {
         await sleep(CF_QUEUE_EMPTY_POLL_INTERVAL_MS);
       }
-    } catch (err) {
-      console.error(
-        `[${new Date().toISOString()}] Cloudflare pull error for ${queueName}:`,
-        errorMessage(err),
-      );
+    } catch {
+      logger.error("worker_event");
       await sleep(CF_QUEUE_EMPTY_POLL_INTERVAL_MS);
     }
   }
@@ -429,17 +372,11 @@ async function startBullMqWorkers(): Promise<void> {
   }
 
   for (const w of activeWorkers) {
-    w.on("failed", (job, err) => {
-      console.error(
-        `[${new Date().toISOString()}] Job ${job?.id} (${job?.name}) failed:`,
-        errorMessage(err),
-      );
+    w.on("failed", () => {
+      logger.error("worker_event");
     });
-    w.on("error", (err) => {
-      console.error(
-        `[${new Date().toISOString()}] Worker error:`,
-        errorMessage(err),
-      );
+    w.on("error", () => {
+      logger.error("worker_event");
     });
   }
 
@@ -468,7 +405,7 @@ function pollStudyJobs(): void {
     try {
       await processNextStudyJob();
     } catch {
-      console.error(`[${new Date().toISOString()}] Study job poll failed. Check database availability and migrations.`);
+      logger.error("study job poll failed");
     }
   })().finally(() => { studyJobTask = undefined; });
 }
@@ -479,7 +416,7 @@ function reconcileStudyMapMaterials(): void {
     try {
       await reconcileStudyMaps();
     } catch {
-      console.error(`[${new Date().toISOString()}] Study map reconciliation failed. Check database availability and migrations.`);
+      logger.error("study map reconciliation failed");
     }
   })().finally(() => { studyMapTask = undefined; });
 }
@@ -491,14 +428,12 @@ studyMapReconcileTimer.unref();
 pollStudyJobs();
 reconcileStudyMapMaterials();
 
-const shutdown = async (signal: string): Promise<void> => {
+const shutdown = async (): Promise<void> => {
   if (shuttingDown) return;
   shuttingDown = true;
   clearInterval(studyJobPollTimer);
   clearInterval(studyMapReconcileTimer);
-  console.log(
-    `[${new Date().toISOString()}] received ${signal}, draining workers`,
-  );
+  logger.info("worker_event");
   await Promise.allSettled([
     ...workers.map((worker) => worker.close()),
     studyJobTask,
@@ -507,5 +442,5 @@ const shutdown = async (signal: string): Promise<void> => {
   await sql.end({ timeout: 5 });
   process.exit(0);
 };
-process.on("SIGTERM", () => shutdown("SIGTERM"));
-process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("SIGTERM", () => shutdown());
+process.on("SIGINT", () => shutdown());

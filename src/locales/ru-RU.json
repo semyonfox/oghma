@@ -1270,5 +1270,7 @@
   "Hide Canvas URL": "Скрыть адрес Canvas",
   "Canvas URL": "Адрес Canvas",
   "Paste your Canvas URL or enter its address, for example": "Вставьте адрес Canvas или введите его вручную, например",
-  "Use a Canvas address ending in .instructure.com": "Используйте адрес Canvas, заканчивающийся на .instructure.com"
+  "Use a Canvas address ending in .instructure.com": "Используйте адрес Canvas, заканчивающийся на .instructure.com",
+  "Search results: {count}": "Результаты поиска: {count}",
+  "Retry save": "Повторить сохранение"
 }

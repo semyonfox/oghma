@@ -1270,5 +1270,7 @@
   "Hide Canvas URL": "Canvas URL छिपाएँ",
   "Canvas URL": "Canvas URL",
   "Paste your Canvas URL or enter its address, for example": "अपना Canvas URL पेस्ट करें या उसका पता लिखें, उदाहरण के लिए",
-  "Use a Canvas address ending in .instructure.com": ".instructure.com पर समाप्त होने वाला Canvas पता इस्तेमाल करें"
+  "Use a Canvas address ending in .instructure.com": ".instructure.com पर समाप्त होने वाला Canvas पता इस्तेमाल करें",
+  "Search results: {count}": "खोज परिणाम: {count}",
+  "Retry save": "सहेजने का फिर प्रयास करें"
 }

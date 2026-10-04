@@ -129,7 +129,7 @@ describe("single-use authentication tokens", () => {
 
     expect(responses.map(({ status }) => status).sort()).toEqual([200, 400]);
     expect(mocks.createAuthSession).toHaveBeenCalledOnce();
-    expect(mocks.recordActivationMilestone).toHaveBeenCalledOnce();
+    expect(mocks.recordActivationMilestone).not.toHaveBeenCalled();
 
     const [account] = await fixtureSql`
       SELECT email_verified, verification_token

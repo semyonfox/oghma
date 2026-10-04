@@ -8,7 +8,7 @@
  * 5. Return success response (requires verification)
  */
 
-import { after, NextResponse, type NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import sql from "@/database/pgsql";
 import { validateAuthCredentials } from "@/lib/auth-credentials";
 import {
@@ -27,7 +27,6 @@ import { checkRateLimit, getClientIp } from "@/lib/rateLimiter";
 import bcrypt from "bcryptjs";
 import logger from "@/lib/logger";
 import { withErrorHandler } from "@/lib/api-error";
-import { recordMarketingEvent } from "@/lib/marketing/events";
 import { registerSchema, validateBody } from "@/lib/validations/schemas";
 import { validateAgentRegistrationForSignup } from "@/lib/agent-registration";
 import {
@@ -35,7 +34,6 @@ import {
   renderGettingStartedNote,
 } from "@/lib/chat/app-guide";
 import { insertNoteWithTree } from "@/lib/notes/storage/create-note";
-import { cleanAttribution } from "@/lib/marketing/attribution";
 import { getRequestLocale } from "@/lib/i18n/server";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -166,35 +164,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
           emailErr instanceof EmailSendError ? emailErr.providerCode : undefined,
       });
     }
-
-    const rawMarketing =
-      isRecord(rawBody) && isRecord(rawBody.marketing)
-        ? rawBody.marketing
-        : {};
-    const marketingEvent = {
-      eventName: "registration_success",
-      sessionId: rawMarketing.sessionId,
-      userId: user.user_id,
-      path: "/register",
-      source: "auth_register",
-      utm: cleanAttribution(rawMarketing.utm),
-      properties: {
-        method: "email",
-        requires_verification: true,
-        email_delivery_attempted: true,
-        email_delivery: emailDelivery,
-        first_touch: rawMarketing.firstTouch,
-      },
-    };
-
-    after(() =>
-      recordMarketingEvent(
-        marketingEvent,
-        request,
-      ).catch(() => {
-        logger.warn("failed to record registration marketing event");
-      }),
-    );
 
     // 9. Return success with requiresVerification flag (no session created)
     return NextResponse.json(

@@ -576,7 +576,7 @@ async function discoverCourse(
     course.name,
     course.term,
   );
-  console.log(`Discovering course: ${courseTitle}`);
+  logger.info("worker_event");
 
   try {
     const courseFolderId = await findOrCreateFolder(userId, courseTitle, null, {
@@ -627,7 +627,7 @@ async function discoverCourse(
           updated_at = NOW()
         WHERE id = ${ctx.jobId}::uuid AND status = 'discovering'
       `);
-      console.log(`Skipping trashed Canvas course: ${courseTitle}`);
+      logger.info("worker_event");
       return;
     }
     throw error;
@@ -651,14 +651,10 @@ async function syncAssignmentMetadataQuietly(
       assignments,
     );
     if (synced > 0 || errors > 0) {
-      console.log(
-        `[sync-assignments] course ${courseTitle}: ${synced} synced, ${errors} errors`,
-      );
+      logger.info("worker_event");
     }
-  } catch (err) {
-    console.warn(
-      `[sync-assignments] skipped for course ${courseTitle}: ${errorMessage(err)}`,
-    );
+  } catch {
+    logger.warn("worker_event");
   }
 }
 
@@ -682,7 +678,7 @@ async function processModules(
     jobId,
   );
   if (!modules) {
-    console.warn(`No modules (or restricted) for course ${courseId}`);
+    logger.warn("worker_event");
     return;
   }
   await pooled(
@@ -710,7 +706,7 @@ async function processModules(
             item.content_id,
           );
           if (fileForbidden || !file) {
-            console.log(`File forbidden: ${item.title}`);
+            logger.info("worker_event");
             return null;
           }
           return file;
@@ -781,7 +777,7 @@ export async function processCourse(courseInput: unknown, userId: string, ctx: I
     course.name,
     course.term,
   );
-  console.log(`Processing course: ${courseTitle}`);
+  logger.info("worker_event");
   try {
     const courseFolderId = await findOrCreateFolder(userId, courseTitle, null, {
       canvasCourseId: canvasIdForBigintColumn(course.id, "Canvas course ID"),
@@ -794,7 +790,7 @@ export async function processCourse(courseInput: unknown, userId: string, ctx: I
     await syncAssignmentMetadataQuietly(courseId, userId, courseTitle, ctx.client);
   } catch (error) {
     if (error instanceof CanvasFolderTrashedError) {
-      console.log(`Skipping trashed Canvas course: ${courseTitle}`);
+      logger.info("worker_event");
       return;
     }
     throw error;
@@ -804,9 +800,7 @@ export async function processCourse(courseInput: unknown, userId: string, ctx: I
 // ── Two-phase discovery entry point ─────────────────────────────────────────
 
 export async function processDiscoverJob(jobId: string, _attempt = 0) {
-  console.log(
-    `[${new Date().toISOString()}] Starting discovery for job: ${jobId}`,
-  );
+  logger.info("worker_event");
   const claimToken = randomUUID();
   try {
     // Claim discovery atomically. Queue providers are at-least-once, so a
@@ -825,7 +819,7 @@ export async function processDiscoverJob(jobId: string, _attempt = 0) {
       RETURNING *
     `;
     if (!job) {
-      console.log(`Job ${jobId} is already claimed, terminal, or missing`);
+      logger.info("worker_event");
       return false;
     }
 
@@ -867,7 +861,7 @@ export async function processDiscoverJob(jobId: string, _attempt = 0) {
         WHERE job_id = ${jobId}::uuid
           AND status IN ('pending', 'downloading', 'processing', 'indexing', 'pending_extract', 'pending_retry', 'pending_marker', 'pending_cache')
       `;
-      console.log(`Job ${jobId} cancelled during discovery`);
+      logger.info("worker_event");
       return false;
     }
 
@@ -888,7 +882,7 @@ export async function processDiscoverJob(jobId: string, _attempt = 0) {
       RETURNING id
     `);
     if (transitioned.length === 0) {
-      console.log(`Job ${jobId} was cancelled during discovery finalization`);
+      logger.info("worker_event");
       return false;
     }
 
@@ -912,14 +906,12 @@ export async function processDiscoverJob(jobId: string, _attempt = 0) {
       userId: job.user_id,
     });
 
-    console.log(
-      `[${new Date().toISOString()}] Discovery done: ${total} total, ${pendingRecords.length} ready for fair scheduling for job ${jobId}`,
-    );
+    logger.info("worker_event");
     return true;
     });
   } catch (error) {
     if (error instanceof CanvasClaimLostError) return false;
-    console.error(`Discovery failed: ${jobId}`, error);
+    logger.error("worker_event");
     const message = errorMessage(error);
     logger.error("canvas-import-discovery-error", {
       jobId,

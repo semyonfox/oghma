@@ -6,6 +6,7 @@
  * Uses fflate's streaming Unzip for flat ~200MB memory regardless of zip size.
  */
 
+import logger from "../logger";
 import type postgres from "postgres";
 import sql from "../../database/pgsql";
 import { v4 as uuidv4 } from "uuid";
@@ -34,7 +35,6 @@ import {
   VaultTreeParentUnavailableError,
 } from "./tree-builder";
 import { sendVaultImportCompleteEmail } from "../email";
-import { recordActivationMilestone } from "../marketing/events";
 
 const PROCESSABLE_EXTS = new Set([
   "pdf",
@@ -275,7 +275,7 @@ async function processRagPipeline(
         AND deleted_at IS NULL
     `;
     const count = await replaceNoteEmbeddings(noteId, userId, chunks);
-    console.log(`[vault-import] RAG: ${count} chunks for text note ${noteId}`);
+    logger.info(`[vault-import] RAG: ${count} chunks for text note ${noteId}`);
     return;
   }
 
@@ -310,7 +310,7 @@ async function processRagPipeline(
     // known note namespace immediately instead of leaving untracked objects.
     await storage.deletePrefix(markerAssetPrefix(userId, mdNoteId)).catch(
       (cleanupError) => {
-        console.warn(
+        logger.warn(
           `[vault-import] failed to clean Marker assets for deleted note ${mdNoteId}:`,
           errorMessage(cleanupError),
         );
@@ -328,7 +328,7 @@ async function processRagPipeline(
       AND deleted_at IS NULL
   `;
   const count = await replaceNoteEmbeddings(mdNoteId, userId, chunks);
-  console.log(
+  logger.info(
     `[vault-import] RAG: ${count} chunks for MD note ${mdNoteId} (source: ${noteId}, marker images: ${markerAssets.imageCount})`,
   );
 }
@@ -564,7 +564,7 @@ async function streamAndProcessZip(
 export async function processVaultImport(msg: Record<string, unknown>): Promise<void> {
   const { jobId, userId, s3Key } = requireVaultImportMessage(msg);
   const ts = () => new Date().toISOString();
-  console.log(`[${ts()}] Starting vault import: job=${jobId}`);
+  logger.info(`[${ts()}] Starting vault import: job=${jobId}`);
   let cancelled = false;
 
   try {
@@ -581,7 +581,7 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
       RETURNING id
     `;
     if (!claimed) {
-      console.log(`[${ts()}] Vault import ${jobId} is already claimed, cancelled, or missing`);
+      logger.info(`[${ts()}] Vault import ${jobId} is already claimed, cancelled, or missing`);
       return;
     }
 
@@ -591,7 +591,7 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
     let totalFolders = 0;
     let failedFiles = 0;
 
-    console.log(`[${ts()}] Streaming zip from S3: ${s3Key}`);
+    logger.info(`[${ts()}] Streaming zip from S3: ${s3Key}`);
 
     const totalEntries = await streamAndProcessZip(
       s3Key,
@@ -641,7 +641,7 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
                 jobId,
               });
             } catch (ragErr) {
-              console.error(
+              logger.error(
                 `[${ts()}] RAG failed for ${filename}:`,
                 errorMessage(ragErr),
               );
@@ -656,7 +656,7 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
             WHERE id = ${jobId}::uuid
           `;
           if (cancelRow?.cancel_requested_at || cancelRow?.status === "cancelled") {
-            console.log(`[${ts()}] Cancel requested for ${jobId}; aborting after ${totalFiles} files`);
+            logger.info(`[${ts()}] Cancel requested for ${jobId}; aborting after ${totalFiles} files`);
             await sql`
               UPDATE app.canvas_import_jobs
               SET status = 'cancelled', completed_at = NOW(), processed_files = ${totalFiles}, updated_at = NOW()
@@ -674,7 +674,7 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
               WHERE id = ${jobId}::uuid AND status = 'processing'
             `;
           }
-          console.log(`[${ts()}] Imported: ${cleanPath}`);
+          logger.info(`[${ts()}] Imported: ${cleanPath}`);
         } catch (err) {
           if (
             err instanceof VaultImportCancelledError ||
@@ -686,7 +686,7 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
             // note row from which to discover it.
             if (uploadedFileKey) {
               await storage.deleteObject(uploadedFileKey).catch((cleanupError) => {
-                console.warn(
+                logger.warn(
                   `[${ts()}] Failed to remove cancelled vault object ${uploadedFileKey}:`,
                   errorMessage(cleanupError),
                 );
@@ -698,7 +698,7 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
             return;
           }
           failedFiles++;
-          console.error(
+          logger.error(
             `[${ts()}] Failed to import ${cleanPath}:`,
             errorMessage(err),
           );
@@ -707,7 +707,7 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
     );
 
     if (cancelled) {
-      console.log(`[${ts()}] Import cancelled for ${jobId}; skipping completion`);
+      logger.info(`[${ts()}] Import cancelled for ${jobId}; skipping completion`);
       return;
     }
 
@@ -732,11 +732,11 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
         const { seedQuestionsAfterImport } =
           await import("../quiz/generate-background.ts");
         const seeded = await seedQuestionsAfterImport(userId, chunkIds, 5);
-        console.log(`[${ts()}] Quiz seed: ${seeded} questions generated`);
+        logger.info(`[${ts()}] Quiz seed: ${seeded} questions generated`);
 
       }
     } catch (seedErr) {
-      console.warn(
+      logger.warn(
         `[${ts()}] Quiz seed failed (non-fatal): ${errorMessage(seedErr)}`,
       );
     }
@@ -748,17 +748,10 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
       RETURNING id
     `;
     if (completed.length === 0) {
-      console.log(`[${ts()}] Import ${jobId} finished but row was already terminal (cancelled/failed); skipping email`);
+      logger.info(`[${ts()}] Import ${jobId} finished but row was already terminal (cancelled/failed); skipping email`);
       return;
     }
 
-    await recordActivationMilestone("canvas_import_completed", userId).catch(
-      (eventError) => {
-        console.warn(
-          `[${ts()}] Failed to record import completion milestone: ${errorMessage(eventError)}`,
-        );
-      },
-    );
 
     try {
       const [user] =
@@ -771,18 +764,18 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
         });
       }
     } catch (emailErr) {
-      console.error(`[${ts()}] Email notification failed:`, errorMessage(emailErr));
+      logger.error(`[${ts()}] Email notification failed:`, errorMessage(emailErr));
     }
 
-    console.log(
+    logger.info(
       `[${ts()}] Vault import complete: ${totalFiles} files, ${totalFolders} folders, ${failedFiles} failures`,
     );
   } catch (error) {
     if (cancelled) {
-      console.warn(`[${ts()}] Ignoring error after cancel for ${jobId}: ${errorMessage(error)}`);
+      logger.warn(`[${ts()}] Ignoring error after cancel for ${jobId}: ${errorMessage(error)}`);
       return;
     }
-    console.error(`[${ts()}] Vault import failed:`, error);
+    logger.error(`[${ts()}] Vault import failed:`, error);
     await sql`
       UPDATE app.canvas_import_jobs
       SET status = 'failed', error_message = ${errorMessage(error)}, completed_at = NOW(), updated_at = NOW()

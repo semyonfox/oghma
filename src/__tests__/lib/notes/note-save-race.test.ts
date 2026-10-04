@@ -185,6 +185,23 @@ describe("note save/fetch coordination", () => {
     expect(useNoteStore.getState().note).toEqual(original);
   });
 
+  it("reports an earlier failed save even when another pane has saved successfully", async () => {
+    const original = note({ content: "before" });
+    memory.set(NOTE_ID, original);
+    let failFirst!: (result: undefined) => void;
+    const mutate = vi.fn()
+      .mockImplementationOnce(() => new Promise<undefined>((resolve) => { failFirst = resolve; }))
+      .mockResolvedValueOnce(note({ content: "pane B" }));
+    useNoteStore.getState().setDependencies(noteApi({ mutate }), treeStore(), vi.fn());
+    const first = useNoteStore.getState().mutateNote(NOTE_ID, { content: "pane A" });
+    const firstResult = expect(first).rejects.toThrow("Failed to save note");
+    await vi.waitFor(() => expect(mutate).toHaveBeenCalledOnce());
+    await useNoteStore.getState().mutateNote(NOTE_ID, { content: "pane B" });
+    failFirst(undefined);
+    await firstResult;
+    expect(memory.get(NOTE_ID)?.content).toBe("pane B");
+  });
+
   it("drops a note response that finishes after the workspace changes owner", async () => {
     let resolveFind!: (result: NoteModel) => void;
     const find = vi.fn(
@@ -214,9 +231,7 @@ describe("note save/fetch coordination", () => {
     useNoteStore.getState().resetForSession("user-1");
     useNoteStore.getState().setDependencies(api, treeStore(), vi.fn());
 
-    await useNoteStore
-      .getState()
-      .mutateNote(NOTE_ID, { content: "late autosave" });
+    await expect(useNoteStore.getState().mutateNote(NOTE_ID, { content: "late autosave" })).rejects.toThrow("Note save unavailable");
 
     expect(mutate).not.toHaveBeenCalled();
   });
@@ -307,7 +322,7 @@ describe("note save/fetch coordination", () => {
       .mutateNote(NOTE_ID, { content: "newer save" });
     resolveOlder(undefined);
 
-    await expect(olderSave).resolves.toBeUndefined();
+    await expect(olderSave).rejects.toThrow("Failed to save note");
     expect(memory.get(NOTE_ID)).toMatchObject({ content: "newer save" });
     expect(useNoteStore.getState().note).toMatchObject({
       content: "newer save",

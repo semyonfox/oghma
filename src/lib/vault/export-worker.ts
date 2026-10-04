@@ -1,3 +1,4 @@
+import logger from "@/lib/logger";
 /**
  * Vault Export Worker
  * Queries user's tree, streams files from S3, builds a zip via fflate's
@@ -102,11 +103,8 @@ class S3MultipartZipUploader {
             UploadId: this.uploadId,
           }),
         );
-      } catch (err) {
-        console.error(
-          "[vault-export] Failed to abort multipart upload:",
-          errorMessage(err),
-        );
+      } catch {
+        logger.error("worker_event");
       }
     }
   }
@@ -135,8 +133,7 @@ export async function processVaultExport(
 ): Promise<void> {
   const jobId = requireMessageString(msg, "jobId");
   const userId = requireMessageString(msg, "userId");
-  const ts = () => new Date().toISOString();
-  console.log(`[${ts()}] Starting vault export: job=${jobId}`);
+  logger.info("worker_event");
 
   const bucket = process.env.STORAGE_BUCKET;
   const prefix = process.env.STORAGE_PREFIX || "oghma";
@@ -155,7 +152,7 @@ export async function processVaultExport(
     const exportMap = await buildExportPathMap(userId);
     const totalFiles = exportMap.size;
 
-    console.log(`[${ts()}] Found ${totalFiles} files to export`);
+    logger.info("worker_event");
     await sql`UPDATE app.canvas_import_jobs SET expected_total = ${totalFiles} WHERE id = ${jobId}::uuid`;
 
     await uploader.init();
@@ -173,7 +170,7 @@ export async function processVaultExport(
     let processed = 0;
     const failedPaths: string[] = [];
 
-    for (const [noteId, entry] of exportMap) {
+    for (const [_noteId, entry] of exportMap) {
       try {
         const { path, s3Key, content } = entry;
         let fileData: Buffer;
@@ -192,9 +189,7 @@ export async function processVaultExport(
           // text note — write as UTF-8
           fileData = Buffer.from(content, "utf-8");
         } else {
-          console.log(
-            `[${ts()}] Skipping note ${noteId}: no s3_key and no content`,
-          );
+          logger.info("worker_event");
           continue;
         }
 
@@ -224,7 +219,7 @@ export async function processVaultExport(
           WHERE id = ${jobId}::uuid
         `;
         if (cancelRow?.cancel_requested_at || cancelRow?.status === "cancelled") {
-          console.log(`[${ts()}] Cancel requested for ${jobId}; aborting after ${processed} files`);
+          logger.info("worker_event");
           await uploader.abort();
           await sql`
             UPDATE app.canvas_import_jobs
@@ -239,13 +234,10 @@ export async function processVaultExport(
             SET processed_files = ${processed}, updated_at = NOW()
             WHERE id = ${jobId}::uuid AND status = 'processing'
           `;
-          console.log(`[${ts()}] Exported ${processed}/${totalFiles} files`);
+          logger.info("worker_event");
         }
-      } catch (err) {
-        console.error(
-          `[${ts()}] Failed to export ${entry.path}:`,
-          errorMessage(err),
-        );
+      } catch {
+        logger.error("worker_event");
         failedPaths.push(entry.path);
       }
     }
@@ -296,7 +288,7 @@ export async function processVaultExport(
       RETURNING id
     `;
     if (completed.length === 0) {
-      console.log(`[${ts()}] Export ${jobId} finished but row was already terminal (cancelled/failed); skipping email`);
+      logger.info("worker_event");
       return;
     }
 
@@ -308,16 +300,13 @@ export async function processVaultExport(
       if (user?.email) {
         await sendVaultExportCompleteEmail(user.email, { downloadUrl });
       }
-    } catch (emailErr) {
-      console.error(
-        `[${ts()}] Email notification failed:`,
-        errorMessage(emailErr),
-      );
+    } catch {
+      logger.error("worker_event");
     }
 
-    console.log(`[${ts()}] Vault export complete: ${processed} files`);
+    logger.info("worker_event");
   } catch (error) {
-    console.error(`[${ts()}] Vault export failed:`, error);
+    logger.error("worker_event");
     await uploader.abort();
     await sql`
       UPDATE app.canvas_import_jobs

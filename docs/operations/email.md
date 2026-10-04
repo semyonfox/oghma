@@ -4,8 +4,8 @@
 >
 > Audience: Application, DNS, and company-mail administrators
 >
-> Last verified: 2026-07-11 against `src/lib/email.ts`, tracked env templates,
-> and official Cloudflare Email Service documentation
+> Last verified: 2026-09-25 against `src/lib/email.ts`, tracked env templates,
+> and official Cloudflare and Resend documentation
 
 OghmaNotes separates human mailboxes, inbound routing, and transactional app
 mail. Do not make one provider responsible for a role it is not configured to
@@ -17,8 +17,8 @@ perform.
 |---|---|
 | Human inboxes on `oghmanotes.ie` | Intended owner: Google Workspace; verify live MX before changes |
 | Shared root-domain addresses such as support or billing | Google Groups, aliases, or collaborative inboxes |
-| Transactional application email | Cloudflare Email Sending |
-| Current application transport | Cloudflare Email Sending REST API from the Node runtime |
+| Transactional application email | Resend during the closed pilot; Cloudflare remains available |
+| Current application transport | Resend or Cloudflare REST API from the Node runtime, selected by `EMAIL_PROVIDER` |
 | Bulk marketing/newsletters | Not Cloudflare Email Sending; choose a purpose-built provider before sending |
 
 Project policy assigns inbound MX for the root `oghmanotes.ie` domain to Google
@@ -70,10 +70,10 @@ Resend's free plan currently includes 3,000 outbound emails per month and a
 recipient addresses. Test addresses do not need to be registered one by one.
 The app uses Resend's REST API directly, so no additional package is needed.
 
-To use it on dev, verify the intended sending domain in the Resend account. Add
+To use it in an environment, verify the intended sending domain in the Resend account. Add
 only the DNS records Resend provides for that domain. Check the
 existing MX, SPF, DKIM, and DMARC records before editing DNS; preserve inbound
-mail routing. Then set these in the dev runtime environment:
+mail routing. Then set these in that environment's private runtime file:
 
 | Variable | Value |
 |---|---|
@@ -86,7 +86,7 @@ Cloudflare path. Do not put the API key in this repository. Resend returning an
 email ID means it accepted the request, so the app reports it as `queued`.
 Check the Resend delivery log and a controlled inbox for the final outcome.
 To rotate the key, create a replacement in Resend, update the private env file,
-redeploy the dev containers, confirm delivery, and then revoke the old key.
+redeploy the affected containers, confirm delivery, and then revoke the old key.
 Changing the env file alone does not update a running container.
 
 For Cloudflare sending, confirm that the domain portion of `EMAIL_FROM` is onboarded

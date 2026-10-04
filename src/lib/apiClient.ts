@@ -123,13 +123,11 @@ export function login(
 export function register(
   email: string,
   password: string,
-  marketing?: unknown,
   agentRegistration?: AgentRegistrationClaim,
 ): Promise<RegisterResponse> {
   return postJson<RegisterResponse>("/api/auth/register", {
     email,
     password,
-    marketing,
     ...agentRegistration,
   });
 }

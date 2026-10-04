@@ -7,7 +7,12 @@ export type SaveState = "saved" | "dirty" | "saving" | "error";
 
 export interface FileSaveIndicator {
     state: SaveState;
+    ready?: boolean;
     save: () => void;
+}
+
+export function saveIndicatorKey(fileId: string, owner: "A" | "B" = "A"): string {
+    return owner === "A" ? fileId : `${fileId}:B`;
 }
 
 interface SaveIndicatorState {
@@ -25,6 +30,7 @@ const useSaveIndicatorStore = create<SaveIndicatorState>((set) => ({
             if (
                 current &&
                 current.state === indicator.state &&
+                current.ready === indicator.ready &&
                 current.save === indicator.save
             ) {
                 return state;

@@ -1,29 +1,30 @@
-import { NextRequest } from "next/server";
-import { withErrorHandler } from "@/lib/api-error";
-import {
-  hasPrivacySignal,
-  marketingEventResponse,
-  recordMarketingEvent,
-} from "@/lib/marketing/events";
+import { NextResponse } from "next/server";
+import { forwardTelemetry, telemetryServerConfigured } from "@/lib/marketing/events";
+import { hasPrivacySignal, parseTelemetryEvent } from "@/lib/telemetry";
 
-export const POST = withErrorHandler(async (request: NextRequest) => {
-  const contentLength = Number(request.headers.get("content-length") || "0");
-  if (contentLength > 8_192) return marketingEventResponse(false, 413);
-
-  const rawBody = await request.text().catch(() => "");
-  if (rawBody.length > 8_192) return marketingEventResponse(false, 413);
-  const body = (() => {
-    try {
-      return JSON.parse(rawBody);
-    } catch {
-      return null;
+export async function POST(request: Request): Promise<NextResponse> {
+  if (!telemetryServerConfigured() || hasPrivacySignal(request)) return new NextResponse(null, { status: 204 });
+  if (Number(request.headers.get("content-length")) > 1024) return new NextResponse(null, { status: 413 });
+  const reader = request.body?.getReader();
+  if (!reader) return new NextResponse(null, { status: 400 });
+  const timeout = setTimeout(() => { void reader.cancel().catch(() => {}); }, 2000);
+  try {
+    const decoder = new TextDecoder();
+    let bytes = 0;
+    let raw = "";
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > 1024) { await reader.cancel(); return new NextResponse(null, { status: 413 }); }
+      raw += decoder.decode(value, { stream: true });
     }
-  })();
-  if (!body || typeof body !== "object") {
-    return marketingEventResponse(false, 400);
-  }
-
-  const ok = await recordMarketingEvent(body, request, { trusted: false });
-  const optedOut = hasPrivacySignal(request);
-  return marketingEventResponse(ok || optedOut, ok || optedOut ? 202 : 400);
-});
+    raw += decoder.decode();
+    const body: unknown = JSON.parse(raw);
+    const event = parseTelemetryEvent(body);
+    if (!event) return new NextResponse(null, { status: 400 });
+    await forwardTelemetry(event);
+    return new NextResponse(null, { status: 204 });
+  } catch { return new NextResponse(null, { status: 400 }); }
+  finally { clearTimeout(timeout); reader.releaseLock(); }
+}

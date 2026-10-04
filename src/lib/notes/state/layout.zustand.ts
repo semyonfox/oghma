@@ -14,6 +14,7 @@ interface PaneState {
   sourcePath?: string;
   editMode?: boolean; // For notes only
   lastOpened?: number; // timestamp
+  draftOwner?: "A" | "B";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -32,7 +33,8 @@ function isPaneState(value: unknown): value is PaneState {
     (value.title === undefined || typeof value.title === "string") &&
     (value.sourcePath === undefined || typeof value.sourcePath === "string") &&
     (value.editMode === undefined || typeof value.editMode === "boolean") &&
-    (value.lastOpened === undefined || typeof value.lastOpened === "number")
+    (value.lastOpened === undefined || typeof value.lastOpened === "number") &&
+    (value.draftOwner === undefined || value.draftOwner === "A" || value.draftOwner === "B")
   );
 }
 
@@ -43,6 +45,22 @@ function stringSet(value: unknown, fallback: string[]): Set<string> {
 }
 
 export interface FileSpec extends PaneState {}
+
+function withDraftOwner(
+  file: FileSpec,
+  pane: "A" | "B",
+  current: FileSpec | null,
+  other: FileSpec | null,
+): FileSpec {
+  const preferred = current?.fileId === file.fileId
+    ? current.draftOwner ?? pane
+    : file.draftOwner ?? pane;
+  const otherOwner = other?.draftOwner ?? (pane === "A" ? "B" : "A");
+  const draftOwner = other?.fileId === file.fileId && preferred === otherOwner
+    ? otherOwner === "A" ? "B" : "A"
+    : preferred;
+  return { ...file, draftOwner };
+}
 
 interface LayoutState {
   // Navigation
@@ -117,8 +135,10 @@ const useLayoutStore = create<LayoutState>()(
 
       // Pane A (required)
       setPaneA: (file) => {
-        set(() => ({
-          paneA: file || { fileId: "", fileType: "note" as FileType },
+        set((state) => ({
+          paneA: file
+            ? withDraftOwner(file, "A", state.paneA, state.paneB)
+            : { fileId: "", fileType: "note" as FileType },
           selectedNode: file?.fileId || null,
         }));
       },
@@ -128,7 +148,10 @@ const useLayoutStore = create<LayoutState>()(
         if (!file) {
           set({ paneB: null });
         } else {
-          set({ paneB: { ...file, lastOpened: Date.now() } });
+          set((state) => ({ paneB: {
+            ...withDraftOwner(file, "B", state.paneB, state.paneA),
+            lastOpened: Date.now(),
+          } }));
         }
       },
 
@@ -152,8 +175,8 @@ const useLayoutStore = create<LayoutState>()(
             if (source === "A" && target === "B" && !state.paneB) return state;
 
             return {
-              paneA: state.paneB || state.paneA,
-              paneB: state.paneA,
+              paneA: state.paneB ? { ...state.paneB, draftOwner: state.paneB.draftOwner ?? "B" } : state.paneA,
+              paneB: { ...state.paneA, draftOwner: state.paneA.draftOwner ?? "A" },
               activePane: target,
               selectedNode: file.fileId,
             };
@@ -161,14 +184,14 @@ const useLayoutStore = create<LayoutState>()(
 
           if (target === "A") {
             return {
-              paneA: file,
+              paneA: withDraftOwner(file, "A", state.paneA, state.paneB),
               activePane: "A",
               selectedNode: file.fileId,
             };
           }
 
           return {
-            paneB: { ...file, lastOpened: Date.now() },
+            paneB: { ...withDraftOwner(file, "B", state.paneB, state.paneA), lastOpened: Date.now() },
             activePane: "B",
             selectedNode: file.fileId,
           };
@@ -197,7 +220,9 @@ const useLayoutStore = create<LayoutState>()(
             };
           }
 
-          const promoted = state.paneB;
+          const promoted: FileSpec | null = state.paneB
+            ? { ...state.paneB, draftOwner: state.paneB.draftOwner ?? "B" }
+            : null;
           survivingFile = promoted;
           return {
             paneA: promoted || { fileId: "", fileType: "note" as FileType },
@@ -215,10 +240,10 @@ const useLayoutStore = create<LayoutState>()(
 
       // Swap panes
       swapPanes: () => {
-        set((state) => ({
-          paneA: state.paneB || state.paneA,
-          paneB: state.paneA,
-        }));
+        set((state) => state.paneB ? {
+          paneA: { ...state.paneB, draftOwner: state.paneB.draftOwner ?? "B" },
+          paneB: { ...state.paneA, draftOwner: state.paneA.draftOwner ?? "A" },
+        } : state);
       },
 
       // Edit mode (for notes)

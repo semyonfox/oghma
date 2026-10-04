@@ -6,7 +6,6 @@ import { Metrics } from "@/lib/metrics";
 import { buildLlmCall } from "@/lib/chat/build-stream";
 import { prepareChatGeneration } from "@/lib/chat/prepare-generation";
 import { streamFinalAnswer } from "@/lib/chat/final-answer";
-import { recordActivationMilestone } from "@/lib/marketing/events";
 import { TOOL_CALL_LIMIT_USER_MESSAGE } from "@/lib/chat/tool-budget";
 import {
   appendChatGenerationText,
@@ -401,15 +400,6 @@ export async function processChatGeneration(
     }
 
     void Metrics.llmLatency(Date.now() - t0);
-    if (
-      finalization.kind === "complete" &&
-      uniqueSources.length > 0 &&
-      !payload.respectPrivacySignal
-    ) {
-      void recordActivationMilestone("first_cited_answer", userId).catch(
-        () => {},
-      );
-    }
     await finishEventDelivery();
     logger.info("Background chat generation completed", {
       generationId,

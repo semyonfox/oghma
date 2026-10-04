@@ -1,28 +1,10 @@
 "use client";
 
-import { type FormEvent, useRef, useState } from "react";
+import { type FormEvent, useState } from "react";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import {
-  getMarketingContext,
-  trackMarketingEvent,
+  reportTelemetry,
 } from "@/lib/marketing/client";
-
-function messageLengthBucket(value: FormDataEntryValue | null) {
-  const length = typeof value === "string" ? value.trim().length : 0;
-  if (length <= 100) return "0-100";
-  if (length <= 500) return "101-500";
-  return "500+";
-}
-
-function formAnalyticsPayload(form: HTMLFormElement) {
-  const formData = new FormData(form);
-  const message = formData.get("message");
-
-  return {
-    interest: formData.get("interest") || undefined,
-    message_length_bucket: messageLengthBucket(message),
-  };
-}
 
 type ContactFormProps = { source?: string; centered?: boolean };
 
@@ -30,38 +12,15 @@ export default function ContactForm({ source = "contact", centered = false }: Co
   const { t } = useI18n();
   const [result, setResult] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const startedRef = useRef(false);
-
-  const trackStart = () => {
-    if (startedRef.current) return;
-    startedRef.current = true;
-    trackMarketingEvent("contact_form_start", {
-      source: "contact_form",
-      properties: {
-        page: source,
-        form: "contact",
-      },
-    });
-  };
-
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const form = event.currentTarget;
     setIsLoading(true);
-
-    trackMarketingEvent("contact_form_submit", {
-      source: "contact_form",
-      properties: {
-        page: source,
-        form: "contact",
-        ...formAnalyticsPayload(event.currentTarget),
-      },
-    });
 
     const formData = new FormData(event.currentTarget);
     const payload = {
       ...Object.fromEntries(formData.entries()),
       source,
-      marketing: getMarketingContext(),
     };
 
     try {
@@ -75,29 +34,15 @@ export default function ContactForm({ source = "contact", centered = false }: Co
 
       if (response.ok && data.success) {
         setResult(t("Message sent successfully!"));
-        event.currentTarget.reset();
-        startedRef.current = false;
+        form.reset();
+        reportTelemetry({ kind: "count", name: "action_completed", route: "help" });
         setTimeout(() => setResult(""), 5000);
       } else {
-        trackMarketingEvent("contact_form_error", {
-          source: "contact_form",
-          properties: {
-            page: source,
-            form: "contact",
-            error_type: "provider_error",
-          },
-        });
+        reportTelemetry({ kind: "error", name: "request_failed", route: "help" });
         setResult(t("Error sending message. Please try again."));
       }
     } catch (_error) {
-      trackMarketingEvent("contact_form_error", {
-        source: "contact_form",
-        properties: {
-          page: source,
-          form: "contact",
-          error_type: "network_error",
-        },
-      });
+      reportTelemetry({ kind: "error", name: "request_failed", route: "help" });
       setResult(t("Error sending message. Please try again."));
     } finally {
       setIsLoading(false);
@@ -107,8 +52,6 @@ export default function ContactForm({ source = "contact", centered = false }: Co
   return (
     <form
       onSubmit={onSubmit}
-      onFocusCapture={trackStart}
-      onChangeCapture={trackStart}
       className={
         centered
           ? "mx-auto w-full max-w-2xl"

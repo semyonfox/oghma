@@ -11,8 +11,8 @@ import {
 
 export function logChatStream(
   level: "debug" | "info" | "warn" | "error",
-  message: string,
-  details: Record<string, unknown> = {},
+  _message: string,
+  _details: Record<string, unknown> = {},
 ): void {
   if (
     process.env.NODE_ENV !== "development" ||
@@ -21,7 +21,7 @@ export function logChatStream(
     return;
   }
   const logger = console[level] ?? console.log;
-  logger(`[chat-stream] ${message}`, details);
+  logger("chat_stream_event");
 }
 
 function appendTokenPart(parts: MessagePart[], text: string): MessagePart[] {

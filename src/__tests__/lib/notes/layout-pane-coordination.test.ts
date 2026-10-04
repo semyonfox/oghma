@@ -41,7 +41,7 @@ describe("layout pane coordination", () => {
       .getState()
       .dismissUnavailablePane("A", paneA.fileId);
 
-    expect(surviving).toEqual(paneB);
+    expect(surviving).toEqual({ ...paneB, draftOwner: "B" });
     expect(useLayoutStore.getState()).toMatchObject({
       paneA: paneB,
       paneB: null,
@@ -82,6 +82,32 @@ describe("layout pane coordination", () => {
       treeWidth: 600,
       rightPanelWidth: 600,
     });
+  });
+
+  it("keeps draft ownership with each note when swapping panes", () => {
+    useLayoutStore.getState().swapPanes();
+    expect(useLayoutStore.getState()).toMatchObject({
+      paneA: { ...paneB, draftOwner: "B" },
+      paneB: { ...paneA, draftOwner: "A" },
+    });
+    useLayoutStore.getState().setPaneA(paneB);
+    expect(useLayoutStore.getState().paneA.draftOwner).toBe("B");
+    useLayoutStore.getState().swapPanes();
+    expect(useLayoutStore.getState()).toMatchObject({
+      paneA: { ...paneA, draftOwner: "A" },
+      paneB: { ...paneB, draftOwner: "B" },
+    });
+  });
+
+  it("assigns independent owners when duplicating a note after a swap", () => {
+    useLayoutStore.getState().swapPanes();
+    useLayoutStore.getState().setPaneB(useLayoutStore.getState().paneA);
+    expect(useLayoutStore.getState()).toMatchObject({
+      paneA: { ...paneB, draftOwner: "B" },
+      paneB: { ...paneB, draftOwner: "A" },
+    });
+    useLayoutStore.getState().setPaneA(paneB);
+    expect(useLayoutStore.getState().paneA.draftOwner).toBe("B");
   });
 
   it("swaps open panes atomically when a pane is dropped on the other", () => {

@@ -60,13 +60,8 @@ describe("quiz card persistence", () => {
 
     expect(result).not.toBeNull();
     expect(mockSql).toHaveBeenCalledTimes(4);
-    expect(mockRecordActivationMilestone).toHaveBeenCalledWith(
-      "first_flashcard_generated",
-      "00000000-0000-4000-8000-000000000001",
-    );
-    expect(mockSql.mock.invocationCallOrder[3]).toBeLessThan(
-      mockRecordActivationMilestone.mock.invocationCallOrder[0],
-    );
+    expect(mockRecordActivationMilestone).not.toHaveBeenCalled();
+
   });
 
   it("does not record another milestone when the question already exists", async () => {

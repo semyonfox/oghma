@@ -5,20 +5,20 @@ import { addStudyMaterials, reviewStudyMaterial, removeStudyMaterial } from "@/l
 import { materialsAddSchema, materialUpdateSchema } from "@/lib/study-map/types";
 import { readStudyBody, type StudyMapRouteContext } from "@/lib/study-map/api";
 
-export const POST = withErrorHandler<StudyMapRouteContext>(async (request, { params }) => {
+export const POST = withErrorHandler(async (request, { params }: StudyMapRouteContext) => {
   const user = await requireAuth();
   const input = await readStudyBody(request, materialsAddSchema);
   await addStudyMaterials(user.user_id, requireValidId((await params).id), input.noteIds);
   return NextResponse.json({ added: input.noteIds.length });
 });
 
-export const PATCH = withErrorHandler<StudyMapRouteContext>(async (request, { params }) => {
+export const PATCH = withErrorHandler(async (request, { params }: StudyMapRouteContext) => {
   const user = await requireAuth();
   await reviewStudyMaterial(user.user_id, requireValidId((await params).id), await readStudyBody(request, materialUpdateSchema));
   return NextResponse.json({ saved: true });
 });
 
-export const DELETE = withErrorHandler<StudyMapRouteContext>(async (request, { params }) => {
+export const DELETE = withErrorHandler(async (request, { params }: StudyMapRouteContext) => {
   const user = await requireAuth();
   const input = await readStudyBody(request, z.object({ noteId: z.uuid() }));
   await removeStudyMaterial(user.user_id, requireValidId((await params).id), input.noteId);

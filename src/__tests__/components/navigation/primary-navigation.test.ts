@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => {
@@ -67,10 +67,12 @@ describe("PrimaryNavigation AI chat entry", () => {
   it("opens a fresh full-screen chat from the navigation rail", async () => {
     render(React.createElement(PrimaryNavigation));
 
-    fireEvent.click(screen.getByTitle("AI Chat"));
+    const link = screen.getByRole("link", { name: "AI Chat" });
+    expect(link.getAttribute("href")).toBe("/chat");
+    fireEvent.click(link, { ctrlKey: true });
 
     expect(mocks.setActiveNav).toHaveBeenCalledWith("chat");
-    expect(mocks.push).toHaveBeenCalledWith("/chat");
+    expect(mocks.push).not.toHaveBeenCalled();
     expect(mocks.openRightPanelTab).not.toHaveBeenCalled();
   });
 
@@ -88,10 +90,10 @@ describe("PrimaryNavigation AI chat entry", () => {
 
     expect(screen.getByRole("navigation", { name: "Main navigation" })).toBeTruthy();
     expect(
-      screen.getByRole("button", { name: "Notes" }).getAttribute("aria-current"),
+      screen.getByRole("link", { name: "Notes" }).getAttribute("aria-current"),
     ).toBe("page");
     expect(
-      screen.getByRole("button", { name: "AI Chat" }).getAttribute("aria-current"),
+      screen.getByRole("link", { name: "AI Chat" }).getAttribute("aria-current"),
     ).toBeNull();
   });
 
@@ -99,7 +101,7 @@ describe("PrimaryNavigation AI chat entry", () => {
     mocks.pathname = "/chat/session-123";
     render(React.createElement(PrimaryNavigation));
     expect(
-      screen.getByRole("button", { name: "AI Chat" }).getAttribute("aria-current"),
+      screen.getByRole("link", { name: "AI Chat" }).getAttribute("aria-current"),
     ).toBe("page");
   });
 
@@ -121,10 +123,10 @@ describe("PrimaryNavigation AI chat entry", () => {
     expect(screen.getByText("Calendar")).toBeTruthy();
   });
 
-  it("starts a generic focus session from the navigation rail", () => {
+  it("starts a generic focus session from the navigation rail", async () => {
     render(React.createElement(PrimaryNavigation));
 
-    fireEvent.click(screen.getByRole("button", { name: "Focus" }));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Focus" })); });
 
     expect(mocks.pomodoroStart).toHaveBeenCalledTimes(1);
     expect(mocks.pomodoroStart).toHaveBeenCalledWith({});
@@ -147,7 +149,7 @@ describe("PrimaryNavigation AI chat entry", () => {
     expect(mocks.pomodoroStart).not.toHaveBeenCalled();
   });
 
-  it("starts a focus session from the drawer and closes it", () => {
+  it("starts a focus session from the drawer and closes it", async () => {
     const onNavigate = vi.fn();
     render(
       React.createElement(PrimaryNavigation, {
@@ -156,9 +158,21 @@ describe("PrimaryNavigation AI chat entry", () => {
       }),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Focus" }));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Focus" })); });
 
     expect(mocks.pomodoroStart).toHaveBeenCalledWith({});
-    expect(onNavigate).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(onNavigate).toHaveBeenCalledTimes(1));
   });
+  it("prevents repeated focus starts while waiting", async () => {
+    let finish!: () => void;
+    mocks.pomodoroStart.mockReturnValueOnce(new Promise<void>((resolve) => { finish = resolve; }));
+    render(React.createElement(PrimaryNavigation));
+    const button = screen.getByRole("button", { name: "Focus" });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    expect(mocks.pomodoroStart).toHaveBeenCalledTimes(1);
+    expect(button.getAttribute("aria-busy")).toBe("true");
+    await act(async () => { finish(); });
+  });
+
 });

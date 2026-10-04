@@ -1270,5 +1270,7 @@
   "Hide Canvas URL": "Folaigh URL Canvas",
   "Canvas URL": "URL Canvas",
   "Paste your Canvas URL or enter its address, for example": "Greamaigh URL Canvas do scoile nó cuir isteach a sheoladh, mar shampla",
-  "Use a Canvas address ending in .instructure.com": "Úsáid seoladh Canvas a chríochnaíonn le .instructure.com"
+  "Use a Canvas address ending in .instructure.com": "Úsáid seoladh Canvas a chríochnaíonn le .instructure.com",
+  "Search results: {count}": "Torthaí cuardaigh: {count}",
+  "Retry save": "Bain triail as sábháil arís"
 }

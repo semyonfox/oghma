@@ -62,7 +62,8 @@ import sql from "@/database/pgsql";
 import { validateSession } from "@/lib/auth";
 import { replaceNoteEmbeddings } from "@/lib/rag/indexing";
 import { getStorageProvider } from "@/lib/storage/init";
-import { POST, runExtraction } from "@/app/api/extract/route";
+import { POST } from "@/app/api/extract/route";
+import { runExtraction } from "@/lib/ingestion/run-extraction";
 
 type SqlCall = [TemplateStringsArray, ...unknown[]];
 
@@ -158,7 +159,7 @@ describe("POST /api/extract", () => {
       }),
     });
 
-    const response = await POST(request, undefined);
+    const response = await POST(request);
 
     expect(response.status).toBe(400);
     expect(getStorageProvider).not.toHaveBeenCalled();
@@ -177,7 +178,7 @@ describe("POST /api/extract", () => {
       }),
     });
 
-    const response = await POST(request, undefined);
+    const response = await POST(request);
 
     expect(response.status).toBe(400);
     expect(getStorageProvider).not.toHaveBeenCalled();
@@ -207,7 +208,7 @@ describe("POST /api/extract", () => {
       }),
     });
 
-    const response = await POST(request, undefined);
+    const response = await POST(request);
 
     expect(response.status).toBe(200);
     expect(getStorageProvider).toHaveBeenCalledOnce();
