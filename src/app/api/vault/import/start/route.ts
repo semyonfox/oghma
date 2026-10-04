@@ -136,12 +136,19 @@ export const POST = withErrorHandler(async (request) => {
       s3Key,
     }, { attempts: 1 });
   } catch (err) {
-    // Enqueue failed. Remove the orphaned queue row so it does not block future requests.
-    await sql`
-      UPDATE app.canvas_import_jobs
-      SET status = 'failed', error_message = 'Failed to enqueue job', completed_at = NOW(), updated_at = NOW()
-      WHERE id = ${jobId}::uuid
-    `;
+    // Enqueue failed. Fail the orphaned job and hand the upload back to its reservation,
+    // so the same zip can be started again instead of being locked until it expires.
+    await sql.begin(async (tx: postgres.TransactionSql) => {
+      await tx`
+        UPDATE app.canvas_import_jobs
+        SET status = 'failed', error_message = 'Failed to enqueue job', completed_at = NOW(), updated_at = NOW()
+        WHERE id = ${jobId}::uuid
+      `;
+      await tx`
+        UPDATE app.vault_artifacts SET job_id = NULL
+        WHERE job_id = ${jobId}::uuid AND kind = 'upload'
+      `;
+    });
     throw err;
   }
 

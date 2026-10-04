@@ -101,6 +101,9 @@ afterAll(async () => {
   await Promise.all([fixtureSql.end(), appSql.end()]);
 });
 
+// verification makes the mailbox owner choose the password, so every request carries one
+const chosenPassword = "Fixture-Passw0rd";
+
 describe("single-use authentication tokens", () => {
   it("lets exactly one concurrent email-verification request consume a token", async () => {
     const email = `verify-${userId}@example.test`;
@@ -123,8 +126,8 @@ describe("single-use authentication tokens", () => {
     `;
 
     const responses = await Promise.all([
-      verifyEmail(jsonRequest("/api/auth/verify-email", { token })),
-      verifyEmail(jsonRequest("/api/auth/verify-email", { token })),
+      verifyEmail(jsonRequest("/api/auth/verify-email", { token, password: chosenPassword })),
+      verifyEmail(jsonRequest("/api/auth/verify-email", { token, password: chosenPassword })),
     ]);
 
     expect(responses.map(({ status }) => status).sort()).toEqual([200, 400]);
@@ -183,7 +186,7 @@ describe("single-use authentication tokens", () => {
 
     try {
       const failed = await verifyEmail(
-        jsonRequest("/api/auth/verify-email", { token }),
+        jsonRequest("/api/auth/verify-email", { token, password: chosenPassword }),
       );
       expect(failed.status).toBe(500);
       expect(mocks.createAuthSession).not.toHaveBeenCalled();
@@ -204,7 +207,7 @@ describe("single-use authentication tokens", () => {
     }
 
     const retry = await verifyEmail(
-      jsonRequest("/api/auth/verify-email", { token }),
+      jsonRequest("/api/auth/verify-email", { token, password: chosenPassword }),
     );
     expect(retry.status).toBe(200);
   });
