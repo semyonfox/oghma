@@ -74,6 +74,13 @@ test("keyboard retry keeps focus in the editor when its save action disappears",
   await expect(page.getByRole("status").filter({ hasText: "Saved" })).toBeVisible();
   await expect(editor).toContainText("Synthetic revision");
   expect(workspace.savedContent()).toContain("Synthetic revision");
+  await editor.click();
+  await page.keyboard.press("End");
+  await page.keyboard.type(" Blur revision");
+  await page.locator('[data-editor-pane="A"]').first().focus();
+  await expect.poll(workspace.savedContent).toContain("Blur revision");
+  await expect(page.getByRole("status").filter({ hasText: "Saved" })).toBeVisible();
+  await expect(page.locator('[data-editor-pane="A"]').first()).toBeFocused();
   await page.screenshot({ path: testInfo.outputPath("ux-save-retry-focus.png") });
 });
 

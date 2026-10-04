@@ -387,11 +387,11 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
     (e: React.FocusEvent<HTMLDivElement>) => {
       if (e.relatedTarget instanceof HTMLElement && e.relatedTarget.closest("[data-save-action]")) return;
       // only save if focus is leaving the editor entirely (not moving within it)
-      if (!e.currentTarget.contains(e.relatedTarget as Node) && isDirty) {
+      if (!(e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) && isDirtyRef.current) {
         handleSave();
       }
     },
-    [isDirty, handleSave],
+    [handleSave],
   );
 
   // publish save state to the pane header — the filename bar owns the button

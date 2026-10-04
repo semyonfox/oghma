@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   t: (key: string) => key,
   setSettings: vi.fn(),
   failDraftWrite: false,
+  pendingBlurContent: "",
 }));
 
 vi.mock("next/navigation", () => ({ useRouter: () => mocks.router }));
@@ -22,6 +23,12 @@ vi.mock("next/dynamic", () => ({
     onSave: () => void;
   }) {
     return <textarea aria-label="content" value={props.value}
+      onBlurCapture={() => {
+        if (mocks.pendingBlurContent) {
+          props.onChange(mocks.pendingBlurContent, false);
+          mocks.pendingBlurContent = "";
+        }
+      }}
       onKeyDownCapture={(event) => {
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
           event.preventDefault();
@@ -92,6 +99,7 @@ describe("markdown editor recovery ownership", () => {
     vi.clearAllMocks();
     mocks.cache.clear();
     mocks.failDraftWrite = false;
+    mocks.pendingBlurContent = "";
     mocks.fetchNote.mockResolvedValue({ content: "server", updatedAt: "2026-01-01T00:00:00Z" });
     mocks.mutateNote.mockResolvedValue(undefined);
     useSaveIndicatorStore.setState({ files: {} });
@@ -103,6 +111,16 @@ describe("markdown editor recovery ownership", () => {
   });
 
   afterEach(() => { cleanup(); });
+
+  it("autosaves a first edit published during blur capture before React renders it", async () => {
+    const view = render(<MarkdownEditor pane="A" file={file} />);
+    await waitFor(() => expect(view.getByRole("textbox")).toBeTruthy());
+    mocks.pendingBlurContent = "last words before leaving";
+    fireEvent.blur(view.getByRole("textbox"), { relatedTarget: document.body });
+    await waitFor(() => expect(mocks.mutateNote).toHaveBeenCalledWith(file.fileId, {
+      content: "last words before leaving",
+    }));
+  });
 
   it("saves to the server when local draft storage is unavailable", async () => {
     const view = render(<MarkdownEditor pane="A" file={file} />);
