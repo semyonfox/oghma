@@ -562,7 +562,7 @@ export default function ChatPageClient() {
           <ConversationHistory {...historyProps} showHeader={false} />
         </MobileDrawer>
       )}
-      <MobileBottomNavigation aboveComposer />
+      <MobileBottomNavigation />
     </div>
   );
 }

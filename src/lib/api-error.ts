@@ -7,19 +7,10 @@ import {
   type SessionUser,
 } from "./auth";
 import { isValidUUID } from "./utils/uuid";
+import { ApiError } from "./api-errors";
+export { ApiError } from "./api-errors";
 
 // ── Error classes ────────────────────────────────────────────────────────────
-
-export class ApiError extends Error {
-  constructor(
-    public statusCode: number,
-    public userMessage: string,
-    public internalDetails?: string,
-  ) {
-    super(userMessage);
-    this.name = "ApiError";
-  }
-}
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 

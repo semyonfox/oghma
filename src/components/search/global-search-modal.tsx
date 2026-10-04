@@ -46,6 +46,7 @@ interface ResultsBySection {
 }
 
 const DESTINATIONS: SearchResult[] = [
+  { id: "study-map", type: "destination", title: "Study map", subtitle: "Find topics, labels, and materials across modules", href: "/study-map", source: "destination", keywords: ["syllabus", "topics", "labels", "tags", "modules", "exams", "canvas"] },
   {
     id: "notes",
     type: "destination",
@@ -161,7 +162,7 @@ function detailIcon(type: ResultType) {
 
 function matchesDestination(result: SearchResult, query: string) {
   if (!query) {
-    return ["notes", "chat", "quiz", "settings"].includes(result.id);
+    return ["notes", "chat", "quiz", "study-map", "settings"].includes(result.id);
   }
 
   const haystack = [

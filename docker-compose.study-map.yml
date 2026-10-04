@@ -1,0 +1,92 @@
+name: oghmanotes-study-map
+
+# credentials here belong only to this disposable synthetic preview
+services:
+  postgres:
+    image: postgres:18
+    network_mode: bridge
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: study_map
+      POSTGRES_PASSWORD: ${STUDY_MAP_DB_PASSWORD:-postgres}
+      POSTGRES_DB: oghma_study_e2e
+    ports:
+      - "127.0.0.1:55488:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U study_map -d oghma_study_e2e"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    volumes:
+      - study-map-postgres:/var/lib/postgresql
+
+  redis:
+    image: redis:7-alpine
+    network_mode: bridge
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:56388:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    volumes:
+      - study-map-redis:/data
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    network_mode: bridge
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:56389:6333"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/6333'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    volumes:
+      - study-map-qdrant:/qdrant/storage
+
+  rustfs:
+    image: ghcr.io/rustfs/rustfs:1.0.0@sha256:8cc9801755448b71a786705ce76692c77e14936cccd87cf2fc31842e58f4d1ff
+    network_mode: bridge
+    restart: unless-stopped
+    command: /data
+    environment:
+      RUSTFS_ACCESS_KEY: oghmastudy
+      RUSTFS_SECRET_KEY: oghmastudy-test
+      RUSTFS_CORS_ALLOWED_ORIGINS: ${STUDY_MAP_CORS_ALLOWED_ORIGINS:-http://127.0.0.1:3311}
+    ports:
+      - "127.0.0.1:59108:9000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/health/ready"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    volumes:
+      - study-map-rustfs:/data
+
+  fake-ai:
+    build:
+      context: .
+      dockerfile: Dockerfile.e2e-fake-ai
+    network_mode: bridge
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:58188:8081"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:8081/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  study-map-postgres:
+  study-map-redis:
+  study-map-qdrant:
+  study-map-rustfs:
