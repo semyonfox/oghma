@@ -2,7 +2,7 @@
 
 > **Status:** Active reference
 >
-> **Last reviewed:** 2026-08-12
+> **Last reviewed:** 2026-10-04
 >
 > **Source of truth:** Current application code, [`Jenkinsfile`](../../Jenkinsfile), [`database/migrations/`](../../database/migrations/), and [`infra/HOMELAB.md`](../../infra/HOMELAB.md)
 
@@ -172,6 +172,50 @@ The Jenkins pipeline is the deploy authority. In outline it:
 `main` maps to production and `dev` maps to development. Do not encode a fixed
 migration range in dependent documentation. Deployed migration state must be
 checked in `app.schema_migrations`, not inferred from files alone.
+
+## Source layout
+
+`src/lib` groups server and shared code by domain. File names are kebab-case.
+
+| Folder | Holds |
+|---|---|
+| `auth/` | Sessions and JWTs, credentials, OAuth linking, login lockout, mobile grants, agent registration, token hashing |
+| `rag/` | Chunking, embeddings, reranking, their providers, and index writes |
+| `marker/` | Marker OCR: direct calls, RunPod and Vast dispatch, result validation, asset output |
+| `canvas/` | Canvas client, import pipeline, sync, and the raw export (`raw-export*.ts`) |
+| `chat/` | Prompts, generation, streaming, sessions, and tool proposals that wait for approval |
+| `study-map/` | Study maps: classification jobs, topics, exam statistics, search |
+| `notes/` | Browser state in `state/` (one zustand store per file, default export), browser API helpers in `api/`, server storage in `storage/` |
+
+Shared infrastructure with one file each stays at the top of `src/lib`: `logger.ts`, `redis.ts`, `cache.ts`, `queue.ts`, `qdrant.ts`, `config.ts`, `email.ts`, `rate-limiter.ts`.
+
+When a module grows past one file, add sibling files that share its prefix, as `canvas/import-*.ts` and `canvas/raw-export-*.ts` do. Do not add an `index.ts` barrel.
+
+### API routes
+
+JSON routes under `src/app/api` share one shape. The helpers live in [`src/lib/api-error.ts`](../../src/lib/api-error.ts) and [`src/lib/validations/schemas.ts`](../../src/lib/validations/schemas.ts).
+
+```ts
+export const PATCH = withErrorHandler(
+  async (request, { params }: RouteParamsContext<{ id: string }>) => {
+    const user = await requireAuth();
+    const noteId = requireValidId((await params).id, "note ID");
+
+    const parsed = validateBody(noteUpdateSchema, await parseJsonObject(request));
+    if (!parsed.success) return parsed.response;
+
+    const note = await updateNote(user.user_id, noteId, parsed.data);
+    if (!note) return tracedError("Note not found", 404);
+    return NextResponse.json(note);
+  },
+);
+```
+
+- `withErrorHandler` opens a trace, rejects mutating requests from an untrusted origin, and turns a thrown `ApiError` into `{ error, traceId }`. Anything else becomes a 500 with the same body shape. The class itself lives in `src/lib/api-errors.ts` so session and worker code can throw it without importing the route helpers.
+- `requireAuth` checks the account and its session version in PostgreSQL on every call. `requireAuthLite` runs the same check and returns only the user id, for chat presence heartbeats.
+- `parseJsonObject` reads at most 1 MiB unless told otherwise, answers malformed JSON with a 400 and an oversized body with a 413. Validate the fields with a zod schema through `validateBody`.
+
+Three groups of routes do not use the wrapper. Webhooks, bearer-token endpoints and the mobile token exchange carry no browser `Origin` header, so the origin check would reject them. The `auth/*` routes return a `{ success, error }` body that the login and register clients are typed against. Health and NextAuth handlers have their own contracts.
 
 ## Change discipline
 

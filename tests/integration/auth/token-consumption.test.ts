@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
   recordActivationMilestone: vi.fn(async () => true),
 }));
 
-vi.mock("@/lib/auth", () => {
+vi.mock("@/lib/auth/session", () => {
   const createErrorResponse = (
     message: string,
     status = 400,
@@ -55,7 +55,7 @@ vi.mock("@/lib/auth", () => {
   };
 });
 vi.mock("@/lib/api-error", () => ({ assertTrustedOrigin: vi.fn() }));
-vi.mock("@/lib/rateLimiter", () => ({
+vi.mock("@/lib/rate-limiter", () => ({
   checkRateLimit: vi.fn(async () => null),
   getClientIp: vi.fn(() => "127.0.0.1"),
 }));
@@ -69,7 +69,7 @@ vi.mock("@/lib/marketing/events", () => ({
 import appSql from "@/database/pgsql";
 import { POST as verifyEmail } from "@/app/api/auth/verify-email/route";
 import { POST as resetPassword } from "@/app/api/auth/password-reset/verify/route";
-import { hashToken } from "@/lib/tokens";
+import { hashToken } from "@/lib/auth/tokens";
 
 const fixtureSql = postgres(requireE2EDatabaseUrl(), { max: 4 });
 let userId: string;

@@ -42,7 +42,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: mocks.replace }),
 }));
 
-vi.mock("@/lib/notes/state/layout.zustand", () => {
+vi.mock("@/lib/notes/state/layout", () => {
   const useLayoutStore = (selector: (state: typeof layoutState) => unknown) =>
     selector(layoutState);
   useLayoutStore.getState = () => layoutState;

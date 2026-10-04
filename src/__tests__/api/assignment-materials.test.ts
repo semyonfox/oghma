@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 const mocks = vi.hoisted(() => ({ load: vi.fn(), discover: vi.fn(), sql: vi.fn(), start: vi.fn(), enqueue: vi.fn(), course: vi.fn() }));
-vi.mock("@/lib/auth", () => ({ validateSession: vi.fn(), validateSessionLite: vi.fn() }));
+vi.mock("@/lib/auth/session", () => ({ validateSession: vi.fn(), validateSessionLite: vi.fn() }));
 vi.mock("@/database/pgsql", () => ({ default: mocks.sql }));
 vi.mock("@/lib/canvas/load-assignment", () => ({ loadCanvasAssignment: mocks.load }));
 vi.mock("@/lib/canvas/assignment-materials", () => ({ discoverAssignmentMaterials: mocks.discover }));

@@ -1,5 +1,5 @@
 import { type NextRequest } from "next/server";
-import { createAuthSession } from "@/lib/auth";
+import { createAuthSession } from "@/lib/auth/session";
 import { ApiError, parseJsonObject, withErrorHandler } from "@/lib/api-error";
 import {
   mobileAppLinksReady,
@@ -8,8 +8,8 @@ import {
   MobileAuthStoreUnavailableError,
   consumeMobileAuthGrant,
   findActiveMobileAuthUser,
-} from "@/lib/mobile-auth";
-import { checkRateLimit, getClientIp } from "@/lib/rateLimiter";
+} from "@/lib/auth/mobile";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
   if (!mobileAppLinksReady()) throw new ApiError(503, "Android App Links setup is incomplete");

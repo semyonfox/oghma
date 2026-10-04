@@ -1,14 +1,14 @@
 "use client";
 
 import AssignmentDetailsTrigger from "@/components/assignments/assignment-details-trigger";
-import type { Assignment } from "@/lib/notes/state/assignments.zustand";
+import type { Assignment } from "@/lib/notes/state/assignments";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { XMarkIcon, CheckCircleIcon } from "@heroicons/react/20/solid";
 import { CheckCircleIcon as CheckCircleOutline } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
-import useCalendarStore from "@/lib/notes/state/calendar.zustand";
-import useAssignmentStore from "@/lib/notes/state/assignments.zustand";
+import useCalendarStore from "@/lib/notes/state/calendar";
+import useAssignmentStore from "@/lib/notes/state/assignments";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { getCelebrationOrigin, triggerCelebration } from "@/lib/celebration";
 import {

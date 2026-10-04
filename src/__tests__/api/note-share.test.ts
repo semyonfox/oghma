@@ -44,10 +44,11 @@ vi.mock("@/lib/api-error", () => {
     withErrorHandler: (handler: unknown) => handler,
     requireAuth: requireAuthMock,
     requireValidId: (value: string) => value,
+    parseJsonObject: (request: Request) => request.json(),
   };
 });
 
-vi.mock("@/lib/rateLimiter", () => ({
+vi.mock("@/lib/rate-limiter", () => ({
   checkRateLimit: checkRateLimitMock,
 }));
 

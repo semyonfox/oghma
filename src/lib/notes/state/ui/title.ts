@@ -6,7 +6,7 @@ interface TitleStore {
     updateTitle: (text?: string) => void;
 }
 
-export const useTitleStore = create<TitleStore>((set) => ({
+const useTitleStore = create<TitleStore>((set) => ({
     value: 'OghmaNotes',
     updateTitle: (text?: string) => {
         set({ value: text ? `${text} - OghmaNotes` : 'OghmaNotes' });

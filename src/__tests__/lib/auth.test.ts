@@ -16,7 +16,7 @@ import {
   validateSessionLite,
   createErrorResponse,
   createValidationErrorResponse,
-} from "@/lib/auth";
+} from "@/lib/auth/session";
 
 type OAuthSession = { user?: { id?: string; sessionVersion?: number } } | null;
 const authMock = auth as unknown as MockedFunction<() => Promise<OAuthSession>>;

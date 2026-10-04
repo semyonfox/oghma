@@ -22,7 +22,7 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock("@/database/pgsql", () => ({ default: mocks.sql }));
-vi.mock("@/lib/strip-markdown", () => ({
+vi.mock("@/lib/rag/strip-markdown", () => ({
   stripMarkdown: vi.fn((value: string) => value),
 }));
 vi.mock("@/lib/storage/init.ts", () => ({
@@ -45,7 +45,7 @@ vi.mock("@/lib/canvas/extraction-retry.ts", () => ({
 vi.mock("@/lib/ingestion/extraction-core.ts", () => ({
   extractContentFromBuffer: mocks.extractContentFromBuffer,
 }));
-vi.mock("@/lib/marker-output.ts", () => ({
+vi.mock("@/lib/marker/output.ts", () => ({
   persistMarkerAssetsForNote: mocks.persistMarkerAssetsForNote,
 }));
 vi.mock("@/lib/canvas/async-limiter", () => ({
@@ -62,7 +62,7 @@ vi.mock("@/lib/logger.ts", () => ({
 vi.mock("@/lib/text-sanitize.ts", () => ({
   sanitizePostgresText: vi.fn((value: string) => value),
 }));
-vi.mock("@/lib/marker-serverless.ts", () => ({
+vi.mock("@/lib/marker/serverless.ts", () => ({
   markerQueueEnabled: mocks.markerQueueEnabled,
   processAllPdfsWithMarker: mocks.processAllPdfsWithMarker,
   submitMarkerJob: mocks.submitMarkerJob,

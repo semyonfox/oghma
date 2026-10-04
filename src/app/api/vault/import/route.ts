@@ -3,7 +3,7 @@ import { withErrorHandler, requireAuth, ApiError, parseJsonObject } from "@/lib/
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { reserveVaultUpload, VAULT_UPLOAD_MAX_BYTES } from "@/lib/vault/artifacts";
-import { checkRateLimit } from "@/lib/rateLimiter";
+import { checkRateLimit } from "@/lib/rate-limiter";
 import { v4 as uuidv4 } from "uuid";
 import { createS3ClientConfig, createS3ConfigFromEnv } from "@/lib/storage/s3";
 

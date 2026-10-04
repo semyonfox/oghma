@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   requestVastEndpoint,
   vastWorkloadCost,
-} from "@/lib/vast-serverless";
+} from "@/lib/marker/vast";
 
 function jsonResponse(body: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(body), {

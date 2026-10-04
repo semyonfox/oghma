@@ -51,7 +51,7 @@ vi.mock("@/lib/notes/state/quiz", () => ({
   }),
 }));
 
-vi.mock("@/lib/notes/state/courses.zustand", () => ({
+vi.mock("@/lib/notes/state/courses", () => ({
   default: () => ({
     settings: mocks.settings,
     showArchived: mocks.showArchived,

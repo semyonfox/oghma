@@ -9,7 +9,7 @@ import { CanvasClaimLostError, withCanvasPublication } from "./execution";
  */
 
 import sql from "../../database/pgsql";
-import { stripMarkdown } from "../strip-markdown.ts";
+import { stripMarkdown } from "../rag/strip-markdown.ts";
 import { getStorageProvider } from "../storage/init.ts";
 import { moveNoteToExtractionBundle } from "../notes/extraction-bundle.ts";
 import { replaceNoteEmbeddings } from "../rag/indexing.ts";
@@ -24,7 +24,7 @@ import {
   extractContentFromBuffer,
   type ExtractionResult,
 } from "../ingestion/extraction-core.ts";
-import { persistMarkerAssetsForNote } from "../marker-output.ts";
+import { persistMarkerAssetsForNote } from "../marker/output.ts";
 import { createAsyncLimiter } from "./async-limiter";
 import { parseEnvConcurrency } from "./import-metrics";
 import logger from "../logger.ts";
@@ -34,7 +34,7 @@ import {
   MarkerSubmissionCancelledError,
   processAllPdfsWithMarker,
   submitMarkerJob,
-} from "../marker-serverless.ts";
+} from "../marker/serverless.ts";
 
 // ── Concurrency limiters ────────────────────────────────────────────────────
 

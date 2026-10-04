@@ -3,6 +3,7 @@ import {
   parseJsonObject,
   requireAuth,
   requireValidId,
+  type RouteParamsContext,
   tracedError,
   withErrorHandler,
 } from "@/lib/api-error";
@@ -12,7 +13,7 @@ import sql from "@/database/pgsql";
 export const PATCH = withErrorHandler(
   async (
     request: NextRequest,
-    { params }: { params: Promise<{ id: string; messageId: string }> },
+    { params }: RouteParamsContext<{ id: string; messageId: string }>,
   ) => {
     const user = await requireAuth();
     const path = await params;

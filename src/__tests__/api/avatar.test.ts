@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 const storage = { putObject: vi.fn(), deleteObject: vi.fn(), hasObject: vi.fn() };
-vi.mock("@/lib/auth", () => ({ getAuthenticatedUserId: vi.fn() }));
-vi.mock("@/lib/rateLimiter", () => ({ checkRateLimit: vi.fn() }));
+vi.mock("@/lib/auth/session", () => ({ getAuthenticatedUserId: vi.fn() }));
+vi.mock("@/lib/rate-limiter", () => ({ checkRateLimit: vi.fn() }));
 vi.mock("@/lib/storage/init", () => ({ getStorageProvider: () => storage }));
 vi.mock("@/lib/notes/storage/s3-storage", () => ({
   getSettingsFromS3: vi.fn(), saveSettingsToS3: vi.fn(),
@@ -11,8 +11,8 @@ vi.mock("@/lib/notes/storage/s3-storage", () => ({
 vi.mock("@/lib/logger", () => ({ default: { error: vi.fn(), warn: vi.fn() } }));
 vi.mock("@/lib/api-error", () => ({ assertTrustedOrigin: vi.fn() }));
 
-import { getAuthenticatedUserId } from "@/lib/auth";
-import { checkRateLimit } from "@/lib/rateLimiter";
+import { getAuthenticatedUserId } from "@/lib/auth/session";
+import { checkRateLimit } from "@/lib/rate-limiter";
 import { getSettingsFromS3, saveSettingsToS3 } from "@/lib/notes/storage/s3-storage";
 import { GET, POST } from "@/app/api/auth/avatar/route";
 

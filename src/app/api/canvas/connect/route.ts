@@ -8,7 +8,7 @@ import {
 import { CanvasClient } from "@/lib/canvas/client";
 import sql from "@/database/pgsql";
 import { encrypt } from "@/lib/crypto";
-import { checkRateLimit } from "@/lib/rateLimiter";
+import { checkRateLimit } from "@/lib/rate-limiter";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
 import { discoverCanvasCourses } from "@/lib/canvas/sync-courses";
 import { canvasHostFromInput } from "@/lib/canvas/institution-search";

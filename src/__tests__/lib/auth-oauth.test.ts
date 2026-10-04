@@ -33,7 +33,7 @@ import {
   getLinkedProviders,
   findOrCreateOAuthUser,
   resolveVerifiedOAuthEmail,
-} from "@/lib/auth-oauth";
+} from "@/lib/auth/oauth";
 import sql from "@/database/pgsql";
 import { Locale } from "@/locales";
 

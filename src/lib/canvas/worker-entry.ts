@@ -30,8 +30,8 @@ import {
 import {
   dispatchMarkerJob,
   recoverMarkerDispatchJobs,
-} from "../marker-serverless";
-import { markerDispatchConsumerEnabled } from "../marker-worker-config";
+} from "../marker/serverless";
+import { markerDispatchConsumerEnabled } from "../marker/worker-config";
 import { processChatGeneration } from "../chat/generate-background";
 import { recoverStaleChatGenerations } from "../chat/generation-store";
 import {

@@ -17,6 +17,7 @@ vi.mock("@/lib/api-error", () => {
       if (typeof value !== "string") throw new ApiError(400, "Invalid Trash item ID");
       return value;
     }),
+    parseJsonObject: (request: NextRequest) => request.json(),
     withErrorHandler: (handler: (request: NextRequest) => Promise<Response>) =>
       async (request: NextRequest) => {
         try {

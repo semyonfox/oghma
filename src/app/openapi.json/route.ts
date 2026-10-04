@@ -1,4 +1,5 @@
-import { buildAgentOpenApiJson, getBaseUrl } from "@/lib/public/agent-content";
+import { getBaseUrl } from "@/lib/public/agent-content";
+import { buildAgentOpenApiJson } from "@/lib/public/agent-openapi";
 
 export function GET() {
   const baseUrl = getBaseUrl();

@@ -3,7 +3,7 @@
 import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getProviders, signIn } from "next-auth/react";
-import { getErrorMessage, login } from "@/lib/apiClient";
+import { getErrorMessage, login } from "@/lib/api-client";
 import { Alert } from "@/components/alert";
 import Link from "next/link";
 import BrandLogo from "@/components/brand-logo";
@@ -11,7 +11,7 @@ import useI18n from "@/lib/notes/hooks/use-i18n";
 import {
   buildOAuthSignInOptions,
   isOAuthProviderConfigured,
-} from "@/lib/oauth-client";
+} from "@/lib/auth/oauth-client";
 import {
   getNativeAppBridge,
   postNativeOAuth,

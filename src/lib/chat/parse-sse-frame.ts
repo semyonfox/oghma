@@ -3,7 +3,7 @@ import { normalizeNoteActivityRefs, type Message, type NoteActivityRef, type Sea
 import { labelForTool } from "@/lib/chat/tool-labels";
 import { Metrics } from "@/lib/metrics";
 
-export { humanizeToolName, labelForTool } from "@/lib/chat/tool-labels";
+export { humanizeToolName,  } from "@/lib/chat/tool-labels";
 
 /** a single mutation that should be applied to the assistant message */
 export type MessageUpdate =

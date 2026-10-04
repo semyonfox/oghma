@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type postgres from 'postgres';
-import { withErrorHandler, requireAuth, ApiError, tracedError } from '@/lib/api-error';
+import { withErrorHandler, requireAuth, ApiError, parseJsonObject, tracedError } from '@/lib/api-error';
+import { pomodoroEndSchema, pomodoroStartSchema, validateBody } from '@/lib/validations/schemas';
 import sql from '@/database/pgsql';
 
 interface PomodoroSessionRow {
@@ -16,8 +17,9 @@ interface PomodoroSessionRow {
 export const POST = withErrorHandler(async (request) => {
   const user = await requireAuth();
 
-  const body = await request.json();
-  const { assignment_id, time_block_id, duration_mins, type } = body;
+  const parsed = validateBody(pomodoroStartSchema, await parseJsonObject(request));
+  if (!parsed.success) return parsed.response;
+  const { assignment_id, time_block_id, duration_mins, type } = parsed.data;
 
   // verify assignment_id belongs to the caller before linking (I3)
   if (assignment_id) {
@@ -58,10 +60,9 @@ export const POST = withErrorHandler(async (request) => {
 export const PATCH = withErrorHandler(async (request) => {
   const user = await requireAuth();
 
-  const body = await request.json();
-  const { id, completed } = body;
-
-  if (!id) throw new ApiError(400, 'Session id required');
+  const parsed = validateBody(pomodoroEndSchema, await parseJsonObject(request));
+  if (!parsed.success) return parsed.response;
+  const { id, completed } = parsed.data;
 
   const result = await sql.begin(async (tx: postgres.TransactionSql) => {
     const [session] = await tx<PomodoroSessionRow[]>`

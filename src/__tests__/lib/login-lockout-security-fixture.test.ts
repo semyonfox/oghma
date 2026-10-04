@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { reserveLoginAttempt, clearFailedAttempts } from "@/lib/loginLockout";
+import { reserveLoginAttempt, clearFailedAttempts } from "@/lib/auth/login-lockout";
 import { redis } from "@/lib/redis";
 
 const fixture = process.env.SECURITY_FIXTURE_REDIS === "1";

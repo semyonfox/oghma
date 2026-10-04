@@ -1,16 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import sql from "@/database/pgsql";
-import { reserveLoginAttempt, clearFailedAttempts } from "@/lib/loginLockout";
+import { reserveLoginAttempt, clearFailedAttempts } from "@/lib/auth/login-lockout";
 import { authConfig } from "@/auth.config";
 
 vi.mock("@/database/pgsql", () => ({ default: vi.fn() }));
 const mocks = vi.hoisted(() => ({ compare: vi.fn() }));
 vi.mock("bcryptjs", () => ({ default: { compare: mocks.compare } }));
-vi.mock("@/lib/loginLockout", () => ({
+vi.mock("@/lib/auth/login-lockout", () => ({
   reserveLoginAttempt: vi.fn(),
   clearFailedAttempts: vi.fn(),
 }));
-vi.mock("@/lib/auth-oauth", () => ({
+vi.mock("@/lib/auth/oauth", () => ({
   findOrCreateOAuthUser: vi.fn(),
   resolveVerifiedOAuthEmail: vi.fn(),
 }));

@@ -6,9 +6,6 @@
 // in-app navigation never touches this signal, so it can never cancel work.
 import { redis } from "@/lib/redis";
 
-/** Heartbeat cadence for visible tabs (hidden tabs are browser-throttled to ~60s). */
-export const PRESENCE_HEARTBEAT_MS = 10_000;
-
 /**
  * A tab field older than this no longer counts as presence. Must comfortably
  * exceed the ~60s timer throttling browsers apply to hidden tabs.

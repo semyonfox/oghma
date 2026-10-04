@@ -1,13 +1,13 @@
 import bcrypt from "bcryptjs";
-import { validateAuthCredentials } from "@/lib/auth-credentials";
+import { validateAuthCredentials } from "@/lib/auth/credentials";
 import sql from "@/database/pgsql";
 import {
   createAuthSession,
   createErrorResponse,
   parseJsonBody,
-} from "@/lib/auth";
-import { hashToken } from "@/lib/tokens";
-import { checkRateLimit, getClientIp } from "@/lib/rateLimiter";
+} from "@/lib/auth/session";
+import { hashToken } from "@/lib/auth/tokens";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
 import logger from "@/lib/logger";
 import { assertTrustedOrigin } from "@/lib/api-error";
 import type { NextRequest } from "next/server";

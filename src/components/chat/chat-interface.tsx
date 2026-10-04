@@ -27,9 +27,9 @@ import ChatSplash from "./chat-splash";
 // re-export types so existing consumers keep working
 export type {
   Message,
-  MessagePart,
-  SearchContextData,
-  ChatContextItem,
+  
+  
+  
 } from "@/lib/chat/types";
 
 /**

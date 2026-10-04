@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildOAuthSignInOptions,
   isOAuthProviderConfigured,
-} from "@/lib/oauth-client";
+} from "@/lib/auth/oauth-client";
 
 describe("isOAuthProviderConfigured", () => {
   it("returns true when provider exists in map", () => {

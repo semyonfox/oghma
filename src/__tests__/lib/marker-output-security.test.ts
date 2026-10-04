@@ -2,9 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   validateMarkerOutput,
   persistMarkerAssetsForNote,
-} from "@/lib/marker-output";
+} from "@/lib/marker/output";
 import { StoreS3 } from "@/lib/storage/s3";
-import { extractWithMarker } from "@/lib/ocr";
+import { extractWithMarker } from "@/lib/marker/ocr";
 
 afterEach(() => {
   vi.unstubAllEnvs();

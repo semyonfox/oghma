@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { chunkText } from '@/lib/chunking';
+import { chunkText } from '@/lib/rag/chunking';
 
 describe('chunkText', () => {
     it('returns empty array for empty string', () => {

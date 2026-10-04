@@ -23,7 +23,7 @@ vi.mock("@/database/pgsql", () => {
   return { default: sqlMock };
 });
 
-vi.mock("@/lib/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   validateSession: vi.fn(),
 }));
 
@@ -40,7 +40,7 @@ vi.mock("@/lib/quiz/streak", () => ({
 
 import { NextRequest } from "next/server";
 import { POST } from "@/app/api/quiz/sessions/[id]/answer/route";
-import { validateSession } from "@/lib/auth";
+import { validateSession } from "@/lib/auth/session";
 import { advanceQuizStreak } from "@/lib/quiz/streak";
 import sql from "@/database/pgsql";
 

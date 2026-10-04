@@ -7,7 +7,7 @@ vi.mock("@/lib/api-error", () => ({
   withErrorHandler: (handler: (request: NextRequest) => Promise<Response>) => handler,
   ApiError: class extends Error { constructor(public statusCode: number, message: string) { super(message); } },
 }));
-vi.mock("@/lib/rateLimiter", () => ({ checkRateLimit: vi.fn().mockResolvedValue(null) }));
+vi.mock("@/lib/rate-limiter", () => ({ checkRateLimit: vi.fn().mockResolvedValue(null) }));
 vi.mock("@/lib/vault/artifacts", () => ({
   reserveVaultUpload: vi.fn(async (_user: string, key: string) => key),
   VAULT_UPLOAD_MAX_BYTES: 10 * 1024 ** 3,

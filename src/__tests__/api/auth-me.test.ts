@@ -9,8 +9,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/auth", () => ({ auth: mocks.auth }));
-vi.mock("@/lib/auth", () => ({ validateSession: mocks.validateSession }));
-vi.mock("@/lib/auth-oauth", () => ({
+vi.mock("@/lib/auth/session", () => ({ validateSession: mocks.validateSession }));
+vi.mock("@/lib/auth/oauth", () => ({
   getLinkedProviders: mocks.getLinkedProviders,
 }));
 vi.mock("@/database/pgsql", () => ({ default: mocks.sql }));

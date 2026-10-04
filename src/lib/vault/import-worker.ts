@@ -16,20 +16,20 @@ import { closeSync, mkdtempSync, openSync, writeSync } from "node:fs";
 import { readFile, rm, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { chunkText } from "../chunking.ts";
+import { chunkText } from "../rag/chunking.ts";
 import { replaceNoteEmbeddings } from "../rag/indexing.ts";
-import { stripMarkdown } from "../strip-markdown.ts";
+import { stripMarkdown } from "../rag/strip-markdown.ts";
 import { getStorageProvider } from "../storage/init.ts";
 import type { StoreProvider } from "../storage/base";
 import { createS3ClientFromEnv } from "../storage/s3.ts";
 import { insertNoteWithTree } from "../notes/storage/create-note";
 import { moveNoteToExtractionBundle } from "../notes/extraction-bundle";
 import { invalidateTreeAfterPublish } from "../notes/tree-cache";
-import { extractWithMarker } from "../ocr.ts";
+import { extractWithMarker } from "../marker/ocr.ts";
 import {
   markerAssetPrefix,
   persistMarkerAssetsForNote,
-} from "../marker-output.ts";
+} from "../marker/output.ts";
 import {
   shouldIgnore,
   sanitizePath,

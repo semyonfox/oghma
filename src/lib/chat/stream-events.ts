@@ -1,8 +1,19 @@
 import { toSseEvent } from "@/lib/chat/sse";
 import { getTraceId } from "@/lib/trace";
-import type { SearchResult } from "@/lib/chat/rag-pipeline";
-import type { RetrievalInfo, SourceRef } from "@/lib/chat/rag-context";
 import type { NoteActivityRef } from "@/lib/chat/types";
+
+export interface SourceRef {
+  id: string;
+  title: string;
+}
+
+export interface RetrievalInfo {
+  scopeMode: "global" | "scoped";
+  availableCount: number;
+  availableFiles: SourceRef[];
+  semanticHits: SourceRef[];
+  usedFiles: SourceRef[];
+}
 
 export interface SseWriter {
   enqueue(chunk: Uint8Array): void;
@@ -35,19 +46,6 @@ export function sendMeta(
     ragAvailable,
     llmAvailable,
   });
-}
-
-export function sendSearch(
-  writer: SseWriter,
-  query: string | undefined,
-  scopedNoteIds: string[] | null,
-  searchResults: SearchResult[],
-): void {
-  send(
-    writer,
-    "search",
-    buildSearchContext(query, scopedNoteIds, searchResults),
-  );
 }
 
 export function sendToken(writer: SseWriter, text: string): void {
@@ -90,21 +88,4 @@ export function sendError(writer: SseWriter, message: string): void {
 
 export function sendHeartbeat(writer: SseWriter): void {
   writer.enqueue(encoder.encode(": heartbeat\n\n"));
-}
-
-export function buildSearchContext(
-  query: string | undefined,
-  scopedNoteIds: string[] | null,
-  searchResults: SearchResult[],
-) {
-  return {
-    query,
-    scopeSize: scopedNoteIds?.length ?? null,
-    resultsFound: searchResults.length,
-    results: searchResults.map((r) => ({
-      noteId: r.note_id,
-      title: r.title || "Untitled",
-      distance: r.distance,
-    })),
-  };
 }

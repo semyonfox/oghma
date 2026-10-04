@@ -2,7 +2,7 @@
 // used to show accent colors on file tree items
 import { create } from 'zustand';
 
-export type SyncState = 'synced' | 'modified' | 'new' | 'canvas_new';
+type SyncState = 'synced' | 'modified' | 'new' | 'canvas_new';
 
 interface SyncStatusState {
     // map of noteId -> sync state

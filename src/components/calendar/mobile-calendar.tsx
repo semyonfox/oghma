@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
-import useAssignmentStore from "@/lib/notes/state/assignments.zustand";
-import useCalendarStore from "@/lib/notes/state/calendar.zustand";
+import useAssignmentStore from "@/lib/notes/state/assignments";
+import useCalendarStore from "@/lib/notes/state/calendar";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { buildMonthCells } from "@/components/calendar/month-view-utils";
 import {

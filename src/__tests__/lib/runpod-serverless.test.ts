@@ -4,7 +4,7 @@ import {
   getRunPodJobStatus,
   submitRunPodJob,
   summarizeRunPodJobStatus,
-} from "@/lib/runpod-serverless";
+} from "@/lib/marker/runpod";
 
 function jsonResponse(body: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(body), {

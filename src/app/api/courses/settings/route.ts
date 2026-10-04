@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { validateSession } from "@/lib/auth";
 import {
   parseJsonObject,
+  requireAuth,
   withErrorHandler,
   tracedError,
 } from "@/lib/api-error";
@@ -9,8 +9,7 @@ import sql from "@/database/pgsql";
 import { canvasIdForBigintColumn } from "@/lib/canvas/id";
 
 export const GET = withErrorHandler(async () => {
-  const user = await validateSession();
-  if (!user) return tracedError("Unauthorized", 401);
+  const user = await requireAuth();
 
   const userId = user.user_id;
 
@@ -43,8 +42,7 @@ export const GET = withErrorHandler(async () => {
 });
 
 export const POST = withErrorHandler(async (request: Request) => {
-  const user = await validateSession();
-  if (!user) return tracedError("Unauthorized", 401);
+  const user = await requireAuth();
 
   const userId = user.user_id;
   const body = await parseJsonObject(request);

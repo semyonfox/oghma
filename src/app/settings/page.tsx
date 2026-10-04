@@ -33,7 +33,7 @@ import CourseVisibilityManager, {
 } from "@/components/course-visibility/course-visibility-manager";
 import EditorThemeSection from "@/components/settings/editor-theme-section";
 import PasswordSection from "@/components/settings/password-section";
-import useCourseStore from "@/lib/notes/state/courses.zustand";
+import useCourseStore from "@/lib/notes/state/courses";
 import { postNativeUpdates, postNativeOfflineAccount, useNativeAppBridge } from "@/lib/native-app";
 import { useWorkspaceSession } from "@/components/providers/workspace-lifecycle-provider";
 import { resetWorkspaceClientState } from "@/lib/notes/workspace-lifecycle";

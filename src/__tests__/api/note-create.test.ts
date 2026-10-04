@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   sql: vi.fn(),
 }));
 
-vi.mock("@/lib/auth", () => ({ validateSession: mocks.validateSession }));
+vi.mock("@/lib/auth/session", () => ({ validateSession: mocks.validateSession }));
 vi.mock("@/database/pgsql", () => ({ default: mocks.sql }));
 vi.mock("@/lib/logger", () => ({
   default: { warn: vi.fn(), error: vi.fn() },

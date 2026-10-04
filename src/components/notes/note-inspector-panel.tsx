@@ -9,7 +9,7 @@ import {
 } from "@heroicons/react/24/outline";
 import useLayoutStore, {
   type RightPanelTab,
-} from "@/lib/notes/state/layout.zustand";
+} from "@/lib/notes/state/layout";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { extractTags } from "@/lib/notes/utils/file-spec";
 import dynamic from "next/dynamic";

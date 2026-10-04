@@ -206,6 +206,18 @@ export const timeBlockUpdateSchema = z
     { message: "ends_at must be after starts_at", path: ["ends_at"] },
   );
 
+export const pomodoroStartSchema = z.object({
+  assignment_id: z.string().uuid().nullish(),
+  time_block_id: z.string().uuid().nullish(),
+  duration_mins: z.number().int().positive().nullish(),
+  type: z.string().min(1).max(50).nullish(),
+});
+
+export const pomodoroEndSchema = z.object({
+  id: z.string().uuid(),
+  completed: z.boolean().nullish(),
+});
+
 const chatScopeItemSchema = z.object({
   id: z.string().max(64),
   title: z.string().max(500),

@@ -1212,9 +1212,7 @@ function ModuleWorkspace({
     <section className="min-w-0 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
-          <h2 className="break-words text-base font-semibold">
-            {map.name}
-          </h2>
+          <h2 className="break-words text-base font-semibold">{map.name}</h2>
           <p className="mt-0.5 text-xs text-text-secondary">
             {map.academicYear} · {snapshot.materials.length} materials ·{" "}
             {map.topics.length} topics
@@ -1380,7 +1378,9 @@ function ModuleWorkspace({
             <button
               type="button"
               className={secondaryClass}
-              disabled={busy !== null || (!map.rootNoteId && !map.canvasCourseId)}
+              disabled={
+                busy !== null || (!map.rootNoteId && !map.canvasCourseId)
+              }
               onClick={() =>
                 launch(
                   mutation(
@@ -1479,7 +1479,9 @@ function ModuleWorkspace({
                       <span className="min-w-0">
                         <span className="block break-words">{topic.name}</span>
                         <span className="block text-xs text-text-tertiary">
-                          {topic.reviewed ? "Approved by you" : "Pending review"}
+                          {topic.reviewed
+                            ? "Approved by you"
+                            : "Pending review"}
                           {topic.sources.length === 0
                             ? " · Your definition"
                             : " · Source definition"}
@@ -1498,14 +1500,14 @@ function ModuleWorkspace({
             </p>
           ) : reviewedTopics === 0 ? (
             <p className="text-sm text-text-secondary">
-              Open a topic and approve its definition before classifying materials
-              or analysing papers.
+              Open a topic and approve its definition before classifying
+              materials or analysing papers.
             </p>
           ) : null}
           {!snapshot.provider.ready && (
             <p className="text-sm text-text-secondary">
-              Automatic classification is unavailable. You can organise materials
-              and review topics yourself.
+              Automatic classification is unavailable. You can organise
+              materials and review topics yourself.
             </p>
           )}
           {!snapshot.provider.generationReady && (
@@ -1515,8 +1517,8 @@ function ModuleWorkspace({
           )}
           {activeJobs.length > 0 && (
             <p role="status" className="text-sm text-text-secondary">
-              {activeJobs.length} {activeJobs.length === 1 ? "job" : "jobs"} queued
-              or running. Results refresh automatically.
+              {activeJobs.length} {activeJobs.length === 1 ? "job" : "jobs"}{" "}
+              queued or running. Results refresh automatically.
             </p>
           )}
           {snapshot.jobs.some((job) => job.state === "failed") && (
@@ -1612,7 +1614,8 @@ function ModuleWorkspace({
                 scope={scope}
                 onScopeChange={onScopeChange}
                 onReview={(reviewMap, noteId) => {
-                  if (reviewMap === mapId) selectInspector({ kind: "note", id: noteId });
+                  if (reviewMap === mapId)
+                    selectInspector({ kind: "note", id: noteId });
                   else onOpenModule(reviewMap, noteId);
                 }}
                 onOpenModule={(target) => onOpenModule(target)}
@@ -1780,7 +1783,9 @@ export default function StudyWorkspace({
   return (
     <main className="min-w-0 space-y-3 bg-app-page p-3 pb-28 text-text sm:p-4 lg:pb-4">
       <header className="flex flex-wrap items-center gap-3 border-b border-border-subtle pb-3">
-        <h1 className="shrink-0 text-lg font-semibold tracking-tight">Study maps</h1>
+        <h1 className="shrink-0 text-lg font-semibold tracking-tight">
+          Study maps
+        </h1>
         {maps.length > 0 && (
           <label className="block min-w-0 flex-1 text-sm font-medium sm:max-w-sm">
             <span className="sr-only">Module</span>
@@ -1887,7 +1892,11 @@ export default function StudyWorkspace({
               updateLocation({ scope: next === "all" ? "all" : null });
             }}
             onOpenModule={(target, note) => {
-              updateLocation({ map: target, note: note ?? null, ...clearedFilters });
+              updateLocation({
+                map: target,
+                note: note ?? null,
+                ...clearedFilters,
+              });
               setMapId(target);
               setNoteId(note ?? null);
               if (note) setNoteRequest((value) => value + 1);

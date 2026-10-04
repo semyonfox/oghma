@@ -1,4 +1,4 @@
-export interface ChatRouteContextItem {
+interface ChatRouteContextItem {
   id: string;
   title: string;
 }

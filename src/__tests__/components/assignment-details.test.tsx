@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import AssignmentDetails from "@/components/assignments/assignment-details";
-import type { Assignment } from "@/lib/notes/state/assignments.zustand";
+import type { Assignment } from "@/lib/notes/state/assignments";
 vi.mock("@/lib/notes/hooks/use-i18n", () => ({ default: () => ({ t: (key: string) => key }) }));
 vi.mock("@/components/assignments/assignment-materials", () => ({ default: () => <div>Materials</div> }));
 const assignment: Assignment = {

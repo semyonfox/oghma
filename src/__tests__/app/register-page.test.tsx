@@ -17,7 +17,7 @@ vi.mock("next-auth/react", () => ({
   getProviders: vi.fn().mockResolvedValue({}),
   signIn: vi.fn(),
 }));
-vi.mock("@/lib/apiClient", () => ({
+vi.mock("@/lib/api-client", () => ({
   register: mocks.register,
   getErrorMessage: (error: Error) => error.message,
 }));

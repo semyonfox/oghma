@@ -13,7 +13,7 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import useLayoutStore, {
   FileSpec,
-} from "@/lib/notes/state/layout.zustand";
+} from "@/lib/notes/state/layout";
 import useNoteStore from "@/lib/notes/state/note";
 import useSyncStatusStore from "@/lib/notes/state/sync-status";
 import useSaveIndicatorStore, {

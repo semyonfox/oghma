@@ -47,7 +47,7 @@ vi.mock("@/lib/canvas/client", () => ({
   }),
 }));
 vi.mock("@/database/pgsql", () => ({ default: vi.fn() }));
-vi.mock("@/lib/rateLimiter", () => ({
+vi.mock("@/lib/rate-limiter", () => ({
   checkRateLimit: vi.fn().mockResolvedValue(null),
 }));
 

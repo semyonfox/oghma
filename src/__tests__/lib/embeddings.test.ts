@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { embedChunks } from '@/lib/embeddings';
+import { embedChunks } from '@/lib/rag/embeddings';
 
 describe('embedChunks', () => {
     beforeEach(() => {

@@ -162,7 +162,7 @@ interface ConsumeStreamOptions {
   isActive?: () => boolean;
 }
 
-export class ChatGenerationFailedError extends Error {}
+class ChatGenerationFailedError extends Error {}
 
 function abortError(): DOMException {
   return new DOMException("Chat stream detached", "AbortError");

@@ -8,7 +8,7 @@ import {
   XMarkIcon,
   CheckCircleIcon,
 } from "@heroicons/react/24/outline";
-import type { PomodoroPhase } from "@/lib/notes/state/pomodoro.zustand";
+import type { PomodoroPhase } from "@/lib/notes/state/pomodoro";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
 interface PomodoroStatusBarProps {

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
-import { createErrorResponse, parseJsonBody } from "@/lib/auth";
-import { findAgentRegistrationClaim } from "@/lib/agent-registration";
-import { checkRateLimit, getClientIp } from "@/lib/rateLimiter";
+import { createErrorResponse, parseJsonBody } from "@/lib/auth/session";
+import { findAgentRegistrationClaim } from "@/lib/auth/agent-registration";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
 import { agentRegistrationClaimSchema, validateBody } from "@/lib/validations/schemas";
 
 export async function POST(request: NextRequest) {

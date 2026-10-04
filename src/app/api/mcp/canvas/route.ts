@@ -9,7 +9,7 @@ import {
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
 import { createCanvasMcpServer } from "@/lib/canvas/mcp";
 import { safeCanvasFetch } from "@/lib/canvas/safe-fetch";
-import { verifyInternalMcpToken } from "@/lib/mcp/internal-auth";
+import { verifyInternalMcpToken } from "@/lib/auth/internal-mcp-token";
 
 export const dynamic = "force-dynamic";
 

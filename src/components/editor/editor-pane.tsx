@@ -6,7 +6,7 @@ import { FC, memo, useCallback, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { FileSpec, PaneId, type RightPanelTab } from "@/lib/notes/state/layout.zustand";
+import { FileSpec, PaneId, type RightPanelTab } from "@/lib/notes/state/layout";
 import {
   ArrowPathIcon,
   ArrowLeftIcon,
@@ -20,7 +20,7 @@ import {
   XMarkIcon,
   SparklesIcon,
 } from "@heroicons/react/24/outline";
-import useLayoutStore from "@/lib/notes/state/layout.zustand";
+import useLayoutStore from "@/lib/notes/state/layout";
 import useSaveIndicatorStore, {
   FileSaveIndicator,
   saveIndicatorKey,

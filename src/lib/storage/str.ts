@@ -48,7 +48,7 @@ export function tryJSON<T>(str?: string | null): T | null {
 /**
  * Decompress a Base64-encoded string using native DecompressionStream
  */
-export async function strDecompress(raw?: string | null): Promise<string | undefined> {
+async function strDecompress(raw?: string | null): Promise<string | undefined> {
   if (!raw) return undefined;
 
   try {
@@ -74,7 +74,7 @@ export async function strDecompress(raw?: string | null): Promise<string | undef
 /**
  * Compress a string to Base64-encoded format using native CompressionStream
  */
-export async function strCompress(str?: string): Promise<string> {
+async function strCompress(str?: string): Promise<string> {
   if (!str) return '';
 
   try {

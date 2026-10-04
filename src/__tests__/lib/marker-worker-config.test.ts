@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   validateMarkerWorkerConfiguration,
-} from "@/lib/marker-worker-config";
+} from "@/lib/marker/worker-config";
 
 const variables = [
   "MARKER_API_URL",

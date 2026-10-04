@@ -11,20 +11,20 @@
 import bcrypt from "bcryptjs";
 import { NextResponse, type NextRequest } from "next/server";
 import sql from "@/database/pgsql";
-import { validateAuthCredentials } from "@/lib/auth-credentials";
+import { validateAuthCredentials } from "@/lib/auth/credentials";
 import {
   createAuthSession,
   createErrorResponse,
   createValidationErrorResponse,
   parseJsonBody,
-} from "@/lib/auth";
+} from "@/lib/auth/session";
 import {
   reserveLoginAttempt,
   clearFailedAttempts,
   isAccountLocked,
   getLockoutMinutesRemaining,
   isAuthLockoutStoreUnavailableError,
-} from "@/lib/loginLockout";
+} from "@/lib/auth/login-lockout";
 import logger from "@/lib/logger";
 import { ApiError, withErrorHandler } from "@/lib/api-error";
 import { loginSchema, validateBody } from "@/lib/validations/schemas";

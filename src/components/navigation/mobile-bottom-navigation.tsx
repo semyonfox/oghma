@@ -18,7 +18,7 @@ import {
 } from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import useGlobalSearchStore from "@/lib/global-search/state";
-import usePomodoroStore from "@/lib/notes/state/pomodoro.zustand";
+import usePomodoroStore from "@/lib/notes/state/pomodoro";
 import {
   useNativeAppBridge,
   supportsNativeOffline,

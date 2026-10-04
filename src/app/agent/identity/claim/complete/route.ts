@@ -3,10 +3,10 @@ import {
   createErrorResponse,
   parseJsonBody,
   validateSession,
-} from "@/lib/auth";
-import { completeOAuthAgentRegistration } from "@/lib/agent-registration";
+} from "@/lib/auth/session";
+import { completeOAuthAgentRegistration } from "@/lib/auth/agent-registration";
 import { assertTrustedOrigin } from "@/lib/api-error";
-import { checkRateLimit, getClientIp } from "@/lib/rateLimiter";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
 import {
   agentRegistrationCompleteSchema,
   validateBody,

@@ -20,7 +20,7 @@ import {
   canvasActionFingerprint,
   requiresToolConfirmation,
 } from "@/lib/chat/actions";
-import { checkRateLimit } from "@/lib/rateLimiter";
+import { checkRateLimit } from "@/lib/rate-limiter";
 
 interface ActionRow {
   id: string;

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { Locale } from "@/locales";
 
-vi.mock("@/lib/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   validateSession: vi.fn(),
 }));
 
@@ -18,7 +18,7 @@ vi.mock("@/lib/logger", () => ({
 }));
 
 import { GET, POST } from "@/app/api/settings/route";
-import { validateSession } from "@/lib/auth";
+import { validateSession } from "@/lib/auth/session";
 import {
   getSettingsFromS3,
   saveSettingsToS3,

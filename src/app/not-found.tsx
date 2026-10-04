@@ -1,4 +1,4 @@
-import { validateSession } from "@/lib/auth";
+import { validateSession } from "@/lib/auth/session";
 import NotFoundContent from "./not-found-content";
 
 export default async function NotFound() {

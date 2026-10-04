@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type postgres from "postgres";
 import { withErrorHandler, requireAuth } from "@/lib/api-error";
 import { reserveVaultExport, lockVaultExport } from "@/lib/vault/artifacts";
-import { checkRateLimit } from "@/lib/rateLimiter";
+import { checkRateLimit } from "@/lib/rate-limiter";
 import sql from "@/database/pgsql";
 import { enqueueCanvasJob } from "@/lib/queue";
 

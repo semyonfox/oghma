@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { Assignment } from "@/lib/notes/state/assignments.zustand";
+import type { Assignment } from "@/lib/notes/state/assignments";
 import AssignmentTracker from "@/components/assignments/assignment-tracker";
 import MonthView from "@/components/calendar/month-view";
 import WeekView from "@/components/calendar/week-view";
@@ -19,13 +19,13 @@ vi.mock("@/lib/celebration", () => ({
   getCelebrationOrigin: () => ({ x: 0.5, y: 0.5 }),
   triggerCelebration: mocks.celebrate,
 }));
-vi.mock("@/lib/notes/state/assignments.zustand", () => ({ default: () => ({ assignments: [assignment], updateAssignment: mocks.update, hasLoaded: true, activeTab: "done", includeAll: true, includeArchived: false, courseFilter: null, fetchAssignments: mocks.fetch }) }));
-vi.mock("@/lib/notes/state/calendar.zustand", () => ({ default: () => ({
+vi.mock("@/lib/notes/state/assignments", () => ({ default: () => ({ assignments: [assignment], updateAssignment: mocks.update, hasLoaded: true, activeTab: "done", includeAll: true, includeArchived: false, courseFilter: null, fetchAssignments: mocks.fetch }) }));
+vi.mock("@/lib/notes/state/calendar", () => ({ default: () => ({
   currentDate: "2026-09-21T12:00:00", selectedDate: "2026-09-21", timeBlocks: [], reviewDates: new Set(),
   setSelectedDate: mocks.selectDate, deleteTimeBlock: vi.fn(), toggleTimeBlockCompleted: vi.fn(),
 }) }));
-vi.mock("@/lib/notes/state/pomodoro.zustand", () => ({ default: () => vi.fn() }));
-vi.mock("@/lib/notes/state/courses.zustand", () => ({ default: () => ({ settings: mocks.settings, fetchSettings: mocks.fetch }) }));
+vi.mock("@/lib/notes/state/pomodoro", () => ({ default: () => vi.fn() }));
+vi.mock("@/lib/notes/state/courses", () => ({ default: () => ({ settings: mocks.settings, fetchSettings: mocks.fetch }) }));
 vi.mock("@/components/assignments/new-task-modal", () => ({ default: () => null }));
 vi.mock("@/components/course-visibility/course-visibility-manager", () => ({ CourseVisibilityDialog: () => null, mergeCourseVisibilityItems: () => [] }));
 beforeEach(() => {

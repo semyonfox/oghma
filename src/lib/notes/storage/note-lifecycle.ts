@@ -8,7 +8,7 @@ import {
   markerAssetPrefix,
   markerMetadataKey,
   sanitizeMarkerAssetName,
-} from "@/lib/marker-output";
+} from "@/lib/marker/output";
 import { deleteChunkVectors, setChunkVectorsSearchable } from "@/lib/qdrant";
 import { getStorageProvider } from "@/lib/storage/init";
 import { lockVaultArtifacts } from "@/lib/vault/artifacts";
@@ -107,7 +107,7 @@ function boundedInteger(
   return Math.min(max, Math.max(min, value));
 }
 
-export function trashRetentionDays(): number {
+function trashRetentionDays(): number {
   return boundedInteger(
     process.env.TRASH_RETENTION_DAYS,
     DEFAULT_TRASH_RETENTION_DAYS,
@@ -633,41 +633,6 @@ async function removeNoteRowsPermanently(
     cleanupTaskId: cleanupTask?.id ?? null,
     objectKeys: objectKeys.length,
   };
-}
-
-/** Permanently delete an already-resolved group of user-owned note rows. */
-export async function permanentlyDeleteNotes(
-  userId: string,
-  noteIds: string[],
-): Promise<PermanentDeleteResult> {
-  const requestedIds = uniqueStrings(noteIds);
-  if (requestedIds.length === 0) {
-    return { noteIds: [], cleanupTaskId: null, objectKeys: 0 };
-  }
-
-  const result = await sql.begin(async (tx: TransactionSql) => {
-    await lockUserTree(tx, userId);
-    const ownedRows = (await tx`
-      SELECT note_id
-      FROM app.notes
-      WHERE user_id = ${userId}::uuid
-        AND note_id = ANY(${requestedIds}::uuid[])
-      FOR UPDATE
-    `) as Array<{ note_id: string }>;
-    const ownedIds = ownedRows.map((row) => String(row.note_id));
-    const removal = await removeNoteRowsPermanently(tx, userId, ownedIds);
-    return {
-      noteIds: ownedIds,
-      cleanupTaskId: removal.cleanupTaskId,
-      objectKeys: removal.objectKeys,
-    };
-  });
-
-  await invalidateLifecycleCaches(userId, result.noteIds);
-  if (result.cleanupTaskId) {
-    await processNoteDeletionCleanupTask(result.cleanupTaskId);
-  }
-  return result;
 }
 
 /**

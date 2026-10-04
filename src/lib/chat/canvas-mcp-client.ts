@@ -1,7 +1,7 @@
 import { createMCPClient, type MCPClient } from "@ai-sdk/mcp";
 import type { ToolSet } from "ai";
 import { canvasMcpToolSchemas, canvasToolInstruction } from "@/lib/canvas/mcp";
-import { createInternalMcpToken } from "@/lib/mcp/internal-auth";
+import { createInternalMcpToken } from "@/lib/auth/internal-mcp-token";
 import logger from "@/lib/logger";
 
 function normalizeOrigin(value: string | null | undefined): string | null {

@@ -5,9 +5,10 @@ import {
   requireAuth,
   requireValidId,
   tracedError,
+  type RouteParamsContext,
   withErrorHandler,
 } from "@/lib/api-error";
-import { markerAssetKey, sanitizeMarkerAssetName } from "@/lib/marker-output";
+import { markerAssetKey, sanitizeMarkerAssetName } from "@/lib/marker/output";
 import { getStorageProvider } from "@/lib/storage/init";
 
 function dirname(path: string): string {
@@ -16,7 +17,7 @@ function dirname(path: string): string {
 }
 
 export const GET = withErrorHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, { params }: RouteParamsContext<{ id: string }>) => {
     const session = await requireAuth();
     const { id } = await params;
     const noteId = requireValidId(id, "note ID");

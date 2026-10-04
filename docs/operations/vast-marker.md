@@ -73,8 +73,8 @@ runbook.
 |---|---|
 | Durable job | `app.marker_jobs`, extended by migrations `057_marker_provider_dispatch.sql` and `058_marker_dispatch_guards.sql` |
 | Dispatch transport | `marker-dispatch` through `src/lib/queue.ts` |
-| Provider switch | `src/lib/marker-serverless.ts` |
-| Vast routing client | `src/lib/vast-serverless.ts` |
+| Provider switch | `src/lib/marker/serverless.ts` |
+| Vast routing client | `src/lib/marker/vast.ts` |
 | GPU route | `POST /marker/job` in `infra/vast-marker/` |
 | Large payloads | Signed GET/PUT URLs; never the queue or callback body |
 | Completion | `marker-complete` carries only the durable job UUID; PostgreSQL supplies the rest of the identity |

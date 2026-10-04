@@ -1,7 +1,14 @@
 // @vitest-environment jsdom
 
 import React from "react";
-import { act, cleanup, fireEvent, render, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -17,47 +24,76 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("next/navigation", () => ({ useRouter: () => mocks.router }));
 vi.mock("next/dynamic", () => ({
-  default: () => function WritingSurface(props: {
-    value: string;
-    onChange: (value: string, programmatic: boolean) => void;
-    onSave: () => void;
-  }) {
-    return <textarea aria-label="content" value={props.value}
-      onBlurCapture={() => {
-        if (mocks.pendingBlurContent) {
-          props.onChange(mocks.pendingBlurContent, false);
-          mocks.pendingBlurContent = "";
-        }
-      }}
-      onKeyDownCapture={(event) => {
-        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
-          event.preventDefault();
-          props.onSave();
-        }
-      }}
-      onChange={(event) => props.onChange(event.target.value, false)} />;
-  },
+  default: () =>
+    function WritingSurface(props: {
+      value: string;
+      onChange: (value: string, programmatic: boolean) => void;
+      onSave: () => void;
+    }) {
+      return (
+        <textarea
+          aria-label="content"
+          value={props.value}
+          onBlurCapture={() => {
+            if (mocks.pendingBlurContent) {
+              props.onChange(mocks.pendingBlurContent, false);
+              mocks.pendingBlurContent = "";
+            }
+          }}
+          onKeyDownCapture={(event) => {
+            if (
+              (event.ctrlKey || event.metaKey) &&
+              event.key.toLowerCase() === "s"
+            ) {
+              event.preventDefault();
+              props.onSave();
+            }
+          }}
+          onChange={(event) => props.onChange(event.target.value, false)}
+        />
+      );
+    },
 }));
 vi.mock("@/lib/notes/state/note", () => ({
-  default: (selector: (state: {
-    fetchNote: typeof mocks.fetchNote;
-    mutateNote: typeof mocks.mutateNote;
-  }) => unknown) => selector(mocks),
+  default: (
+    selector: (state: {
+      fetchNote: typeof mocks.fetchNote;
+      mutateNote: typeof mocks.mutateNote;
+    }) => unknown,
+  ) => selector(mocks),
 }));
 vi.mock("@/lib/notes/state/ui/settings", () => ({
-  useSettingsStore: (selector: (state: {
-    settings: { editorsize: string };
-    setSettings: typeof mocks.setSettings;
-  }) => unknown) => selector({ settings: { editorsize: "normal" }, setSettings: mocks.setSettings }),
+  useSettingsStore: (
+    selector: (state: {
+      settings: { editorsize: string };
+      setSettings: typeof mocks.setSettings;
+    }) => unknown,
+  ) =>
+    selector({
+      settings: { editorsize: "normal" },
+      setSettings: mocks.setSettings,
+    }),
 }));
-vi.mock("@/lib/notes/hooks/use-i18n", () => ({ default: () => ({ t: mocks.t }) }));
-vi.mock("sonner", () => ({ toast: { info: vi.fn(), warning: vi.fn(), error: vi.fn() } }));
+vi.mock("@/lib/notes/hooks/use-i18n", () => ({
+  default: () => ({ t: mocks.t }),
+}));
+vi.mock("sonner", () => ({
+  toast: { info: vi.fn(), warning: vi.fn(), error: vi.fn() },
+}));
 vi.mock("@/lib/notes/cache", () => ({
   noteCacheInstance: { getItem: async () => undefined },
   uiCache: {
     getItem: async (key: string) => mocks.cache.get(key),
-    setItem: async (key: string, value: unknown) => { if (mocks.failDraftWrite) throw new Error("synthetic storage unavailable"); mocks.cache.set(key, value); },
-    getOrMoveItem: async (key: string, fallbackKey: string, canMove: () => boolean) => {
+    setItem: async (key: string, value: unknown) => {
+      if (mocks.failDraftWrite)
+        throw new Error("synthetic storage unavailable");
+      mocks.cache.set(key, value);
+    },
+    getOrMoveItem: async (
+      key: string,
+      fallbackKey: string,
+      canMove: () => boolean,
+    ) => {
       if (!mocks.cache.has(key) && mocks.cache.has(fallbackKey) && canMove()) {
         mocks.cache.set(key, mocks.cache.get(fallbackKey));
         mocks.cache.delete(fallbackKey);
@@ -71,15 +107,19 @@ vi.mock("@/lib/notes/cache", () => ({
 }));
 
 import MarkdownEditor from "@/components/editor/markdown-editor";
-import useLayoutStore from "@/lib/notes/state/layout.zustand";
-import useSaveIndicatorStore, { saveIndicatorKey } from "@/lib/notes/state/save-indicator";
+import useLayoutStore from "@/lib/notes/state/layout";
+import useSaveIndicatorStore, {
+  saveIndicatorKey,
+} from "@/lib/notes/state/save-indicator";
 import { readDraft, waitForDraftWrites } from "@/lib/notes/draft-cache";
 
 const file = { fileId: "same-note", fileType: "note" as const };
 
 function deferredSave() {
   let resolve!: () => void;
-  const promise = new Promise<void>((done) => { resolve = done; });
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
   return { promise, resolve };
 }
 
@@ -87,8 +127,11 @@ async function savePane(pane: "A" | "B") {
   await act(async () => {
     const layout = useLayoutStore.getState();
     const spec = pane === "A" ? layout.paneA : layout.paneB;
-    const key = spec?.fileId ? saveIndicatorKey(spec.fileId, spec.draftOwner ?? pane)
-      : Object.keys(useSaveIndicatorStore.getState().files).find((key) => pane === "B" ? key.endsWith(":B") : !key.endsWith(":B"));
+    const key = spec?.fileId
+      ? saveIndicatorKey(spec.fileId, spec.draftOwner ?? pane)
+      : Object.keys(useSaveIndicatorStore.getState().files).find((key) =>
+          pane === "B" ? key.endsWith(":B") : !key.endsWith(":B"),
+        );
     if (key) useSaveIndicatorStore.getState().files[key]?.save();
     await waitForDraftWrites();
   });
@@ -100,7 +143,10 @@ describe("markdown editor recovery ownership", () => {
     mocks.cache.clear();
     mocks.failDraftWrite = false;
     mocks.pendingBlurContent = "";
-    mocks.fetchNote.mockResolvedValue({ content: "server", updatedAt: "2026-01-01T00:00:00Z" });
+    mocks.fetchNote.mockResolvedValue({
+      content: "server",
+      updatedAt: "2026-01-01T00:00:00Z",
+    });
     mocks.mutateNote.mockResolvedValue(undefined);
     useSaveIndicatorStore.setState({ files: {} });
     useLayoutStore.setState({
@@ -110,35 +156,60 @@ describe("markdown editor recovery ownership", () => {
     });
   });
 
-  afterEach(() => { cleanup(); });
+  afterEach(() => {
+    cleanup();
+  });
 
   it("autosaves a first edit published during blur capture before React renders it", async () => {
     const view = render(<MarkdownEditor pane="A" file={file} />);
     await waitFor(() => expect(view.getByRole("textbox")).toBeTruthy());
     mocks.pendingBlurContent = "last words before leaving";
     fireEvent.blur(view.getByRole("textbox"), { relatedTarget: document.body });
-    await waitFor(() => expect(mocks.mutateNote).toHaveBeenCalledWith(file.fileId, {
-      content: "last words before leaving",
-    }));
+    await waitFor(() =>
+      expect(mocks.mutateNote).toHaveBeenCalledWith(file.fileId, {
+        content: "last words before leaving",
+      }),
+    );
   });
 
   it("saves to the server when local draft storage is unavailable", async () => {
     const view = render(<MarkdownEditor pane="A" file={file} />);
     await waitFor(() => expect(view.getByRole("textbox")).toBeTruthy());
     mocks.failDraftWrite = true;
-    fireEvent.change(view.getByRole("textbox"), { target: { value: "cloud copy" } });
+    fireEvent.change(view.getByRole("textbox"), {
+      target: { value: "cloud copy" },
+    });
     await savePane("A");
-    await waitFor(() => expect(mocks.mutateNote).toHaveBeenCalledWith(file.fileId, { content: "cloud copy" }));
-    await waitFor(() => expect(useSaveIndicatorStore.getState().files[file.fileId]?.state).toBe("saved"));
+    await waitFor(() =>
+      expect(mocks.mutateNote).toHaveBeenCalledWith(file.fileId, {
+        content: "cloud copy",
+      }),
+    );
+    await waitFor(() =>
+      expect(useSaveIndicatorStore.getState().files[file.fileId]?.state).toBe(
+        "saved",
+      ),
+    );
   });
 
   it("keeps a focused save action available instead of starting a blur save", async () => {
-    const view = render(<div><MarkdownEditor pane="A" file={file} /><button data-save-action>Save changes</button></div>);
+    const view = render(
+      <div>
+        <MarkdownEditor pane="A" file={file} />
+        <button data-save-action>Save changes</button>
+      </div>,
+    );
     await waitFor(() => expect(view.getByRole("textbox")).toBeTruthy());
-    fireEvent.change(view.getByRole("textbox"), { target: { value: "keyboard edit" } });
-    fireEvent.blur(view.getByRole("textbox"), { relatedTarget: view.getByRole("button") });
+    fireEvent.change(view.getByRole("textbox"), {
+      target: { value: "keyboard edit" },
+    });
+    fireEvent.blur(view.getByRole("textbox"), {
+      relatedTarget: view.getByRole("button"),
+    });
     expect(mocks.mutateNote).not.toHaveBeenCalled();
-    expect(useSaveIndicatorStore.getState().files[file.fileId]?.state).toBe("dirty");
+    expect(useSaveIndicatorStore.getState().files[file.fileId]?.state).toBe(
+      "dirty",
+    );
     await savePane("A");
     await waitFor(() => expect(mocks.mutateNote).toHaveBeenCalledOnce());
   });
@@ -149,27 +220,48 @@ describe("markdown editor recovery ownership", () => {
     mocks.mutateNote.mockImplementation((_id, change: { content: string }) =>
       change.content === "draft A" ? saveA.promise : saveB.promise,
     );
-    const view = render(<>
-      <div data-testid="A"><MarkdownEditor pane="A" file={file} /></div>
-      <div data-testid="B"><MarkdownEditor pane="B" file={file} /></div>
-    </>);
+    const view = render(
+      <>
+        <div data-testid="A">
+          <MarkdownEditor pane="A" file={file} />
+        </div>
+        <div data-testid="B">
+          <MarkdownEditor pane="B" file={file} />
+        </div>
+      </>,
+    );
     await waitFor(() => expect(view.getAllByRole("textbox")).toHaveLength(2));
-    fireEvent.change(within(view.getByTestId("A")).getByRole("textbox"), { target: { value: "draft A" } });
-    fireEvent.change(within(view.getByTestId("B")).getByRole("textbox"), { target: { value: "draft B" } });
+    fireEvent.change(within(view.getByTestId("A")).getByRole("textbox"), {
+      target: { value: "draft A" },
+    });
+    fireEvent.change(within(view.getByTestId("B")).getByRole("textbox"), {
+      target: { value: "draft B" },
+    });
     await savePane("A");
     await savePane("B");
     expect((await readDraft(file.fileId, "A"))?.content).toBe("draft A");
     expect((await readDraft(file.fileId, "B"))?.content).toBe("draft B");
 
-    await act(async () => { saveA.resolve(); });
+    await act(async () => {
+      saveA.resolve();
+    });
     expect(await readDraft(file.fileId, "A")).toBeNull();
     expect((await readDraft(file.fileId, "B"))?.content).toBe("draft B");
     view.unmount();
     const recovered = render(<MarkdownEditor pane="B" file={file} />);
-    await waitFor(() => expect((recovered.getByRole("textbox") as HTMLTextAreaElement).value).toBe("draft B"));
-    await act(async () => { saveB.resolve(); });
+    await waitFor(() =>
+      expect(
+        (recovered.getByRole("textbox") as HTMLTextAreaElement).value,
+      ).toBe("draft B"),
+    );
+    await act(async () => {
+      saveB.resolve();
+    });
     expect((await readDraft(file.fileId, "B"))?.content).toBe("draft B");
-    expect(useSaveIndicatorStore.getState().files[saveIndicatorKey(file.fileId, "B")]?.state).toBe("dirty");
+    expect(
+      useSaveIndicatorStore.getState().files[saveIndicatorKey(file.fileId, "B")]
+        ?.state,
+    ).toBe("dirty");
   });
 
   it("an older save leaves a later edit dirty and recoverable", async () => {
@@ -177,11 +269,19 @@ describe("markdown editor recovery ownership", () => {
     mocks.mutateNote.mockReturnValue(save.promise);
     const view = render(<MarkdownEditor pane="A" file={file} />);
     await waitFor(() => expect(view.getByRole("textbox")).toBeTruthy());
-    fireEvent.change(view.getByRole("textbox"), { target: { value: "saving" } });
+    fireEvent.change(view.getByRole("textbox"), {
+      target: { value: "saving" },
+    });
     await savePane("A");
     fireEvent.change(view.getByRole("textbox"), { target: { value: "newer" } });
-    await act(async () => { save.resolve(); });
-    expect(Object.entries(useSaveIndicatorStore.getState().files).find(([key]) => !key.endsWith(":B"))?.[1].state).toBe("dirty");
+    await act(async () => {
+      save.resolve();
+    });
+    expect(
+      Object.entries(useSaveIndicatorStore.getState().files).find(
+        ([key]) => !key.endsWith(":B"),
+      )?.[1].state,
+    ).toBe("dirty");
     view.unmount();
     expect((await readDraft(file.fileId, "A"))?.content).toBe("newer");
   });
@@ -191,39 +291,79 @@ describe("markdown editor recovery ownership", () => {
     mocks.mutateNote.mockReturnValue(save.promise);
     const view = render(<MarkdownEditor pane="A" file={file} />);
     await waitFor(() => expect(view.getByRole("textbox")).toBeTruthy());
-    fireEvent.change(view.getByRole("textbox"), { target: { value: "same edit" } });
+    fireEvent.change(view.getByRole("textbox"), {
+      target: { value: "same edit" },
+    });
     await savePane("A");
-    view.rerender(<MarkdownEditor pane="A" file={{ ...file, fileId: "next-note" }} />);
-    await waitFor(() => expect((view.getByRole("textbox") as HTMLTextAreaElement).value).toBe("server"));
-    fireEvent.change(view.getByRole("textbox"), { target: { value: "same edit" } });
-    await act(async () => { save.resolve(); });
-    expect(Object.entries(useSaveIndicatorStore.getState().files).find(([key]) => !key.endsWith(":B"))?.[1].state).toBe("dirty");
+    view.rerender(
+      <MarkdownEditor pane="A" file={{ ...file, fileId: "next-note" }} />,
+    );
+    await waitFor(() =>
+      expect((view.getByRole("textbox") as HTMLTextAreaElement).value).toBe(
+        "server",
+      ),
+    );
+    fireEvent.change(view.getByRole("textbox"), {
+      target: { value: "same edit" },
+    });
+    await act(async () => {
+      save.resolve();
+    });
+    expect(
+      Object.entries(useSaveIndicatorStore.getState().files).find(
+        ([key]) => !key.endsWith(":B"),
+      )?.[1].state,
+    ).toBe("dirty");
     expect((await readDraft(file.fileId, "A"))?.content).toBe("same edit");
     view.unmount();
     expect((await readDraft("next-note", "A"))?.content).toBe("same edit");
   });
 
   it("Ctrl+S saves only the active pane", async () => {
-    const view = render(<>
-      <div data-testid="A"><MarkdownEditor pane="A" file={file} /></div>
-      <div data-testid="B"><MarkdownEditor pane="B" file={file} /></div>
-    </>);
+    const view = render(
+      <>
+        <div data-testid="A">
+          <MarkdownEditor pane="A" file={file} />
+        </div>
+        <div data-testid="B">
+          <MarkdownEditor pane="B" file={file} />
+        </div>
+      </>,
+    );
     await waitFor(() => expect(view.getAllByRole("textbox")).toHaveLength(2));
-    fireEvent.change(within(view.getByTestId("A")).getByRole("textbox"), { target: { value: "draft A" } });
-    fireEvent.change(within(view.getByTestId("B")).getByRole("textbox"), { target: { value: "draft B" } });
+    fireEvent.change(within(view.getByTestId("A")).getByRole("textbox"), {
+      target: { value: "draft A" },
+    });
+    fireEvent.change(within(view.getByTestId("B")).getByRole("textbox"), {
+      target: { value: "draft B" },
+    });
     useLayoutStore.setState({ activePane: "B" });
-    await act(async () => { fireEvent.keyDown(window, { key: "s", ctrlKey: true }); });
-    expect(mocks.mutateNote).toHaveBeenCalledExactlyOnceWith(file.fileId, { content: "draft B" });
-    expect(Object.entries(useSaveIndicatorStore.getState().files).find(([key]) => !key.endsWith(":B"))?.[1].state).toBe("dirty");
+    await act(async () => {
+      fireEvent.keyDown(window, { key: "s", ctrlKey: true });
+    });
+    expect(mocks.mutateNote).toHaveBeenCalledExactlyOnceWith(file.fileId, {
+      content: "draft B",
+    });
+    expect(
+      Object.entries(useSaveIndicatorStore.getState().files).find(
+        ([key]) => !key.endsWith(":B"),
+      )?.[1].state,
+    ).toBe("dirty");
   });
 
   it("Ctrl+S handled by the focused B surface does not also save the stale active pane A", async () => {
     const save = deferredSave();
     mocks.mutateNote.mockReturnValue(save.promise);
-    const view = render(<>
-      <div data-testid="A"><MarkdownEditor pane="A" file={file} /></div>
-      <div data-testid="B"><MarkdownEditor pane="B" file={file} /></div>
-    </>);
+    const view = render(
+      <>
+        <div data-testid="A">
+          <MarkdownEditor pane="A" file={file} />
+        </div>
+        <div data-testid="B">
+          <MarkdownEditor pane="B" file={file} />
+        </div>
+      </>,
+    );
     await waitFor(() => expect(view.getAllByRole("textbox")).toHaveLength(2));
     const surfaceA = within(view.getByTestId("A")).getByRole("textbox");
     const surfaceB = within(view.getByTestId("B")).getByRole("textbox");
@@ -231,15 +371,25 @@ describe("markdown editor recovery ownership", () => {
     fireEvent.change(surfaceB, { target: { value: "draft B" } });
 
     // keyboard focus does not trigger the pane's pointer-based activation
-    act(() => { surfaceB.focus(); });
+    act(() => {
+      surfaceB.focus();
+    });
     expect(document.activeElement).toBe(surfaceB);
     expect(useLayoutStore.getState().activePane).toBe("A");
     await act(async () => {
-      expect(fireEvent.keyDown(surfaceB, { key: "s", ctrlKey: true })).toBe(false);
+      expect(fireEvent.keyDown(surfaceB, { key: "s", ctrlKey: true })).toBe(
+        false,
+      );
     });
 
-    expect(mocks.mutateNote).toHaveBeenCalledExactlyOnceWith(file.fileId, { content: "draft B" });
-    expect(Object.entries(useSaveIndicatorStore.getState().files).find(([key]) => !key.endsWith(":B"))?.[1].state).toBe("dirty");
+    expect(mocks.mutateNote).toHaveBeenCalledExactlyOnceWith(file.fileId, {
+      content: "draft B",
+    });
+    expect(
+      Object.entries(useSaveIndicatorStore.getState().files).find(
+        ([key]) => !key.endsWith(":B"),
+      )?.[1].state,
+    ).toBe("dirty");
   });
 
   it.each([false, true])(
@@ -251,10 +401,18 @@ describe("markdown editor recovery ownership", () => {
       function Workspace() {
         const paneA = useLayoutStore((state) => state.paneA);
         const paneB = useLayoutStore((state) => state.paneB);
-        return <>
-          <div data-testid="A"><MarkdownEditor key={paneA.fileId} pane="A" file={paneA} /></div>
-          <div data-testid="B">{paneB && <MarkdownEditor key={paneB.fileId} pane="B" file={paneB} />}</div>
-        </>;
+        return (
+          <>
+            <div data-testid="A">
+              <MarkdownEditor key={paneA.fileId} pane="A" file={paneA} />
+            </div>
+            <div data-testid="B">
+              {paneB && (
+                <MarkdownEditor key={paneB.fileId} pane="B" file={paneB} />
+              )}
+            </div>
+          </>
+        );
       }
       const view = render(<Workspace />);
       await waitFor(() => expect(view.getAllByRole("textbox")).toHaveLength(2));
@@ -262,54 +420,106 @@ describe("markdown editor recovery ownership", () => {
         target: { value: "unsaved closed B" },
       });
 
-      act(() => { useLayoutStore.getState().setPaneB(undefined); });
+      act(() => {
+        useLayoutStore.getState().setPaneB(undefined);
+      });
       expect(within(view.getByTestId("B")).queryByRole("textbox")).toBeNull();
-      expect((await readDraft(file.fileId, "B"))?.content).toBe("unsaved closed B");
+      expect((await readDraft(file.fileId, "B"))?.content).toBe(
+        "unsaved closed B",
+      );
       expect(await readDraft(file.fileId, "A")).toBeNull();
       expect(mocks.mutateNote).not.toHaveBeenCalled();
 
       if (sameNote) {
-        act(() => { useLayoutStore.getState().setPaneA(otherFile); });
-        await waitFor(() => expect(within(view.getByTestId("A")).getByRole("textbox")).toBeTruthy());
+        act(() => {
+          useLayoutStore.getState().setPaneA(otherFile);
+        });
+        await waitFor(() =>
+          expect(
+            within(view.getByTestId("A")).getByRole("textbox"),
+          ).toBeTruthy(),
+        );
       }
-      act(() => { useLayoutStore.getState().setPaneA(file); });
+      act(() => {
+        useLayoutStore.getState().setPaneA(file);
+      });
 
       await waitFor(() => {
-        expect((within(view.getByTestId("A")).getByRole("textbox") as HTMLTextAreaElement).value)
-          .toBe("unsaved closed B");
+        expect(
+          (
+            within(view.getByTestId("A")).getByRole(
+              "textbox",
+            ) as HTMLTextAreaElement
+          ).value,
+        ).toBe("unsaved closed B");
       });
       // the indicator is updated by an effect after the restored text renders
       await waitFor(() => {
-        expect(Object.entries(useSaveIndicatorStore.getState().files).find(([key]) => !key.endsWith(":B"))?.[1].state).toBe("dirty");
+        expect(
+          Object.entries(useSaveIndicatorStore.getState().files).find(
+            ([key]) => !key.endsWith(":B"),
+          )?.[1].state,
+        ).toBe("dirty");
       });
     },
   );
 
-  it.each([true, false])("drafts follow swapped panes with same note=%s", async (sameNote) => {
-    useLayoutStore.setState({
-      paneA: file,
-      paneB: { ...file, fileId: sameNote ? file.fileId : "second-note" },
-    });
-    function Workspace() {
-      const paneA = useLayoutStore((state) => state.paneA);
-      const paneB = useLayoutStore((state) => state.paneB);
-      return <>
-        <div data-testid="A"><MarkdownEditor key={paneA.fileId} pane="A" file={paneA} /></div>
-        <div data-testid="B">{paneB && <MarkdownEditor key={paneB.fileId} pane="B" file={paneB} />}</div>
-      </>;
-    }
-    const view = render(<Workspace />);
-    await waitFor(() => expect(view.getAllByRole("textbox")).toHaveLength(2));
-    fireEvent.change(within(view.getByTestId("A")).getByRole("textbox"), { target: { value: "unsaved A" } });
-    fireEvent.change(within(view.getByTestId("B")).getByRole("textbox"), { target: { value: "unsaved B" } });
+  it.each([true, false])(
+    "drafts follow swapped panes with same note=%s",
+    async (sameNote) => {
+      useLayoutStore.setState({
+        paneA: file,
+        paneB: { ...file, fileId: sameNote ? file.fileId : "second-note" },
+      });
+      function Workspace() {
+        const paneA = useLayoutStore((state) => state.paneA);
+        const paneB = useLayoutStore((state) => state.paneB);
+        return (
+          <>
+            <div data-testid="A">
+              <MarkdownEditor key={paneA.fileId} pane="A" file={paneA} />
+            </div>
+            <div data-testid="B">
+              {paneB && (
+                <MarkdownEditor key={paneB.fileId} pane="B" file={paneB} />
+              )}
+            </div>
+          </>
+        );
+      }
+      const view = render(<Workspace />);
+      await waitFor(() => expect(view.getAllByRole("textbox")).toHaveLength(2));
+      fireEvent.change(within(view.getByTestId("A")).getByRole("textbox"), {
+        target: { value: "unsaved A" },
+      });
+      fireEvent.change(within(view.getByTestId("B")).getByRole("textbox"), {
+        target: { value: "unsaved B" },
+      });
 
-    act(() => { useLayoutStore.getState().swapPanes(); });
-    await waitFor(() => {
-      expect((within(view.getByTestId("A")).getByRole("textbox") as HTMLTextAreaElement).value).toBe("unsaved B");
-      expect((within(view.getByTestId("B")).getByRole("textbox") as HTMLTextAreaElement).value).toBe("unsaved A");
-    });
-    await savePane("A");
-    expect(await readDraft(sameNote ? file.fileId : "second-note", "B")).toBeNull();
-    expect((await readDraft(file.fileId, "A"))?.content).toBe("unsaved A");
-  });
+      act(() => {
+        useLayoutStore.getState().swapPanes();
+      });
+      await waitFor(() => {
+        expect(
+          (
+            within(view.getByTestId("A")).getByRole(
+              "textbox",
+            ) as HTMLTextAreaElement
+          ).value,
+        ).toBe("unsaved B");
+        expect(
+          (
+            within(view.getByTestId("B")).getByRole(
+              "textbox",
+            ) as HTMLTextAreaElement
+          ).value,
+        ).toBe("unsaved A");
+      });
+      await savePane("A");
+      expect(
+        await readDraft(sameNote ? file.fileId : "second-note", "B"),
+      ).toBeNull();
+      expect((await readDraft(file.fileId, "A"))?.content).toBe("unsaved A");
+    },
+  );
 });

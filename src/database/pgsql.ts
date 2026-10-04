@@ -9,7 +9,7 @@ type PostgresClient = ReturnType<typeof postgres>;
  * awaited row array callers consume; transaction callbacks retain the native
  * postgres.js contract.
  */
-export interface DatabaseSql {
+interface DatabaseSql {
     <T extends Record<string, unknown>>(
         value: T,
         ...columns: string[]

@@ -1,6 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
-import { validateSession } from "@/lib/auth";
-import { withErrorHandler, tracedError } from "@/lib/api-error";
+import { NextResponse } from "next/server";
+import {
+  requireAuth,
+  type RouteParamsContext,
+  withErrorHandler,
+  tracedError,
+} from "@/lib/api-error";
 import { cardFromDB, getNextIntervals } from "@/lib/quiz/fsrs";
 import { normalizeQuizQuestion } from "@/lib/quiz/normalize-question";
 import type { QuizSessionQuestion } from "@/lib/quiz/types";
@@ -16,11 +20,10 @@ type QuizCardRow = Parameters<typeof cardFromDB>[0] & {
 
 export const GET = withErrorHandler(
   async (
-    _request: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
+    _request,
+    { params }: RouteParamsContext<{ id: string }>,
   ) => {
-    const user = await validateSession();
-    if (!user) return tracedError("Unauthorized", 401);
+    const user = await requireAuth();
 
     const { id } = await params;
     const [session] = await sql`
@@ -71,11 +74,10 @@ export const GET = withErrorHandler(
 
 export const DELETE = withErrorHandler(
   async (
-    _request: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
+    _request,
+    { params }: RouteParamsContext<{ id: string }>,
   ) => {
-    const user = await validateSession();
-    if (!user) return tracedError("Unauthorized", 401);
+    const user = await requireAuth();
 
     const { id } = await params;
     await sql`

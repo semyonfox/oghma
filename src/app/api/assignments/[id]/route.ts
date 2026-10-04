@@ -15,11 +15,11 @@ import { assignmentUpdateSchema, validateBody } from '@/lib/validations/schemas'
  */
 export const GET = withErrorHandler(async (
   _request,
-  context: RouteParamsContext<{ id: string }>,
+  { params }: RouteParamsContext<{ id: string }>,
 ) => {
   const user = await requireAuth();
 
-  const { id } = await context.params;
+  const { id } = await params;
   requireValidId(id);
 
   const [row] = await sql`
@@ -49,11 +49,11 @@ export const GET = withErrorHandler(async (
  */
 export const PATCH = withErrorHandler(async (
   request,
-  context: RouteParamsContext<{ id: string }>,
+  { params }: RouteParamsContext<{ id: string }>,
 ) => {
   const user = await requireAuth();
 
-  const { id } = await context.params;
+  const { id } = await params;
   requireValidId(id);
 
   const validation = validateBody(assignmentUpdateSchema, await parseJson(request));
@@ -94,11 +94,11 @@ export const PATCH = withErrorHandler(async (
  */
 export const DELETE = withErrorHandler(async (
   _request,
-  context: RouteParamsContext<{ id: string }>,
+  { params }: RouteParamsContext<{ id: string }>,
 ) => {
   const user = await requireAuth();
 
-  const { id } = await context.params;
+  const { id } = await params;
   requireValidId(id);
 
   const result = await sql`

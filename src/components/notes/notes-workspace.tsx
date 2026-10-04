@@ -8,7 +8,7 @@ import {
   Panel,
   Separator as PanelResizeHandle,
 } from "react-resizable-panels";
-import useLayoutStore from "@/lib/notes/state/layout.zustand";
+import useLayoutStore from "@/lib/notes/state/layout";
 import useNoteTreeStore from "@/lib/notes/state/tree";
 import { schedulePrefetch } from "@/lib/notes/prefetch";
 import useMediaQuery from "@/lib/hooks/use-media-query";

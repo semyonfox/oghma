@@ -1,11 +1,11 @@
 import bcrypt from "bcryptjs";
 import sql from "@/database/pgsql";
-import { createErrorResponse, parseJsonBody } from "@/lib/auth";
-import { validateAuthCredentials } from "@/lib/auth-credentials";
-import { checkRateLimit, getClientIp } from "@/lib/rateLimiter";
+import { createErrorResponse, parseJsonBody } from "@/lib/auth/session";
+import { validateAuthCredentials } from "@/lib/auth/credentials";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
 import logger from "@/lib/logger";
 import { assertTrustedOrigin } from "@/lib/api-error";
-import { hashToken } from "@/lib/tokens";
+import { hashToken } from "@/lib/auth/tokens";
 import type { NextRequest } from "next/server";
 
 export async function POST(request: NextRequest): Promise<Response> {

@@ -6,7 +6,7 @@ import { MagnifyingGlassIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 import useSwipeDismiss from "@/components/navigation/use-swipe-dismiss";
 import useI18n from "@/lib/notes/hooks/use-i18n";
-import type { CourseSetting } from "@/lib/notes/state/courses.zustand";
+import type { CourseSetting } from "@/lib/notes/state/courses";
 
 export interface CourseVisibilityItem {
   courseId: string;

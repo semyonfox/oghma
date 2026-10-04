@@ -3,11 +3,11 @@
 import { type FormEvent, useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { getProviders, signIn } from "next-auth/react";
-import { register, getErrorMessage } from "@/lib/apiClient";
+import { register, getErrorMessage } from "@/lib/api-client";
 import {
   getPasswordRequirements,
   validateAuthCredentials,
-} from "@/lib/auth-credentials";
+} from "@/lib/auth/credentials";
 import { Alert } from "@/components/alert";
 import Link from "next/link";
 import BrandLogo from "@/components/brand-logo";
@@ -18,7 +18,7 @@ import {
 import {
   buildOAuthSignInOptions,
   isOAuthProviderConfigured,
-} from "@/lib/oauth-client";
+} from "@/lib/auth/oauth-client";
 import { postNativeOAuth, useNativeAppBridge, type NativeOAuthProvider } from "@/lib/native-app";
 
 export default function RegisterPage() {

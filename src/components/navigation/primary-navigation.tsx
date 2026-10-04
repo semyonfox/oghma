@@ -5,10 +5,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import CanvasImportIndicator from "@/components/canvas/canvas-import-indicator";
 import BrandLogo from "@/components/brand-logo";
-import useLayoutStore from "@/lib/notes/state/layout.zustand";
+import useLayoutStore from "@/lib/notes/state/layout";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import useGlobalSearchStore from "@/lib/global-search/state";
-import usePomodoroStore from "@/lib/notes/state/pomodoro.zustand";
+import usePomodoroStore from "@/lib/notes/state/pomodoro";
 import { useNativeAppBridge, supportsNativeOffline, postNativeOfflineOpen } from "@/lib/native-app";
 import {
   DocumentTextIcon,

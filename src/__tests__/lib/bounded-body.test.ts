@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { readBoundedBody, BodyTooLargeError } from "@/lib/http/bounded-body";
-import { parseJsonBody } from "@/lib/auth";
+import { parseJsonBody } from "@/lib/auth/session";
 import { parseJsonObject } from "@/lib/api-error";
 import { chatRequestSchema } from "@/lib/validations/schemas";
 

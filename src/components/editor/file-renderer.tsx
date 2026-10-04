@@ -2,7 +2,7 @@
 
 import { FC, memo, Suspense } from "react";
 import dynamic from "next/dynamic";
-import { FileSpec } from "@/lib/notes/state/layout.zustand";
+import { FileSpec } from "@/lib/notes/state/layout";
 import MarkdownEditor from "./markdown-editor";
 import ImageViewer from "./image-viewer";
 import VideoViewer from "./video-viewer";

@@ -1,6 +1,6 @@
 import type { SseWriter } from "@/lib/chat/stream-events";
 
-export const DEFAULT_MAX_PENDING_CHAT_EVENTS = 256;
+const DEFAULT_MAX_PENDING_CHAT_EVENTS = 256;
 
 export interface BufferedSseWriter extends SseWriter {
   flush(): Promise<void>;

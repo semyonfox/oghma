@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { validateSession } from "@/lib/auth";
+import { validateSession } from "@/lib/auth/session";
 import QuizPageClient from "./quiz-page-client";
 import { getQuizDashboardData } from "./server-data";
 

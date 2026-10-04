@@ -1,4 +1,4 @@
-import { embedText } from "@/lib/embedText";
+import { embedText } from "@/lib/rag/embeddings";
 import sql from "@/database/pgsql";
 import type { CardState, FilterType } from "./types";
 import { SESSION_DEFAULTS } from "./types";

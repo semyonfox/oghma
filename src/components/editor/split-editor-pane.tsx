@@ -7,7 +7,7 @@ import {
   Separator as PanelResizeHandle,
 } from "react-resizable-panels";
 import useMediaQuery from "@/lib/hooks/use-media-query";
-import useLayoutStore from "@/lib/notes/state/layout.zustand";
+import useLayoutStore from "@/lib/notes/state/layout";
 import EditorPane from "./editor-pane";
 
 const SplitEditorPane: FC = () => {

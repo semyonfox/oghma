@@ -9,7 +9,7 @@ import type postgres from "postgres";
 import sql from "../../database/pgsql";
 import { v4 as uuidv4 } from "uuid";
 import { invalidateTreeAfterPublish } from "@/lib/notes/tree-cache";
-export { cleanCourseName, stripHtmlToText } from "./content-formatting";
+export { cleanCourseName,  } from "./content-formatting";
 
 interface CanvasFolderIdentity {
   canvasCourseId?: string | number | null;

@@ -8,7 +8,7 @@ const redisState = vi.hoisted(() => ({
   eval: vi.fn(),
 }));
 
-vi.mock("@/lib/auth", () => ({ validateSession: vi.fn() }));
+vi.mock("@/lib/auth/session", () => ({ validateSession: vi.fn() }));
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 vi.mock("@/database/pgsql", () => ({ default: vi.fn() }));
 vi.mock("@/lib/redis", () => ({
@@ -29,10 +29,10 @@ import {
   consumeMobileAuthGrant,
   createCodeChallenge,
   issueMobileAuthGrant,
-} from "@/lib/mobile-auth";
-import { validateSession } from "@/lib/auth";
+} from "@/lib/auth/mobile";
+import { validateSession } from "@/lib/auth/session";
 import sql from "@/database/pgsql";
-import { RATE_LIMITS } from "@/lib/rateLimitConfig";
+import { RATE_LIMITS } from "@/lib/rate-limit-config";
 
 const USER_ID = "00000000-0000-4000-8000-000000000001";
 const VERIFIER = "a".repeat(64);
@@ -138,7 +138,7 @@ describe("mobile auth Redis grants", () => {
 describe("verified Android association", () => {
   afterEach(() => vi.unstubAllEnvs());
   it("requires real certificate-shaped fingerprints and an explicit verification attestation", async () => {
-    const { androidAppLinkFingerprints, mobileAppLinksReady } = await import('@/lib/mobile-auth');
+    const { androidAppLinkFingerprints, mobileAppLinksReady } = await import('@/lib/auth/mobile');
     const { GET } = await import('@/app/.well-known/assetlinks.json/route');
     vi.stubEnv('ANDROID_APP_LINK_SHA256_FINGERPRINTS', '');
     vi.stubEnv('ANDROID_APP_LINKS_VERIFIED', 'true');

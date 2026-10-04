@@ -4,7 +4,7 @@
 // the disconnect grace window for any in-flight chat generation.
 import { NextRequest, NextResponse } from "next/server";
 import { withErrorHandler, requireAuthLite, tracedError } from "@/lib/api-error";
-import { checkRateLimit } from "@/lib/rateLimiter";
+import { checkRateLimit } from "@/lib/rate-limiter";
 import { isValidPresenceTabId, removeChatPresence } from "@/lib/chat/presence";
 import logger from "@/lib/logger";
 

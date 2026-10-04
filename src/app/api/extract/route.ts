@@ -2,11 +2,11 @@
 // The HTTP POST handler remains for manual/admin triggers only
 import { runExtraction } from "@/lib/ingestion/run-extraction";
 import { NextRequest, NextResponse } from "next/server";
-import { validateSession } from "@/lib/auth";
+import { validateSession } from "@/lib/auth/session";
 import sql from "@/database/pgsql";
 import { withErrorHandler } from "@/lib/api-error";
 import { ApiError } from "@/lib/api-error";
-import { checkRateLimit } from "@/lib/rateLimiter";
+import { checkRateLimit } from "@/lib/rate-limiter";
 
 function isAllowedUrl(raw: string): boolean {
   let parsed: URL;

@@ -1,5 +1,5 @@
 import sql, { afterDatabaseCommit, afterDatabaseRollback } from "@/database/pgsql";
-import { embedChunks } from "@/lib/embeddings";
+import { embedChunks } from "@/lib/rag/embeddings";
 import {
   deleteChunkVectors,
   setChunkVectorsSearchable,
@@ -70,17 +70,6 @@ async function deletePgEmbeddings(chunkIds: string[]): Promise<void> {
   } catch (error) {
     logger.warn("pg embedding cleanup failed", { error });
   }
-}
-
-export async function deleteNoteRagIndex(
-  noteId: string,
-  userId: string,
-): Promise<number> {
-  const chunkRows =
-    await sql<ChunkRow[]>`SELECT id FROM app.chunks WHERE document_id = ${noteId}::uuid AND user_id = ${userId}::uuid`;
-  const chunkIds = chunkRows.map((row) => row.id);
-  await deleteChunkSet(chunkIds, userId);
-  return chunkIds.length;
 }
 
 export async function replaceNoteEmbeddings(

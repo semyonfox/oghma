@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   mobileReady: vi.fn(),
 }));
 
-vi.mock("@/lib/mobile-auth", () => {
+vi.mock("@/lib/auth/mobile", () => {
   class MobileAuthStoreUnavailableError extends Error {}
   return {
     mobileAppLinksReady: mocks.mobileReady,
@@ -27,11 +27,11 @@ vi.mock("@/lib/mobile-auth", () => {
     consumeMobileAuthGrant: mocks.consumeGrant,
   };
 });
-vi.mock("@/lib/rateLimiter", () => ({
+vi.mock("@/lib/rate-limiter", () => ({
   checkRateLimit: mocks.checkRateLimit,
   getClientIp: mocks.getClientIp,
 }));
-vi.mock("@/lib/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   createAuthSession: mocks.createAuthSession,
   validateSession: vi.fn(),
   validateSessionLite: vi.fn(),
@@ -42,7 +42,7 @@ vi.mock("@/lib/logger", () => ({
 
 import { GET, POST as AUTHORIZE } from "@/app/api/auth/mobile/authorize/route";
 import { POST as EXCHANGE } from "@/app/api/auth/mobile/exchange/route";
-import { MobileAuthStoreUnavailableError } from "@/lib/mobile-auth";
+import { MobileAuthStoreUnavailableError } from "@/lib/auth/mobile";
 
 const USER = {
   user_id: "00000000-0000-4000-8000-000000000001",

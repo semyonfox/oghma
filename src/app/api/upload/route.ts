@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Readable } from "stream";
 import type postgres from "postgres";
-import { checkRateLimit } from "@/lib/rateLimiter";
+import { checkRateLimit } from "@/lib/rate-limiter";
 import { getStorageProvider } from "@/lib/storage/init";
 import {
   createNoteWithTree,
@@ -11,12 +11,11 @@ import {
 import { generateUUID, isValidUUID } from "@/lib/utils/uuid";
 import { withErrorHandler, tracedError, requireAuth, ApiError } from "@/lib/api-error";
 import sql from "@/database/pgsql";
-import { xraySubsegment } from "@/lib/xray";
 import logger from "@/lib/logger";
 import { config } from "@/lib/config";
 import { enqueueCanvasJob } from "@/lib/queue";
 import { readBoundedBody, BodyTooLargeError } from "@/lib/http/bounded-body";
-import { detectMimeType } from "@/lib/uploads/detect-mime";
+import { detectMimeType } from "@/lib/ingestion/detect-mime";
 import { invalidateTreeAfterPublish } from "@/lib/notes/tree-cache";
 
 function sanitizeFileName(raw: string): string {
@@ -120,11 +119,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   const storage = getStorageProvider();
   try {
-    await xraySubsegment("s3-put", () =>
-      storage.putObject(storagePath, Buffer.from(rawBuffer), {
-        contentType: mimeType,
-      }),
-    );
+    await storage.putObject(storagePath, Buffer.from(rawBuffer), {
+      contentType: mimeType,
+    });
   } catch (s3Error) {
     if (createdNewNote) {
       await removeNewNoteWithTree(session.user_id, noteId).catch(() => {});

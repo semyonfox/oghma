@@ -5,7 +5,6 @@ const mocks = vi.hoisted(() => ({
   requireAuth: vi.fn(),
   checkRateLimit: vi.fn(),
   normalizeScope: vi.fn(),
-  runRagPipeline: vi.fn(),
   createChatGeneration: vi.fn(),
   enqueueChatGeneration: vi.fn(),
 }));
@@ -37,7 +36,7 @@ vi.mock("@/lib/api-error", async () => {
     },
   };
 });
-vi.mock("@/lib/rateLimiter", () => ({
+vi.mock("@/lib/rate-limiter", () => ({
   checkRateLimit: mocks.checkRateLimit,
 }));
 vi.mock("@/lib/logger", () => ({
@@ -51,11 +50,9 @@ vi.mock("@/lib/chat/normalize-scope", () => ({
   normalizeScope: mocks.normalizeScope,
   buildSessionMemoryPrompt: vi.fn(),
 }));
-vi.mock("@/lib/chat/rag-pipeline", () => ({
-  runRagPipeline: mocks.runRagPipeline,
+vi.mock("@/lib/chat/system-prompt", () => ({
   buildSystemPrompt: vi.fn(),
   buildPlainSystemPrompt: vi.fn(),
-  runKeywordFallback: vi.fn(),
 }));
 vi.mock("@/lib/chat/generation-store", () => ({
   createChatGeneration: mocks.createChatGeneration,
@@ -108,7 +105,6 @@ describe("POST /api/chat request contract", () => {
       traceId: expect.stringMatching(/^(?!no-trace$).+/),
     });
     expect(mocks.normalizeScope).not.toHaveBeenCalled();
-    expect(mocks.runRagPipeline).not.toHaveBeenCalled();
     expect(mocks.createChatGeneration).not.toHaveBeenCalled();
   });
 

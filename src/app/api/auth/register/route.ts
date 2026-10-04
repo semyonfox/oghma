@@ -10,21 +10,21 @@
 
 import { after, NextResponse, type NextRequest } from "next/server";
 import sql from "@/database/pgsql";
-import { validateAuthCredentials } from "@/lib/auth-credentials";
+import { validateAuthCredentials } from "@/lib/auth/credentials";
 import {
   createErrorResponse,
   createValidationErrorResponse,
   parseJsonBody,
-} from "@/lib/auth";
+} from "@/lib/auth/session";
 import { generateUUID } from "@/lib/utils/uuid";
-import { generateSecureToken, hashToken } from "@/lib/tokens";
+import { generateSecureToken, hashToken } from "@/lib/auth/tokens";
 import { EmailSendError, sendVerificationEmail } from "@/lib/email";
-import { checkRateLimit, getClientIp } from "@/lib/rateLimiter";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
 import bcrypt from "bcryptjs";
 import logger from "@/lib/logger";
 import { withErrorHandler } from "@/lib/api-error";
 import { registerSchema, validateBody } from "@/lib/validations/schemas";
-import { validateAgentRegistrationForSignup } from "@/lib/agent-registration";
+import { validateAgentRegistrationForSignup } from "@/lib/auth/agent-registration";
 import {
   gettingStartedNoteTitle,
   renderGettingStartedNote,

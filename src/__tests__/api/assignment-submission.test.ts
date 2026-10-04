@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 
 const mocks = vi.hoisted(() => ({ sql: vi.fn(), auth: vi.fn(), credentials: vi.fn(), assignment: vi.fn(), fetch: vi.fn() }));
 vi.mock("@/database/pgsql", () => ({ default: mocks.sql }));
-vi.mock("@/lib/auth", () => ({ validateSession: mocks.auth, validateSessionLite: mocks.auth }));
+vi.mock("@/lib/auth/session", () => ({ validateSession: mocks.auth, validateSessionLite: mocks.auth }));
 vi.mock("@/lib/logger", () => ({ default: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
 vi.mock("@/lib/canvas/credentials", () => ({ loadCanvasCredentials: mocks.credentials }));
 vi.mock("@/lib/canvas/safe-fetch", () => ({

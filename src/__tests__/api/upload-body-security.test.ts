@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
-vi.mock("@/lib/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   validateSession: vi
     .fn()
     .mockResolvedValue({
@@ -13,7 +13,7 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("@/lib/config", () => ({
   config: { upload: { maxFileSizeBytes: 1024 } },
 }));
-vi.mock("@/lib/rateLimiter", () => ({
+vi.mock("@/lib/rate-limiter", () => ({
   checkRateLimit: vi.fn().mockResolvedValue(null),
 }));
 vi.mock("@/lib/queue", () => ({ enqueueCanvasJob: vi.fn() }));

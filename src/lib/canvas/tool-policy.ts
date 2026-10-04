@@ -1,5 +1,5 @@
 // new hosted tools require confirmation until their read-only behaviour is checked
-export const READ_ONLY_CANVAS_TOOLS = new Set([
+const READ_ONLY_CANVAS_TOOLS = new Set([
   "canvas_get_activity_stream_summary",
   "canvas_get_all_students_status",
   "canvas_get_announcement",

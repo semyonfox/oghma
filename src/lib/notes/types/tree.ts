@@ -53,7 +53,7 @@ export function createEmptyTree(): TreeModel {
 
 export const DEFAULT_TREE = createEmptyTree();
 
-export interface TreeMovePosition {
+interface TreeMovePosition {
   parentId: string;
   index: number;
 }
@@ -71,7 +71,7 @@ export interface TreeMoveResult {
   newParentId: string | null;
 }
 
-export interface TreeExpansionRequest {
+interface TreeExpansionRequest {
   id: string;
   isExpanded: boolean;
 }

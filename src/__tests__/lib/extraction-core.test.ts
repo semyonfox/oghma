@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const extractWithMarker = vi.hoisted(() => vi.fn());
 const getPdfText = vi.hoisted(() => vi.fn());
 
-vi.mock("@/lib/ocr", () => ({ extractWithMarker }));
+vi.mock("@/lib/marker/ocr", () => ({ extractWithMarker }));
 vi.mock("pdf-parse", () => ({
   PDFParse: class {
     getText = getPdfText;

@@ -18,7 +18,7 @@ vi.mock("@/lib/api-error", () => ({
     (request: NextRequest) =>
       handler(request),
 }));
-vi.mock("@/lib/rateLimiter", () => ({
+vi.mock("@/lib/rate-limiter", () => ({
   checkRateLimit: mockRateLimit,
   getClientIp: vi.fn(() => "127.0.0.1"),
 }));

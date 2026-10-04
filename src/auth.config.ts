@@ -3,7 +3,7 @@ import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { loginSchema } from "@/lib/validations/schemas";
-import { reserveLoginAttempt, clearFailedAttempts } from "@/lib/loginLockout";
+import { reserveLoginAttempt, clearFailedAttempts } from "@/lib/auth/login-lockout";
 import type { NextAuthConfig } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import sql from "@/database/pgsql";
@@ -11,8 +11,8 @@ import logger from "@/lib/logger";
 import {
   findOrCreateOAuthUser,
   resolveVerifiedOAuthEmail,
-} from "@/lib/auth-oauth";
-import type { OAuthProfile } from "@/lib/auth-oauth";
+} from "@/lib/auth/oauth";
+import type { OAuthProfile } from "@/lib/auth/oauth";
 import { getRequestLocale } from "@/lib/i18n/server";
 
 const providers: NextAuthConfig["providers"] = [];

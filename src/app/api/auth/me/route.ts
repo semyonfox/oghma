@@ -1,5 +1,5 @@
-import { validateSession } from "@/lib/auth";
-import { getLinkedProviders } from "@/lib/auth-oauth";
+import { validateSession } from "@/lib/auth/session";
+import { getLinkedProviders } from "@/lib/auth/oauth";
 import sql from "@/database/pgsql";
 import logger from "@/lib/logger";
 import { NextResponse, type NextRequest } from "next/server";

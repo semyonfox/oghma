@@ -7,12 +7,12 @@ vi.mock("@/database/pgsql", () => {
   return { default: sqlMock };
 });
 
-vi.mock("@/lib/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   validateSession: vi.fn(),
 }));
 
 import sql from "@/database/pgsql";
-import { validateSession, type SessionUser } from "@/lib/auth";
+import { validateSession, type SessionUser } from "@/lib/auth/session";
 import { GET as getDashboardCourses } from "@/app/api/quiz/dashboard/courses/route";
 
 describe("GET /api/quiz/dashboard/courses", () => {

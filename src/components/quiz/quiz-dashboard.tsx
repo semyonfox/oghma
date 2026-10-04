@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import useQuizStore from "@/lib/notes/state/quiz";
-import useCourseStore from "@/lib/notes/state/courses.zustand";
+import useCourseStore from "@/lib/notes/state/courses";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import {
   CourseVisibilityDialog,

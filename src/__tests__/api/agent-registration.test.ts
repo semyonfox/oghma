@@ -2,11 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 vi.mock("@/database/pgsql", () => ({ default: vi.fn() }));
-vi.mock("@/lib/rateLimiter", () => ({
+vi.mock("@/lib/rate-limiter", () => ({
   checkRateLimit: vi.fn().mockResolvedValue(null),
   getClientIp: vi.fn().mockReturnValue("127.0.0.1"),
 }));
-vi.mock("@/lib/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   validateSession: vi.fn(),
   createErrorResponse: (error: string, status = 400) =>
     Response.json({ success: false, error }, { status }),
@@ -15,7 +15,7 @@ vi.mock("@/lib/auth", () => ({
     error: null,
   }),
 }));
-vi.mock("@/lib/agent-registration", () => ({
+vi.mock("@/lib/auth/agent-registration", () => ({
   completeOAuthAgentRegistration: vi.fn(),
   createAgentRegistrationClaim: vi.fn(),
   findAgentRegistrationClaim: vi.fn(),
@@ -34,8 +34,8 @@ import {
   createAgentRegistrationClaim,
   findAgentRegistrationClaim,
   findOpenAgentRegistrationByEmail,
-} from "@/lib/agent-registration";
-import { validateSession } from "@/lib/auth";
+} from "@/lib/auth/agent-registration";
+import { validateSession } from "@/lib/auth/session";
 import { POST as startRegistration } from "@/app/agent/identity/route";
 import { POST as readClaim } from "@/app/agent/identity/claim/route";
 import { POST as completeClaim } from "@/app/agent/identity/claim/complete/route";

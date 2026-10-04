@@ -14,11 +14,11 @@ vi.mock("@/database/pgsql", () => {
   sql.begin = vi.fn();
   return { default: sql };
 });
-vi.mock("@/lib/rateLimiter", () => ({
+vi.mock("@/lib/rate-limiter", () => ({
   checkRateLimit: vi.fn().mockResolvedValue(null),
   getClientIp: vi.fn().mockReturnValue("127.0.0.1"),
 }));
-vi.mock("@/lib/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   createErrorResponse: (error: string, status: number) =>
     Response.json({ error }, { status }),
   createValidationErrorResponse: (validationErrors: unknown) =>
@@ -28,7 +28,7 @@ vi.mock("@/lib/auth", () => ({
     error: null,
   }),
 }));
-vi.mock("@/lib/agent-registration", () => ({
+vi.mock("@/lib/auth/agent-registration", () => ({
   validateAgentRegistrationForSignup: vi.fn(),
 }));
 vi.mock("@/lib/email", async (importOriginal) => ({

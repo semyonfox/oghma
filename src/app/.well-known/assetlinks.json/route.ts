@@ -1,4 +1,4 @@
-import { androidAppLinkFingerprints } from "@/lib/mobile-auth";
+import { androidAppLinkFingerprints } from "@/lib/auth/mobile";
 
 export function GET() {
   const fingerprints = androidAppLinkFingerprints();

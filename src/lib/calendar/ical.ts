@@ -31,7 +31,7 @@ export function foldIcalLine(line: string): string {
   return parts.join("\r\n ");
 }
 
-export function formatIcalDate(date: Date): string {
+function formatIcalDate(date: Date): string {
   return date
     .toISOString()
     .replace(/[-:]/g, "")

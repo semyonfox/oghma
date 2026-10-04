@@ -26,9 +26,9 @@ import { toast } from "sonner";
 import useAssignmentStore, {
   type Assignment,
   type AssignmentTab,
-} from "@/lib/notes/state/assignments.zustand";
-import useCourseStore from "@/lib/notes/state/courses.zustand";
-import usePomodoroStore from "@/lib/notes/state/pomodoro.zustand";
+} from "@/lib/notes/state/assignments";
+import useCourseStore from "@/lib/notes/state/courses";
+import usePomodoroStore from "@/lib/notes/state/pomodoro";
 import {
   getAssignmentDueDayDifference,
   getEffectiveAssignmentStatus,

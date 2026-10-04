@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import AssignmentTracker from "@/components/assignments/assignment-tracker";
-import type { Assignment, AssignmentTab } from "@/lib/notes/state/assignments.zustand";
+import type { Assignment, AssignmentTab } from "@/lib/notes/state/assignments";
 
 const assignment: Assignment = {
   id: "historic-task",
@@ -31,7 +31,7 @@ const updateAssignment = vi.fn();
 vi.mock("@/lib/notes/hooks/use-i18n", () => ({
   default: () => ({ t: (key: string) => key, activeLocale: "en" }),
 }));
-vi.mock("@/lib/notes/state/assignments.zustand", () => ({
+vi.mock("@/lib/notes/state/assignments", () => ({
   default: () => ({
     assignments: displayedAssignments,
     loading: false,
@@ -45,8 +45,8 @@ vi.mock("@/lib/notes/state/assignments.zustand", () => ({
     updateAssignment,
   }),
 }));
-vi.mock("@/lib/notes/state/pomodoro.zustand", () => ({ default: () => vi.fn() }));
-vi.mock("@/lib/notes/state/courses.zustand", () => ({
+vi.mock("@/lib/notes/state/pomodoro", () => ({ default: () => vi.fn() }));
+vi.mock("@/lib/notes/state/courses", () => ({
   default: () => ({ settings: {}, fetchSettings: vi.fn().mockResolvedValue(undefined) }),
 }));
 vi.mock("@/components/assignments/new-task-modal", () => ({

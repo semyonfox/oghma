@@ -15,7 +15,7 @@ import {
   reserveVaultExport,
   cleanupVaultArtifacts,
 } from "@/lib/vault/artifacts";
-import { findOrCreateOAuthUser } from "@/lib/auth-oauth";
+import { findOrCreateOAuthUser } from "@/lib/auth/oauth";
 import { proposeToolAction, confirmChatTools } from "@/lib/chat/actions";
 import { tool } from "ai";
 import { z } from "zod";
@@ -23,7 +23,7 @@ import { POST as approve } from "@/app/api/chat/actions/[id]/route";
 import bcrypt from "bcryptjs";
 import { POST as verifyEmail } from "@/app/api/auth/verify-email/route";
 import { POST as resetPassword } from "@/app/api/auth/password-reset/verify/route";
-import { hashToken } from "@/lib/tokens";
+import { hashToken } from "@/lib/auth/tokens";
 import { GET as calendar } from "@/app/api/calendar/ical/[token]/route";
 import { DELETE as deleteAccount } from "@/app/api/auth/delete-account/route";
 import {
@@ -37,8 +37,8 @@ const mocks = vi.hoisted(() => ({
   validateSession: vi.fn(),
   canvasCredentials: vi.fn(),
 }));
-vi.mock("@/lib/auth", async (original) => ({
-  ...(await original<typeof import("@/lib/auth")>()),
+vi.mock("@/lib/auth/session", async (original) => ({
+  ...(await original<typeof import("@/lib/auth/session")>()),
   validateSession: mocks.validateSession,
   createAuthSession: vi
     .fn()
@@ -54,7 +54,7 @@ vi.mock("@/lib/storage/init", () => ({
     deletePrefix: mocks.deletePrefix,
   }),
 }));
-vi.mock("@/lib/rateLimiter", () => ({
+vi.mock("@/lib/rate-limiter", () => ({
   checkRateLimit: vi.fn().mockResolvedValue(null),
   getClientIp: () => "127.0.0.1",
 }));

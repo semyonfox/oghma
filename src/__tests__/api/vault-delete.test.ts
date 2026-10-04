@@ -12,7 +12,7 @@ vi.mock("@/database/pgsql", () => {
   return { default: sqlMock };
 });
 
-vi.mock("@/lib/rateLimiter", () => ({ checkRateLimit: vi.fn() }));
+vi.mock("@/lib/rate-limiter", () => ({ checkRateLimit: vi.fn() }));
 vi.mock("@/lib/canvas/cancel-import-jobs", () => ({
   cancelActiveCanvasImportJobs: vi.fn(),
 }));
@@ -26,7 +26,7 @@ vi.mock("@/lib/api-error", () => ({
 }));
 
 import sql from "@/database/pgsql";
-import { checkRateLimit } from "@/lib/rateLimiter";
+import { checkRateLimit } from "@/lib/rate-limiter";
 import { cancelActiveCanvasImportJobs } from "@/lib/canvas/cancel-import-jobs";
 import {
   permanentlyDeleteAllUserNotes,

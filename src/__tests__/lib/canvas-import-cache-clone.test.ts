@@ -30,7 +30,7 @@ vi.mock("@/lib/cache", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/cache")>()),
   cacheInvalidate: mocks.cacheInvalidate,
 }));
-vi.mock("@/lib/marker-output", () => ({
+vi.mock("@/lib/marker/output", () => ({
   markerAssetKey: vi.fn(),
   sanitizeMarkerAssetName: vi.fn(),
 }));

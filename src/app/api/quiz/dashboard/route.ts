@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server';
-import { validateSession } from '@/lib/auth';
-import { withErrorHandler, tracedError } from '@/lib/api-error';
+import { requireAuth, withErrorHandler } from '@/lib/api-error';
 import sql from '@/database/pgsql';
 
 export const GET = withErrorHandler(async () => {
-    const user = await validateSession();
-    if (!user) return tracedError('Unauthorized', 401);
+    const user = await requireAuth();
 
     const userId = user.user_id;
 

@@ -10,7 +10,6 @@ import {
 } from "@/lib/chat/types";
 import { labelForTool } from "@/lib/chat/tool-labels";
 import {
-  noteSearchDetail,
   toolCallDetail,
   toolResultDetail,
   noteRefsFromToolResult,
@@ -34,7 +33,7 @@ export interface ChatGenerationResult {
   pendingText: string;
 }
 
-export type ChatGenerationEffect =
+type ChatGenerationEffect =
   | { type: "none" }
   | { type: "thinking"; text: string }
   | { type: "text"; text: string }
@@ -69,29 +68,6 @@ export type ChatGenerationFinalization =
     }
   | { kind: "synthesize-final-answer"; result: ChatGenerationResult }
   | { kind: "invalid"; result: ChatGenerationResult; error: string };
-
-interface SearchResultTitle {
-  title?: string | null;
-}
-
-export function buildInitialChatParts(
-  useRag: boolean,
-  message: string,
-  searchResults: readonly SearchResultTitle[],
-): MessagePart[] {
-  if (!useRag) return [];
-  return [
-    {
-      type: "tool",
-      name: "ragSearch",
-      label: "Searched notes",
-      detail: noteSearchDetail(
-        message,
-        searchResults.map(({ title }) => ({ title: title || "Untitled" })),
-      ),
-    },
-  ];
-}
 
 export function createChatGenerationResult(
   parts: MessagePart[] = [],

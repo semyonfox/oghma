@@ -6,7 +6,7 @@ import {
   validateSession,
   validateSessionLite,
   type SessionUser,
-} from "./auth";
+} from "./auth/session";
 import { isValidUUID } from "./utils/uuid";
 import { ApiError } from "./api-errors";
 
@@ -86,7 +86,7 @@ function extractErrorInfo(error: unknown) {
   };
 }
 
-export function apiErrorResponse(error: unknown): NextResponse {
+function apiErrorResponse(error: unknown): NextResponse {
   const { userMessage, statusCode, logMeta } = extractErrorInfo(error);
   logger.error("operation_failed", logMeta);
   return NextResponse.json(

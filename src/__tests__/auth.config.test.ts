@@ -20,7 +20,7 @@ vi.mock("@/lib/logger", () => ({
   default: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
 }));
 
-vi.mock("@/lib/auth-oauth", () => ({
+vi.mock("@/lib/auth/oauth", () => ({
   findOrCreateOAuthUser: vi.fn(),
   resolveVerifiedOAuthEmail: vi.fn(),
 }));

@@ -18,7 +18,7 @@ import type { TreeItemRenderContext } from "react-complex-tree";
 
 const INDENT_PX = 14;
 
-export interface TreeItemProps {
+interface TreeItemProps {
   itemId: string;
   nodeData: NoteModel | undefined;
   isFolder: boolean;

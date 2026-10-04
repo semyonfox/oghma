@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/database/pgsql", () => ({ default: vi.fn() }));
 
 import sql from "@/database/pgsql";
-import { hydrateOwnedNoteChunks } from "@/lib/search/owned-note-chunks";
+import { hydrateOwnedNoteChunks } from "@/lib/rag/owned-note-chunks";
 
 describe("hydrateOwnedNoteChunks", () => {
   beforeEach(() => {

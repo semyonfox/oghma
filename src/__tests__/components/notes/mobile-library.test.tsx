@@ -67,7 +67,7 @@ vi.mock("@/lib/notes/state/note", () => ({
   __esModule: true,
   default: { getState: () => ({ createNote: mocks.createNote }) },
 }));
-vi.mock("@/lib/notes/state/layout.zustand", () => ({
+vi.mock("@/lib/notes/state/layout", () => ({
   __esModule: true,
   default: { getState: () => ({ setPaneA: mocks.setPaneA }) },
 }));

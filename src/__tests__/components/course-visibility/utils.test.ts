@@ -4,7 +4,7 @@ import {
   mergeCourseVisibilityItems,
   type CourseVisibilityItemSource,
 } from "@/components/course-visibility/course-visibility-manager";
-import type { CourseSetting } from "@/lib/notes/state/courses.zustand";
+import type { CourseSetting } from "@/lib/notes/state/courses";
 
 const settings: CourseSetting[] = [
   {

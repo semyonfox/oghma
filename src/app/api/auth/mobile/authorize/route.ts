@@ -8,8 +8,8 @@ import {
   MobileAuthStoreUnavailableError,
   getActiveAuthJsMobileUser,
   issueMobileAuthGrant,
-} from "@/lib/mobile-auth";
-import { checkRateLimit } from "@/lib/rateLimiter";
+} from "@/lib/auth/mobile";
+import { checkRateLimit } from "@/lib/rate-limiter";
 
 function json(data: object, status = 200): NextResponse {
   return NextResponse.json(data, {

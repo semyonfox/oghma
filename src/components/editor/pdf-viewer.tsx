@@ -9,8 +9,8 @@ import {
   useMemo,
 } from "react";
 import { useRouter } from "next/navigation";
-import { FileSpec } from "@/lib/notes/state/layout.zustand";
-import useLayoutStore from "@/lib/notes/state/layout.zustand";
+import { FileSpec } from "@/lib/notes/state/layout";
+import useLayoutStore from "@/lib/notes/state/layout";
 import useNoteTreeStore from "@/lib/notes/state/tree";
 import useMediaQuery from "@/lib/hooks/use-media-query";
 import { Document, Page, pdfjs } from "react-pdf";
@@ -40,7 +40,7 @@ interface PDFViewerProps {
 const A4_WIDTH_POINTS = 595.28;
 const A4_ASPECT_RATIO = Math.SQRT2;
 const PAGE_OVERSCAN = "100% 0px";
-export const MAX_PDF_DEVICE_PIXEL_RATIO = 2;
+const MAX_PDF_DEVICE_PIXEL_RATIO = 2;
 
 interface PdfExtractionState {
   status: "none" | "pending" | "processing" | "done" | "failed";

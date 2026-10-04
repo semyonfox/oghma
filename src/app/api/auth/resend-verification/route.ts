@@ -1,8 +1,8 @@
 import sql from "@/database/pgsql";
-import { createErrorResponse, parseJsonBody } from "@/lib/auth";
-import { generateSecureToken, hashToken } from "@/lib/tokens";
+import { createErrorResponse, parseJsonBody } from "@/lib/auth/session";
+import { generateSecureToken, hashToken } from "@/lib/auth/tokens";
 import { EmailSendError, sendVerificationEmail } from "@/lib/email";
-import { checkRateLimit } from "@/lib/rateLimiter";
+import { checkRateLimit } from "@/lib/rate-limiter";
 import logger from "@/lib/logger";
 import { ApiError, assertTrustedOrigin } from "@/lib/api-error";
 import { Locale, normalizeLocale } from "@/locales";

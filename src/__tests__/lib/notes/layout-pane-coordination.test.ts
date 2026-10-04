@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import useLayoutStore from "@/lib/notes/state/layout.zustand";
+import useLayoutStore from "@/lib/notes/state/layout";
 
 const paneA = {
   fileId: "11111111-1111-4111-8111-111111111111",

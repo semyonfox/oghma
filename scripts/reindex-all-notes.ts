@@ -8,7 +8,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import sql from "../src/database/pgsql.ts";
-import { chunkText } from "../src/lib/chunking.ts";
+import { chunkText } from "../src/lib/rag/chunking.ts";
 import { deleteChunkVectors } from "../src/lib/qdrant.ts";
 import { normalizeChunksForIndexing, replaceNoteEmbeddings } from "../src/lib/rag/indexing.ts";
 

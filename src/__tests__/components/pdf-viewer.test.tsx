@@ -135,7 +135,7 @@ class ResizeObserverStub {
 }
 
 import PDFViewer from "@/components/editor/pdf-viewer";
-import useLayoutStore from "@/lib/notes/state/layout.zustand";
+import useLayoutStore from "@/lib/notes/state/layout";
 
 describe("PDFViewer page rendering", () => {
   beforeEach(() => {

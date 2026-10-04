@@ -18,7 +18,7 @@ vi.mock("@/database/pgsql", () => {
   return { default: sqlMock };
 });
 
-vi.mock("@/lib/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   validateSession: vi.fn(),
   createSuccessResponse: vi.fn(),
   createErrorResponse: vi.fn(),
@@ -60,7 +60,7 @@ import {
   PATCH as notePATCH,
   DELETE as noteDELETE,
 } from "@/app/api/notes/[id]/route";
-import { validateSession } from "@/lib/auth";
+import { validateSession } from "@/lib/auth/session";
 import sql from "@/database/pgsql";
 import { moveSubtreeToTrash } from "@/lib/notes/storage/note-lifecycle";
 

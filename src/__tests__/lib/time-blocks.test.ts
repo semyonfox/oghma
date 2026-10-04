@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pomodoroCountForRange } from "@/lib/time-blocks";
+import { pomodoroCountForRange } from "@/lib/calendar/time-blocks";
 
 describe("pomodoroCountForRange", () => {
   it.each([

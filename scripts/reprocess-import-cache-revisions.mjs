@@ -12,7 +12,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import sql from "../database/pgsql.ts";
-import { submitMarkerJob } from "../src/lib/marker-serverless.ts";
+import { submitMarkerJob } from "../src/lib/marker/serverless.ts";
 
 function excludedShas() {
   const filename = process.env.CACHE_REPROCESS_EXCLUDE_SHA_FILE?.trim();

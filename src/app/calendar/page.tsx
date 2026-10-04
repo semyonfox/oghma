@@ -15,8 +15,8 @@ import {
   Panel,
   Separator as PanelResizeHandle,
 } from "react-resizable-panels";
-import useCalendarStore from "@/lib/notes/state/calendar.zustand";
-import useLayoutStore from "@/lib/notes/state/layout.zustand";
+import useCalendarStore from "@/lib/notes/state/calendar";
+import useLayoutStore from "@/lib/notes/state/layout";
 import useMediaQuery from "@/lib/hooks/use-media-query";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import PrimaryNavigation from "@/components/navigation/primary-navigation";
@@ -29,7 +29,7 @@ import AssignmentTracker from "@/components/assignments/assignment-tracker";
 import MobileCalendar from "@/components/calendar/mobile-calendar";
 import DayAgendaDialog from "@/components/calendar/day-agenda-dialog";
 import NewTaskModal from "@/components/assignments/new-task-modal";
-import useAssignmentStore from "@/lib/notes/state/assignments.zustand";
+import useAssignmentStore from "@/lib/notes/state/assignments";
 import {
   addDaysToDateKey,
   addMonthsToDateKey,

@@ -1,7 +1,7 @@
 // PDF annotations endpoint
 // Store, retrieve, and delete annotations for PDFs
 import { NextResponse } from "next/server";
-import { withErrorHandler, requireAuth, ApiError } from "@/lib/api-error";
+import { withErrorHandler, requireAuth, ApiError, parseJsonObject } from "@/lib/api-error";
 import {
   saveAnnotations,
   getAnnotations,
@@ -9,10 +9,6 @@ import {
 } from "@/lib/notes/storage/pdf-annotations";
 import { isValidUUID } from "@/lib/utils/uuid";
 import sql from "@/database/pgsql";
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 /**
  * GET /api/pdf/annotations?noteId=123&attachmentId=456
@@ -70,10 +66,10 @@ export const GET = withErrorHandler(async (request) => {
 export const POST = withErrorHandler(async (request) => {
   const user = await requireAuth();
 
-  const body: unknown = await request.json();
-  const noteId = isRecord(body) ? body.noteId : undefined;
-  const attachmentId = isRecord(body) ? body.attachmentId : undefined;
-  const annotationData = isRecord(body) ? body.annotationData : undefined;
+  const body = await parseJsonObject(request);
+  const noteId = body.noteId;
+  const attachmentId = body.attachmentId;
+  const annotationData = body.annotationData;
 
   // Validate required fields
   if (!noteId || !annotationData) {

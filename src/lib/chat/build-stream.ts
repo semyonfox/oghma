@@ -9,7 +9,7 @@ import { generateUUID } from "@/lib/utils/uuid";
 import { moveNoteInTree } from "@/lib/notes/storage/pg-tree";
 import { insertNoteWithTree } from "@/lib/notes/storage/create-note";
 import { getStorageProvider } from "@/lib/storage/init";
-import { chunkText } from "@/lib/chunking";
+import { chunkText } from "@/lib/rag/chunking";
 import { replaceNoteEmbeddings } from "@/lib/rag/indexing";
 import { processExtractedText } from "@/lib/canvas/text-processing";
 import { cacheInvalidate, cacheKeys } from "@/lib/cache";

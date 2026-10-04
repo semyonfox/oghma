@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from "react";
-import usePomodoroStore from '@/lib/notes/state/pomodoro.zustand'
+import usePomodoroStore from '@/lib/notes/state/pomodoro'
 import { triggerCelebration } from "@/lib/celebration";
 import PomodoroStatusBar from "./pomodoro-status-bar";
 

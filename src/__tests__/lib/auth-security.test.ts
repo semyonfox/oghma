@@ -6,7 +6,7 @@ import {
   generateJWTToken,
   validateSession,
   validateSessionLite,
-} from "@/lib/auth";
+} from "@/lib/auth/session";
 import { Auth } from "@auth/core";
 import { encode } from "next-auth/jwt";
 import { authConfig } from "@/auth.config";

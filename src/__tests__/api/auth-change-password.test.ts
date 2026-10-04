@@ -7,7 +7,7 @@ vi.mock("@/database/pgsql", () => {
   return { default: sqlMock };
 });
 
-vi.mock("@/lib/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   validateSession: vi.fn(),
   createErrorResponse: (
     message: string,
@@ -24,12 +24,12 @@ vi.mock("@/lib/email", () => ({
   sendPasswordResetEmail: vi.fn(),
 }));
 
-vi.mock("@/lib/tokens", () => ({
+vi.mock("@/lib/auth/tokens", () => ({
   generateSecureToken: vi.fn(),
   hashToken: vi.fn(),
 }));
 
-vi.mock("@/lib/rateLimiter", () => ({
+vi.mock("@/lib/rate-limiter", () => ({
   checkRateLimit: vi.fn(),
 }));
 
@@ -41,10 +41,10 @@ vi.mock("@/lib/logger", () => ({
 
 import sql from "@/database/pgsql";
 import { POST } from "@/app/api/auth/change-password/route";
-import { validateSession } from "@/lib/auth";
+import { validateSession } from "@/lib/auth/session";
 import { sendPasswordResetEmail } from "@/lib/email";
-import { checkRateLimit } from "@/lib/rateLimiter";
-import { generateSecureToken, hashToken } from "@/lib/tokens";
+import { checkRateLimit } from "@/lib/rate-limiter";
+import { generateSecureToken, hashToken } from "@/lib/auth/tokens";
 
 const MOCK_USER = {
   user_id: "user-123",

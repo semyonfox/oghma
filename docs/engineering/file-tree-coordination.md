@@ -111,7 +111,7 @@ win after publication.
 | Session identity and tab updates | `src/components/providers/workspace-lifecycle-provider.tsx` |
 | Reset and browser cache ownership | `src/lib/notes/workspace-lifecycle.ts` |
 | Cross-tab messages | `src/lib/notes/workspace-invalidation.ts` |
-| Canvas status and acknowledgement | `src/hooks/useCanvasImportStatus.ts` |
+| Canvas status and acknowledgement | `src/lib/hooks/use-canvas-import-status.ts` |
 
 ## Verification and limits
 

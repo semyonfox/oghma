@@ -10,7 +10,7 @@ import {
   consumeMobileAuthGrant,
   createCodeChallenge,
   issueMobileAuthGrant,
-} from "@/lib/mobile-auth";
+} from "@/lib/auth/mobile";
 import { redis } from "@/lib/redis";
 
 const USER_ID = "00000000-0000-4000-8000-000000000001";

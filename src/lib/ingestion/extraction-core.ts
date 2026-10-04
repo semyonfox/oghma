@@ -1,8 +1,8 @@
-import { chunkText } from "@/lib/chunking";
-import { extractWithMarker } from "@/lib/ocr";
-import type { MarkerImages } from "@/lib/marker-output";
+import { chunkText } from "@/lib/rag/chunking";
+import { extractWithMarker } from "@/lib/marker/ocr";
+import type { MarkerImages } from "@/lib/marker/output";
 
-export type ExtractionSource = "text" | "marker" | "pdf-parse" | "skipped";
+type ExtractionSource = "text" | "marker" | "pdf-parse" | "skipped";
 
 export interface ExtractionResult {
   rawText: string;

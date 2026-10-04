@@ -1,7 +1,7 @@
 import type postgres from "postgres";
 import { NextResponse } from "next/server";
 import { withErrorHandler, requireAuth } from "@/lib/api-error";
-import { checkRateLimit } from "@/lib/rateLimiter";
+import { checkRateLimit } from "@/lib/rate-limiter";
 import { cancelActiveCanvasImportJobs } from "@/lib/canvas/cancel-import-jobs";
 import {
   permanentlyDeleteAllUserNotes,

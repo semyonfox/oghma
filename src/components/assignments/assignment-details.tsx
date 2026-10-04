@@ -5,7 +5,7 @@ import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from "@headlessui/re
 import DOMPurify from "dompurify";
 import AssignmentMaterials from "./assignment-materials";
 import { z } from "zod";
-import { type Assignment } from "@/lib/notes/state/assignments.zustand";
+import { type Assignment } from "@/lib/notes/state/assignments";
 import useSwipeDismiss from "@/components/navigation/use-swipe-dismiss";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 

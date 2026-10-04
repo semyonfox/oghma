@@ -1,6 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
-import { validateSession } from "@/lib/auth";
-import { withErrorHandler, tracedError } from "@/lib/api-error";
+import { NextResponse } from "next/server";
+import {
+  requireAuth,
+  type RouteParamsContext,
+  withErrorHandler,
+  tracedError,
+} from "@/lib/api-error";
 import sql from "@/database/pgsql";
 import { getChunkVector, searchChunkVectors } from "@/lib/qdrant";
 
@@ -19,11 +23,10 @@ interface RelatedChunkRow {
 
 export const GET = withErrorHandler(
   async (
-    _request: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
+    _request,
+    { params }: RouteParamsContext<{ id: string }>,
   ) => {
-    const user = await validateSession();
-    if (!user) return tracedError("Unauthorized", 401);
+    const user = await requireAuth();
 
     const { id: questionId } = await params;
     const userId = user.user_id;

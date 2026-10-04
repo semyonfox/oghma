@@ -69,7 +69,7 @@ const LANGUAGE_ALIASES: Record<string, string> = {
   yml: "yaml",
 };
 
-export function normalizeLanguage(language?: string): {
+function normalizeLanguage(language?: string): {
   normalized?: string;
   label: string;
   known: boolean;

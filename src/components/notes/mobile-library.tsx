@@ -24,7 +24,7 @@ import MobileNoteActions, { mobileActionClass } from "./mobile-note-actions";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import useNoteTreeStore from "@/lib/notes/state/tree";
 import useNoteStore from "@/lib/notes/state/note";
-import useLayoutStore from "@/lib/notes/state/layout.zustand";
+import useLayoutStore from "@/lib/notes/state/layout";
 import useGlobalSearchStore from "@/lib/global-search/state";
 import { buildFileSpec } from "@/lib/notes/utils/file-spec";
 import { NOTE_PINNED } from "@/lib/notes/types/meta";

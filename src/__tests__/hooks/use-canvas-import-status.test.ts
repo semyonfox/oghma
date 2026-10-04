@@ -41,13 +41,13 @@ vi.mock("@/lib/notes/state/note", () => ({
   },
 }));
 
-vi.mock("@/lib/notes/state/layout.zustand", () => ({
+vi.mock("@/lib/notes/state/layout", () => ({
   default: {
     getState: () => layoutState,
   },
 }));
 
-import { useCanvasImportStatus } from "@/hooks/useCanvasImportStatus";
+import { useCanvasImportStatus } from "@/lib/hooks/use-canvas-import-status";
 
 function canvasStatus(overrides: Record<string, unknown> = {}) {
   return {

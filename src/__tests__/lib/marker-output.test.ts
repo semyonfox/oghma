@@ -4,7 +4,7 @@ import {
   normalizeMarkerMarkdown,
   persistMarkerAssetsForNote,
   sanitizeMarkerAssetName,
-} from "@/lib/marker-output";
+} from "@/lib/marker/output";
 import { StoreS3 } from "@/lib/storage/s3";
 
 describe("marker-output", () => {

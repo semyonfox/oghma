@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectMimeType } from "@/lib/uploads/detect-mime";
+import { detectMimeType } from "@/lib/ingestion/detect-mime";
 
 describe("detectMimeType", () => {
   it("detects an extensionless PDF from its bytes without a browser MIME type", () => {

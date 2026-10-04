@@ -1,8 +1,8 @@
 import sql from "@/database/pgsql";
 import { sendPasswordResetEmail } from "@/lib/email";
-import { createErrorResponse, parseJsonBody } from "@/lib/auth";
-import { generateSecureToken, hashToken } from "@/lib/tokens";
-import { checkRateLimit } from "@/lib/rateLimiter";
+import { createErrorResponse, parseJsonBody } from "@/lib/auth/session";
+import { generateSecureToken, hashToken } from "@/lib/auth/tokens";
+import { checkRateLimit } from "@/lib/rate-limiter";
 import logger from "@/lib/logger";
 import { assertTrustedOrigin } from "@/lib/api-error";
 import type { NextRequest } from "next/server";
