@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type postgres from "postgres";
-import { withErrorHandler, requireAuth, ApiError } from "@/lib/api-error";
+import { withErrorHandler, requireAuth, ApiError, parseJsonObject } from "@/lib/api-error";
+import { lockVaultArtifacts, VAULT_UPLOAD_MAX_BYTES } from "@/lib/vault/artifacts";
 import sql from "@/database/pgsql";
 import { enqueueCanvasJob } from "@/lib/queue";
 import { HeadObjectCommand, S3Client } from "@aws-sdk/client-s3";
@@ -25,9 +26,13 @@ function isUniqueViolation(error: unknown): boolean {
 export const POST = withErrorHandler(async (request) => {
   const user = await requireAuth();
 
-  const { s3Key, force } = await request.json();
+  const { s3Key, force } = await parseJsonObject(request, 4096);
 
-  if (!s3Key) {
+  if (
+    typeof s3Key !== "string" ||
+    s3Key.length > 1024 ||
+    (force !== undefined && typeof force !== "boolean")
+  ) {
     throw new ApiError(400, "s3Key is required");
   }
 
@@ -37,18 +42,33 @@ export const POST = withErrorHandler(async (request) => {
     throw new ApiError(403, "s3Key does not belong to your upload session");
   }
 
+  const [reservation] = await sql<{ reserved_bytes: string }[]>`
+    SELECT reserved_bytes::text FROM app.vault_artifacts
+    WHERE user_id = ${user.user_id}::uuid AND kind = 'upload' AND s3_key = ${s3Key}
+      AND job_id IS NULL AND is_current AND expires_at > NOW()
+  `;
+  if (!reservation) throw new ApiError(400, "Upload reservation is missing or expired");
+
   const bucket = process.env.STORAGE_BUCKET;
   if (!bucket) throw new ApiError(503, "Vault storage is not configured");
   const prefix = process.env.STORAGE_PREFIX || "oghma";
   const s3 = new S3Client({ ...createS3ClientConfig(createS3ConfigFromEnv()) });
   let object;
   try {
-    object = await s3.send(new HeadObjectCommand({ Bucket: bucket, Key: `${prefix}/${s3Key}` }));
+    object = await s3.send(
+      new HeadObjectCommand({ Bucket: bucket, Key: `${prefix}/${s3Key}` }),
+    );
   } catch {
     throw new ApiError(400, "Uploaded zip was not found");
   }
   const expectedSize = Number(object.Metadata?.["expected-size"]);
-  if (!Number.isSafeInteger(expectedSize) || expectedSize <= 0 || object.ContentLength !== expectedSize) {
+  if (
+    !Number.isSafeInteger(expectedSize) ||
+    expectedSize <= 0 ||
+    expectedSize > VAULT_UPLOAD_MAX_BYTES ||
+    expectedSize !== Number(reservation.reserved_bytes) ||
+    object.ContentLength !== expectedSize
+  ) {
     throw new ApiError(400, "Uploaded zip size does not match the authorized upload");
   }
 
@@ -70,22 +90,30 @@ export const POST = withErrorHandler(async (request) => {
   let jobId: string;
   try {
     jobId = await sql.begin(async (tx: postgres.TransactionSql) => {
-    if (existing) {
-      // also set cancel_requested_at so any running worker stops cooperatively
-      await tx`
-        UPDATE app.canvas_import_jobs
-        SET status = 'cancelled', completed_at = NOW(), cancel_requested_at = NOW(), updated_at = NOW()
-        WHERE user_id = ${user.user_id}
-          AND type = 'vault-import'
-          AND status IN ('queued', 'processing')
+      await lockVaultArtifacts(tx);
+      const [reserved] = await tx`
+        SELECT id FROM app.vault_artifacts WHERE user_id = ${user.user_id}::uuid
+          AND s3_key = ${s3Key} AND kind = 'upload' AND job_id IS NULL AND is_current AND expires_at > NOW()
+        FOR UPDATE
       `;
-    }
-    const [row] = await tx<VaultJobIdRow[]>`
-      INSERT INTO app.canvas_import_jobs (user_id, type, input_s3_key, status)
-      VALUES (${user.user_id}::uuid, 'vault-import', ${s3Key}, 'queued')
-      RETURNING id
-    `;
-    return row.id;
+      if (!reserved) throw new ApiError(409, "Upload has already been claimed or expired");
+      if (existing) {
+        // also set cancel_requested_at so any running worker stops cooperatively
+        await tx`
+          UPDATE app.canvas_import_jobs
+          SET status = 'cancelled', completed_at = NOW(), cancel_requested_at = NOW(), updated_at = NOW()
+          WHERE user_id = ${user.user_id}
+            AND type = 'vault-import'
+            AND status IN ('queued', 'processing')
+        `;
+      }
+      const [row] = await tx<VaultJobIdRow[]>`
+        INSERT INTO app.canvas_import_jobs (user_id, type, input_s3_key, status)
+        VALUES (${user.user_id}::uuid, 'vault-import', ${s3Key}, 'queued')
+        RETURNING id
+      `;
+      await tx`UPDATE app.vault_artifacts SET job_id = ${row.id}::uuid WHERE id = ${reserved.id}::uuid`;
+      return row.id;
     });
   } catch (error) {
     if (!isUniqueViolation(error)) throw error;

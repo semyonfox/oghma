@@ -46,6 +46,7 @@ import {
   processMarkerFailed,
 } from "./import-worker";
 import { processVaultImport } from "../vault/import-worker";
+import { cleanupVaultArtifacts } from "../vault/artifacts";
 import { processVaultExport } from "../vault/export-worker";
 import { pruneChatGenerationPayloads } from "../chat/generation-store";
 import { cleanupMarketingData } from "../marketing/retention";
@@ -134,6 +135,7 @@ async function runNoteLifecycleRetention(): Promise<void> {
     // Qdrant and object storage are healthy.
     await purgeExpiredTrash();
     await processPendingNoteDeletionCleanup();
+    await sql`DELETE FROM app.chat_tool_actions WHERE expires_at <= NOW()`;
     await reconcileTrashedVectorVisibility();
     logger.info("worker_event");
   } catch {
@@ -216,6 +218,12 @@ await runMarketingCleanup();
 await runImportCacheRetention();
 await runNoteLifecycleRetention();
 await recoverChatGenerations();
+async function runVaultArtifactCleanup() {
+  try { await cleanupVaultArtifacts(); }
+  catch (error) { console.error("Vault artifact cleanup will retry", error); }
+}
+void runVaultArtifactCleanup();
+setInterval(runVaultArtifactCleanup, 5 * 60 * 1000);
 setInterval(failStuckJobs, STUCK_JOB_CHECK_INTERVAL_MS);
 setInterval(runMarketingCleanup, MARKETING_CLEANUP_INTERVAL_MS);
 setInterval(runImportCacheRetention, IMPORT_CACHE_RETENTION_INTERVAL_MS);

@@ -42,7 +42,9 @@ export const DELETE = withErrorHandler(async (request) => {
       UPDATE app.login
       SET
         is_active   = false,
-        deleted_at  = now()
+        deleted_at  = now(),
+        calendar_export_token = NULL,
+        session_version = session_version + 1
       WHERE user_id = ${userId}::uuid
     `;
 

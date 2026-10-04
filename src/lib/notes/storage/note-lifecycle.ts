@@ -11,6 +11,7 @@ import {
 } from "@/lib/marker-output";
 import { deleteChunkVectors, setChunkVectorsSearchable } from "@/lib/qdrant";
 import { getStorageProvider } from "@/lib/storage/init";
+import { lockVaultArtifacts } from "@/lib/vault/artifacts";
 
 const DEFAULT_TRASH_RETENTION_DAYS = 30;
 const MAX_TRASH_RETENTION_DAYS = 365;
@@ -129,7 +130,12 @@ function uniqueStrings(values: Array<string | null | undefined>): string[] {
 }
 
 function isSafeCleanupPrefix(userId: string, prefix: string): boolean {
+  const vaultJob = prefix.startsWith(`vault/${userId}/`) ? prefix.slice(`vault/${userId}/`.length, -1) : '';
   return (
+    (prefix.endsWith("/") &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        vaultJob,
+      )) ||
     prefix === `marker/${userId}/` ||
     prefix === `vault/${userId}/` ||
     prefix === `vault-uploads/${userId}/`
@@ -923,18 +929,34 @@ async function processNoteDeletionCleanupTask(taskId: string): Promise<boolean> 
 /**
  * Clear Vault also owns raw zip uploads and intermediate Vault objects that
  * may not have reached a note row when cancellation occurred. Persist their
- * user-scoped prefix cleanup in the same retry journal as note deletion.
+ * job-scoped cleanup in the same retry journal as note deletion.
  */
-export async function queueVaultStorageCleanup(userId: string): Promise<boolean> {
-  const prefixes = [`vault/${userId}/`, `vault-uploads/${userId}/`];
-  const [task] = await sql`
-    INSERT INTO app.note_deletion_cleanup_tasks
-      (user_id, object_prefixes)
-    VALUES (${userId}::uuid, ${prefixes}::text[])
-    RETURNING id
-  `;
-  if (!task?.id) return false;
-  return !(await processNoteDeletionCleanupTask(String(task.id)));
+export async function queueVaultStorageCleanup(userId: string, clearedAt = new Date()): Promise<boolean> {
+  const taskId = await sql.begin(async tx => {
+    await lockVaultArtifacts(tx);
+    const jobs = await tx<{ id: string; input_s3_key: string | null }[]>`
+      SELECT id, input_s3_key FROM app.canvas_import_jobs WHERE user_id = ${userId}::uuid
+        AND type = 'vault-import' AND created_at <= ${clearedAt}
+    `;
+    const prefixes = jobs.map(job => `vault/${userId}/${job.id}/`);
+    // exact keys and immutable job prefixes keep delayed retries away from later imports
+    const archives = await tx<{ s3_key: string }[]>`
+      SELECT s3_key FROM app.vault_artifacts WHERE user_id = ${userId}::uuid
+        AND created_at <= ${clearedAt}
+    `;
+    // a key queued for deletion must never be handed back by a later signing retry
+    await tx`UPDATE app.vault_artifacts SET is_current = false
+      WHERE user_id = ${userId}::uuid AND kind = 'upload' AND created_at <= ${clearedAt}`;
+    const [task] = await tx<{ id: string }[]>`
+      INSERT INTO app.note_deletion_cleanup_tasks
+        (user_id, object_prefixes, object_keys)
+      VALUES (${userId}::uuid, ${prefixes}::text[], ${uniqueStrings([...archives.map((row) => row.s3_key), ...jobs.map((job) => job.input_s3_key)])}::text[])
+      RETURNING id
+    `;
+    return task?.id ?? null;
+  });
+  if (!taskId) return false;
+  return !(await processNoteDeletionCleanupTask(taskId));
 }
 
 /** Worker entry point: retry external cleanup left by permanent deletion. */

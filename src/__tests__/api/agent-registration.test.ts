@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import type { Session } from "next-auth";
 
 vi.mock("@/database/pgsql", () => ({ default: vi.fn() }));
 vi.mock("@/lib/rateLimiter", () => ({
@@ -8,6 +7,7 @@ vi.mock("@/lib/rateLimiter", () => ({
   getClientIp: vi.fn().mockReturnValue("127.0.0.1"),
 }));
 vi.mock("@/lib/auth", () => ({
+  validateSession: vi.fn(),
   createErrorResponse: (error: string, status = 400) =>
     Response.json({ success: false, error }, { status }),
   parseJsonBody: async (request: Request) => ({
@@ -35,13 +35,13 @@ import {
   findAgentRegistrationClaim,
   findOpenAgentRegistrationByEmail,
 } from "@/lib/agent-registration";
-import { auth } from "@/auth";
+import { validateSession } from "@/lib/auth";
 import { POST as startRegistration } from "@/app/agent/identity/route";
 import { POST as readClaim } from "@/app/agent/identity/claim/route";
 import { POST as completeClaim } from "@/app/agent/identity/claim/complete/route";
 
 const CLAIM_TOKEN = "a".repeat(64);
-const mockedAuth = vi.mocked(auth as () => Promise<Session | null>);
+const mockedAuth = vi.mocked(validateSession);
 
 function request(url: string, body: unknown) {
   return new NextRequest(url, {
@@ -134,9 +134,8 @@ describe("auth.md new-user registration", () => {
 
   it("completes a claim only from an authenticated matching OAuth account", async () => {
     mockedAuth.mockResolvedValue({
-      user: { id: "user-1", email: "student@example.com" },
-      expires: "2099-07-14T12:15:00.000Z",
-    } satisfies Session);
+      user_id: "user-1", email: "student@example.com", session_version: 2,
+    });
     vi.mocked(completeOAuthAgentRegistration).mockResolvedValue({
       id: "claim-1",
       email: "student@example.com",
@@ -159,6 +158,18 @@ describe("auth.md new-user registration", () => {
       "123456",
       "user-1",
       "student@example.com",
+      2,
     );
+  });
+  it("rejects a revoked canonical session before completing an identity claim", async () => {
+    mockedAuth.mockResolvedValue(null);
+    const response = await completeClaim(
+      request("https://oghmanotes.ie/agent/identity/claim/complete", {
+        claim_token: CLAIM_TOKEN,
+        user_code: "123456",
+      }),
+    );
+    expect(response.status).toBe(401);
+    expect(completeOAuthAgentRegistration).not.toHaveBeenCalled();
   });
 });

@@ -45,7 +45,7 @@ export async function POST(request: NextRequest): Promise<Response> {
             SELECT user_id, email, email_verified, locale,
               verification_token, verification_token_expires
             FROM app.login
-            WHERE email = ${email.trim()}
+            WHERE lower(btrim(email)) = ${email.trim().toLowerCase()}
         `;
 
     // constant-time: same work whether email exists or not

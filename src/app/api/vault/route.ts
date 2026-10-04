@@ -19,6 +19,7 @@ import sql from "@/database/pgsql";
  * collected later by their reference-aware retention job.
  */
 export const DELETE = withErrorHandler(async () => {
+  const clearedAt = new Date();
   const user = await requireAuth();
   const limited = await checkRateLimit("vault-delete", user.user_id);
   if (limited) return limited;
@@ -43,6 +44,7 @@ export const DELETE = withErrorHandler(async () => {
   const result = await permanentlyDeleteAllUserNotes(user.user_id);
   const vaultStorageCleanupPending = await queueVaultStorageCleanup(
     user.user_id,
+    clearedAt,
   );
 
   // A cancelled job can have discovery rows without a note yet. They are not

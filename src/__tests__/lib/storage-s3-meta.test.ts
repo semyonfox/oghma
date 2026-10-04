@@ -15,6 +15,7 @@ vi.mock("@aws-sdk/client-s3", async (importOriginal) => {
 
 import { StoreS3 } from "@/lib/storage/s3";
 import {
+  DeleteObjectCommand,
   DeleteObjectsCommand,
   ListObjectsV2Command,
 } from "@aws-sdk/client-s3";
@@ -28,6 +29,25 @@ describe("StoreS3.getObjectMeta", () => {
 
   beforeEach(() => {
     send.mockReset();
+  });
+
+  it("passes cancellation to object deletion so a vault quota lock has a bounded storage wait", async () => {
+    const controller = new AbortController();
+    send.mockImplementation(async (_command: unknown, options: { abortSignal?: AbortSignal }) => {
+      await new Promise<void>((resolve, reject) => {
+        options.abortSignal?.addEventListener(
+          "abort",
+          () => reject(new Error("synthetic abort")),
+          { once: true },
+        );
+        if (options.abortSignal?.aborted) reject(new Error('synthetic abort'));
+        if (!options.abortSignal) resolve();
+      });
+    });
+    const deletion = storage.deleteObject('synthetic-expired.zip', controller.signal);
+    controller.abort();
+    await expect(deletion).rejects.toThrow('synthetic abort');
+    expect(send).toHaveBeenCalledWith(expect.any(DeleteObjectCommand), { abortSignal: controller.signal });
   });
 
   it("treats a successful HEAD without custom metadata as an existing object", async () => {

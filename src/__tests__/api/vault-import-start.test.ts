@@ -11,11 +11,16 @@ vi.mock("@/database/pgsql", () => {
 });
 
 vi.mock("@/lib/api-error", () => ({
+  parseJsonObject: async (request: Request) => request.json(),
   requireAuth: vi.fn(),
   withErrorHandler: (h: (r: NextRequest) => Promise<Response>) => h,
   ApiError: class extends Error { constructor(public statusCode: number, public userMessage: string, public internalDetails?: string) { super(userMessage); } },
 }));
 
+vi.mock("@/lib/vault/artifacts", () => ({
+  lockVaultArtifacts: vi.fn().mockResolvedValue(undefined),
+  VAULT_UPLOAD_MAX_BYTES: 10 * 1024 ** 3,
+}));
 vi.mock("@/lib/queue", () => ({ enqueueCanvasJob: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@aws-sdk/client-s3", () => ({
   S3Client: class { send = s3Send; },
@@ -46,7 +51,13 @@ function queryText(call: unknown[]): string {
 describe("POST /api/vault/import/start", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(sql).mockReset().mockResolvedValue([] as never);
+    vi.mocked(sql).mockReset().mockImplementation(async (strings) => {
+      const text = Array.isArray(strings) ? strings.join('') : '';
+      if (text.includes('SELECT reserved_bytes')) return [{ reserved_bytes: '12' }];
+      if (text.includes('SELECT id FROM app.vault_artifacts')) return [{ id: 'reservation' }];
+      if (text.includes('INSERT INTO app.canvas_import_jobs')) return [{ id: 'new' }];
+      return [];
+    });
     vi.mocked(sql.begin)
       .mockReset()
       .mockImplementation(async (callback) => {
@@ -76,11 +87,13 @@ describe("POST /api/vault/import/start", () => {
       Metadata: { "expected-size": "12" },
     } as never);
     await expect(POST(body({ s3Key: "vault-uploads/u1/abc/x.zip" }))).rejects.toMatchObject({ statusCode: 400 });
-    expect(sql).not.toHaveBeenCalled();
+    expect(sql.begin).not.toHaveBeenCalled();
   });
 
   it("returns 409 when active import exists", async () => {
-    vi.mocked(sql).mockResolvedValueOnce([{ id: "existing" }] as never);
+    vi.mocked(sql)
+      .mockResolvedValueOnce([{ reserved_bytes: "12" }] as never)
+      .mockResolvedValueOnce([{ id: "existing" }] as never);
     const res = await POST(body({ s3Key: "vault-uploads/u1/abc/x.zip" }));
     expect(res.status).toBe(409);
     expect(await res.json()).toMatchObject({ activeJobId: "existing" });
@@ -88,6 +101,7 @@ describe("POST /api/vault/import/start", () => {
 
   it("returns the active job after a concurrent insert hits the unique constraint", async () => {
     vi.mocked(sql)
+      .mockResolvedValueOnce([{ reserved_bytes: "12" }] as never)
       .mockResolvedValueOnce([] as never)
       .mockResolvedValueOnce([{ id: "concurrent" }] as never);
     (sql as unknown as { begin: ReturnType<typeof vi.fn> }).begin.mockRejectedValueOnce({ code: "23505" });
@@ -99,8 +113,6 @@ describe("POST /api/vault/import/start", () => {
   });
 
   it("starts immediately when no active job", async () => {
-    vi.mocked(sql).mockResolvedValueOnce([] as never);
-    vi.mocked(sql).mockResolvedValueOnce([{ id: "new" }] as never);
     const res = await POST(body({ s3Key: "vault-uploads/u1/abc/x.zip" }));
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ jobId: "new" });
@@ -116,19 +128,15 @@ describe("POST /api/vault/import/start", () => {
   });
 
   it("starts when force=true even if active job exists", async () => {
-    vi.mocked(sql).mockResolvedValueOnce([{ id: "existing" }] as never);
-    vi.mocked(sql).mockResolvedValueOnce([] as never); // cancel
-    vi.mocked(sql).mockResolvedValueOnce([{ id: "new" }] as never); // insert
+    vi.mocked(sql)
+      .mockResolvedValueOnce([{ reserved_bytes: "12" }] as never)
+      .mockResolvedValueOnce([{ id: "existing" }] as never);
     const res = await POST(body({ s3Key: "vault-uploads/u1/abc/x.zip", force: true }));
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ jobId: "new" });
   });
 
   it("marks the durable job failed when queue publication fails", async () => {
-    vi.mocked(sql)
-      .mockResolvedValueOnce([] as never)
-      .mockResolvedValueOnce([{ id: "new" }] as never)
-      .mockResolvedValueOnce([] as never);
     vi.mocked(enqueueCanvasJob).mockRejectedValueOnce(
       new Error("queue unavailable"),
     );

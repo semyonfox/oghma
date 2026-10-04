@@ -40,6 +40,7 @@ export type MessagePart =
       callId?: string;
       detail?: string;
       resultDetail?: string;
+      actionId?: string;
       notes?: NoteActivityRef[];
       status?: "running" | "completed" | "failed" | "interrupted";
     }
@@ -109,6 +110,7 @@ export function normalizeMessageParts(value: unknown): MessagePart[] | null {
       callId?: unknown;
       detail?: unknown;
       resultDetail?: unknown;
+      actionId?: unknown;
       notes?: unknown;
       status?: unknown;
     };
@@ -132,6 +134,8 @@ export function normalizeMessageParts(value: unknown): MessagePart[] | null {
         ...(typeof e.resultDetail === "string" && {
           resultDetail: e.resultDetail,
         }),
+        ...(typeof e.actionId === "string" &&
+          /^[0-9a-f-]{36}$/i.test(e.actionId) && { actionId: e.actionId }),
         ...(notes.length > 0 && { notes }),
         ...((e.status === "running" ||
           e.status === "completed" ||

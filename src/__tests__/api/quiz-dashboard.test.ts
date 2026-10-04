@@ -21,7 +21,7 @@ describe("GET /api/quiz/dashboard", () => {
     vi.clearAllMocks();
     vi.mocked(validateSession).mockResolvedValue({
       user_id: "user-123",
-      email: "student@example.com",
+      session_version: 0, email: "student@example.com",
     } satisfies SessionUser);
     vi.mocked(sql)
       .mockResolvedValueOnce([

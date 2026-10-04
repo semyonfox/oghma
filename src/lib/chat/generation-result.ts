@@ -1,5 +1,6 @@
 import type { FinishReason, StepResult, TextStreamPart, ToolSet } from "ai";
 
+import { actionIdFromToolResult } from "./action-proposal";
 import {
   appendReasoningPart,
   partitionMessageParts,
@@ -48,6 +49,7 @@ export type ChatGenerationEffect =
       toolCallId: string;
       detail?: string;
       notes?: NoteActivityRef[];
+      actionId?: string;
       status: "completed" | "failed";
     }
   | { type: "abort" }
@@ -218,13 +220,20 @@ export function applyChatGenerationEvent(
       ? "Tool execution failed"
       : toolResultDetail(event.toolName, event.output);
     const status = failed ? "failed" : "completed";
+    const actionId = failed ? undefined : actionIdFromToolResult(event.output);
     const notes = failed ? [] : noteRefsFromToolResult(event.toolName, event.output);
     return {
       result: {
         ...current,
         parts: current.parts.map((part) =>
           part.type === "tool" && part.callId === event.toolCallId
-            ? { ...part, resultDetail: detail, status, ...(notes.length > 0 && { notes }) }
+            ? {
+                ...part,
+                resultDetail: detail,
+                status,
+                ...(actionId && { actionId }),
+                ...(notes.length > 0 && { notes }),
+              }
             : part,
         ),
       },
@@ -233,6 +242,7 @@ export function applyChatGenerationEvent(
         toolCallId: event.toolCallId,
         detail,
         notes,
+        actionId,
         status,
       },
     };

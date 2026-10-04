@@ -151,8 +151,10 @@ OghmaNotes exposes a curated **83-tool hosted profile** through
 instructor, grading, and administrative operations, but it still includes
 user-scoped mutations such as submissions, messages, planner/calendar
 changes, quiz attempts, and some deletes. Treat it as student-oriented, not
-read-only or inherently safe; confirmation policy remains an upstream
-responsibility.
+read-only or inherently safe. Hosted mutations create an immutable, expiring
+action proposal. The signed-in owner must review its stored arguments and approve
+it through the web confirmation endpoint before it runs. Chat note and planning
+mutations use the same boundary; retrieved content cannot approve an action.
 
 The hosted endpoint is [`/api/mcp/canvas`](../../src/app/api/mcp/canvas/route.ts). It requires an internal user-scoped bearer token and loads that user's stored Canvas credentials. Canvas permissions still constrain every upstream request.
 

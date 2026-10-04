@@ -18,6 +18,7 @@ vi.mock("@/lib/logger", () => ({
   default: { error: mocks.loggerError },
 }));
 
+import { NextRequest } from "next/server";
 import { GET } from "@/app/api/auth/me/route";
 
 describe("GET /api/auth/me", () => {
@@ -30,20 +31,37 @@ describe("GET /api/auth/me", () => {
 
   it("returns 401 only when both session mechanisms confirm no user", async () => {
     const response = await GET(
-      new Request("http://localhost/api/auth/me") as never,
+      new NextRequest("http://localhost/api/auth/me", {
+        headers: {
+          Cookie: "session=revoked; __Secure-authjs.session-token.0=revoked",
+        },
+      }),
     );
 
     expect(response.status).toBe(401);
+    expect(response.headers.get("set-cookie")).toContain("session=;");
+    expect(response.headers.get("set-cookie")).toContain(
+      "__Secure-authjs.session-token.0=;",
+    );
   });
 
   it("returns 503 when profile lookup prevents identity verification", async () => {
     mocks.auth.mockResolvedValue({
       user: { id: "user-1", email: "person@example.com", name: "Person" },
     });
+    mocks.validateSession.mockResolvedValue({
+      user_id: "user-1",
+      email: "person@example.com",
+      session_version: 0,
+    });
     mocks.sql.mockRejectedValue(new Error("database unavailable"));
 
     const response = await GET(
-      new Request("http://localhost/api/auth/me") as never,
+      new NextRequest("http://localhost/api/auth/me", {
+        headers: {
+          Cookie: "session=revoked; __Secure-authjs.session-token.0=revoked",
+        },
+      }),
     );
 
     expect(response.status).toBe(503);

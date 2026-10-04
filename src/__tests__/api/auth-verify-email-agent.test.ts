@@ -39,7 +39,7 @@ function request() {
   return new NextRequest("https://oghmanotes.ie/api/auth/verify-email", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token: "verification-token" }),
+    body: JSON.stringify({ token: "verification-token", password: "OwnerPass123" }),
   });
 }
 
@@ -53,6 +53,7 @@ beforeEach(() => {
         email: "student@example.com",
       },
     ])
+    .mockResolvedValueOnce([{ user_id: "00000000-0000-4000-8000-000000000001", email: "student@example.com", session_version: 1 }])
     .mockResolvedValueOnce([]);
   sql.begin.mockReset();
   sql.begin.mockImplementation(async (callback) => callback(tx));
@@ -64,11 +65,12 @@ describe("email verification with an agent registration claim", () => {
 
     expect(response.status).toBe(200);
     expect(sql.begin).toHaveBeenCalledOnce();
-    expect(tx).toHaveBeenCalledTimes(2);
+    expect(tx).toHaveBeenCalledTimes(3);
     expect(createAuthSession).toHaveBeenCalledWith(
       {
         user_id: "00000000-0000-4000-8000-000000000001",
         email: "student@example.com",
+        session_version: 1,
       },
       1,
     );

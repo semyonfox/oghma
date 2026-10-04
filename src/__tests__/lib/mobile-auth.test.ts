@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const redisState = vi.hoisted(() => ({
   ready: true,
@@ -8,6 +8,7 @@ const redisState = vi.hoisted(() => ({
   eval: vi.fn(),
 }));
 
+vi.mock("@/lib/auth", () => ({ validateSession: vi.fn() }));
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 vi.mock("@/database/pgsql", () => ({ default: vi.fn() }));
 vi.mock("@/lib/redis", () => ({
@@ -22,12 +23,15 @@ vi.mock("@/lib/redis", () => ({
 }));
 
 import {
+  getActiveAuthJsMobileUser,
   MOBILE_AUTH_GRANT_TTL_SECONDS,
   MobileAuthStoreUnavailableError,
   consumeMobileAuthGrant,
   createCodeChallenge,
   issueMobileAuthGrant,
 } from "@/lib/mobile-auth";
+import { validateSession } from "@/lib/auth";
+import sql from "@/database/pgsql";
 import { RATE_LIMITS } from "@/lib/rateLimitConfig";
 
 const USER_ID = "00000000-0000-4000-8000-000000000001";
@@ -85,11 +89,11 @@ describe("mobile auth Redis grants", () => {
   });
 
   it("stores a hashed, deployment-namespaced key for 120 seconds", async () => {
-    const code = await issueMobileAuthGrant(USER_ID, createCodeChallenge(VERIFIER));
+    const code = await issueMobileAuthGrant(USER_ID, createCodeChallenge(VERIFIER), 0);
     const [key] = redisState.grants.keys();
 
     expect(code).toMatch(/^[A-Za-z0-9_-]{43}$/);
-    expect(key).toMatch(/^mobile-auth:\{[0-9a-f]{16}\}:grant:[0-9a-f]{64}$/);
+    expect(key).toMatch(/^mobile-auth-v2:\{[0-9a-f]{16}\}:grant:[0-9a-f]{64}$/);
     expect(key).not.toContain(code);
     expect(redisState.set).toHaveBeenCalledWith(
       key,
@@ -101,17 +105,19 @@ describe("mobile auth Redis grants", () => {
   });
 
   it("does not consume a grant for the wrong verifier and rejects replay", async () => {
-    const code = await issueMobileAuthGrant(USER_ID, createCodeChallenge(VERIFIER));
+    const code = await issueMobileAuthGrant(USER_ID, createCodeChallenge(VERIFIER), 0);
 
     await expect(
       consumeMobileAuthGrant(code, "b".repeat(64)),
     ).resolves.toBeNull();
-    await expect(consumeMobileAuthGrant(code, VERIFIER)).resolves.toBe(USER_ID);
+    await expect(consumeMobileAuthGrant(code, VERIFIER)).resolves.toMatchObject(
+      { userId: USER_ID, sessionVersion: 0 },
+    );
     await expect(consumeMobileAuthGrant(code, VERIFIER)).resolves.toBeNull();
   });
 
   it("rejects an expired grant", async () => {
-    const code = await issueMobileAuthGrant(USER_ID, createCodeChallenge(VERIFIER));
+    const code = await issueMobileAuthGrant(USER_ID, createCodeChallenge(VERIFIER), 0);
     for (const grant of redisState.grants.values()) grant.expiresAt = 0;
 
     await expect(consumeMobileAuthGrant(code, VERIFIER)).resolves.toBeNull();
@@ -122,8 +128,51 @@ describe("mobile auth Redis grants", () => {
     redisState.ensureReady.mockResolvedValue(false);
 
     await expect(
-      issueMobileAuthGrant(USER_ID, createCodeChallenge(VERIFIER)),
+      issueMobileAuthGrant(USER_ID, createCodeChallenge(VERIFIER), 0),
     ).rejects.toBeInstanceOf(MobileAuthStoreUnavailableError);
     expect(redisState.set).not.toHaveBeenCalled();
   });
+});
+
+
+describe("verified Android association", () => {
+  afterEach(() => vi.unstubAllEnvs());
+  it("requires real certificate-shaped fingerprints and an explicit verification attestation", async () => {
+    const { androidAppLinkFingerprints, mobileAppLinksReady } = await import('@/lib/mobile-auth');
+    const { GET } = await import('@/app/.well-known/assetlinks.json/route');
+    vi.stubEnv('ANDROID_APP_LINK_SHA256_FINGERPRINTS', '');
+    vi.stubEnv('ANDROID_APP_LINKS_VERIFIED', 'true');
+    expect(mobileAppLinksReady()).toBe(false);
+    expect(GET().status).toBe(503);
+    vi.stubEnv('ANDROID_APP_LINK_SHA256_FINGERPRINTS', Array(32).fill('ab').join(':'));
+    vi.stubEnv('ANDROID_APP_LINKS_VERIFIED', 'false');
+    expect(mobileAppLinksReady()).toBe(false);
+    expect(androidAppLinkFingerprints()).toEqual([Array(32).fill('AB').join(':')]);
+    const association = await GET().json();
+    expect(association[0].target).toMatchObject({
+      package_name: "ie.oghmanotes.alpha",
+      sha256_cert_fingerprints: [Array(32).fill("AB").join(":")],
+    });
+    vi.stubEnv('ANDROID_APP_LINKS_VERIFIED', 'true');
+    expect(mobileAppLinksReady()).toBe(true);
+    vi.stubEnv('ANDROID_APP_LINK_SHA256_FINGERPRINTS', Array(32).fill('AB').join(':') + ',invalid');
+    expect(mobileAppLinksReady()).toBe(false);
+  });
+});
+
+it("does not upgrade a stale browser session when password reset races with grant issuance", async () => {
+  vi.mocked(validateSession).mockResolvedValue({
+    user_id: USER_ID,
+    email: "owner@example.test",
+    session_version: 0,
+  });
+  vi.mocked(sql).mockResolvedValue([
+    {
+      user_id: USER_ID,
+      email: "owner@example.test",
+      session_version: 1,
+      display_name: null,
+    },
+  ]);
+  expect(await getActiveAuthJsMobileUser()).toBeNull();
 });

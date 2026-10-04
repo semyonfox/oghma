@@ -44,6 +44,7 @@ export async function POST(request: NextRequest): Promise<Response> {
         FROM app.login
         WHERE reset_token = ${tokenHash}
           AND reset_token_expires > NOW()
+          AND is_active = true AND deleted_at IS NULL
         FOR UPDATE
       `;
       if (!candidate) return null;
@@ -53,7 +54,8 @@ export async function POST(request: NextRequest): Promise<Response> {
         UPDATE app.login
         SET hashed_password = ${hashedPassword},
             reset_token = NULL,
-            reset_token_expires = NULL
+            reset_token_expires = NULL,
+            session_version = session_version + 1
         WHERE user_id = ${candidate.user_id}::uuid
           AND reset_token = ${tokenHash}
         RETURNING user_id, email

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { z } from "zod";
+import { useState, Suspense, type FormEvent } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Alert } from "@/components/alert";
@@ -21,6 +22,7 @@ function VerifyEmailContent() {
       ? deliveryParam
       : null;
 
+  const [password, setPassword] = useState("");
   const [verifying, setVerifying] = useState(false);
   const [verified, setVerified] = useState(false);
   const [error, setError] = useState("");
@@ -49,32 +51,34 @@ function VerifyEmailContent() {
     instructions = "";
   }
 
-  // auto-verify if token is in URL
-  useEffect(() => {
+  async function verify(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     if (!token) return;
-
     setVerifying(true);
-    fetch("/api/auth/verify-email", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token }),
-    })
-      .then(async (res) => {
-        const data = await res.json();
-        if (res.ok) {
-          setVerified(true);
-          setTimeout(() => router.replace("/notes"), 2000);
-        } else {
-          setError(
-            data.error || t("Verification failed. The link may have expired."),
-          );
-        }
-      })
-      .catch(() => {
-        setError(t("An error occurred. Please try again."));
-      })
-      .finally(() => setVerifying(false));
-  }, [token, router, t]);
+    setError("");
+    try {
+      const response = await fetch("/api/auth/verify-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, password }),
+      });
+      if (!response.ok) {
+        const error = z
+          .object({ error: z.string().max(500) })
+          .safeParse(await response.json().catch(() => null));
+        throw new Error(
+          error.success
+            ? error.data.error
+            : t("Verification failed. The link may have expired."),
+        );
+      }
+      setPassword("");
+      setVerified(true);
+      setTimeout(() => router.replace("/notes"), 2000);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : t("Verification failed. The link may have expired."));
+    } finally { setVerifying(false); }
+  }
 
   const handleResend = async () => {
     if (!email) return;
@@ -161,6 +165,41 @@ function VerifyEmailContent() {
             <Alert role="status" variant="info" description={resendMessage} />
           )}
 
+          {token && (
+            <form onSubmit={verify} className="space-y-4">
+              <p>
+                Choose a password only you know to finish verifying your
+                account.
+              </p>
+              <label
+                htmlFor="verification-password"
+                className="block text-sm font-medium"
+              >
+                {t("New password")}
+              </label>
+              <input
+                id="verification-password"
+                type="password"
+                autoComplete="new-password"
+                required
+                minLength={8}
+                maxLength={128}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                className="block w-full rounded-radius-md border border-border-subtle bg-surface px-3 py-2 text-text"
+              />
+              <p className="text-sm text-text-tertiary">
+                Use 8–128 characters with an uppercase letter, a lowercase
+                letter and a number.
+              </p>
+              <button
+                type="submit"
+                className="min-h-11 w-full rounded-radius-md bg-primary-600 px-3 py-2 text-text-on-primary"
+              >
+                Verify email
+              </button>
+            </form>
+          )}
           {email && (
             <button
               onClick={handleResend}

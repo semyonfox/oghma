@@ -1,23 +1,16 @@
 import { createHash } from "node:crypto";
 
 export const MARKER_RESULT_SCHEMA_VERSION = 1;
-export const DEFAULT_MARKER_MAX_RESULT_BYTES = 128 * 1024 * 1024;
-export const DEFAULT_MARKER_MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
-export const DEFAULT_MARKER_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
-export const DEFAULT_MARKER_MAX_IMAGE_TOTAL_BYTES = 96 * 1024 * 1024;
-export const DEFAULT_MARKER_MAX_METADATA_BYTES = 2 * 1024 * 1024;
-export const DEFAULT_MARKER_MAX_IMAGES = 256;
+export {
+  DEFAULT_MARKER_MAX_RESULT_BYTES, DEFAULT_MARKER_MAX_OUTPUT_BYTES,
+  DEFAULT_MARKER_MAX_IMAGE_BYTES, DEFAULT_MARKER_MAX_IMAGE_TOTAL_BYTES,
+  DEFAULT_MARKER_MAX_METADATA_BYTES, DEFAULT_MARKER_MAX_IMAGES,
+  markerResultByteLimit,
+} from "./marker-output";
+import { validateMarkerOutput, markerResultByteLimit, type MarkerMetadata } from "./marker-output";
 
 const PAGE_RANGE_PATTERN = /^\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*$/;
 const IMAGE_NAME_PATTERN = /^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$/;
-
-type JsonValue =
-  | null
-  | boolean
-  | number
-  | string
-  | JsonValue[]
-  | { [key: string]: JsonValue };
 
 export interface MarkerResultExpectation {
   callbackId: string;
@@ -27,7 +20,7 @@ export interface MarkerResultExpectation {
 export interface ValidatedMarkerResult {
   output: string;
   images: Record<string, string>;
-  metadata: JsonValue | null;
+  metadata: MarkerMetadata;
   pageRange: string | null;
   byteLength: number;
   sha256: string;
@@ -38,19 +31,6 @@ export class MarkerResultValidationError extends Error {
     super(message);
     this.name = "MarkerResultValidationError";
   }
-}
-
-function positiveInteger(value: string | undefined, fallback: number): number {
-  const parsed = Number.parseInt(value ?? "", 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-function configuredLimit(name: string, fallback: number): number {
-  return positiveInteger(process.env[name], fallback);
-}
-
-export function markerResultByteLimit(): number {
-  return configuredLimit("MARKER_MAX_RESULT_BYTES", DEFAULT_MARKER_MAX_RESULT_BYTES);
 }
 
 function invalid(message: string): never {
@@ -65,13 +45,6 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 
 function asBuffer(value: string | Buffer): Buffer {
   return Buffer.isBuffer(value) ? value : Buffer.from(value, "utf8");
-}
-
-function isStrictBase64(value: string): boolean {
-  if (!value || value.length % 4 !== 0) return false;
-  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(value)) return false;
-  const decoded = Buffer.from(value, "base64");
-  return decoded.length > 0 && decoded.toString("base64") === value;
 }
 
 function imageHasExpectedMagic(name: string, bytes: Buffer): boolean {
@@ -92,66 +65,6 @@ function imageHasExpectedMagic(name: string, bytes: Buffer): boolean {
     );
   }
   return false;
-}
-
-function validateImages(value: unknown): Record<string, string> {
-  if (value === undefined) return {};
-  if (!isPlainObject(value)) invalid("Marker result images must be an object");
-
-  const entries = Object.entries(value);
-  const maxImages = configuredLimit("MARKER_MAX_RESULT_IMAGES", DEFAULT_MARKER_MAX_IMAGES);
-  const maxImageBytes = configuredLimit(
-    "MARKER_MAX_RESULT_IMAGE_BYTES",
-    DEFAULT_MARKER_MAX_IMAGE_BYTES,
-  );
-  const maxTotalBytes = configuredLimit(
-    "MARKER_MAX_RESULT_IMAGE_TOTAL_BYTES",
-    DEFAULT_MARKER_MAX_IMAGE_TOTAL_BYTES,
-  );
-  if (entries.length > maxImages) {
-    invalid(`Marker result has more than ${maxImages} images`);
-  }
-
-  const images: Record<string, string> = {};
-  let totalBytes = 0;
-  for (const [name, encoded] of entries) {
-    if (!IMAGE_NAME_PATTERN.test(name) || !/\.(?:png|jpe?g|webp)$/i.test(name)) {
-      invalid(`Marker image name is invalid: ${name.slice(0, 64)}`);
-    }
-    if (typeof encoded !== "string" || !isStrictBase64(encoded)) {
-      invalid(`Marker image ${name} is not strict base64`);
-    }
-    const bytes = Buffer.from(encoded, "base64");
-    if (bytes.length > maxImageBytes) {
-      invalid(`Marker image ${name} exceeds the per-image limit`);
-    }
-    totalBytes += bytes.length;
-    if (totalBytes > maxTotalBytes) {
-      invalid("Marker result images exceed the aggregate limit");
-    }
-    if (!imageHasExpectedMagic(name, bytes)) {
-      invalid(`Marker image ${name} does not match its extension`);
-    }
-    images[name] = encoded;
-  }
-  return images;
-}
-
-function validateMetadata(value: unknown): JsonValue | null {
-  if (value === undefined || value === null) return null;
-  let serialized: string;
-  try {
-    serialized = JSON.stringify(value);
-  } catch {
-    invalid("Marker result metadata is not JSON serializable");
-  }
-  if (Buffer.byteLength(serialized!, "utf8") > configuredLimit(
-    "MARKER_MAX_RESULT_METADATA_BYTES",
-    DEFAULT_MARKER_MAX_METADATA_BYTES,
-  )) {
-    invalid("Marker result metadata exceeds the size limit");
-  }
-  return value as JsonValue;
 }
 
 /**
@@ -189,15 +102,17 @@ export function parseMarkerResult(
   if (parsed.format !== "markdown") {
     invalid("Marker result format must be markdown");
   }
-  if (typeof parsed.output !== "string") {
-    invalid("Marker result output must be a string");
+  let output;
+  try {
+    output = validateMarkerOutput(parsed);
+  } catch (error) {
+    invalid(error instanceof Error ? error.message : "Invalid Marker output");
   }
-  if (!parsed.output.trim()) invalid("Marker result output is empty");
-  if (Buffer.byteLength(parsed.output, "utf8") > configuredLimit(
-    "MARKER_MAX_RESULT_OUTPUT_BYTES",
-    DEFAULT_MARKER_MAX_OUTPUT_BYTES,
-  )) {
-    invalid("Marker result output exceeds the size limit");
+  for (const [name, encoded] of Object.entries(output.images)) {
+    if (!IMAGE_NAME_PATTERN.test(name)) invalid("Marker image name is invalid");
+    if (!imageHasExpectedMagic(name, Buffer.from(encoded, "base64"))) {
+      invalid(`Marker image ${name} does not match its extension`);
+    }
   }
 
   let pageRange: string | null = null;
@@ -213,9 +128,9 @@ export function parseMarkerResult(
   }
 
   return {
-    output: parsed.output,
-    images: validateImages(parsed.images),
-    metadata: validateMetadata(parsed.metadata),
+    output: output.output,
+    images: output.images,
+    metadata: output.metadata,
     pageRange,
     byteLength: bytes.length,
     sha256: createHash("sha256").update(bytes).digest("hex"),

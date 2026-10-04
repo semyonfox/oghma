@@ -143,7 +143,7 @@ describe("POST /api/extract", () => {
     vi.mocked(sql).mockReset();
     vi.mocked(validateSession).mockResolvedValue({
       user_id: userId,
-      email: "owner@example.com",
+      session_version: 0, email: "owner@example.com",
     });
   });
 

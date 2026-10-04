@@ -77,6 +77,7 @@ export async function completeOAuthAgentRegistration(
   userCode: string,
   userId: string,
   email: string,
+  sessionVersion: number,
 ) {
   const [claim] = await sql<AgentRegistrationClaim[]>`
     UPDATE app.agent_registration_claims AS claim
@@ -95,6 +96,8 @@ export async function completeOAuthAgentRegistration(
         JOIN app.oauth_accounts AS oauth ON oauth.user_id = login.user_id
         WHERE login.user_id = ${userId}::uuid
           AND login.email_verified = true
+          AND login.is_active = true AND login.deleted_at IS NULL
+          AND login.session_version = ${sessionVersion}
           AND login.created_at >= claim.created_at
           AND LOWER(login.email) = LOWER(claim.email)
           AND LOWER(oauth.email) = LOWER(claim.email)

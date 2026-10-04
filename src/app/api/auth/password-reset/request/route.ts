@@ -35,7 +35,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     if (limited) return limited;
 
     const users = await sql<{ user_id: string; email: string }[]>`
-            SELECT user_id, email FROM app.login WHERE email = ${email.trim()}
+            SELECT user_id, email FROM app.login WHERE lower(btrim(email)) = ${email.trim().toLowerCase()}
         `;
 
     // constant-time: perform the same work regardless of whether email exists

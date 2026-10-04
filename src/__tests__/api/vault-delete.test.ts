@@ -67,7 +67,7 @@ describe("DELETE /api/vault", () => {
       "Vault permanently cleared by user",
     );
     expect(permanentlyDeleteAllUserNotes).toHaveBeenCalledWith("user-123");
-    expect(queueVaultStorageCleanup).toHaveBeenCalledWith("user-123");
+    expect(queueVaultStorageCleanup).toHaveBeenCalledWith("user-123", expect.any(Date));
     await expect(response.json()).resolves.toMatchObject({
       success: true,
       summary: { notesDeleted: 1, s3FilesDeleted: 1, cleanupPending: false },

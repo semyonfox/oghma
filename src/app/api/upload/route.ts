@@ -9,12 +9,13 @@ import {
   removeNewNoteWithTree,
 } from "@/lib/notes/storage/create-note";
 import { generateUUID, isValidUUID } from "@/lib/utils/uuid";
-import { withErrorHandler, tracedError, requireAuth } from "@/lib/api-error";
+import { withErrorHandler, tracedError, requireAuth, ApiError } from "@/lib/api-error";
 import sql from "@/database/pgsql";
 import { xraySubsegment } from "@/lib/xray";
 import logger from "@/lib/logger";
 import { config } from "@/lib/config";
 import { enqueueCanvasJob } from "@/lib/queue";
+import { readBoundedBody, BodyTooLargeError } from "@/lib/http/bounded-body";
 import { detectMimeType } from "@/lib/uploads/detect-mime";
 import { invalidateTreeAfterPublish } from "@/lib/notes/tree-cache";
 
@@ -50,11 +51,22 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const limited = await checkRateLimit("upload", session.user_id);
   if (limited) return limited;
 
-  const formData = await request.formData();
-  const file = formData.get("file") as File;
-  let noteId = formData.get("noteId") as string;
+  let formData: FormData;
+  try {
+    const bytes = await readBoundedBody(request, config.upload.maxFileSizeBytes + 64 * 1024);
+    formData = await new Response(bytes, {
+      headers: { "Content-Type": request.headers.get("content-type") ?? "" },
+    }).formData();
+  } catch (error) {
+    if (error instanceof BodyTooLargeError) throw new ApiError(413, "Upload body too large");
+    throw new ApiError(400, "Invalid multipart body");
+  }
+  const file = formData.get("file");
+  const rawNoteId = formData.get("noteId");
+  if (rawNoteId !== null && typeof rawNoteId !== "string") return tracedError("Invalid noteId", 400);
+  let noteId = rawNoteId ?? "";
 
-  if (!file) return tracedError("No file provided", 400);
+  if (!(file instanceof File)) return tracedError("No file provided", 400);
 
   if (file.size > config.upload.maxFileSizeBytes) {
     return tracedError(

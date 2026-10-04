@@ -355,7 +355,7 @@ export class StoreS3 extends StoreProvider {
   /**
    * Delete an object
    */
-  async deleteObject(path: string): Promise<void> {
+  async deleteObject(path: string, signal?: AbortSignal): Promise<void> {
     const fullPath = this.getPath(path);
     this.logger.debug(`Deleting object: ${fullPath}`);
 
@@ -364,7 +364,8 @@ export class StoreS3 extends StoreProvider {
         new DeleteObjectCommand({
           Bucket: this.config.bucket,
           Key: fullPath,
-        })
+        }),
+        { abortSignal: signal }
       );
     } catch (error) {
       this.logger.error(error instanceof Error ? error : String(error), `Error deleting object: ${fullPath}`);

@@ -1,19 +1,25 @@
 // shared auth utilities — JWT, sessions, response formatting
 
+import { readBoundedBody, BodyTooLargeError } from "@/lib/http/bounded-body";
 import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import sql from "@/database/pgsql";
 import { auth } from "@/auth";
+import { ApiError } from "@/lib/api-errors";
 import { generateTraceId, getTraceId } from "@/lib/trace";
 
 export interface SessionUser {
   user_id: string;
   email: string;
+  session_version: number;
 }
 
 export type JWTPayload = Record<string, unknown>;
 type JsonObject = Record<string, unknown>;
+function isJsonObject(value: unknown): value is JsonObject {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
 
 // jwt
 
@@ -70,72 +76,50 @@ export async function clearSessionCookie(): Promise<void> {
   (await cookies()).delete("session");
 }
 
-/**
- * Token-only session check for high-frequency, low-stakes endpoints
- * (presence heartbeats). Trusts the signed session cookie / NextAuth JWT
- * without revalidating is_active / deleted_at in Postgres, so it costs no
- * database query per call. Never use it on endpoints that read or mutate
- * user data — those must go through validateSession/requireAuth.
- */
+// presence uses the same revocation and account checks as other endpoints
 export async function validateSessionLite(): Promise<{
   user_id: string;
 } | null> {
-  const token = await getSessionCookie();
-  if (token) {
-    const payload = verifyJWTToken(token);
-    if (typeof payload?.user_id === "string") {
-      return { user_id: payload.user_id };
-    }
-  }
-
-  try {
-    const session = await auth();
-    if (session?.user?.id) {
-      return { user_id: session.user.id };
-    }
-  } catch {
-    // NextAuth session invalid or expired
-  }
-
-  return null;
+  const user = await validateSession();
+  return user ? { user_id: user.user_id } : null;
 }
 
 export async function validateSession(
   _request?: unknown,
 ): Promise<SessionUser | null> {
-  // 1. try Sam's custom session cookie (email/password login)
   const token = await getSessionCookie();
   if (token) {
     const payload = verifyJWTToken(token);
-    if (typeof payload?.user_id === "string") {
-      const [user] = await sql`
-                SELECT user_id, email FROM app.login
-                WHERE user_id = ${payload.user_id}::uuid
-                  AND is_active = true
-                  AND deleted_at IS NULL
-                LIMIT 1
-            `;
-      if (user) return user as SessionUser;
+    if (
+      typeof payload?.user_id === "string" &&
+      Number.isSafeInteger(payload.session_version)
+    ) {
+      const [user] = await sql<SessionUser[]>`
+        SELECT user_id, email, session_version FROM app.login
+        WHERE user_id = ${payload.user_id}::uuid
+          AND session_version = ${Number(payload.session_version)}
+          AND email_verified = true
+          AND is_active = true AND deleted_at IS NULL
+        LIMIT 1
+      `;
+      if (user) return user;
     }
   }
 
-  // 2. try NextAuth v5 session (OAuth login)
-  try {
-    const session = await auth();
-    if (session?.user?.id) {
-      const [user] = await sql`
-                  SELECT user_id, email FROM app.login
-                  WHERE user_id = ${session.user.id}::uuid
-                    AND is_active = true
-                    AND deleted_at IS NULL
-                  LIMIT 1
-              `;
-      if (user) return user as SessionUser;
-    }
-  } catch {
-    // NextAuth session invalid or expired — fall through
+  const session = await auth();
+  if (session?.validationUnavailable)
+    throw new ApiError(503, "Unable to verify session");
+  if (session?.user?.id && Number.isSafeInteger(session.user.sessionVersion)) {
+    const [user] = await sql<SessionUser[]>`
+      SELECT user_id, email, session_version FROM app.login
+      WHERE user_id = ${session.user.id}::uuid
+        AND session_version = ${Number(session.user.sessionVersion)}
+        AND email_verified = true
+        AND is_active = true AND deleted_at IS NULL
+      LIMIT 1
+    `;
+    if (user) return user;
   }
-
   return null;
 }
 
@@ -197,8 +181,15 @@ export async function createAuthSession(
   user: SessionUser,
   expiryDays: number = 1,
 ): Promise<NextResponse> {
+  if (!Number.isSafeInteger(user.session_version)) {
+    throw new Error("Session version is required");
+  }
   const token = generateJWTToken(
-    { user_id: user.user_id, email: user.email },
+    {
+      user_id: user.user_id,
+      email: user.email,
+      session_version: user.session_version,
+    },
     `${expiryDays}d`,
   );
 
@@ -226,15 +217,19 @@ export async function parseJsonBody(
   }
 
   try {
-    const value: unknown = await request.json();
+    const value: unknown = JSON.parse(
+      new TextDecoder().decode(await readBoundedBody(request, 64 * 1024)),
+    );
     return {
-      data:
-        value && typeof value === "object" && !Array.isArray(value)
-          ? (value as JsonObject)
-          : null,
+      data: isJsonObject(value) ? value : null,
       error: null,
     };
   } catch (_parseError) {
+    if (_parseError instanceof BodyTooLargeError)
+      return {
+        data: null,
+        error: createErrorResponse("Request body too large", 413),
+      };
     return {
       data: null,
       error: createErrorResponse("Invalid JSON in request body", 400),

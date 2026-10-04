@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "crypto";
-import { auth } from "@/auth";
+import { validateSession } from "@/lib/auth";
 import sql from "@/database/pgsql";
 import { ensureRedisReady, redis, redisReady } from "@/lib/redis";
 import { isValidUUID } from "@/lib/utils/uuid";
@@ -13,18 +13,21 @@ export const MOBILE_AUTH_CODE_VERIFIER_PATTERN = /^[A-Za-z0-9._~-]{43,128}$/;
 export interface MobileAuthUser {
   user_id: string;
   email: string;
+  session_version: number;
   displayName?: string;
 }
 
 interface MobileAuthUserRow {
   user_id: string;
   email: string;
+  session_version: number;
   display_name: string | null;
 }
 
 interface MobileAuthGrant {
   userId: string;
   codeChallenge: string;
+  sessionVersion: number;
 }
 
 function isMobileAuthGrant(value: unknown): value is MobileAuthGrant {
@@ -34,7 +37,8 @@ function isMobileAuthGrant(value: unknown): value is MobileAuthGrant {
     "userId" in value &&
     typeof value.userId === "string" &&
     "codeChallenge" in value &&
-    typeof value.codeChallenge === "string"
+    typeof value.codeChallenge === "string" &&
+    "sessionVersion" in value && Number.isSafeInteger(value.sessionVersion)
   );
 }
 
@@ -49,6 +53,7 @@ function toMobileAuthUser(row: MobileAuthUserRow): MobileAuthUser {
   return {
     user_id: row.user_id,
     email: row.email,
+    session_version: row.session_version,
     ...(row.display_name ? { displayName: row.display_name } : {}),
   };
 }
@@ -59,7 +64,7 @@ export async function findActiveMobileAuthUser(
   if (!isValidUUID(userId)) return null;
 
   const [user] = await sql<MobileAuthUserRow[]>`
-    SELECT user_id, email, display_name
+    SELECT user_id, email, display_name, session_version
     FROM app.login
     WHERE user_id = ${userId}::uuid
       AND is_active = true
@@ -71,17 +76,32 @@ export async function findActiveMobileAuthUser(
   return user ? toMobileAuthUser(user) : null;
 }
 
-/**
- * Resolve only the Auth.js browser identity. The custom session cookie must
- * not participate because the browser can hold both cookies for different
- * accounts.
- */
 export async function getActiveAuthJsMobileUser(): Promise<MobileAuthUser | null> {
-  const session = await auth();
-  const userId = session?.user?.id;
-  return typeof userId === "string"
-    ? findActiveMobileAuthUser(userId)
-    : null;
+  const session = await validateSession();
+  if (!session) return null;
+  const user = await findActiveMobileAuthUser(session.user_id);
+  return user?.session_version === session.session_version ? user : null;
+}
+
+export const MOBILE_AUTH_CALLBACK = "https://oghmanotes.ie/auth/mobile/callback";
+
+export function androidAppLinkFingerprints(): string[] {
+  const values = (process.env.ANDROID_APP_LINK_SHA256_FINGERPRINTS ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (
+    !values.length ||
+    values.some(
+      (value) => !/^(?:[A-Fa-f0-9]{2}:){31}[A-Fa-f0-9]{2}$/.test(value),
+    )
+  )
+    return [];
+  return values.map(value => value.toUpperCase());
+}
+
+export function mobileAppLinksReady(): boolean {
+  return androidAppLinkFingerprints().length > 0 && process.env.ANDROID_APP_LINKS_VERIFIED === "true";
 }
 
 export function createCodeChallenge(codeVerifier: string): string {
@@ -102,7 +122,7 @@ function deploymentNamespace(): string {
 
 function grantKey(code: string): string {
   const codeHash = createHash("sha256").update(code).digest("hex");
-  return `mobile-auth:{${deploymentNamespace()}}:grant:${codeHash}`;
+  return `mobile-auth-v2:{${deploymentNamespace()}}:grant:${codeHash}`;
 }
 
 async function requireRedis(): Promise<void> {
@@ -113,10 +133,12 @@ async function requireRedis(): Promise<void> {
 export async function issueMobileAuthGrant(
   userId: string,
   codeChallenge: string,
+  sessionVersion: number,
 ): Promise<string> {
   await requireRedis();
 
-  const value = JSON.stringify({ userId, codeChallenge } satisfies MobileAuthGrant);
+  if (!Number.isSafeInteger(sessionVersion)) throw new Error("Session version is required");
+  const value = JSON.stringify({ userId, codeChallenge, sessionVersion } satisfies MobileAuthGrant);
 
   try {
     for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -155,7 +177,7 @@ return value
 export async function consumeMobileAuthGrant(
   code: string,
   codeVerifier: string,
-): Promise<string | null> {
+): Promise<MobileAuthGrant | null> {
   await requireRedis();
   const submittedChallenge = createCodeChallenge(codeVerifier);
 
@@ -181,7 +203,7 @@ export async function consumeMobileAuthGrant(
     ) {
       return null;
     }
-    return grant.userId;
+    return grant;
   } catch {
     return null;
   }

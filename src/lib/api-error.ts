@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import logger from "./logger";
+import { readBoundedBody, BodyTooLargeError } from "./http/bounded-body";
 import { getTraceId, withTrace } from "./trace";
 import {
   validateSession,
@@ -8,9 +9,11 @@ import {
 } from "./auth";
 import { isValidUUID } from "./utils/uuid";
 import { ApiError } from "./api-errors";
-export { ApiError } from "./api-errors";
 
 // ── Error classes ────────────────────────────────────────────────────────────
+
+// defined in ./api-errors so auth.ts and worker code can throw it without importing this module
+export { ApiError };
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
@@ -135,9 +138,8 @@ export async function requireAuth(): Promise<SessionUser> {
 }
 
 /**
- * Token-only variant of requireAuth for high-frequency, low-stakes routes
- * (presence heartbeats): skips the per-request Postgres revalidation that
- * validateSession performs. Never use it where user data is read or mutated.
+ * presence returns only the identifier, with the same account and revocation
+ * checks as requireAuth
  */
 export async function requireAuthLite(): Promise<{ user_id: string }> {
   const user = await validateSessionLite();
@@ -157,17 +159,18 @@ export function requireValidId(value: unknown, fieldName = "ID"): string {
 }
 
 /** Parse JSON while leaving payload-shape validation to the route schema. */
-export async function parseJson(request: Request): Promise<unknown> {
+export async function parseJson(request: Request, maxBytes = 1024 * 1024): Promise<unknown> {
   try {
-    return await request.json();
-  } catch {
+    return JSON.parse(new TextDecoder().decode(await readBoundedBody(request, maxBytes)));
+  } catch (error) {
+    if (error instanceof BodyTooLargeError) throw new ApiError(413, "Request body too large");
     throw new ApiError(400, "Invalid JSON body");
   }
 }
 
 /** Parse an object JSON request body, reporting client payload errors as 400s. */
-export async function parseJsonObject(request: Request): Promise<Record<string, unknown>> {
-  const body = await parseJson(request);
+export async function parseJsonObject(request: Request, maxBytes?: number): Promise<Record<string, unknown>> {
+  const body = await parseJson(request, maxBytes);
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     throw new ApiError(400, "JSON body must be an object");
   }

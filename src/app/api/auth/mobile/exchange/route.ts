@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server";
 import { createAuthSession } from "@/lib/auth";
 import { ApiError, parseJsonObject, withErrorHandler } from "@/lib/api-error";
 import {
+  mobileAppLinksReady,
   MOBILE_AUTH_CODE_PATTERN,
   MOBILE_AUTH_CODE_VERIFIER_PATTERN,
   MobileAuthStoreUnavailableError,
@@ -11,6 +12,7 @@ import {
 import { checkRateLimit, getClientIp } from "@/lib/rateLimiter";
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
+  if (!mobileAppLinksReady()) throw new ApiError(503, "Android App Links setup is incomplete");
   const limited = await checkRateLimit(
     "mobile-auth-exchange",
     getClientIp(request),
@@ -29,9 +31,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     throw new ApiError(400, "Invalid mobile authorization exchange");
   }
 
-  let userId: string | null;
+  let grant: Awaited<ReturnType<typeof consumeMobileAuthGrant>>;
   try {
-    userId = await consumeMobileAuthGrant(code, codeVerifier);
+    grant = await consumeMobileAuthGrant(code, codeVerifier);
   } catch (error) {
     if (error instanceof MobileAuthStoreUnavailableError) {
       throw new ApiError(503, "Service temporarily unavailable. Please try again shortly.");
@@ -39,12 +41,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     throw error;
   }
 
-  if (!userId) {
+  if (!grant) {
     throw new ApiError(400, "Invalid or expired authorization code");
   }
 
-  const user = await findActiveMobileAuthUser(userId);
-  if (!user) {
+  const user = await findActiveMobileAuthUser(grant.userId);
+  if (!user || user.session_version !== grant.sessionVersion) {
     throw new ApiError(403, "Account is unavailable");
   }
 

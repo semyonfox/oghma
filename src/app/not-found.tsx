@@ -1,9 +1,9 @@
-import { auth } from "@/auth";
+import { validateSession } from "@/lib/auth";
 import NotFoundContent from "./not-found-content";
 
 export default async function NotFound() {
-  const session = await auth();
-  const homeUrl = session?.user?.id ? "/notes" : "/";
+  const session = await validateSession();
+  const homeUrl = session?.user_id ? "/notes" : "/";
 
   return <NotFoundContent homeUrl={homeUrl} />;
 }

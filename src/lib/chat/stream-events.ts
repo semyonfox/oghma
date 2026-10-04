@@ -75,8 +75,9 @@ export function sendToolResult(
   detail?: string,
   status: "completed" | "failed" = "completed",
   notes: NoteActivityRef[] = [],
+  actionId?: string,
 ): void {
-  send(writer, "tool-result", { toolCallId, detail, status, notes });
+  send(writer, "tool-result", { toolCallId, detail, status, notes, actionId });
 }
 
 export function sendDone(writer: SseWriter): void {

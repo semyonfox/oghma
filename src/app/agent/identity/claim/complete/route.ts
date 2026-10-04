@@ -1,6 +1,9 @@
 import { NextRequest } from "next/server";
-import { auth } from "@/auth";
-import { createErrorResponse, parseJsonBody } from "@/lib/auth";
+import {
+  createErrorResponse,
+  parseJsonBody,
+  validateSession,
+} from "@/lib/auth";
 import { completeOAuthAgentRegistration } from "@/lib/agent-registration";
 import { assertTrustedOrigin } from "@/lib/api-error";
 import { checkRateLimit, getClientIp } from "@/lib/rateLimiter";
@@ -17,8 +20,8 @@ export async function POST(request: NextRequest) {
   );
   if (limited) return limited;
 
-  const session = await auth();
-  if (!session?.user?.id || !session.user.email) {
+  const user = await validateSession();
+  if (!user) {
     return createErrorResponse("OAuth authentication is required", 401);
   }
 
@@ -30,8 +33,9 @@ export async function POST(request: NextRequest) {
   const claim = await completeOAuthAgentRegistration(
     result.data.claim_token,
     result.data.user_code,
-    session.user.id,
-    session.user.email,
+    user.user_id,
+    user.email,
+    user.session_version,
   );
   if (!claim) {
     return createErrorResponse(

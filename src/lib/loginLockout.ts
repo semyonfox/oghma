@@ -383,3 +383,38 @@ export async function getRateLimitResetTime(email: string): Promise<number> {
   }
   return memGetRateLimitResetTime(email);
 }
+
+const RESERVE_LOGIN_ATTEMPT = `
+local now = tonumber(ARGV[1])
+local locked = tonumber(redis.call('GET', KEYS[3]) or '0')
+if locked > now then return 0 end
+local count = redis.call('INCR', KEYS[1])
+if count == 1 then
+  redis.call('EXPIRE', KEYS[1], ARGV[2])
+  redis.call('SET', KEYS[2], now + tonumber(ARGV[2]) * 1000, 'EX', ARGV[2])
+end
+if count >= tonumber(ARGV[3]) then
+  redis.call('SET', KEYS[3], now + tonumber(ARGV[4]) * 1000, 'EX', ARGV[4])
+end
+if count > tonumber(ARGV[3]) then return 0 end
+return 1
+`;
+
+// reserve before bcrypt so concurrent requests and both login routes share one budget
+export async function reserveLoginAttempt(email: string): Promise<boolean> {
+  email = normalize(email);
+  if (await canUseRedis()) {
+    try {
+      return await redis.eval(RESERVE_LOGIN_ATTEMPT, 3,
+        KEY.attempts(email), KEY.window(email), KEY.lockout(email),
+        Date.now(), CONFIG.WINDOW_SECS, CONFIG.MAX_ATTEMPTS, CONFIG.LOCK_SECS) === 1;
+    } catch (error) {
+      if (!failOpen()) throw storeUnavailableError("reserveLoginAttempt", error);
+    }
+  } else if (!failOpen()) {
+    throw redisNotReadyError("reserveLoginAttempt");
+  }
+  if (memIsAccountLocked(email) || memIsRateLimited(email)) return false;
+  memRecordFailedAttempt(email);
+  return true;
+}

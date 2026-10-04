@@ -1,7 +1,6 @@
 import sql from "@/database/pgsql";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import logger from "@/lib/logger";
 import {
   gettingStartedNoteTitle,
   renderGettingStartedNote,
@@ -69,18 +68,23 @@ export async function resolveVerifiedOAuthEmail(
     });
     if (!response.ok) return null;
 
-    const emails = (await response.json()) as Array<{
-      email?: unknown;
-      primary?: unknown;
-      verified?: unknown;
-    }>;
+    const emails: unknown = await response.json();
+    if (!Array.isArray(emails)) return null;
     const verifiedPrimary = emails.find(
-      (entry) =>
+      (entry: unknown) =>
+        typeof entry === "object" &&
+        entry !== null &&
+        "primary" in entry &&
+        "verified" in entry &&
+        "email" in entry &&
         entry.primary === true &&
         entry.verified === true &&
         typeof entry.email === "string",
     );
-    return typeof verifiedPrimary?.email === "string"
+    return typeof verifiedPrimary === "object" &&
+      verifiedPrimary !== null &&
+      "email" in verifiedPrimary &&
+      typeof verifiedPrimary.email === "string"
       ? verifiedPrimary.email.toLowerCase()
       : null;
   }
@@ -122,7 +126,7 @@ export async function linkOAuthAccount(
             ${profile.name ?? null},
             ${profile.image ?? null},
             ${profile.locale ?? null},
-            ${JSON.stringify(profile.rawProfile ?? {})}::jsonb
+            ${JSON.stringify(profile.rawProfile ?? {})}::text::jsonb
         )
         ON CONFLICT (provider, provider_id) DO UPDATE SET
             email = EXCLUDED.email,
@@ -168,130 +172,96 @@ export async function getLinkedProviders(
     `;
 }
 
-/**
- * the main auto-link flow:
- * 1. check if oauth account already exists → return user_id
- * 2. if email is verified by provider, check app.login by email → link
- * 3. otherwise create new app.login row + link
- */
+// serialise linking and registration races before claiming an email address
 export async function findOrCreateOAuthUser(
   profile: OAuthProfile,
   providerProfile: Record<string, unknown>,
   signupLocale?: Locale,
 ): Promise<string> {
-  const emailVerified = isEmailVerifiedByProvider(
-    profile.provider,
-    providerProfile,
-  );
-  const verifiedEmail = profile.email;
-  if (!emailVerified || !verifiedEmail) {
+  if (
+    !isEmailVerifiedByProvider(profile.provider, providerProfile) ||
+    !profile.email
+  ) {
     throw new Error("OAuth provider did not supply a verified email");
   }
-
-  // step 1: existing oauth account?
-  const existing = await findOAuthAccount(
-    profile.provider,
-    profile.providerAccountId,
+  const email = profile.email.trim().toLowerCase();
+  const replacementHash = await bcrypt.hash(
+    crypto.randomBytes(32).toString("hex"),
+    10,
   );
-  if (existing) {
-    // update profile data on the oauth_accounts row
-    await linkOAuthAccount(existing.user_id, profile);
-    await syncProfileToLogin(existing.user_id, {
-      name: profile.name,
-      image: profile.image,
-      locale: profile.locale,
-    });
-    if (isEmailVerifiedByProvider(profile.provider, providerProfile)) {
-      await sql`
-        UPDATE app.login SET email_verified = true
-        WHERE user_id = ${existing.user_id}::uuid
-      `;
-    }
-    return existing.user_id;
-  }
+  const locale = signupLocale ?? normalizeLocale(profile.locale) ?? Locale.EN;
+  const noteId = generateUUID();
 
-  // step 2: auto-link by email (only if verified)
-  if (emailVerified && profile.email) {
-    const loginRows = await sql<UserIdRow[]>`
-            SELECT user_id FROM app.login
-            WHERE email = ${profile.email}
-              AND is_active = true
-              AND deleted_at IS NULL
+  return sql.begin(async (tx) => {
+    await tx`SELECT pg_advisory_xact_lock(hashtextextended(${profile.provider + ":" + profile.providerAccountId}, 1))`;
+    await tx`SELECT pg_advisory_xact_lock(hashtextextended(${email}, 2))`;
+    const [linked] = await tx<UserIdRow[]>`
+      SELECT user_id FROM app.oauth_accounts
+      WHERE provider = ${profile.provider} AND provider_id = ${profile.providerAccountId}
+    `;
+    let userId = linked?.user_id;
+    if (!userId) {
+      const [created] = await tx<UserIdRow[]>`
+        INSERT INTO app.login (email, hashed_password, display_name, avatar_url, locale, email_verified, welcome_note_id)
+        VALUES (${email}, ${replacementHash}, ${profile.name ?? null}, ${profile.image ?? null},
+                ${locale}, true, ${noteId}::uuid)
+        ON CONFLICT ((lower(btrim(email)))) DO NOTHING RETURNING user_id
+      `;
+      if (created) {
+        userId = created.user_id;
+        await insertNoteWithTree(tx, {
+          noteId,
+          userId,
+          title: gettingStartedNoteTitle(locale),
+          content: renderGettingStartedNote(locale),
+          isFolder: false,
+        });
+      } else {
+        const [existing] = await tx<UserIdRow[]>`
+          SELECT user_id FROM app.login WHERE lower(btrim(email)) = ${email} FOR UPDATE
         `;
-    if (loginRows.length > 0) {
-      const userId = loginRows[0].user_id;
-      await linkOAuthAccount(userId, profile);
-      await syncProfileToLogin(userId, {
-        name: profile.name,
-        image: profile.image,
-        locale: profile.locale,
-      });
-      await sql`
-        UPDATE app.login SET email_verified = true
+        userId = existing?.user_id;
+      }
+    }
+    if (!userId) throw new Error("OAuth account could not be resolved");
+    const [account] = await tx<
+      {
+        user_id: string;
+        email_verified: boolean;
+        is_active: boolean;
+        deleted_at: Date | null;
+      }[]
+    >`
+      SELECT user_id, email_verified, is_active, deleted_at FROM app.login
+      WHERE user_id = ${userId}::uuid FOR UPDATE
+    `;
+    if (!account || !account.is_active || account.deleted_at) {
+      throw new Error("OAuth account is unavailable");
+    }
+    if (!account.email_verified) {
+      // the verified mailbox owner must not inherit a registrant's password or tokens
+      await tx`
+        UPDATE app.login SET hashed_password = ${replacementHash}, email_verified = true,
+          session_version = session_version + 1,
+          verification_token = NULL, verification_token_expires = NULL,
+          reset_token = NULL, reset_token_expires = NULL
         WHERE user_id = ${userId}::uuid
       `;
-      logger.info("oauth account linked to existing user", {
-        provider: profile.provider,
-      });
-      return userId;
     }
-  }
-
-  // step 3: create new user
-  // generate an unguessable random password hash for the NOT NULL constraint
-  const randomPassword = crypto.randomBytes(32).toString("hex");
-  const hashedPassword = await bcrypt.hash(randomPassword, 10);
-  const locale = signupLocale ?? normalizeLocale(profile.locale) ?? Locale.EN;
-  const gettingStartedNoteId = generateUUID();
-
-  // ON CONFLICT handles race condition: if another request just created the same email
-  const insertResult = await sql.begin(async (tx) => {
-    const created = await tx<UserIdRow[]>`
-      INSERT INTO app.login (email, hashed_password, display_name, avatar_url, locale, email_verified, welcome_note_id)
-      VALUES (
-        ${verifiedEmail},
-        ${hashedPassword},
-        ${profile.name ?? null},
-        ${profile.image ?? null},
-        ${locale},
-        ${emailVerified},
-        ${gettingStartedNoteId}::uuid
-      )
-      ON CONFLICT (email) DO NOTHING
-      RETURNING user_id
+    await tx`
+      INSERT INTO app.oauth_accounts (user_id, provider, provider_id, email, name, avatar_url, locale, raw_profile)
+      VALUES (${userId}::uuid, ${profile.provider}, ${profile.providerAccountId}, ${email},
+              ${profile.name ?? null}, ${profile.image ?? null}, ${profile.locale ?? null},
+              ${JSON.stringify(profile.rawProfile ?? {})}::text::jsonb)
+      ON CONFLICT (provider, provider_id) DO UPDATE SET
+        email = EXCLUDED.email, name = EXCLUDED.name, avatar_url = EXCLUDED.avatar_url,
+        locale = EXCLUDED.locale, raw_profile = EXCLUDED.raw_profile
     `;
-
-    if (created[0]) {
-      await insertNoteWithTree(tx, {
-        noteId: gettingStartedNoteId,
-        userId: created[0].user_id,
-        title: gettingStartedNoteTitle(locale),
-        content: renderGettingStartedNote(locale),
-        isFolder: false,
-      });
-    }
-
-    return created;
+    await tx`
+      UPDATE app.login SET display_name = COALESCE(display_name, ${profile.name ?? null}),
+        avatar_url = COALESCE(avatar_url, ${profile.image ?? null}), locale = COALESCE(locale, ${profile.locale ?? null})
+      WHERE user_id = ${userId}::uuid
+    `;
+    return userId;
   });
-
-  let userId: string;
-  if (insertResult.length > 0) {
-    userId = insertResult[0].user_id;
-  } else {
-    // race: another request created it first, fetch the existing one
-    const existing = await sql<UserIdRow[]>`
-            SELECT user_id FROM app.login WHERE email = ${profile.email}
-        `;
-    const existingUser = existing[0];
-    if (!existingUser) {
-      throw new Error("OAuth user creation race did not yield an account");
-    }
-    userId = existingUser.user_id;
-  }
-
-  await linkOAuthAccount(userId, profile);
-  logger.info("new oauth user created", {
-    provider: profile.provider,
-  });
-  return userId;
 }

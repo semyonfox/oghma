@@ -30,7 +30,7 @@ beforeAll(async () => {
     .update(process.env.MOBILE_AUTH_REDIS_NAMESPACE)
     .digest("hex")
     .slice(0, 16);
-  grantKeyPattern = `mobile-auth:{${namespaceHash}}:grant:*`;
+  grantKeyPattern = `mobile-auth-v2:{${namespaceHash}}:grant:*`;
 
   control = new IORedis({ host, port, maxRetriesPerRequest: 1 });
   await control.ping();
@@ -47,17 +47,19 @@ afterAll(async () => {
 
 describe("mobile auth grants in disposable Redis", () => {
   it("keeps a wrong-verifier grant, then atomically consumes it once", async () => {
-    const code = await issueMobileAuthGrant(USER_ID, createCodeChallenge(VERIFIER));
+    const code = await issueMobileAuthGrant(USER_ID, createCodeChallenge(VERIFIER), 0);
 
     await expect(
       consumeMobileAuthGrant(code, "b".repeat(64)),
     ).resolves.toBeNull();
-    await expect(consumeMobileAuthGrant(code, VERIFIER)).resolves.toBe(USER_ID);
+    await expect(consumeMobileAuthGrant(code, VERIFIER)).resolves.toMatchObject(
+      { userId: USER_ID, sessionVersion: 0 },
+    );
     await expect(consumeMobileAuthGrant(code, VERIFIER)).resolves.toBeNull();
   });
 
   it("sets the fixed TTL and rejects an expired grant", async () => {
-    const code = await issueMobileAuthGrant(USER_ID, createCodeChallenge(VERIFIER));
+    const code = await issueMobileAuthGrant(USER_ID, createCodeChallenge(VERIFIER), 0);
     const [key] = await control.keys(grantKeyPattern);
 
     expect(key).toBeDefined();

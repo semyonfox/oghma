@@ -60,6 +60,7 @@ Use this page to find the owner of a fact. Link to that owner instead of copying
 | Document | Owns |
 |---|---|
 | [Infrastructure index](../infra/README.md) | The owner map for current, target, retained, and historical infrastructure |
+| [Security rollout](operations/security-rollout.md) | Session revocation, vault retention and verified Android association release gates |
 | [Chat](operations/chat.md) | Chat queue, delivery, readiness, diagnosis, and release verification |
 | [Import worker](operations/import-worker.md) | Worker deployment, verification, tuning, and recovery |
 | [Vast Serverless Marker](operations/vast-marker.md) | Ready-to-provision GPU queue boundary, image, scaling, monitoring, launch gates, and rollback |

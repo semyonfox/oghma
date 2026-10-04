@@ -2,6 +2,11 @@
 // expects a MARKER_API_URL pointing at a marker_server (POST /marker/upload).
 // set MARKER_API_TOKEN to send Authorization: Bearer <token>.
 // when unset, callers fall back to pdf-parse (text layer only).
+import { readBoundedBody } from "@/lib/http/bounded-body";
+import {
+  validateMarkerOutput,
+  markerResultByteLimit,
+} from "@/lib/marker-output";
 import { normalizeMarkerMarkdown } from "./marker-output";
 import type { MarkerImages } from "./marker-output";
 
@@ -104,24 +109,25 @@ async function callMarker(
     });
 
     if (!res.ok) {
-      throw new Error(
-        `Marker ${res.status}: ${(await res.text()).slice(0, 200)}`,
-      );
+      await res.body?.cancel();
+      throw new Error(`Marker returned HTTP ${res.status}`);
     }
-
-    const json = await res.json();
-    if (!json.success)
-      throw new Error(json.error ?? "Marker returned success=false");
-
-    const rawText = typeof json.output === "string" ? json.output : "";
-    const text = normalizeMarkerMarkdown(rawText);
+    const json: unknown = JSON.parse(
+      new TextDecoder().decode(
+        await readBoundedBody(res, markerResultByteLimit()),
+      ),
+    );
+    if (
+      !json ||
+      typeof json !== "object" ||
+      !("success" in json) ||
+      json.success !== true
+    ) {
+      throw new Error("Marker returned success=false");
+    }
+    const { output, images, metadata } = validateMarkerOutput(json);
+    const text = normalizeMarkerMarkdown(output);
     const chunks = splitMarkdownToChunks(text);
-    const images =
-      json.images && typeof json.images === "object"
-        ? (json.images as MarkerImages)
-        : {};
-    const metadata =
-      json.metadata && typeof json.metadata === "object" ? json.metadata : null;
     return { text, chunks, images, metadata };
   } finally {
     clearTimeout(timeout);

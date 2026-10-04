@@ -278,7 +278,10 @@ describe("markdown editor recovery ownership", () => {
         expect((within(view.getByTestId("A")).getByRole("textbox") as HTMLTextAreaElement).value)
           .toBe("unsaved closed B");
       });
-      expect(Object.entries(useSaveIndicatorStore.getState().files).find(([key]) => !key.endsWith(":B"))?.[1].state).toBe("dirty");
+      // the indicator is updated by an effect after the restored text renders
+      await waitFor(() => {
+        expect(Object.entries(useSaveIndicatorStore.getState().files).find(([key]) => !key.endsWith(":B"))?.[1].state).toBe("dirty");
+      });
     },
   );
 

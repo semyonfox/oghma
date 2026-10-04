@@ -1,3 +1,4 @@
+import { readBoundedBody, BodyTooLargeError } from "@/lib/http/bounded-body";
 import { NextRequest, NextResponse } from "next/server";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import logger from "@/lib/logger";
@@ -68,12 +69,24 @@ export async function POST(request: NextRequest): Promise<Response> {
     token: credentials.token,
     fetch: guardedFetch,
   });
-  const server = createCanvasMcpServer(client);
+  const server = createCanvasMcpServer(client, userId);
 
   try {
     await server.connect(transport);
-    return await transport.handleRequest(request);
+    const bytes = await readBoundedBody(request, 512 * 1024);
+    return await transport.handleRequest(
+      new Request(request.url, {
+        method: "POST",
+        headers: request.headers,
+        body: bytes,
+      }),
+    );
   } catch (error) {
+    if (error instanceof BodyTooLargeError)
+      return NextResponse.json(
+        { error: "Request body too large" },
+        { status: 413 },
+      );
     logger.error("Canvas MCP request failed", {
       userId,
       error: error instanceof Error ? error.message : String(error),

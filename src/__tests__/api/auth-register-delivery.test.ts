@@ -3,7 +3,9 @@ import { NextRequest } from "next/server";
 
 vi.mock("next/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/server")>()),
-  after: vi.fn(),
+  after: vi.fn((callback: () => Promise<void>) => {
+    void callback();
+  }),
 }));
 vi.mock("@/database/pgsql", () => {
   const sql = vi.fn() as ReturnType<typeof vi.fn> & {
@@ -127,7 +129,7 @@ describe("registration delivery feedback", () => {
     expect(response.status).toBe(201);
     await expect(response.json()).resolves.toMatchObject({
       requiresVerification: true,
-      emailDelivery: "queued",
+      success: true,
     });
   });
 
@@ -141,8 +143,8 @@ describe("registration delivery feedback", () => {
     expect(response.status).toBe(201);
     await expect(response.json()).resolves.toMatchObject({
       requiresVerification: true,
-      emailDelivery: "failed",
-      message: expect.stringContaining("Try resending"),
+      success: true,
+      message: expect.stringContaining("another verification email"),
     });
     expect(mockSql.begin).toHaveBeenCalledTimes(1);
   });
@@ -150,12 +152,14 @@ describe("registration delivery feedback", () => {
   it("does not create a second account when registration is retried", async () => {
     const first = await POST(request());
     expect(first.status).toBe(201);
-    mockSql.mockResolvedValueOnce([{ user_id: "user-1" }]);
-
-    const retry = await POST(request());
-
-    expect(retry.status).toBe(409);
-    expect(mockSql.begin).toHaveBeenCalledTimes(1);
+    const tx = vi.fn().mockResolvedValue([]);
+    mockSql.begin.mockImplementation(
+      async (callback: (transaction: typeof tx) => Promise<unknown>) =>
+        callback(tx),
+    );
+    const duplicate = await POST(request());
+    expect(duplicate.status).toBe(201);
+    expect(await duplicate.json()).toEqual(await first.json());
     expect(sendVerificationEmail).toHaveBeenCalledTimes(1);
   });
 });
