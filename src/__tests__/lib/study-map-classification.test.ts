@@ -151,13 +151,50 @@ describe("study classifier Decisions boundary", () => {
   it.each<{ name: string; distribution: Record<string, number> }>([
     { name: "missing criterion", distribution: { CORE: 0.8, SUPPORTING: 0.2 } },
     { name: "extra criterion", distribution: { CORE: 1, SUPPORTING: 0, UNRELATED: 0, UNKNOWN: 0 } },
-    { name: "wrong total", distribution: { CORE: 0.4, SUPPORTING: 0.2, UNRELATED: 0.2 } },
+    { name: "total outside the rounding tolerance", distribution: { CORE: 0.681, SUPPORTING: 0.34, UNRELATED: 0 } },
   ])("rejects a distribution with $name", async ({ distribution }) => {
     respond((body, request) => {
       const id = topicQuestion(request);
       body.answers[id] = choice(request, id, "CORE", distribution);
     });
     await expect(classifyStudySource(source, topics)).rejects.toThrow(/probability distribution|sum to one/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    { name: "rounded above one", probabilities: { CORE: 0.67, SUPPORTING: 0.34, UNRELATED: 0 } },
+    { name: "rounded below one", probabilities: { CORE: 0.66, SUPPORTING: 0.33, UNRELATED: 0 } },
+  ])("normalizes a distribution $name while preserving the raw answer", async ({ probabilities }) => {
+    respond((body, request) => {
+      const id = topicQuestion(request);
+      body.answers[id] = choice(request, id, "CORE", probabilities);
+    });
+
+    const result = await classifyStudySource(source, topics);
+    const rawSchema = z.array(z.object({ judgements: z.array(z.object({ questionId: z.string(), answer: z.unknown(), model: z.string() })) }));
+    const judgements = rawSchema.parse(result.rawDecisions).flatMap((passage) => passage.judgements);
+    const rawTopicAnswer = judgements.find((judgement) => judgement.questionId.includes(topicA))?.answer;
+
+    expect(result.associations).toEqual([
+      expect.objectContaining({ topicId: topicA, probability: 1 }),
+    ]);
+    expect(rawTopicAnswer).toMatchObject({ probabilities });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("applies the relevance threshold to normalized probability mass", async () => {
+    respond((body, request) => {
+      const below = topicQuestion(request, topicA);
+      const at = topicQuestion(request, topicB);
+      body.answers[below] = choice(request, below, "CORE", { CORE: 0.58, SUPPORTING: 0.01, UNRELATED: 0.4 });
+      body.answers[at] = choice(request, at, "CORE", { CORE: 0.59, SUPPORTING: 0.01, UNRELATED: 0.39 });
+    });
+
+    const result = await classifyStudySource(source, topics);
+
+    expect(result.associations).toEqual([
+      expect.objectContaining({ topicId: topicB, probability: expect.closeTo(0.6 / 0.99) }),
+    ]);
   });
 
   it.each([-0.1, 1.1, Number.NaN])("rejects invalid confidence %s", async (confidence) => {

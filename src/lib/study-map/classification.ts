@@ -246,6 +246,13 @@ async function jevBatch(source: SourceDocument, tasks: Task[], key: string, sign
       answers[id] = answer.type === "choice" ? { ...answer, confidence: answer.confidence ?? null } : answer;
     }
     validateAnswers(tasks, answers);
+    // preserve provider rounding in rawAnswers and normalize validated distributions for decisions
+    for (const answer of Object.values(answers)) {
+      if (answer.type !== "choice" || answer.probabilities === null) continue;
+      const total = Object.values(answer.probabilities).reduce((sum, value) => sum + value, 0);
+      answer.probabilities = Object.fromEntries(Object.entries(answer.probabilities)
+        .map(([choice, probability]) => [choice, probability / total]));
+    }
     return {
       answers, rawAnswers: parsed.data.answers,
       model: parsed.data.model, cost: parsed.data.usage.cost, inputTokens: parsed.data.usage.input_tokens,
@@ -369,7 +376,8 @@ export async function classifyStudySource(
       } else if (task.target.type === "kind" && answer.type === "choice") {
         kindVotes.set(answer.choice, (kindVotes.get(answer.choice) ?? 0) + (answer.probabilities?.[answer.choice] ?? 1));
       } else if (task.target.type === "topic" && answer.type === "choice" && answer.choice !== "UNRELATED") {
-        const probability = answer.probabilities === null ? null : answer.probabilities.CORE + answer.probabilities.SUPPORTING;
+        const probability = answer.probabilities === null ? null
+          : Math.min(1, answer.probabilities.CORE + answer.probabilities.SUPPORTING);
         if (probability !== null && probability < RELEVANCE_THRESHOLD) continue;
         const relevance = answer.choice === "CORE" ? "core" : "supporting";
         const previous = associations.get(task.target.topic.id);

@@ -1,7 +1,7 @@
 # Study maps
 
-> **Status:** Current working-tree implementation reference; release verification tracked below
-> **Last reviewed:** 2026-10-03
+> **Status:** Implemented on the feature branch; release verification tracked below
+> **Last reviewed:** 2026-10-04
 > **Source of truth for:** Study Map persistence, classification, evidence, and exam-history contracts
 
 Study maps organise existing notes and files around reviewed module topics. The canvas is a view of those records. Topic membership, card placement, and labelled links are separate. Exam history describes reviewed uploaded papers; it does not measure student mastery or predict the next exam.
@@ -11,7 +11,7 @@ Study maps organise existing notes and files around reviewed module topics. The 
 1. Open `/study-map` and create a module with an academic year. Optionally select a root folder, Canvas course ID, and syllabus note. Add materials explicitly or use **Sync sources** to discover descendants and matching course materials.
 2. Choose **Propose syllabus topics**, then review each definition, inclusion criteria, exclusions, aliases, hierarchy, and supporting quotations. Topics can also be added manually. Classification requires at least one approved topic.
 3. Choose **Classify materials**, or classify one material in its inspector. Review independent core/supporting suggestions and save corrections. Document kind and labels remain editable.
-4. Use the canvas topic regions, material filters, and search to find related work. Drag or nudge cards, pin their position, and add labelled links. Moving a card between regions changes placement only. Its topic assignments remain in the inspector.
+4. Use material filters and search to find related work. On the board, arrange live source cards in frames, pin selections, add labelled connectors, and optionally draw or add sticky notes. **Add to board** restores a removed reference; **Find selected** locates it. Moving a card into a frame changes its layout only. Its topic assignments remain in the inspector.
 5. In **Exam history**, analyse a past paper, check its year, sitting, syllabus version, questions, marks, topic assignments, and section rules, then approve the review. Resolve source or taxonomy changes before using its statistics again.
 
 Provider calls require an explicit proposal, classification, or paper-analysis action. Automatic classification defaults off and requires the **Classify changed materials automatically** checkbox in module settings. With a live provider, these actions can incur charges. Automatic suggestions still require review; saved corrections survive reruns.
@@ -20,12 +20,12 @@ Provider calls require an explicit proposal, classification, or paper-analysis a
 
 [Migration 071](../../database/migrations/071_study_maps.sql) adds four tables. Its presence does not prove it has run in a particular environment.
 
-| Table             | Owns                                                                                                                                                                     |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `study_maps`      | Module identity, source selection, bounded topic catalogue, taxonomy version, map revision, board revision, placements, links, viewport, automatic-classification opt-in |
-| `study_materials` | Membership and exclusions, document kind, labels, suggested associations, raw classification result, source hash, taxonomy version, separate manual overrides            |
-| `study_papers`    | Source hash, taxonomy version, reviewed flag, structured questions and section choices                                                                                   |
-| `study_jobs`      | Durable pending/running/completed/failed work, attempts, lease expiry and token                                                                                          |
+| Table             | Owns                                                                                                                                                                                         |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `study_maps`      | Module identity, source selection, bounded topic catalogue, taxonomy version, map revision, board revision, drawing scene, legacy placements/links/viewport, automatic-classification opt-in |
+| `study_materials` | Membership and exclusions, document kind, labels, suggested associations, raw classification result, source hash, taxonomy version, separate manual overrides                                |
+| `study_papers`    | Source hash, taxonomy version, reviewed flag, structured questions and section choices                                                                                                       |
+| `study_jobs`      | Durable pending/running/completed/failed work, attempts, lease expiry and token                                                                                                              |
 
 Composite foreign keys bind maps, materials, papers, jobs, and extraction relationships to the same owner. Queries additionally require active, visible notes and omit import-cache sources. Removing a material excludes it from the map and invalidates active jobs; deleting the map cascades its records while preserving library notes.
 
@@ -38,6 +38,20 @@ Topic meaning changes increment `taxonomyVersion` and stale prior results. The c
 Changing, deleting, hiding, or oversizing a cited syllabus source also invalidates the affected topic's effective approval, even before the catalogue is edited. Snapshots retain the definition for review, paper review becomes ineligible, and search omits associations to that topic. Classification and paper jobs validate approved topic anchors at enqueue, input loading, and publication; stale evidence blocks processing until reviewed. Saving material or paper reviews also validates current topic evidence.
 
 Manual overrides are stored separately with the reviewed source hash and taxonomy version. Reruns update automatic results without replacing overrides. Changed sources or topic meaning leave those corrections visible for review, but their topic decisions no longer apply until reviewed again.
+
+## Board scene and source cards
+
+[study-drawing-board.tsx](../../src/components/study-map/study-drawing-board.tsx) embeds Excalidraw 0.18.1. Reference elements store only an owned note or topic ID in `customData.studyRef`; their React cards resolve the current material or definition from the map snapshot. Cards show excerpts, review state, topic evidence, original-source links, and lazy signed image or first-page PDF previews. Removing a card preserves its library material. New materials appear beside the existing drawing rather than rearranging it.
+
+In selection mode, card buttons and links respond directly while the card body remains draggable. A selected source card hides the drawing-style panel. PDF loading uses the card's own loading and error messages. [React-PDF 11 suspends by default](https://github.com/wojtekmaj/react-pdf/wiki/Upgrade-guide-from-version-10.x-to-11.x); opting out keeps that loading from hiding and reinitialising the surrounding drawing editor.
+
+The saved scene holds frames, shapes, text, freehand strokes, arrow bindings, locked selections, and a bounded camera state. Pins use element locks. Manual **Connect** arrows and **Add link** labelled connectors stay independent of classification. Excalidraw supplies undo/redo during the editing session; saving persists the scene, not a durable undo history. Maps without a scene restore their previous placements and links into the new board on first opening.
+
+[board-scene.ts](../../src/lib/study-map/board-scene.ts) validates the supported element subset: at most 2,000 elements, 20,000 total points or bindings, and 2,000,000 UTF-8 bytes of scene JSON. Deleted elements retained for editing history count toward these limits. Unsupported or oversized changes block saving with an undo/remove message. Source references must remain available in the owned map; pruning also clears broken frame and arrow bindings.
+
+Upload images and PDFs through **Add materials**, then add their live cards to the board. File drops, arbitrary image paste, external iframe embeds, and scene import/export are disabled. The board uses its own validated Excalidraw scene; it does not implement JSON Canvas interchange or shared live editing.
+
+[stage-study-board-assets.mjs](../../scripts/stage-study-board-assets.mjs) runs before development and production builds. It stages bundled fonts under `/study-board-assets/fonts/`, excluding Liberation, and copies the notices from [third_party/study-board](../../third_party/study-board/) to `/study-board-assets/licenses/`. The client sets `EXCALIDRAW_ASSET_PATH` before loading the editor. A small version-guarded patch also changes Excalidraw's development and production font fallback to that same origin: Chromium checks even unused `FontFace` fallback URLs against CSP, so leaving the CDN fallback caused repeated errors. CSP stays unchanged. The script fails on a version or bundle mismatch; review this patch when upgrading the editor.
 
 ## Evidence and extraction
 
@@ -148,7 +162,7 @@ node --experimental-strip-types scripts/dev/run-mock.ts npm exec --no -- tsx scr
 
 Mock mode validates the runner and lexical fixtures without contacting a provider or connecting to the database. Its environment guard still requires a local E2E database URL. Report paths must be new `.json` files in the workspace or `/tmp`; existing files are never overwritten.
 
-The optional live command uses the configured Jev credential from the environment. It can spend money and is not part of setup or the mock run. No live evaluation has been run for this implementation.
+The optional live command uses the configured Jev credential from the environment. It can spend money and is not part of setup or the mock run. No live evaluation has been run for this implementation; no evaluation key was created and no paid evaluation calls were made.
 
 ```sh
 npm exec --no -- tsx scripts/dev/evaluate-study-classifier.ts --provider jev --allow-paid --max-calls 12 --report /tmp/study-classifier-jev.json
@@ -158,19 +172,21 @@ npm exec --no -- tsx scripts/dev/evaluate-study-classifier.ts --provider jev --a
 
 ## Design decisions and verification
 
-React Flow supplies custom React cards, edges, viewport interaction, and keyboard movement without a general drawing-editor document format. Its [core license is MIT](https://github.com/xyflow/xyflow/blob/main/LICENSE). Excalidraw is [also MIT](https://github.com/excalidraw/excalidraw/blob/master/LICENSE), but its drawing elements require more adaptation for semantic note cards. The current [tldraw SDK terms](https://tldraw.dev/community/license) require an appropriate production license and key. These licensing facts were checked on 2026-10-03; recheck before changing libraries.
+The board follows the source-card, group, and connection model described by [Obsidian Canvas](https://help.obsidian.md/plugins/canvas) and the [JSON Canvas specification](https://jsoncanvas.org/spec/1.0/), with optional whiteboard drawings. Excalidraw replaced React Flow because frames, freehand tools, sticky notes, and editor history fit this workflow. Its [embedding API](https://docs.excalidraw.com/docs/@excalidraw/excalidraw/api/props/) provides custom reference rendering and scene changes; OghmaNotes supplies ownership, persistence, and live card content. This requires a stricter scene adapter than React Flow's direct React node model.
+
+Excalidraw 0.18.1 has an [MIT license](https://github.com/excalidraw/excalidraw/blob/v0.18.1/LICENSE), as does [React Flow's core](https://github.com/xyflow/xyflow/blob/main/LICENSE). React Flow remains a simpler fit for a graph-only interface. The [tldraw SDK terms](https://tldraw.dev/community/license) require an appropriate production license and active key, adding a deployment dependency. These library and licensing facts were checked on 2026-10-03; recheck before changing libraries.
 
 Bounded Postgres JSONB keeps topic catalogues, layouts, and question trees transactional with owned notes. Internal JSON references rely on application validation rather than topic foreign keys. A graph database would add a second ownership and consistency boundary. Normalize topics/associations if independent concurrent editing or cross-map reporting outgrows these bounds. [Postgres documents JSONB's row-lock and document-size trade-offs](https://www.postgresql.org/docs/current/datatype-json.html#JSON-DESIGN).
 
 Jev fits decisions against reviewed definitions; the generative model fits new definitions and variable exam structure. Embeddings can retrieve candidates but cannot establish source claims or marks. Keep arithmetic in code, as [Jev's documented limitations](https://docs.typesafe.ai/model-jaggedness/jev-1.13) recommend. Use the [Decisions contract](https://openrouter.ai/docs/api/api-reference/alphadecisions/submit-a-decisions-request), [classification calibration guide](https://openrouter.ai/docs/cookbook/evaluate-and-optimize/jev-classification), and [current model page](https://openrouter.ai/typesafe/jev-1.13) for provider limits and pricing rather than copying a price into this document. OpenRouter and TypeSafe have separate [logging](https://openrouter.ai/docs/guides/privacy/data-collection) and [retention policies](https://typesafe.ai/legal/privacy-policy); no endpoint-specific zero-retention claim is made here.
 
-Focused tests exist under `src/__tests__/lib/study-map-*.test.ts` and `src/__tests__/components/study-map-canvas.test.tsx`. They cover evidence, classification, generation, exam accounting, and canvas interactions. Database contracts also cover ownership, concurrent publication, source replacement with identical text, corrections, and exact marks evidence. Saving a paper review revokes an in-flight analysis so it cannot overwrite the review.
+Focused tests exist under `src/__tests__/lib/study-map-*.test.ts` and [study-board-card.test.tsx](../../src/__tests__/components/study-board-card.test.tsx). They cover evidence, classification, generation, exam accounting, scene validation, and live cards. [Browser workflows](../../tests/e2e/full/study-map.spec.ts) exercise the editor against the app and worker. Database contracts also cover ownership, concurrent publication, source replacement with identical text, corrections, and exact marks evidence. Saving a paper review revokes an in-flight analysis so it cannot overwrite the review.
 
-Verification on 2026-10-03:
+Verification on 2026-10-04:
 
-- `npm run test:ci`: 1,955 application tests and 188 Canvas MCP package tests passed.
-- Dedicated database integration: 102 tests passed, including 33 Study Map cases, using a separate queue prefix. The local run excluded `mobile-auth-redis.test.ts` because its guard requires the CI Redis port; CI retains that test.
-- Four browser workflows passed against the actual app, database, and worker: topic approval and classification; saved and unsaved canvas navigation; labels, filters, and mobile inspection; reviewed exam accounting.
-- Lint, locale audit, TypeScript, and production build passed. The private production preview was reached and authenticated from another tailnet device.
+- `npm run test:ci`: 1,999 application tests and 188 Canvas MCP package tests passed after the canvas replacement.
+- Dedicated database integration: 110 tests passed, including 41 Study Map cases, using a separate queue prefix. The local run excluded `mobile-auth-redis.test.ts` because its guard requires the CI Redis port; CI retains that test.
+- Nine browser workflows passed against the standalone app, database, and worker: topic approval and classification; saved and unsaved drawings; frames, connectors, conflict handling, card removal and source updates; PDF, PNG and SVG previews; desktop/mobile labels and filters; reviewed exam accounting. They check browser errors, direct card actions, and preservation of unsaved drawings during PDF loading. The SVG case uses the synthetic seed and skips outside that setup because the normal upload route rejects SVG files.
+- Lint, locale audit, TypeScript, and production build passed. Browser login and SVG/PDF previews also passed through the private HTTPS origin. A separate check opened the existing two-page PDF viewer without errors or remote font requests.
 
 The preview uses synthetic data and mock classification. Live Jev response compatibility and course-specific calibration still require the optional evaluation above. Production databases and the main branch were not changed by this verification.

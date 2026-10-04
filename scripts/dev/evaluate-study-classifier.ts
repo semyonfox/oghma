@@ -166,7 +166,8 @@ async function main(): Promise<void> {
           const raw = judgements.find((judgement) => judgement.questionId.startsWith("topic_") && judgement.questionId.endsWith(`_${topic.id}`));
           if (!raw) throw new Error("Classifier did not retain a topic judgement.");
           const answer = rawTopicAnswerSchema.parse(raw.answer);
-          const relevantProbability = answer.probabilities.CORE + answer.probabilities.SUPPORTING;
+          const probabilityTotal = Object.values(answer.probabilities).reduce((sum, value) => sum + value, 0);
+          const relevantProbability = Math.min(1, (answer.probabilities.CORE + answer.probabilities.SUPPORTING) / probabilityTotal);
           const bin = calibration[Math.min(4, Math.floor(relevantProbability * 5))];
           bin.count += 1;
           bin.probabilitySum += relevantProbability;
@@ -193,7 +194,7 @@ async function main(): Promise<void> {
     fixtureCount: fixtures.length, selectedCases: selected.length, completedCases: cases.filter((entry) => entry.result).length,
     maxCalls: options.maxCalls ?? null, httpAttempts, maxObservedRequestBytes,
     bounds: { maxPassageChars: 700, maxInputRequestBytes: 15_000, questionsPerCase: 11, dollarCap: null },
-    observedUsage: { inputTokens: totalInputTokens, cost: totalCost, excludesUnreportedFailedRequestUsage: cases.some((entry) => entry.error) },
+    observedUsage: { inputTokens: totalInputTokens, cost: totalCost, excludesUnreportedFailedRequestUsage: cases.some((entry) => entry.error) || httpAttempts > cases.filter((entry) => entry.result).length },
     topics, counts, confusion, calibration: calibration.map((bin) => ({ ...bin, meanProbability: bin.count ? bin.probabilitySum / bin.count : null, observedRelevantRate: bin.count ? bin.observedRelevant / bin.count : null })), cases,
   };
   console.log(`Cumulative: TP=${counts.tp} FP=${counts.fp} FN=${counts.fn} TN=${counts.tn}; relevance errors=${counts.relevanceErrors}; observed tokens=${totalInputTokens}; cost=${totalCost ?? "unknown"}; HTTP attempts=${httpAttempts}.`);

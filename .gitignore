@@ -5,6 +5,7 @@
 
 # dependencies
 /node_modules
+/public/study-board-assets/
 /.pnp
 .pnp.*
 .yarn/*

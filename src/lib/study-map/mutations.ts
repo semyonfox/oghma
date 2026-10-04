@@ -2,6 +2,7 @@ import type postgres from "postgres";
 import type { z } from "zod";
 import sql from "@/database/pgsql";
 import { ApiError } from "@/lib/api-errors";
+import { getSceneReference, pruneAvailableRefs } from "./board-scene";
 import { sourceDocument, isCurrentAnchor } from "./evidence";
 import { isStudyBinary } from "./source-kind";
 import { analyseExamStructure } from "./exam-stats";
@@ -280,6 +281,8 @@ export async function saveStudyBoard(userId: string, mapId: string, input: z.inf
     const materials = await tx<{ note_id: string }[]>`
       SELECT m.note_id FROM app.study_materials m JOIN app.notes n ON n.user_id = m.user_id AND n.note_id = m.note_id
       WHERE m.user_id = ${userId}::uuid AND m.map_id = ${mapId}::uuid AND NOT m.excluded AND n.deleted_at IS NULL
+        AND NOT n.is_folder AND NOT n.is_import_cache_source
+        AND EXISTS (SELECT 1 FROM app.tree_items tree WHERE tree.note_id = n.note_id AND tree.user_id = n.user_id)
     `;
     const valid = new Set([...topicIds].map((id) => `topic:${id}`).concat(materials.map((row) => `note:${row.note_id}`)));
     const placements = input.board.placements;
@@ -289,8 +292,19 @@ export async function saveStudyBoard(userId: string, mapId: string, input: z.inf
       || links.some((link) => !valid.has(link.source) || !valid.has(link.target))) {
       throw new ApiError(400, "The layout contains duplicate or unavailable cards or links");
     }
+    if (input.board.scene?.elements.some((element) => {
+      const reference = getSceneReference(element);
+      if (reference === null) return false;
+      const linkedMap = reference.kind === "topic" && element.link
+        ? new URL(element.link, "https://local.invalid").searchParams.get("map")
+        : null;
+      return !valid.has(`${reference.kind}:${reference.id}`) || (linkedMap !== null && linkedMap !== mapId);
+    })) throw new ApiError(400, "The board contains material or topics that are no longer available in this map");
+    const board = input.board.scene
+      ? { ...input.board, scene: pruneAvailableRefs(input.board.scene, valid) }
+      : input.board;
     const [row] = await tx<{ board_version: number }[]>`
-      UPDATE app.study_maps SET board = ${JSON.stringify(input.board)}::text::jsonb, board_version = board_version + 1, updated_at = NOW()
+      UPDATE app.study_maps SET board = ${JSON.stringify(board)}::text::jsonb, board_version = board_version + 1, updated_at = NOW()
       WHERE id = ${mapId}::uuid AND user_id = ${userId}::uuid RETURNING board_version
     `;
     return row.board_version;

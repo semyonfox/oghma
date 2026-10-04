@@ -1,6 +1,7 @@
 import { z } from "zod";
 import sql from "@/database/pgsql";
 import { ApiError } from "@/lib/api-errors";
+import { pruneAvailableRefs } from "./board-scene";
 import { isStudyBinary } from "./source-kind";
 import { studyProviderStatus } from "./config";
 import { isCurrentAnchor, sourceDocument, sourceExcerpt } from "./evidence";
@@ -261,6 +262,7 @@ async function mapFromRow(userId: string, row: MapRow): Promise<StudyMap> {
     topics: redactTopics(topics, sourceNotes),
     board: {
       ...board,
+      ...(board.scene ? { scene: pruneAvailableRefs(board.scene, cardIds) } : {}),
       placements: board.placements.filter((placement) => cardIds.has(placement.id)).map((placement) => ({
         ...placement,
         topicId: placement.topicId && topics.some((topic) => topic.id === placement.topicId) ? placement.topicId : null,
@@ -494,6 +496,7 @@ export async function getStudyMapSnapshot(userId: string, mapId: string): Promis
       materialCount: materials.length,
       board: {
         ...map.board,
+        ...(map.board.scene ? { scene: pruneAvailableRefs(map.board.scene, cardIds) } : {}),
         placements: map.board.placements.filter((placement) => cardIds.has(placement.id)),
         links: map.board.links.filter((link) => cardIds.has(link.source) && cardIds.has(link.target)),
       },

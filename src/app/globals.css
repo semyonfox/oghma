@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "@xyflow/react/dist/style.css" layer(base);
 @import "@milkdown/crepe/theme/common/style.css";
 @import "@milkdown/crepe/theme/classic.css";
 

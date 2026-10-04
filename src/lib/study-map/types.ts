@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { boardSceneSchema } from "./board-scene";
 
 export const documentKinds = ["notes", "slides", "syllabus", "past_paper", "worked_example", "reading", "other"] as const;
 export const documentKindSchema = z.enum(documentKinds);
@@ -123,6 +124,7 @@ export const boardLinkSchema = z.object({
   label: z.string().trim().min(1).max(80),
 }).refine((value) => value.source !== value.target, "Choose two different cards");
 export const boardSchema = z.object({
+  scene: boardSceneSchema.optional(),
   placements: z.array(boardPlacementSchema).max(1_000),
   links: z.array(boardLinkSchema).max(1_000),
   viewport: z.object({

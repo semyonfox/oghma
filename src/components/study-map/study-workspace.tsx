@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from "@headlessui/react";
 import { z } from "zod";
+import { pruneAvailableRefs } from "@/lib/study-map/board-scene";
 import useSwipeDismiss from "@/components/navigation/use-swipe-dismiss";
 import StudyCanvas from "./study-canvas";
 import StudyInspector from "./study-inspector";
@@ -1042,8 +1043,12 @@ function ModuleWorkspace({
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [reloadConfirm, setReloadConfirm] = useState(false);
   const [boardConflict, setBoardConflict] = useState(false);
+  const [boardError, setBoardError] = useState<string | null>(null);
   const [canvasRevision, setCanvasRevision] = useState(0);
   const [wide, setWide] = useState(false);
+  const [topicsOpen, setTopicsOpen] = useState<boolean | null>(null);
+  const [boardFocused, setBoardFocused] = useState(false);
+  const inspectorRef = useRef<HTMLElement>(null);
   const tabId = useId();
   const closeInspector = useCallback(() => {
     setSelection(null);
@@ -1056,6 +1061,7 @@ function ModuleWorkspace({
   function chooseTab(tab: WorkspaceTab) {
     tabPreference.chosen = tab;
     setTab(tab);
+    setBoardFocused(false);
     updateLocation({ tab });
   }
   useEffect(() => {
@@ -1063,12 +1069,40 @@ function ModuleWorkspace({
     const initial =
       workspaceTabs.find((entry) => entry.id === restored)?.id ??
       tabPreference.chosen ??
-      (window.matchMedia("(max-width: 767px)").matches
-        ? "materials"
-        : "canvas");
+      "canvas";
     setTab(initial);
     updateLocation({ tab: initial });
   }, [tabPreference]);
+  useEffect(() => {
+    if (!boardFocused && !(wide && selection)) return;
+    const dismiss = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (selection && wide) closeInspector();
+      else setBoardFocused(false);
+    };
+    window.addEventListener("keydown", dismiss);
+    return () => window.removeEventListener("keydown", dismiss);
+  }, [boardFocused, closeInspector, selection, wide]);
+
+  const inspectorReady = snapshot !== null;
+  useEffect(() => {
+    if (!selection || !wide || !inspectorReady) return;
+    const previous = document.activeElement;
+    const panel = inspectorRef.current;
+    panel
+      ?.querySelector<HTMLButtonElement>('[aria-label="Close inspector"]')
+      ?.focus();
+    return () => {
+      if (
+        previous instanceof HTMLElement &&
+        previous.isConnected &&
+        (panel?.contains(document.activeElement) ||
+          document.activeElement === document.body)
+      )
+        previous.focus();
+    };
+  }, [inspectorReady, selection, tab, wide]);
+
   const swipe = useSwipeDismiss({
     open: selection !== null && !wide,
     onClose: closeInspector,
@@ -1156,7 +1190,11 @@ function ModuleWorkspace({
         const links = draft.board.links.filter(
           (entry) => cardIds.has(entry.source) && cardIds.has(entry.target),
         );
+        const scene = draft.board.scene
+          ? pruneAvailableRefs(draft.board.scene, cardIds)
+          : undefined;
         if (
+          scene !== draft.board.scene ||
           placements.length !== draft.board.placements.length ||
           links.length !== draft.board.links.length ||
           placements.some(
@@ -1165,7 +1203,7 @@ function ModuleWorkspace({
         ) {
           draft = {
             ...draft,
-            board: { ...draft.board, placements, links },
+            board: { ...draft.board, placements, links, ...(scene ? { scene } : {}) },
             dirty: true,
           };
           updateDraft(draft);
@@ -1346,6 +1384,7 @@ function ModuleWorkspace({
   }
 
   async function saveBoard() {
+    if (boardError) return;
     const submitted = boardRef.current;
     if (!submitted || !submitted.dirty) return;
     await operate(
@@ -1463,23 +1502,21 @@ function ModuleWorkspace({
   );
 
   return (
-    <section className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <section className="min-w-0 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
-          <h2 className="break-words text-xl font-semibold">{map.name}</h2>
-          <p className="mt-1 text-sm text-text-secondary">
+          <h2 className="break-words text-base font-semibold">
+            {map.name}
+          </h2>
+          <p className="mt-0.5 text-xs text-text-secondary">
             {map.academicYear} · {snapshot.materials.length} materials ·{" "}
             {map.topics.length} topics
-          </p>
-          <p className="mt-1 text-xs text-text-tertiary">
-            {reviewedTopics} topics approved · {reviewedMaterials} materials
-            reviewed{map.autoClassify ? " · Automatic classification on" : ""}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            className={secondaryClass}
+            className={`${secondaryClass} lg:min-h-8 lg:py-1`}
             disabled={busy !== null}
             aria-expanded={settings}
             onClick={() => setSettings((value) => !value)}
@@ -1488,7 +1525,7 @@ function ModuleWorkspace({
           </button>
           <button
             type="button"
-            className={primaryClass}
+            className={`${primaryClass} lg:min-h-8 lg:py-1`}
             disabled={busy !== null}
             aria-expanded={adding}
             onClick={() => setAdding((value) => !value)}
@@ -1626,176 +1663,195 @@ function ModuleWorkspace({
             </button>
           </div>
         )}
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          className={secondaryClass}
-          disabled={busy !== null || (!map.rootNoteId && !map.canvasCourseId)}
-          onClick={() =>
-            launch(
-              mutation(
-                "/refresh",
-                "POST",
-                {},
-                "Source folder and course materials synced.",
-              ),
-            )
-          }
-        >
-          Sync sources
-        </button>
-        <button
-          type="button"
-          className={secondaryClass}
-          disabled={
-            busy !== null ||
-            !map.syllabusNoteId ||
-            !snapshot.provider.generationReady ||
-            activeJobs.some((job) => job.kind === "taxonomy")
-          }
-          onClick={() => launch(queue("taxonomy"))}
-        >
-          Propose syllabus topics
-        </button>
-        <button
-          type="button"
-          className={secondaryClass}
-          disabled={busy !== null || map.topics.length >= 80}
-          aria-expanded={topicForm}
-          onClick={() => setTopicForm((value) => !value)}
-        >
-          Add a topic
-        </button>
-        <button
-          type="button"
-          className={secondaryClass}
-          disabled={
-            busy !== null ||
-            !snapshot.provider.ready ||
-            reviewedTopics === 0 ||
-            snapshot.materials.length === 0 ||
-            activeJobs.some((job) => job.kind === "classify")
-          }
-          onClick={() => launch(queue("classify"))}
-        >
-          Classify materials
-        </button>
-        <button
-          type="button"
-          className={secondaryClass}
-          disabled={busy !== null}
-          onClick={() =>
-            launch(
-              operate(
-                "refresh",
-                async () => {
-                  await refresh();
-                },
-                "Results refreshed.",
-                false,
-              ),
-            )
-          }
-        >
-          Refresh results
-        </button>
-      </div>
-      {topicForm && (
-        <ManualTopic
-          busy={busy !== null}
-          onClose={() => setTopicForm(false)}
-          onAdd={async (topic) => {
-            await saveTopics([...map.topics, topic]);
-            selectInspector({ kind: "topic", id: topic.id });
-          }}
-        />
-      )}
-      {map.topics.length > 0 && (
-        <details className="rounded-radius-lg border border-border-subtle p-3">
-          <summary className="cursor-pointer text-sm font-medium">
-            Review topic definitions · {map.topics.length - reviewedTopics}{" "}
-            pending
-          </summary>
-          <ul className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {map.topics.map((topic) => (
-              <li key={topic.id}>
-                <button
-                  type="button"
-                  className={`${secondaryClass} w-full justify-start text-left`}
-                  onClick={() =>
-                    selectInspector({ kind: "topic", id: topic.id })
-                  }
-                >
-                  <span className="min-w-0">
-                    <span className="block break-words">{topic.name}</span>
-                    <span className="block text-xs text-text-tertiary">
-                      {topic.reviewed ? "Approved by you" : "Pending review"}
-                      {topic.sources.length === 0
-                        ? " · Your definition"
-                        : " · Source definition"}
-                    </span>
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
-      {map.topics.length === 0 ? (
-        <p className="text-sm text-text-secondary">
-          Start with a syllabus note to propose topics, or add your own
-          definition.
-        </p>
-      ) : reviewedTopics === 0 ? (
-        <p className="text-sm text-text-secondary">
-          Open a topic and approve its definition before classifying materials
-          or analysing papers.
-        </p>
-      ) : null}
-      {!snapshot.provider.ready && (
-        <p className="text-sm text-text-secondary">
-          Automatic classification is unavailable. You can organise materials
-          and review topics yourself.
-        </p>
-      )}
-      {!snapshot.provider.generationReady && (
-        <p className="text-xs text-text-tertiary">
-          Syllabus topic proposals and paper analysis are unavailable.
-        </p>
-      )}
-      {activeJobs.length > 0 && (
-        <p role="status" className="text-sm text-text-secondary">
-          {activeJobs.length} {activeJobs.length === 1 ? "job" : "jobs"} queued
-          or running. Results refresh automatically.
-        </p>
-      )}
-      {snapshot.jobs.some((job) => job.state === "failed") && (
-        <details className="rounded-radius-lg border border-border-subtle p-3">
-          <summary className="cursor-pointer text-sm text-text-secondary">
-            Processing errors
-          </summary>
-          <ul className="mt-2 space-y-2">
-            {snapshot.jobs
-              .filter((job) => job.state === "failed")
-              .map((job) => (
-                <li
-                  key={job.id}
-                  className="text-sm text-error-700 dark:text-error-300"
-                >
-                  {job.kind === "taxonomy"
-                    ? "Topic proposal"
-                    : job.kind === "paper"
-                      ? "Paper analysis"
-                      : "Classification"}
-                  {job.noteId
-                    ? ` · ${snapshot.materials.find((material) => material.noteId === job.noteId)?.title || "Material"}`
-                    : ""}
-                  : {job.error || "Processing failed. Try again."}
-                </li>
-              ))}
-          </ul>
-        </details>
-      )}
+      <details
+        open={topicsOpen ?? map.topics.length === 0}
+        onToggle={(event) => setTopicsOpen(event.currentTarget.open)}
+        className="rounded-radius-lg border border-border-subtle bg-surface"
+      >
+        <summary className="cursor-pointer px-3 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-primary-500">
+          Topics and classification
+          <span className="ml-2 text-xs font-normal text-text-tertiary">
+            {reviewedTopics}/{map.topics.length} topics approved
+            {activeJobs.length > 0 ? ` · ${activeJobs.length} processing` : ""}
+          </span>
+        </summary>
+        <div className="space-y-3 border-t border-border-subtle p-3">
+          <p className="text-xs text-text-secondary">
+            {reviewedMaterials}/{snapshot.materials.length} materials reviewed
+            {map.autoClassify ? " · Automatic classification on" : ""}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className={secondaryClass}
+              disabled={busy !== null || (!map.rootNoteId && !map.canvasCourseId)}
+              onClick={() =>
+                launch(
+                  mutation(
+                    "/refresh",
+                    "POST",
+                    {},
+                    "Source folder and course materials synced.",
+                  ),
+                )
+              }
+            >
+              Sync sources
+            </button>
+            <button
+              type="button"
+              className={secondaryClass}
+              disabled={
+                busy !== null ||
+                !map.syllabusNoteId ||
+                !snapshot.provider.generationReady ||
+                activeJobs.some((job) => job.kind === "taxonomy")
+              }
+              onClick={() => launch(queue("taxonomy"))}
+            >
+              Propose syllabus topics
+            </button>
+            <button
+              type="button"
+              className={secondaryClass}
+              disabled={busy !== null || map.topics.length >= 80}
+              aria-expanded={topicForm}
+              onClick={() => setTopicForm((value) => !value)}
+            >
+              Add a topic
+            </button>
+            <button
+              type="button"
+              className={secondaryClass}
+              disabled={
+                busy !== null ||
+                !snapshot.provider.ready ||
+                reviewedTopics === 0 ||
+                snapshot.materials.length === 0 ||
+                activeJobs.some((job) => job.kind === "classify")
+              }
+              onClick={() => launch(queue("classify"))}
+            >
+              Classify materials
+            </button>
+            <button
+              type="button"
+              className={secondaryClass}
+              disabled={busy !== null}
+              onClick={() =>
+                launch(
+                  operate(
+                    "refresh",
+                    async () => {
+                      await refresh();
+                    },
+                    "Results refreshed.",
+                    false,
+                  ),
+                )
+              }
+            >
+              Refresh results
+            </button>
+          </div>
+          {topicForm && (
+            <ManualTopic
+              busy={busy !== null}
+              onClose={() => setTopicForm(false)}
+              onAdd={async (topic) => {
+                await saveTopics([...map.topics, topic]);
+                selectInspector({ kind: "topic", id: topic.id });
+              }}
+            />
+          )}
+          {map.topics.length > 0 && (
+            <details className="rounded-radius-lg border border-border-subtle p-3">
+              <summary className="cursor-pointer text-sm font-medium">
+                Review topic definitions · {map.topics.length - reviewedTopics}{" "}
+                pending
+              </summary>
+              <ul className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {map.topics.map((topic) => (
+                  <li key={topic.id}>
+                    <button
+                      type="button"
+                      className={`${secondaryClass} w-full justify-start text-left`}
+                      onClick={() =>
+                        selectInspector({ kind: "topic", id: topic.id })
+                      }
+                    >
+                      <span className="min-w-0">
+                        <span className="block break-words">{topic.name}</span>
+                        <span className="block text-xs text-text-tertiary">
+                          {topic.reviewed ? "Approved by you" : "Pending review"}
+                          {topic.sources.length === 0
+                            ? " · Your definition"
+                            : " · Source definition"}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+          {map.topics.length === 0 ? (
+            <p className="text-sm text-text-secondary">
+              Start with a syllabus note to propose topics, or add your own
+              definition.
+            </p>
+          ) : reviewedTopics === 0 ? (
+            <p className="text-sm text-text-secondary">
+              Open a topic and approve its definition before classifying materials
+              or analysing papers.
+            </p>
+          ) : null}
+          {!snapshot.provider.ready && (
+            <p className="text-sm text-text-secondary">
+              Automatic classification is unavailable. You can organise materials
+              and review topics yourself.
+            </p>
+          )}
+          {!snapshot.provider.generationReady && (
+            <p className="text-xs text-text-tertiary">
+              Syllabus topic proposals and paper analysis are unavailable.
+            </p>
+          )}
+          {activeJobs.length > 0 && (
+            <p role="status" className="text-sm text-text-secondary">
+              {activeJobs.length} {activeJobs.length === 1 ? "job" : "jobs"} queued
+              or running. Results refresh automatically.
+            </p>
+          )}
+          {snapshot.jobs.some((job) => job.state === "failed") && (
+            <details className="rounded-radius-lg border border-border-subtle p-3">
+              <summary className="cursor-pointer text-sm text-text-secondary">
+                Processing errors
+              </summary>
+              <ul className="mt-2 space-y-2">
+                {snapshot.jobs
+                  .filter((job) => job.state === "failed")
+                  .map((job) => (
+                    <li
+                      key={job.id}
+                      className="text-sm text-error-700 dark:text-error-300"
+                    >
+                      {job.kind === "taxonomy"
+                        ? "Topic proposal"
+                        : job.kind === "paper"
+                          ? "Paper analysis"
+                          : "Classification"}
+                      {job.noteId
+                        ? ` · ${snapshot.materials.find((material) => material.noteId === job.noteId)?.title || "Material"}`
+                        : ""}
+                      : {job.error || "Processing failed. Try again."}
+                    </li>
+                  ))}
+              </ul>
+            </details>
+          )}
+        </div>
+      </details>
       <div className="flex min-w-0 items-end justify-between gap-3 border-b border-border-subtle">
         <div
           role="tablist"
@@ -1830,7 +1886,7 @@ function ModuleWorkspace({
               tabIndex={tab === entry.id ? 0 : -1}
               aria-selected={tab === entry.id}
               aria-controls={`${tabId}-${entry.id}-panel`}
-              className={`${buttonClass} rounded-b-none ${tab === entry.id ? "border-b-2 border-primary-500 text-primary-700 dark:text-primary-300" : "text-text-secondary hover:bg-primary-500/5"}`}
+              className={`${buttonClass} rounded-b-none lg:min-h-8 lg:py-1 ${tab === entry.id ? "border-b-2 border-primary-500 text-primary-700 dark:text-primary-300" : "text-text-secondary hover:bg-primary-500/5"}`}
               onClick={() => chooseTab(entry.id)}
             >
               {entry.name}
@@ -1843,41 +1899,60 @@ function ModuleWorkspace({
           </span>
         )}
       </div>
-      <div
-        className={`grid min-w-0 gap-4 ${selection && wide ? "xl:grid-cols-[minmax(0,1fr)_360px]" : "grid-cols-1"}`}
-      >
-        <div className="min-w-0 space-y-4">
+      <div className="relative min-w-0">
+        <div className="min-w-0">
           <section
             id={`${tabId}-canvas-panel`}
             role="tabpanel"
             aria-labelledby={`${tabId}-canvas-tab`}
             hidden={tab !== "canvas"}
-            className="space-y-3"
+            className={
+              tab !== "canvas"
+                ? "hidden"
+                : boardFocused
+                  ? "fixed inset-0 z-[65] flex h-dvh min-h-0 flex-col gap-2 overflow-hidden bg-app-page p-3 text-text"
+                  : "relative flex h-[calc(100dvh-20rem)] min-h-[520px] flex-col gap-2 lg:h-[calc(100dvh-16rem)]"
+            }
           >
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  className={`${primaryClass} lg:min-h-8 lg:py-1`}
+                disabled={busy !== null || !boardDraft.dirty || boardConflict || boardError !== null}
+                title={boardError ?? undefined}
+                  onClick={() => launch(saveBoard())}
+                >
+                  {busy === "board" ? "Saving layout..." : "Save layout"}
+                </button>
+                <button
+                  type="button"
+                  className={`${secondaryClass} lg:min-h-8 lg:py-1`}
+                  disabled={busy !== null}
+                  onClick={() => {
+                    if (boardDraft.dirty) setReloadConfirm(true);
+                    else launch(reloadBoard());
+                  }}
+                >
+                  Reload saved layout
+                </button>
+              </div>
               <button
                 type="button"
-                className={primaryClass}
-                disabled={busy !== null || !boardDraft.dirty || boardConflict}
-                onClick={() => launch(saveBoard())}
+                className={`${secondaryClass} lg:min-h-8 lg:py-1`}
+                aria-pressed={boardFocused}
+                onClick={() => setBoardFocused((value) => !value)}
               >
-                {busy === "board" ? "Saving layout..." : "Save layout"}
+                {boardFocused ? "Exit board focus" : "Focus board"}
               </button>
-              <button
-                type="button"
-                className={secondaryClass}
-                disabled={busy !== null}
-                onClick={() => {
-                  if (boardDraft.dirty) setReloadConfirm(true);
-                  else launch(reloadBoard());
-                }}
-              >
-                Reload saved layout
-              </button>
-              <p className="text-xs text-text-tertiary">
-                Move and pin cards, then save your layout.
-              </p>
+              {boardFocused && boardDraft.dirty && (
+                <span className="text-xs text-text-secondary">Unsaved layout</span>
+              )}
             </div>
+            <p className="shrink-0 text-xs text-text-tertiary">
+              A freeform board for this module. Draw, connect ideas, and move
+              materials wherever they fit.
+            </p>
             {boardConflict && (
               <p role="alert" className={errorClass}>
                 The layout changed in another tab. Your local layout is still
@@ -1907,17 +1982,29 @@ function ModuleWorkspace({
                 </button>
               </div>
             )}
-            <StudyCanvas
-              key={`${mapId}:${canvasRevision}`}
-              snapshot={canvasSnapshot}
-              selected={selection}
-              onSelect={selectInspector}
-              onBoardChange={(board) => {
-                const current = boardRef.current;
-                if (current)
-                  updateDraft({ board, version: current.version, dirty: true });
-              }}
-            />
+            <div className="flex min-h-0 flex-1 flex-col">
+              <StudyCanvas
+                key={`${mapId}:${canvasRevision}`}
+                snapshot={canvasSnapshot}
+                selected={selection}
+                onSelect={selectInspector}
+                onBoardError={setBoardError}
+                onBoardChange={(board) => {
+                  const current = boardRef.current;
+                  if (current)
+                    updateDraft({ board, version: current.version, dirty: true });
+                }}
+              />
+            </div>
+            {selection && wide && tab === "canvas" && (
+              <aside
+                ref={inspectorRef}
+                aria-label="Selected material or topic"
+                className="glass-panel absolute bottom-3 right-3 top-24 z-30 w-[360px] overflow-y-auto overscroll-contain rounded-radius-xl p-4 shadow-lg"
+              >
+                {inspector}
+              </aside>
+            )}
           </section>
           <section
             id={`${tabId}-materials-panel`}
@@ -1946,10 +2033,11 @@ function ModuleWorkspace({
             />
           </section>
         </div>
-        {selection && wide && (
+        {selection && wide && tab !== "canvas" && (
           <aside
+            ref={inspectorRef}
             aria-label="Selected material or topic"
-            className="glass-panel min-w-0 self-start rounded-radius-xl p-4 xl:sticky xl:top-4 xl:max-h-[calc(100dvh-8rem)] xl:overflow-y-auto"
+            className="glass-panel absolute right-0 top-0 z-30 max-h-[calc(100dvh-12rem)] w-[360px] overflow-y-auto overscroll-contain rounded-radius-xl p-4 shadow-lg"
           >
             {inspector}
           </aside>
@@ -2057,20 +2145,45 @@ export default function StudyWorkspace({
   }
 
   return (
-    <main className="min-w-0 space-y-6 bg-app-page p-4 pb-28 text-text sm:p-6 lg:pb-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Study maps</h1>
-          <p className="mt-1 max-w-2xl text-sm text-text-secondary">
-            Organise module materials around definitions you have reviewed.
-            Check topic suggestions against their sources and explore past
-            papers by year.
-          </p>
-        </div>
+    <main className="min-w-0 space-y-3 bg-app-page p-3 pb-28 text-text sm:p-4 lg:pb-4">
+      <header className="flex flex-wrap items-center gap-3 border-b border-border-subtle pb-3">
+        <h1 className="shrink-0 text-lg font-semibold tracking-tight">Study maps</h1>
+        {maps.length > 0 && (
+          <label className="block min-w-0 flex-1 text-sm font-medium sm:max-w-sm">
+            <span className="sr-only">Module</span>
+            <select
+              className={`${fieldClass} lg:min-h-8 lg:py-1`}
+              value={mapId}
+              disabled={busy}
+              onChange={(event) => {
+                updateLocation({
+                  map: event.target.value,
+                  note: null,
+                  ...clearedFilters,
+                });
+                setMapId(event.target.value);
+                setNoteId(null);
+                setSearching(false);
+                setCreating(false);
+                setError(null);
+                setMessage(null);
+              }}
+            >
+              {!maps.some((map) => map.id === mapId) && mapId && (
+                <option value={mapId}>Selected module</option>
+              )}
+              {maps.map((map) => (
+                <option key={map.id} value={map.id}>
+                  {map.name} · {map.academicYear}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            className={secondaryClass}
+            className={`${secondaryClass} lg:min-h-8 lg:py-1`}
             disabled={busy}
             onClick={() => {
               setSearching((value) => !value);
@@ -2082,7 +2195,7 @@ export default function StudyWorkspace({
           </button>
           <button
             type="button"
-            className={secondaryClass}
+            className={`${secondaryClass} lg:min-h-8 lg:py-1`}
             disabled={busy}
             onClick={() => {
               setCreating((value) => !value);
@@ -2094,38 +2207,6 @@ export default function StudyWorkspace({
           </button>
         </div>
       </header>
-      {maps.length > 0 && (
-        <label className="block max-w-container-narrow space-y-1 text-sm font-medium">
-          Module
-          <select
-            className={fieldClass}
-            value={mapId}
-            disabled={busy}
-            onChange={(event) => {
-              updateLocation({
-                map: event.target.value,
-                note: null,
-                ...clearedFilters,
-              });
-              setMapId(event.target.value);
-              setNoteId(null);
-              setSearching(false);
-              setCreating(false);
-              setError(null);
-              setMessage(null);
-            }}
-          >
-            {!maps.some((map) => map.id === mapId) && mapId && (
-              <option value={mapId}>Selected module</option>
-            )}
-            {maps.map((map) => (
-              <option key={map.id} value={map.id}>
-                {map.name} · {map.academicYear}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
       {error && (
         <p role="alert" className={errorClass}>
           {error}
