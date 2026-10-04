@@ -1088,10 +1088,11 @@
   "The selected notes will be moved to Trash.": "The selected notes will be moved to Trash.",
   "This folder and all its contents will be moved to Trash.": "This folder and all its contents will be moved to Trash.",
   "This item will be permanently deleted. This cannot be undone.": "This item will be permanently deleted. This cannot be undone.",
-  "Trash": "Trash",
   "Contains {count} items": "Contains {count} items",
   "Expires today": "Expires today",
   "Expires tomorrow": "Expires tomorrow",
   "Failed to change language": "Failed to change language",
-  "Failed to save language preference": "Failed to save language preference"
+  "Failed to save language preference": "Failed to save language preference",
+  "Search results: {count}": "Search results: {count}",
+  "Retry save": "Retry save"
 }

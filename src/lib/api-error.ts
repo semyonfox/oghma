@@ -82,21 +82,19 @@ function extractErrorInfo(error: unknown) {
       statusCode: error.statusCode,
       logMeta: {
         statusCode: error.statusCode,
-        internal: error.internalDetails,
       },
     };
   }
-  const raw = error instanceof Error ? error.message : String(error);
   return {
     userMessage: "Internal server error",
     statusCode: 500,
-    logMeta: { message: raw, stack: (error as Error)?.stack },
+    logMeta: { statusCode: 500 },
   };
 }
 
 export function apiErrorResponse(error: unknown): NextResponse {
   const { userMessage, statusCode, logMeta } = extractErrorInfo(error);
-  logger.error(userMessage, logMeta);
+  logger.error("operation_failed", logMeta);
   return NextResponse.json(
     { error: userMessage, traceId: getTraceId() },
     { status: statusCode },

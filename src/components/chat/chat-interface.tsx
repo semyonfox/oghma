@@ -55,7 +55,7 @@ function TogglePill({
         aria-pressed={active}
         aria-describedby={tooltipId}
         className={`flex items-center rounded-radius-md border font-medium transition-colors ${
-          dense ? "gap-1 px-1.5 py-[3px] text-xs" : "gap-1.5 px-2.5 py-1 text-xs"
+          dense ? "min-h-11 gap-1 px-2 text-xs lg:min-h-0 lg:px-1.5 lg:py-[3px]" : "min-h-11 gap-1.5 px-2.5 text-xs sm:min-h-0 sm:py-1"
         } ${
           active
             ? "text-primary-300 bg-primary-500/10 border-primary-500/20 hover:bg-primary-500/15"
@@ -113,6 +113,9 @@ export function shouldPreserveLiveSession(
         (controlledSessionId && controlledSessionId === localSessionId)),
   );
 }
+
+// retain note questions while the inspector closes or changes layout
+const noteComposerDrafts = new Map<string, string>();
 
 const ChatInterface: FC<ChatInterfaceProps> = ({
   compact = false,
@@ -264,8 +267,21 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages, busy]);
 
-  // input state (local to this component -- not worth extracting)
-  const [input, setInput] = useState("");
+  const draftKey = compact ? noteId : undefined;
+  const [composer, setComposer] = useState({
+    key: draftKey,
+    value: draftKey ? noteComposerDrafts.get(draftKey) ?? "" : "",
+  });
+  const input = composer.key === draftKey
+    ? composer.value
+    : draftKey ? noteComposerDrafts.get(draftKey) ?? "" : "";
+  const setInput = (value: string) => {
+    if (draftKey) {
+      if (value) noteComposerDrafts.set(draftKey, value);
+      else noteComposerDrafts.delete(draftKey);
+    }
+    setComposer({ key: draftKey, value });
+  };
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
   const thinkingActive = thinkingMode !== "off";
@@ -346,13 +362,15 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={t("chat.ask_about_note")}
+              aria-label={t("chat.ask_about_note")}
               disabled={busy}
-              className="flex-1 min-w-0 bg-transparent text-xs text-text-secondary placeholder:text-text-tertiary focus:outline-none disabled:opacity-50"
+              className="flex-1 min-w-0 bg-transparent text-base lg:text-xs text-text-secondary placeholder:text-text-tertiary focus:outline-none disabled:opacity-50"
             />
             <button
               onClick={handleSend}
               disabled={busy || !input.trim()}
-              className="p-1 bg-primary-600 hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed text-text-on-primary rounded-radius-sm transition-colors flex-shrink-0"
+              aria-label={t("Send message")}
+              className="flex h-11 w-11 items-center justify-center lg:h-auto lg:w-auto lg:p-1 bg-primary-600 hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed text-text-on-primary rounded-radius-sm transition-colors flex-shrink-0"
             >
               <PaperAirplaneIcon className="w-3 h-3" />
             </button>

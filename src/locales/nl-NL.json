@@ -1088,10 +1088,11 @@
   "The selected notes will be moved to Trash.": "De geselecteerde notities worden naar de prullenbak verplaatst.",
   "This folder and all its contents will be moved to Trash.": "Deze map en al zijn inhoud worden naar de prullenbak verplaatst.",
   "This item will be permanently deleted. This cannot be undone.": "Dit item wordt permanent verwijderd. Dit kan niet ongedaan worden gemaakt.",
-  "Trash": "Prullenbak",
   "Contains {count} items": "Bevat {count} items",
   "Expires today": "Verloopt vandaag",
   "Expires tomorrow": "Verloopt morgen",
   "Failed to change language": "Taal kon niet worden gewijzigd",
-  "Failed to save language preference": "Taalvoorkeur kon niet worden opgeslagen"
+  "Failed to save language preference": "Taalvoorkeur kon niet worden opgeslagen",
+  "Search results: {count}": "Zoekresultaten: {count}",
+  "Retry save": "Opslaan opnieuw proberen"
 }

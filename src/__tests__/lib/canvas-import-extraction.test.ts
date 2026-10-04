@@ -64,6 +64,7 @@ vi.mock("@/lib/logger.ts", () => ({
   default: {
     info: vi.fn(),
     warn: vi.fn(),
+    error: vi.fn(),
   },
 }));
 

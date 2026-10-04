@@ -4,6 +4,7 @@ import I18nRootProvider from "@/components/providers/i18n-root-provider";
 import ThemeProvider from "@/components/providers/theme-provider";
 import PomodoroTimerController from "@/components/pomodoro/pomodoro-timer-controller";
 import ChatPresenceController from "@/components/chat/chat-presence-controller";
+import MarketingTracker from "@/components/marketing-tracker";
 import GlobalSearchRoot from "@/components/search/global-search-root";
 import { getRequestLocale } from "@/lib/i18n/server";
 import { loadLocaleData } from "@/lib/i18n/locale-data";
@@ -160,6 +161,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             <PomodoroTimerController />
             <ChatPresenceController />
             <GlobalSearchRoot />
+            <MarketingTracker />
             {children}
             <Toaster position="bottom-center" />
           </ThemeProvider>

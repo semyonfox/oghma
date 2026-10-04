@@ -1088,10 +1088,11 @@
   "The selected notes will be moved to Trash.": "سيتم نقل الملاحظات المحددة إلى سلة المهملات.",
   "This folder and all its contents will be moved to Trash.": "سيتم نقل هذا المجلد وكل محتوياته إلى سلة المهملات.",
   "This item will be permanently deleted. This cannot be undone.": "سيتم حذف هذا العنصر نهائيًا. لا يمكن التراجع عن ذلك.",
-  "Trash": "سلة المهملات",
   "Contains {count} items": "يحتوي على {count} عنصرًا",
   "Expires today": "تنتهي اليوم",
   "Expires tomorrow": "تنتهي غدًا",
   "Failed to change language": "تعذر تغيير اللغة",
-  "Failed to save language preference": "تعذر حفظ تفضيل اللغة"
+  "Failed to save language preference": "تعذر حفظ تفضيل اللغة",
+  "Search results: {count}": "نتائج البحث: {count}",
+  "Retry save": "إعادة محاولة الحفظ"
 }

@@ -987,7 +987,7 @@
   "Toggle AI assistant panel": "AI सहायक पैनल को टॉगल करें",
   "Toggle metadata panel": "मेटाडेटा पैनल टॉगल करें",
   "Toggle sidebar": "साइडबार टॉगल करें",
-  "Trash": "कचरा",
+  "Trash": "ट्रैश",
   "Trash is empty": "कचरा खाली है",
   "Try again": "पुनः प्रयास करें",
   "Turn course material into active-recall cards and review them on a spaced schedule instead of rebuilding decks by hand.": "पाठ्यक्रम सामग्री को सक्रिय-रिकॉल कार्ड में बदलें और हाथ से डेक का पुनर्निर्माण करने के बजाय एक निश्चित समय पर उनकी समीक्षा करें।",
@@ -1088,10 +1088,11 @@
   "The selected notes will be moved to Trash.": "चयनित नोट ट्रैश में ले जाए जाएंगे।",
   "This folder and all its contents will be moved to Trash.": "यह फ़ोल्डर और इसकी सभी सामग्री ट्रैश में ले जाई जाएगी।",
   "This item will be permanently deleted. This cannot be undone.": "यह आइटम स्थायी रूप से हटा दिया जाएगा। इसे पूर्ववत नहीं किया जा सकता।",
-  "Trash": "ट्रैश",
   "Contains {count} items": "इसमें {count} आइटम हैं",
   "Expires today": "आज समाप्त होता है",
   "Expires tomorrow": "कल समाप्त होता है",
   "Failed to change language": "भाषा बदलने में विफल",
-  "Failed to save language preference": "भाषा प्राथमिकता सहेजने में विफल"
+  "Failed to save language preference": "भाषा प्राथमिकता सहेजने में विफल",
+  "Search results: {count}": "खोज परिणाम: {count}",
+  "Retry save": "सहेजने का फिर प्रयास करें"
 }

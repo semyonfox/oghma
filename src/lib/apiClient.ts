@@ -203,13 +203,11 @@ export async function login(
 export async function register(
   email: string,
   password: string,
-  marketing?: unknown,
   agentRegistration?: AgentRegistrationClaim,
 ): Promise<RegisterResponse> {
   return apiPost<RegisterResponse>("/api/auth/register", {
     email,
     password,
-    marketing,
     ...agentRegistration,
   });
 }

@@ -1,8 +1,8 @@
 # Growth Analytics
 
-> **Status:** Privacy-first collection is in `dev` history; the aggregate `/analytics` dashboard and scheduled retention cleanup are implemented in this checkout. Production migration, configuration, and deployment remain unverified.
-> **Last reviewed:** 2026-07-12
-> **Source of truth for:** Funnel events, attribution boundaries, dashboard access, and marketing-data retention.
+Current status, reviewed October 4, 2026. This acquisition and activation design is retired. The current source contract is [Anonymous usage counts](../engineering/anonymous-telemetry.md). Collection and the previous dashboard no longer write or read account-linked marketing events. Historical rows have not been purged, and no deployment is claimed.
+
+The sections below describe the previous implementation for historical reference. They are not current collection instructions.
 
 ## Goal
 

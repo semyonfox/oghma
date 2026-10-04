@@ -1,54 +1,15 @@
 import winston from "winston";
 import "winston-daily-rotate-file";
-import { traceFormat } from "./trace";
-
-const SENSITIVE_KEYS = new Set([
-  "password",
-  "token",
-  "canvas_token",
-  "reset_token",
-  "authorization",
-  "hashed_password",
-  "secret",
-  "api_key",
-  "apikey",
-  "access_key",
-  "accesskey",
-  "secret_key",
-  "secretkey",
-  "private_key",
-  "session_id",
-  "sessionid",
-  "cookie",
-  "credential",
-  "database_url",
-]);
-
-function redactObject(obj: unknown): unknown {
-  if (obj === null || obj === undefined) return obj;
-  if (typeof obj !== "object") return obj;
-  if (Array.isArray(obj)) return obj.map(redactObject);
-
-  const result: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
-    if (SENSITIVE_KEYS.has(key.toLowerCase())) {
-      result[key] = "[REDACTED]";
-    } else {
-      result[key] = typeof value === "object" ? redactObject(value) : value;
-    }
-  }
-  return result;
-}
+// operational logs are separate from optional anonymous counters and security audit tables
+const LEVELS = ["error", "warn", "info", "debug"] as const;
 
 export const redactSensitive = winston.format((info) => {
-  for (const [key, value] of Object.entries(info)) {
-    if (SENSITIVE_KEYS.has(key.toLowerCase())) {
-      info[key] = "[REDACTED]";
-    } else if (typeof value === "object" && value !== null) {
-      info[key] = redactObject(value);
-    }
-  }
-  return info;
+  const level = LEVELS.find((value) => value === info.level) ?? "info";
+  const securityEvent = info.category === "duplicate_account_detected" ? "duplicate_account_detected" : null;
+  const message = securityEvent ?? (level === "error" ? "operation_failed" : level === "warn" ? "operation_warning" : level === "debug" ? "operation_debug" : "operation_completed");
+  const status = typeof info.statusCode === "number" ? info.statusCode : info.status;
+  const statusClass = typeof status === "number" && Number.isInteger(status) && status >= 100 && status <= 599 ? `${Math.floor(status / 100)}xx` : undefined;
+  return { level, [Symbol.for("level")]: level, message, service: "oghmanotes", ...(statusClass ? { statusClass } : {}) };
 })();
 
 const isProduction = process.env.NODE_ENV === "production";
@@ -80,9 +41,7 @@ const logger = winston.createLogger({
   level: isProduction ? "info" : "debug",
   defaultMeta: { service: "oghmanotes" },
   format: winston.format.combine(
-    traceFormat,
     redactSensitive,
-    winston.format.timestamp(),
   ),
   transports,
 });

@@ -71,7 +71,6 @@ import { requireAuth } from "@/lib/api-error";
 import sql from "@/database/pgsql";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
 import { enqueueCanvasJob } from "@/lib/queue";
-import { recordActivationMilestone } from "@/lib/marketing/events";
 import { POST } from "@/app/api/canvas/import/route";
 
 function request(courseIds: unknown[]) {
@@ -100,7 +99,6 @@ describe("POST /api/canvas/import Canvas IDs", () => {
     });
     canvas.getSelfEnrollments.mockResolvedValue({ data: [] });
     vi.mocked(enqueueCanvasJob).mockResolvedValue(undefined);
-    vi.mocked(recordActivationMilestone).mockResolvedValue(true);
   });
 
   it("returns 400 before queueing an ID outside signed bigint range", async () => {

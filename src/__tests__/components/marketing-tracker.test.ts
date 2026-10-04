@@ -1,21 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { appendBoundedPathChain } from "@/components/marketing-tracker";
-
-describe("bounded in-memory marketing path chains", () => {
-  it("builds a chain without adding duplicate path observations", () => {
-    expect(appendBoundedPathChain([], "/")).toEqual(["/"]);
-    expect(appendBoundedPathChain(["/", "/pricing"], "/pricing")).toEqual([
-      "/",
-      "/pricing",
-    ]);
-  });
-
-  it("keeps only the latest four public path observations", () => {
-    expect(
-      appendBoundedPathChain(
-        ["/", "/about", "/blog", "/pricing"],
-        "/register",
-      ),
-    ).toEqual(["/about", "/blog", "/pricing", "/register"]);
+import { telemetryRoute } from "@/components/marketing-tracker";
+describe("static telemetry route categories", () => {
+  it("maps dynamic notes and unknown private URLs to a finite category", () => {
+    expect(telemetryRoute("/notes/private-note-id")).toBe("editor");
+    expect(telemetryRoute("/settings")).toBe("settings");
+    expect(telemetryRoute("/private-fixture?email=person@example.test")).toBe("app");
+    expect(telemetryRoute(null)).toBe("app");
   });
 });

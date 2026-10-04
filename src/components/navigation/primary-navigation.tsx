@@ -1,8 +1,8 @@
 "use client";
 
-import { FC } from "react";
+import { FC, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
 import BrandLogo from "@/components/brand-logo";
 import useLayoutStore from "@/lib/notes/state/layout.zustand";
 import useI18n from "@/lib/notes/hooks/use-i18n";
@@ -81,24 +81,30 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
   variant = "rail",
   onNavigate,
 }) => {
-  const router = useRouter();
   const pathname = usePathname();
   const activeNav = useLayoutStore((state) => state.activeNav);
   const setActiveNav = useLayoutStore((state) => state.setActiveNav);
-  const rightPanelOpen = useLayoutStore((state) => state.rightPanelOpen);
-  const rightPanelTab = useLayoutStore((state) => state.rightPanelTab);
   const { t } = useI18n();
   const pomodoroPhase = usePomodoroStore((state) => state.phase);
   const startPomodoro = usePomodoroStore((state) => state.start);
 
+  const focusStartPending = useRef(false);
+  const [focusStarting, setFocusStarting] = useState(false);
   const focusActive = pomodoroPhase !== "idle";
   const focusLabel = t("Focus");
   const focusTitle = focusActive ? t("Focus session in progress") : focusLabel;
 
-  const handleFocusClick = () => {
-    if (focusActive) return;
-    onNavigate?.();
-    void startPomodoro({});
+  const handleFocusClick = async () => {
+    if (focusActive || focusStartPending.current) return;
+    focusStartPending.current = true;
+    setFocusStarting(true);
+    try {
+      await startPomodoro({});
+      onNavigate?.();
+    } finally {
+      focusStartPending.current = false;
+      setFocusStarting(false);
+    }
   };
 
   const derivedActiveSection: NavItem["section"] = pathname?.startsWith(
@@ -111,13 +117,9 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
         ? "calendar"
         : pathname?.startsWith("/chat")
           ? "chat"
-          : pathname?.startsWith("/notes") &&
-              rightPanelOpen &&
-              rightPanelTab === "ai"
-            ? "chat"
-            : pathname?.startsWith("/notes")
-              ? "notes"
-              : activeNav;
+          : pathname?.startsWith("/notes")
+            ? "notes"
+            : activeNav;
 
   const handleNavClick = (item: NavItem) => {
     onNavigate?.();
@@ -128,13 +130,6 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
     }
 
     setActiveNav(item.section);
-    if (item.section === "chat") {
-      router.push("/chat");
-      return;
-    }
-    if (pathname !== item.href) {
-      router.push(item.href);
-    }
   };
 
   if (variant === "drawer") {
@@ -158,6 +153,23 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
             const isActive = derivedActiveSection === item.section;
             const translatedLabel = t(item.labelKey);
 
+            const content = (
+              <>
+                <IconComp className="h-5 w-5 shrink-0" aria-hidden="true" />
+                <span>{translatedLabel}</span>
+              </>
+            );
+            const className = `flex min-h-11 w-full items-center gap-3 rounded-radius-md px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 ${isActive ? "bg-primary-500/10 text-primary-400" : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"}`;
+            if (item.section !== "search") {
+              return (
+                <Link key={item.id} href={item.href}
+                  onClick={() => handleNavClick(item)}
+                  aria-current={isActive ? "page" : undefined}
+                  className={className}>
+                  {content}
+                </Link>
+              );
+            }
             return (
               <button
                 key={item.id}
@@ -181,15 +193,16 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
           <button
             type="button"
             onClick={handleFocusClick}
-            disabled={focusActive}
+            disabled={focusActive || focusStarting}
             aria-label={focusLabel}
             aria-pressed={focusActive}
+            aria-busy={focusStarting}
             className={`flex min-h-11 w-full items-center gap-3 rounded-radius-md px-3 text-sm font-medium transition-colors ${
               focusActive
                 ? "bg-primary-500/10 text-primary-400"
                 : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
             }`}
-            title={focusTitle}
+            title={focusStarting ? t("Loading...") : focusTitle}
           >
             <ClockIcon className="h-5 w-5 shrink-0" />
             <span>{focusLabel}</span>
@@ -197,8 +210,8 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
         </div>
 
         <div className="mt-auto border-t border-border-subtle pt-3">
-          <button
-            type="button"
+          <Link
+            href={SETTINGS_ITEM.href}
             onClick={() => handleNavClick(SETTINGS_ITEM)}
             aria-label={t("Settings")}
             aria-current={
@@ -213,7 +226,7 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
           >
             <Cog6ToothIcon className="h-5 w-5 shrink-0" />
             <span>{t("Settings")}</span>
-          </button>
+          </Link>
         </div>
       </nav>
     );
@@ -237,6 +250,21 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
           const isActive = derivedActiveSection === item.section;
           const translatedLabel = t(item.labelKey);
 
+          const className = `group relative flex h-10 min-h-[44px] w-10 min-w-[44px] items-center justify-center rounded-radius-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 ${isActive ? "bg-primary-500/10 text-primary-400" : "text-text-tertiary hover:bg-subtle hover:text-text"}`;
+          if (item.section !== "search") {
+            return (
+              <Link key={item.id} href={item.href}
+                onClick={() => handleNavClick(item)}
+                aria-label={translatedLabel}
+                aria-current={isActive ? "page" : undefined}
+                title={translatedLabel} className={className}>
+                <IconComp className="h-5 w-5" aria-hidden="true" />
+                <span className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded-radius-md border border-border-subtle bg-surface px-2 py-1 text-xs text-text-secondary opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                  {translatedLabel}
+                </span>
+              </Link>
+            );
+          }
           return (
             <button
               key={item.id}
@@ -256,7 +284,7 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
               <div
                 id={`tooltip-${item.id}`}
                 role="tooltip"
-                className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded-radius-md border border-border-subtle bg-surface px-2 py-1 text-xs text-text-secondary opacity-0 transition-opacity group-hover:opacity-100"
+                className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded-radius-md border border-border-subtle bg-surface px-2 py-1 text-xs text-text-secondary opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
               >
                 {translatedLabel}
               </div>
@@ -267,30 +295,31 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
         <button
           type="button"
           onClick={handleFocusClick}
-          disabled={focusActive}
+          disabled={focusActive || focusStarting}
           aria-label={focusLabel}
           aria-pressed={focusActive}
+            aria-busy={focusStarting}
           aria-describedby="tooltip-focus"
           className={`group relative flex h-10 min-h-[44px] w-10 min-w-[44px] items-center justify-center rounded-radius-md transition-colors ${
             focusActive
               ? "bg-primary-500/10 text-primary-400"
               : "text-text-tertiary hover:bg-subtle hover:text-text"
           }`}
-          title={focusTitle}
+          title={focusStarting ? t("Loading...") : focusTitle}
         >
           <ClockIcon className="h-5 w-5" />
           <div
             id="tooltip-focus"
             role="tooltip"
-            className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded-radius-md border border-border-subtle bg-surface px-2 py-1 text-xs text-text-secondary opacity-0 transition-opacity group-hover:opacity-100"
+            className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded-radius-md border border-border-subtle bg-surface px-2 py-1 text-xs text-text-secondary opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
           >
             {focusTitle}
           </div>
         </button>
       </div>
 
-      <button
-        type="button"
+      <Link
+        href={SETTINGS_ITEM.href}
         onClick={() => handleNavClick(SETTINGS_ITEM)}
         aria-describedby="tooltip-settings"
         aria-label={t("Settings")}
@@ -306,11 +335,11 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
         <div
           id="tooltip-settings"
           role="tooltip"
-          className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded-radius-md border border-border-subtle bg-surface px-2 py-1 text-xs text-text-secondary opacity-0 transition-opacity group-hover:opacity-100"
+          className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded-radius-md border border-border-subtle bg-surface px-2 py-1 text-xs text-text-secondary opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
         >
           {t("Settings")}
         </div>
-      </button>
+      </Link>
     </nav>
   );
 };

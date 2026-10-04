@@ -33,6 +33,7 @@ export default function NotesWorkspace({ view = "notes" }: NotesWorkspaceProps) 
   const pathname = usePathname();
   const router = useRouter();
   const isDesktop = useMediaQuery("(min-width: 768px)");
+  const canDockInspector = useMediaQuery("(min-width: 1024px)");
   const noteDependenciesReady = useNoteTreeInitialization();
   const [treeDrawerOpen, setTreeDrawerOpen] = useState(false);
   const treeWidth = useLayoutStore((s) => s.treeWidth);
@@ -53,9 +54,7 @@ export default function NotesWorkspace({ view = "notes" }: NotesWorkspaceProps) 
     if (route.type === "ignore") return;
 
     if (route.type === "redirect") {
-      console.warn(
-        `[notes-workspace] non-UUID note id in URL: ${route.noteId} — redirecting to /notes`,
-      );
+      console.warn("note_route_invalid");
       router.replace("/notes");
       return;
     }
@@ -71,9 +70,9 @@ export default function NotesWorkspace({ view = "notes" }: NotesWorkspaceProps) 
         const note = await response.json();
         setPaneA(buildFileSpec(note));
       })
-      .catch((error) => {
+      .catch(() => {
         if (controller.signal.aborted) return;
-        console.error("Failed to resolve note route metadata:", error);
+        console.error("note_load_failed");
         setPaneA({ fileId, fileType: "note", title: fileId });
       });
 
@@ -164,24 +163,21 @@ export default function NotesWorkspace({ view = "notes" }: NotesWorkspaceProps) 
             <NoteTreePanel onOpenNote={() => setTreeDrawerOpen(false)} />
           </MobileDrawer>
 
-          {!isTrashView && <MobileDrawer
-            open={rightPanelOpen}
-            onClose={() => setRightPanelOpen(false)}
-            title={inspectorTitle}
-            side="right"
-            className="md:hidden"
-            panelClassName="w-[94vw] max-w-md"
-          >
-            <NoteInspectorPanel presentation="drawer" />
-          </MobileDrawer>}
+
         </>
+      )}
+
+      {canDockInspector === false && !isTrashView && (
+        <MobileDrawer open={rightPanelOpen} onClose={() => setRightPanelOpen(false)} title={inspectorTitle} side="right" panelClassName="w-[94vw] max-w-md">
+          <NoteInspectorPanel presentation="drawer" />
+        </MobileDrawer>
       )}
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {isDesktop === true && (
           <div
             key="navigation"
-            className="w-14 shrink-0 flex-col overflow-hidden border-r border-border-subtle bg-background md:flex"
+            className="w-14 shrink-0 flex-col border-r border-border-subtle bg-background md:flex"
           >
             <PrimaryNavigation />
           </div>
@@ -189,7 +185,7 @@ export default function NotesWorkspace({ view = "notes" }: NotesWorkspaceProps) 
 
         {isDesktop === true && (
           <PanelGroup
-            key={rightPanelOpen && !isTrashView ? "with-inspector" : "without-inspector"}
+            key={rightPanelOpen && canDockInspector && !isTrashView ? "with-inspector" : "without-inspector"}
             orientation="horizontal"
             className="min-w-0 flex-1"
             onLayoutChanged={() => {
@@ -227,7 +223,7 @@ export default function NotesWorkspace({ view = "notes" }: NotesWorkspaceProps) 
                 className="h-full min-h-0 w-full overflow-hidden bg-background"
               >
                 {!noteDependenciesReady ? (
-                  <div className="flex h-full items-center justify-center text-sm text-text-tertiary">
+                  <div role="status" className="flex h-full items-center justify-center text-sm text-text-tertiary">
                     {t("Loading...")}
                   </div>
                 ) : isTrashView ? (
@@ -238,14 +234,14 @@ export default function NotesWorkspace({ view = "notes" }: NotesWorkspaceProps) 
               </main>
             </Panel>
 
-            {rightPanelOpen && !isTrashView && (
+            {rightPanelOpen && canDockInspector && !isTrashView && (
               <PanelResizeHandle
                 aria-label={t("Resize details panel")}
                 className="w-px cursor-col-resize bg-border-subtle transition-colors hover:bg-primary-500/40 active:bg-primary-500/60"
               />
             )}
 
-            {rightPanelOpen && !isTrashView && (
+            {rightPanelOpen && canDockInspector && !isTrashView && (
               <Panel
                 id="note-inspector"
                 defaultSize={`${rightPanelWidth}px`}
@@ -271,7 +267,7 @@ export default function NotesWorkspace({ view = "notes" }: NotesWorkspaceProps) 
             className="h-full min-h-0 w-full overflow-hidden bg-background"
           >
             {isDesktop === null || !noteDependenciesReady ? (
-              <div className="flex h-full items-center justify-center text-sm text-text-tertiary">
+              <div role="status" className="flex h-full items-center justify-center text-sm text-text-tertiary">
                 {t("Loading...")}
               </div>
             ) : isTrashView ? (

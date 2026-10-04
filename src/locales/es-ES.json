@@ -1088,10 +1088,11 @@
   "The selected notes will be moved to Trash.": "Las notas seleccionadas se moverán a la papelera.",
   "This folder and all its contents will be moved to Trash.": "Esta carpeta y todo su contenido se moverán a la papelera.",
   "This item will be permanently deleted. This cannot be undone.": "Este elemento se eliminará permanentemente. Esta acción no se puede deshacer.",
-  "Trash": "Papelera",
   "Contains {count} items": "Contiene {count} elementos",
   "Expires today": "Caduca hoy",
   "Expires tomorrow": "Caduca mañana",
   "Failed to change language": "No se pudo cambiar el idioma",
-  "Failed to save language preference": "No se pudo guardar la preferencia de idioma"
+  "Failed to save language preference": "No se pudo guardar la preferencia de idioma",
+  "Search results: {count}": "Resultados de búsqueda: {count}",
+  "Retry save": "Reintentar guardar"
 }

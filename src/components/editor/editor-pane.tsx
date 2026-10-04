@@ -5,13 +5,21 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { FileSpec } from "@/lib/notes/state/layout.zustand";
 import {
+  ArrowPathIcon,
+  CheckCircleIcon,
   ClipboardDocumentCheckIcon,
+  CloudArrowUpIcon,
   DocumentIcon,
+  ExclamationTriangleIcon,
   RectangleGroupIcon,
   XMarkIcon,
   SparklesIcon,
 } from "@heroicons/react/24/outline";
 import useLayoutStore from "@/lib/notes/state/layout.zustand";
+import type { RightPanelTab } from "@/lib/notes/state/layout.zustand";
+import useSaveIndicatorStore, {
+  PaneSaveIndicator,
+} from "@/lib/notes/state/save-indicator";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import useNoteTreeStore from "@/lib/notes/state/tree";
 import useNoteStore from "@/lib/notes/state/note";
@@ -42,9 +50,13 @@ const EditorPane: FC<EditorPaneProps> = ({
   // granular selectors — only re-render when values this component reads change
   const rightPanelOpen = useLayoutStore((s) => s.rightPanelOpen);
   const rightPanelTab = useLayoutStore((s) => s.rightPanelTab);
+  const activePane = useLayoutStore((s) => s.activePane);
   const setPaneA = useLayoutStore((s) => s.setPaneA);
   const setPaneB = useLayoutStore((s) => s.setPaneB);
   const setActivePane = useLayoutStore((s) => s.setActivePane);
+  const swapPanes = useLayoutStore((s) => s.swapPanes);
+  const swapSaveIndicators = useSaveIndicatorStore((s) => s.swapPanes);
+  const saveIndicator = useSaveIndicatorStore((s) => s.panes[pane]);
   const openRightPanelTab = useLayoutStore((s) => s.openRightPanelTab);
   const initLoaded = useNoteTreeStore((s) => s.initLoaded);
   const rootChildCount = useNoteTreeStore(
@@ -64,8 +76,17 @@ const EditorPane: FC<EditorPaneProps> = ({
       setPaneA(undefined);
     } else {
       setPaneB(undefined);
+      setActivePane("A");
     }
-  }, [pane, setPaneA, setPaneB]);
+  }, [pane, setPaneA, setPaneB, setActivePane]);
+
+  const handlePanelToggle = (tab: RightPanelTab) => {
+    const state = useLayoutStore.getState();
+    const alreadyOpen = state.rightPanelOpen && state.rightPanelTab === tab;
+    setActivePane(pane);
+    if (alreadyOpen && state.activePane !== pane) return;
+    openRightPanelTab(tab);
+  };
 
   const handleDragStart = useCallback(
     (e: React.DragEvent) => {
@@ -76,9 +97,10 @@ const EditorPane: FC<EditorPaneProps> = ({
       e.dataTransfer.effectAllowed = "move";
       e.dataTransfer.setData("application/json", JSON.stringify(file));
       e.dataTransfer.setData("paneFile", JSON.stringify(file));
+      e.dataTransfer.setData("text/pane-source", pane);
       setIsDragging(true);
     },
-    [file, splitInteractionsEnabled],
+    [file, pane, splitInteractionsEnabled],
   );
 
   const handleDragEnd = useCallback(() => {
@@ -109,28 +131,54 @@ const EditorPane: FC<EditorPaneProps> = ({
         const draggedFile: FileSpec = JSON.parse(rawData);
         if (!draggedFile.fileId) return;
 
-        // read paneA at drop time (avoids subscribing to it in render)
-        const currentPaneA = useLayoutStore.getState().paneA;
+        const sourcePane = e.dataTransfer.getData("text/pane-source");
+        const { paneA: currentPaneA, paneB: currentPaneB } =
+          useLayoutStore.getState();
+        const isSplit = Boolean(currentPaneB?.fileId);
 
-        const viewportWidth = window.innerWidth;
-        const dropX = e.clientX;
-        const rightThreshold = viewportWidth / 2;
+        // while split, each pane owns its own drop target. otherwise fall back
+        // to halves of the single pane so a right-side drop opens the split.
+        let targetPane: "A" | "B" = pane;
+        if (!isSplit) {
+          const rect = e.currentTarget.getBoundingClientRect();
+          targetPane = e.clientX > rect.left + rect.width / 2 ? "B" : "A";
+        }
 
-        if (dropX > rightThreshold) {
+        // dragging a pane onto the other pane swaps them instead of
+        // overwriting the target and duplicating the dragged file
+        if (
+          (sourcePane === "A" || sourcePane === "B") &&
+          sourcePane !== targetPane &&
+          isSplit
+        ) {
+          swapPanes();
+          swapSaveIndicators();
+          setActivePane(targetPane);
+          return;
+        }
+
+        // dropping a pane back on itself is a no-op
+        if (sourcePane === targetPane) return;
+
+        if (targetPane === "B") {
           setPaneB(draggedFile);
         } else {
-          if (pane === "A") {
-            setPaneA(draggedFile);
-          } else {
-            setPaneA(draggedFile);
-            setPaneB(currentPaneA);
-          }
+          setPaneA(draggedFile);
+          if (sourcePane === "B") setPaneB(currentPaneA);
         }
       } catch (error) {
         console.error("Drop error:", error);
       }
     },
-    [pane, setPaneA, setPaneB, splitInteractionsEnabled],
+    [
+      pane,
+      setActivePane,
+      setPaneA,
+      setPaneB,
+      splitInteractionsEnabled,
+      swapPanes,
+      swapSaveIndicators,
+    ],
   );
 
   const handleCreateFirstNote = useCallback(async () => {
@@ -170,8 +218,8 @@ const EditorPane: FC<EditorPaneProps> = ({
 
   const showFirstRunOnboarding =
     pane === "A" && initLoaded && rootChildCount === 0;
-  const aiChatIsOpen = rightPanelOpen && rightPanelTab === "ai";
-  const metadataIsOpen = rightPanelOpen && rightPanelTab === "meta";
+  const aiChatIsOpen = activePane === pane && rightPanelOpen && rightPanelTab === "ai";
+  const metadataIsOpen = activePane === pane && rightPanelOpen && rightPanelTab === "meta";
   const tasksAreOpen = rightPanelOpen && rightPanelTab === "tasks";
   const aiChatLabel = aiChatIsOpen
     ? `${t("Close")} ${t("AI Chat")}`
@@ -181,8 +229,8 @@ const EditorPane: FC<EditorPaneProps> = ({
   if (!file || !file.fileId) {
     if (showFirstRunOnboarding) {
       return (
-        <div className="h-full flex items-center justify-center p-6">
-          <div className="w-full max-w-lg rounded-radius-lg border border-border-subtle bg-surface/70 p-6">
+        <div className="flex h-full flex-col overflow-y-auto p-6">
+          <div className="mx-auto my-auto w-full max-w-lg rounded-radius-lg border border-border-subtle bg-surface/70 p-6">
             <h2 className="text-lg font-semibold text-text-secondary">
               {t("Welcome to OghmaNotes")}
             </h2>
@@ -245,8 +293,17 @@ const EditorPane: FC<EditorPaneProps> = ({
   return (
     <div
       ref={paneRef}
+      data-editor-pane={pane}
+      tabIndex={-1}
       className={`h-full flex flex-col bg-background transition-colors ${isDragging ? "opacity-60" : ""}`}
-      onMouseDown={() => setActivePane(pane)}
+      onMouseDown={(event) => {
+        if (event.target instanceof Element && !event.target.closest("[data-inspector-toggle]")) setActivePane(pane);
+      }}
+      onFocusCapture={(event) => {
+        if (event.target instanceof HTMLElement && !event.target.closest("[data-inspector-toggle]")) {
+          setActivePane(pane);
+        }
+      }}
       onDragOver={splitInteractionsEnabled ? handleDragOver : undefined}
       onDrop={splitInteractionsEnabled ? handleDrop : undefined}
     >
@@ -259,16 +316,27 @@ const EditorPane: FC<EditorPaneProps> = ({
         onDragStart={splitInteractionsEnabled ? handleDragStart : undefined}
         onDragEnd={splitInteractionsEnabled ? handleDragEnd : undefined}
       >
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-sm text-text-secondary truncate">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="truncate text-sm text-text-secondary">
             {file.title || file.fileId}
           </span>
+          <span role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+            {saveIndicator?.fileId === file.fileId
+              ? saveIndicator.state === "saving" ? t("Saving...")
+                : saveIndicator.state === "saved" ? t("Saved")
+                  : saveIndicator.state === "error" ? t("Save failed") : t("Unsaved")
+              : ""}
+          </span>
+          {saveIndicator && saveIndicator.fileId === file.fileId ? (
+            <SaveIndicatorButton indicator={saveIndicator} t={t} />
+          ) : null}
         </div>
 
-        <div className="flex items-center gap-0.5">
+        <div className="flex shrink-0 items-center gap-0.5">
           <button
             type="button"
-            onClick={() => openRightPanelTab("meta")}
+            data-inspector-toggle
+            onClick={() => handlePanelToggle("meta")}
             className={`flex h-10 w-10 items-center justify-center rounded transition-colors md:h-7 md:w-7 ${
               metadataIsOpen
                 ? "bg-subtle text-text-secondary"
@@ -282,7 +350,8 @@ const EditorPane: FC<EditorPaneProps> = ({
           </button>
           <button
             type="button"
-            onClick={() => openRightPanelTab("ai")}
+            data-inspector-toggle
+            onClick={() => handlePanelToggle("ai")}
             className={`flex h-10 w-10 items-center justify-center rounded transition-colors md:h-7 md:w-7 ${
               aiChatIsOpen
                 ? "bg-subtle text-text-secondary"
@@ -296,7 +365,8 @@ const EditorPane: FC<EditorPaneProps> = ({
           </button>
           <button
             type="button"
-            onClick={() => openRightPanelTab("tasks")}
+            data-inspector-toggle
+            onClick={() => handlePanelToggle("tasks")}
             className={`flex h-10 w-10 items-center justify-center rounded transition-colors md:h-7 md:w-7 ${
               tasksAreOpen
                 ? "bg-subtle text-text-secondary"
@@ -311,6 +381,7 @@ const EditorPane: FC<EditorPaneProps> = ({
           {pane === "B" && (
             <button
               onClick={handleClose}
+              aria-label={t("Close this pane")}
               className="flex h-10 w-10 items-center justify-center rounded text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary md:h-auto md:w-auto md:p-1"
               title={t("Close this pane")}
             >
@@ -325,6 +396,67 @@ const EditorPane: FC<EditorPaneProps> = ({
         <FileRenderer key={file.fileId} pane={pane} file={file} />
       </div>
     </div>
+  );
+};
+
+interface SaveIndicatorButtonProps {
+  indicator: PaneSaveIndicator;
+  t: (key: string) => string;
+}
+
+// compact save affordance living in the filename bar. idle/saved stays a quiet
+// glyph, everything actionable becomes a real button
+const SaveIndicatorButton: FC<SaveIndicatorButtonProps> = ({ indicator, t }) => {
+  const { state, save } = indicator;
+
+  if (state === "saved") {
+    return (
+      <span
+        className="flex h-6 w-6 items-center justify-center text-text-tertiary/50"
+        title={t("Saved")}
+        aria-label={t("Saved")}
+      >
+        <CheckCircleIcon className="h-4 w-4" aria-hidden="true" />
+      </span>
+    );
+  }
+
+  if (state === "saving") {
+    return (
+      <span
+        className="flex h-6 w-6 items-center justify-center text-text-tertiary"
+        title={t("Saving...")}
+        aria-label={t("Saving...")}
+      >
+        <ArrowPathIcon className="h-4 w-4 animate-spin" aria-hidden="true" />
+      </span>
+    );
+  }
+
+  const isError = state === "error";
+  const label = isError ? t("Retry save") : t("Save (Ctrl+S)");
+
+  return (
+    <button
+      type="button"
+      onClick={save}
+      title={label}
+      aria-label={label}
+      className={`flex h-11 min-w-11 shrink-0 items-center justify-center gap-1 rounded-radius-sm px-1.5 text-xs font-medium transition-colors md:h-6 md:min-w-0 ${
+        isError
+          ? "text-error-400 hover:bg-error-500/10"
+          : "text-yellow-500 hover:bg-yellow-500/10"
+      }`}
+    >
+      {isError ? (
+        <ExclamationTriangleIcon className="h-4 w-4" aria-hidden="true" />
+      ) : (
+        <CloudArrowUpIcon className="h-4 w-4" aria-hidden="true" />
+      )}
+      <span className="hidden md:inline">
+        {isError ? t("Save failed") : t("Unsaved")}
+      </span>
+    </button>
   );
 };
 

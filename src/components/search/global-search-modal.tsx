@@ -1,5 +1,7 @@
 "use client";
 
+import { reportTelemetry } from "@/lib/marketing/client";
+
 import {
   Fragment,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -8,6 +10,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useId,
 } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import { usePathname, useRouter } from "next/navigation";
@@ -240,6 +243,11 @@ export default function GlobalSearchModal() {
     Omit<ResultsBySection, "destinations">
   >({ notes: [], chats: [], quizzes: [] });
   const [loading, setLoading] = useState(false);
+  const [searchError, setSearchError] = useState<"failed" | "session" | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const [resultsQuery, setResultsQuery] = useState<string | null>(null);
+  const resultsId = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
   const requestSeqRef = useRef(0);
@@ -251,9 +259,9 @@ export default function GlobalSearchModal() {
       destinations: DESTINATIONS.filter((result) =>
         matchesDestination(result, trimmedQuery),
       ).slice(0, trimmedQuery ? 5 : 4),
-      ...remoteResults,
+      ...(resultsQuery === trimmedQuery ? remoteResults : { notes: [], chats: [], quizzes: [] }),
     }),
-    [remoteResults, trimmedQuery],
+    [remoteResults, resultsQuery, trimmedQuery],
   );
 
   const flatResults = useMemo(() => flattenResults(results), [results]);
@@ -267,6 +275,8 @@ export default function GlobalSearchModal() {
     setRemoteResults({ notes: [], chats: [], quizzes: [] });
     setSelectedIndex(0);
     setLoading(false);
+    setSearchError(null);
+    setResultsQuery(null);
   }, [close]);
 
   const openResult = useCallback(
@@ -304,6 +314,8 @@ export default function GlobalSearchModal() {
     const controller = new AbortController();
     abortRef.current = controller;
     setLoading(true);
+    setSearchError(null);
+    setResultsQuery(null);
 
     const timeout = window.setTimeout(async () => {
       try {
@@ -314,6 +326,8 @@ export default function GlobalSearchModal() {
         if (!response.ok) {
           if (requestSeqRef.current === seq) {
             setRemoteResults({ notes: [], chats: [], quizzes: [] });
+            setSearchError(response.status === 401 ? "session" : "failed");
+            reportTelemetry({ kind: "error", name: "request_failed", route: "search" });
           }
           return;
         }
@@ -323,10 +337,13 @@ export default function GlobalSearchModal() {
         setRemoteResults(
           normalizeApiResults(isRecord(data) ? data.results : undefined),
         );
+        setResultsQuery(trimmedQuery);
       } catch (error: unknown) {
         if (isRecord(error) && error.name === "AbortError") return;
         if (requestSeqRef.current === seq) {
           setRemoteResults({ notes: [], chats: [], quizzes: [] });
+          setSearchError("failed");
+          reportTelemetry({ kind: "error", name: "request_failed", route: "search" });
         }
       } finally {
         if (requestSeqRef.current === seq) {
@@ -339,7 +356,11 @@ export default function GlobalSearchModal() {
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [trimmedQuery, visible]);
+  }, [trimmedQuery, visible, retryCount]);
+
+  useEffect(() => {
+    if (visible) document.getElementById(`${resultsId}-${selectedIndex}`)?.scrollIntoView({ block: "nearest" });
+  }, [selectedIndex, selectedResult?.id, resultsId, visible]);
 
   useEffect(() => {
     if (selectedIndex > Math.max(flatResults.length - 1, 0)) {
@@ -350,6 +371,7 @@ export default function GlobalSearchModal() {
   if (!enabled) return null;
 
   const onInputKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (event.nativeEvent.isComposing) return;
     if (event.key === "ArrowDown") {
       event.preventDefault();
       setSelectedIndex((index) =>
@@ -407,8 +429,15 @@ export default function GlobalSearchModal() {
                     className={`h-5 w-5 shrink-0 ${loading ? "animate-pulse text-primary-400" : "text-text-tertiary"}`}
                   />
                   <input
+                    ref={inputRef}
                     type="text"
-                    className="ml-3 min-w-0 flex-1 border-none bg-transparent text-sm text-text outline-none placeholder:text-text-tertiary"
+                    className="ml-3 min-w-0 flex-1 border-none bg-transparent text-base sm:text-sm text-text outline-none placeholder:text-text-tertiary"
+                    role="combobox"
+                    aria-label={t("Search OghmaNotes")}
+                    aria-autocomplete="list"
+                    aria-expanded={visible}
+                    aria-controls={resultsId}
+                    aria-activedescendant={selectedResult ? `${resultsId}-${selectedIndex}` : undefined}
                     placeholder={t("Search OghmaNotes")}
                     value={query}
                     onChange={(event) => {
@@ -421,15 +450,48 @@ export default function GlobalSearchModal() {
                   <button
                     type="button"
                     onClick={handleClose}
-                    className="ml-3 rounded-radius-md p-1 text-text-tertiary transition-colors hover:bg-subtle hover:text-text"
+                    className="ml-3 flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-text sm:h-8 sm:w-8"
                     title={t("Close")}
+                    aria-label={t("Close")}
                   >
                     <XMarkIcon className="h-5 w-5" />
                   </button>
                 </div>
 
-                <div className="grid min-h-[430px] grid-cols-1 md:grid-cols-[minmax(0,1.1fr)_minmax(280px,0.9fr)]">
-                  <div className="max-h-[62vh] overflow-y-auto border-border-subtle md:border-r">
+                <div role="status" className="sr-only">
+                  {loading
+                    ? t("Searching...")
+                    : searchError
+                      ? null
+                      : hasAnyResult
+                        ? t("Search results: {count}", { count: flatResults.length })
+                        : trimmedQuery
+                          ? t('No matches for "{query}"', { query: trimmedQuery })
+                          : t("No recent results")}
+                </div>
+                {searchError && (
+                  <div className="flex flex-wrap items-center gap-3 border-b border-border-subtle px-4 py-3">
+                    <p role="alert" className="text-sm text-error-400">
+                      {searchError === "session"
+                        ? t("Your session has expired. Please log in again.")
+                        : t("error.something_went_wrong")}
+                    </p>
+                    {searchError === "session" ? (
+                      <a href="/login" className="text-sm font-semibold text-primary-400">
+                        {t("Sign in")}
+                      </a>
+                    ) : (
+                      <button type="button" onClick={() => {
+                        inputRef.current?.focus();
+                        setRetryCount((count) => count + 1);
+                      }} className="min-h-11 rounded-radius-md px-3 text-sm font-semibold text-primary-400 hover:bg-subtle">
+                        {t("Try again")}
+                      </button>
+                    )}
+                  </div>
+                )}
+                <div className="grid min-h-[320px] grid-cols-1 md:min-h-[430px] md:grid-cols-[minmax(0,1.1fr)_minmax(280px,0.9fr)]">
+                  <div id={resultsId} role="listbox" aria-label={t("Search OghmaNotes")} aria-busy={loading} className="max-h-[62vh] overflow-y-auto border-border-subtle md:border-r">
                     {SECTION_ORDER.map((section) => {
                       const sectionResults = results[section];
                       if (sectionResults.length === 0) return null;
@@ -441,20 +503,24 @@ export default function GlobalSearchModal() {
                       }
 
                       return (
-                        <div key={section} className="py-2">
+                        <div key={section} role="group" aria-label={t(SECTION_LABELS[section])} className="py-2">
                           <div className="px-4 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">
                             {t(SECTION_LABELS[section])}
                           </div>
-                          <ul>
+                          <ul role="presentation">
                             {sectionResults.map((result, index) => {
                               const globalIndex = runningIndex + index;
                               const selected = globalIndex === selectedIndex;
                               const Icon = resultIcon(result.type);
 
                               return (
-                                <li key={`${result.type}-${result.id}`}>
+                                <li key={`${result.type}-${result.id}`} role="presentation">
                                   <button
                                     type="button"
+                                    id={`${resultsId}-${globalIndex}`}
+                                    role="option"
+                                    aria-selected={selected}
+                                    tabIndex={-1}
                                     onMouseEnter={() =>
                                       setSelectedIndex(globalIndex)
                                     }
@@ -509,7 +575,7 @@ export default function GlobalSearchModal() {
                       </div>
                     )}
 
-                    {!hasAnyResult && !loading && (
+                    {!hasAnyResult && !loading && !searchError && (
                       <div className="flex min-h-[320px] flex-col items-center justify-center px-6 text-center">
                         <MagnifyingGlassIcon className="h-10 w-10 text-text-tertiary opacity-50" />
                         <p className="mt-3 text-sm font-medium text-text">

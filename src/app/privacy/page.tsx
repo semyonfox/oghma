@@ -1,3 +1,4 @@
+import TelemetryPreference from "@/components/telemetry-preference";
 import PublicInfoPage, { InfoSection } from "@/components/public-info-page";
 
 export const metadata = {
@@ -41,17 +42,10 @@ export default function PrivacyPage() {
         </p>
       </InfoSection>
 
-      <InfoSection title="Privacy-First Analytics">
-        <p>
-          We use limited first-party, aggregate-oriented events to understand
-          public-page acquisition and account activation. We do not use
-          analytics cookies, advertising pixels, session replay, anonymous
-          browser identifiers, raw IP addresses, query strings, or user-agent
-          fingerprints or browser storage. Campaign attribution is attached only
-          to the event generated from the current page URL, raw events are
-          retained for up to 30 days, and Do Not Track or Global Privacy Control
-          disables this collection.
-        </p>
+      <InfoSection title="Anonymous usage counts">
+        <p>Optional screen and action counts and fixed technical error categories are self-hosted. Collection is off until an endpoint is explicitly configured. It uses no analytics cookies, visitor identifiers, account IDs, referrers, query strings, navigation journeys or private content. Do Not Track and Global Privacy Control disable collection.</p>
+        <p>The collector stores daily totals, with counts retained for 30 days and error counts for 14 days. Raw observations are not stored by the anonymous collector. Necessary authentication and abuse-prevention records are separate.</p>
+        <TelemetryPreference />
       </InfoSection>
 
       <InfoSection title="AI Processing">
@@ -77,7 +71,7 @@ export default function PrivacyPage() {
       </InfoSection>
 
       <InfoSection title="Last Updated">
-        <p>August 8, 2026.</p>
+        <p>October 4, 2026.</p>
       </InfoSection>
     </PublicInfoPage>
   );

@@ -1,137 +1,33 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { TransformableInfo } from "logform";
-
-// mock transports to avoid filesystem side effects
+import { describe, it, expect, vi } from "vitest";
+import winston from "winston";
+import { PassThrough } from "node:stream";
+import logger, { redactSensitive } from "@/lib/logger";
 vi.mock("winston-daily-rotate-file", () => ({ default: vi.fn() }));
 
-// mock trace module to avoid AsyncLocalStorage complexity in tests
-vi.mock("@/lib/trace", () => ({
-  traceFormat: {
-    transform: (info: Record<string, unknown>) => {
-      info.traceId = "test-trace";
-      return info;
-    },
-  },
-}));
-
-function transformInfo(
-  transform: (info: TransformableInfo) => TransformableInfo | boolean,
-  info: TransformableInfo,
-): TransformableInfo {
-  const transformed = transform(info);
-  if (typeof transformed === "boolean") {
-    throw new Error("The redaction format unexpectedly dropped a log entry");
-  }
-  return transformed;
-}
-
-describe("logger", () => {
-  beforeEach(() => {
-    vi.unstubAllEnvs();
+describe("operational diagnostics privacy", () => {
+  it("drops text, stacks, identifiers, symbols and arbitrary nested fields", () => {
+    const result = redactSensitive.transform({
+      level: "error", message: "private note student@example.test /notes/private-id", statusCode: 503,
+      userId: "private-id", emailHash: "identity-hash", traceId: "trace-id", stack: "private stack", internal: "secret token",
+      user: { name: "private name", email: "private@example.test" },
+      [Symbol.for("splat")]: ["private interpolation"], [Symbol.for("message")]: "private cached serialization",
+    });
+    expect(result).toEqual({ level: "error", [Symbol.for("level")]: "error", message: "operation_failed", service: "oghmanotes", statusClass: "5xx" });
+    expect(JSON.stringify(result)).not.toMatch(/private|secret|trace|hash|email|stack/);
   });
-
-  it("exports a default logger with standard log methods", async () => {
-    const { default: logger } = await import("@/lib/logger");
-    expect(typeof logger.info).toBe("function");
-    expect(typeof logger.warn).toBe("function");
-    expect(typeof logger.error).toBe("function");
-    expect(typeof logger.debug).toBe("function");
+  it("keeps the duplicate-account security category without identity", () => {
+    const result = redactSensitive.transform({ level: "error", message: "private identity", category: "duplicate_account_detected", user_ids: ["private-user"], emailHash: "private-hash" });
+    expect(result).toMatchObject({ message: "duplicate_account_detected" });
+    expect(JSON.stringify(result)).not.toContain("private");
   });
-
-  it("has a level property", async () => {
-    const { default: logger } = await import("@/lib/logger");
-    expect(typeof logger.level).toBe("string");
-  });
-
-  it("can call log methods without throwing", async () => {
-    const { default: logger } = await import("@/lib/logger");
-    expect(() => logger.info("test message")).not.toThrow();
-    expect(() => logger.warn("warning", { key: "value" })).not.toThrow();
-    expect(() => logger.error("error message", { code: 500 })).not.toThrow();
-    expect(() => logger.debug("debug details")).not.toThrow();
-  });
-});
-
-describe("redactSensitive", () => {
-  it("is exported as a named export", async () => {
-    const { redactSensitive } = await import("@/lib/logger");
-    expect(redactSensitive).toBeDefined();
-  });
-
-  it("redacts known sensitive keys", async () => {
-    const { redactSensitive } = await import("@/lib/logger");
-    const info = {
-      level: "info",
-      message: "test",
-      password: "secret123",
-      token: "abc-token",
-      authorization: "Bearer xyz",
-    };
-
-    const result = transformInfo(redactSensitive.transform, info);
-    expect(result.password).toBe("[REDACTED]");
-    expect(result.token).toBe("[REDACTED]");
-    expect(result.authorization).toBe("[REDACTED]");
-    // non-sensitive keys preserved
-    expect(result.message).toBe("test");
-  });
-
-  it("redacts case-insensitively", async () => {
-    const { redactSensitive } = await import("@/lib/logger");
-    const info = {
-      level: "info",
-      message: "test",
-      Password: "secret",
-      TOKEN: "abc",
-    };
-
-    const result = transformInfo(redactSensitive.transform, info);
-    expect(result.Password).toBe("[REDACTED]");
-    expect(result.TOKEN).toBe("[REDACTED]");
-  });
-
-  it("redacts sensitive keys nested in objects", async () => {
-    const { redactSensitive } = await import("@/lib/logger");
-    const info = {
-      level: "info",
-      message: "test",
-      user: {
-        name: "Alice",
-        password: "hunter2",
-        canvas_token: "tok-xyz",
-      },
-    };
-
-    const result = transformInfo(redactSensitive.transform, info);
-    const user = result.user as Record<string, unknown>;
-    expect(user.name).toBe("Alice");
-    expect(user.password).toBe("[REDACTED]");
-    expect(user.canvas_token).toBe("[REDACTED]");
-  });
-
-  it("preserves non-sensitive data untouched", async () => {
-    const { redactSensitive } = await import("@/lib/logger");
-    const info = {
-      level: "info",
-      message: "user login",
-      email: "user@example.com",
-      status: 200,
-    };
-
-    const result = transformInfo(redactSensitive.transform, info);
-    expect(result.email).toBe("user@example.com");
-    expect(result.status).toBe(200);
-  });
-
-  it("handles null and undefined values gracefully", async () => {
-    const { redactSensitive } = await import("@/lib/logger");
-    const info = {
-      level: "info",
-      message: "test",
-      data: null,
-      extra: undefined,
-    };
-
-    expect(() => transformInfo(redactSensitive.transform, info)).not.toThrow();
+  it("sanitizes actual transport output instead of only metadata helpers", async () => {
+    const stream = new PassThrough(); let output = "";
+    stream.on("data", (data: Buffer) => { output += data.toString(); });
+    const transport = new winston.transports.Stream({ stream, format: winston.format.json() });
+    logger.add(transport);
+    logger.error("private fixture email@example.test", { error: new Error("private note"), user_ids: ["private-id"], [Symbol.for("splat")]: ["secret"] });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    logger.remove(transport); stream.end();
+    expect(output).toContain("operation_failed"); expect(output).not.toMatch(/private|secret|email|user_ids|traceId|timestamp|stack/);
   });
 });

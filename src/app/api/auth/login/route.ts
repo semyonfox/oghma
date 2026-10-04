@@ -9,7 +9,6 @@
  */
 
 import bcrypt from "bcryptjs";
-import { createHash } from "crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import sql from "@/database/pgsql";
 import { CanvasClient } from "@/lib/canvas/client";
@@ -129,14 +128,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   // Security check: verify that no duplicate emails exist. The UNIQUE constraint should prevent this.
   if (data.length > 1) {
-    logger.error("multiple accounts with same email detected", {
-      emailHash: createHash("sha256")
-        .update(email.trim())
-        .digest("hex")
-        .slice(0, 16),
-      count: data.length,
-      user_ids: data.map((u) => u.user_id),
-    });
+    logger.error("security_event", { category: "duplicate_account_detected" });
     return createErrorResponse(
       "Account configuration error. Please contact support.",
       500,

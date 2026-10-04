@@ -16,6 +16,7 @@ import {
 export default function LoginPage() {
   const { t } = useI18n();
   const userRef = useRef<HTMLInputElement>(null);
+  const providerStatusRef = useRef<HTMLParagraphElement>(null);
   const errRef = useRef<HTMLDivElement>(null);
   const redirectFallbackRef = useRef<number | null>(null);
   const router = useRouter();
@@ -26,6 +27,12 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [oauthProviders, setOauthProviders] = useState<Awaited<ReturnType<typeof getProviders>>>(null);
+  const [providersLoaded, setProvidersLoaded] = useState(false);
+  const [providersAttempt, setProvidersAttempt] = useState(0);
+
+  useEffect(() => {
+    if (errMsg) errRef.current?.focus();
+  }, [errMsg]);
 
   // auth redirect is handled by middleware — no client-side check needed
 
@@ -47,12 +54,15 @@ export default function LoginPage() {
       })
       .catch(() => {
         if (mounted) setOauthProviders(null);
+      })
+      .finally(() => {
+        if (mounted) setProvidersLoaded(true);
       });
 
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [providersAttempt]);
 
   // Clear error message on input change (via input handlers below, not effect)
   const handleEmailChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -67,6 +77,7 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setErrMsg("");
     setLoading(true);
     try {
       const _response = await login(email, pwd, rememberMe);
@@ -91,18 +102,14 @@ export default function LoginPage() {
         return;
       }
       setErrMsg(getErrorMessage(err));
-      setPwd("");
-      errRef.current?.focus();
+      if (authError.status === 400 || authError.status === 401) setPwd("");
       setLoading(false);
     }
   };
 
   // OAuth login handler - delegates to Auth.js
   const handleSocialLogin = (provider: string) => {
-    if (
-      oauthProviders &&
-      !isOAuthProviderConfigured(provider, oauthProviders)
-    ) {
+    if (isProviderDisabled(provider)) {
       setErrMsg(t("This sign-in provider is not configured right now"));
       return;
     }
@@ -111,11 +118,11 @@ export default function LoginPage() {
   };
 
   const isProviderDisabled = (provider: string) =>
-    oauthProviders !== null &&
+    loading || !providersLoaded || !oauthProviders ||
     !isOAuthProviderConfigured(provider, oauthProviders);
 
   return (
-    <div className="flex min-h-screen flex-col justify-center py-12 px-6 lg:px-8 bg-app-page">
+    <main className="flex min-h-screen flex-col justify-center py-12 px-6 lg:px-8 bg-app-page">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <Link
           href="/"
@@ -130,13 +137,18 @@ export default function LoginPage() {
         <h1 className="mt-8 text-center font-serif text-3xl font-semibold tracking-tight text-text">
           {t("Sign in to your account")}
         </h1>
+        <p className="mt-3 text-center text-sm text-text-secondary">
+          <Link href="/register" className="font-semibold text-primary-400 hover:text-primary-300">
+            {t("Create account")}
+          </Link>
+        </p>
       </div>
 
       <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-[460px]">
         <div className="glass-card rounded-radius-xl px-6 py-10 sm:px-10">
-          <form onSubmit={handleSubmit} method="POST" className="space-y-6">
+          <form aria-busy={loading} onSubmit={handleSubmit} method="POST" className="space-y-6">
             {errMsg && (
-              <div ref={errRef}>
+              <div ref={errRef} role="alert" tabIndex={-1}>
                 <Alert
                   variant="error"
                   title={t("Sign in failed")}
@@ -162,7 +174,7 @@ export default function LoginPage() {
                   autoComplete="email"
                   value={email}
                   onChange={handleEmailChange}
-                  className="block w-full rounded-radius-md bg-input border border-border-subtle px-3 py-2 text-sm text-text placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500/60"
+                  className="block w-full rounded-radius-md bg-input border border-border-subtle px-3 py-2 text-base sm:text-sm text-text placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500/60"
                 />
               </div>
             </div>
@@ -183,7 +195,7 @@ export default function LoginPage() {
                   autoComplete="current-password"
                   value={pwd}
                   onChange={handlePasswordChange}
-                  className="block w-full rounded-radius-md bg-input border border-border-subtle px-3 py-2 text-sm text-text placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500/60"
+                  className="block w-full rounded-radius-md bg-input border border-border-subtle px-3 py-2 text-base sm:text-sm text-text placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500/60"
                 />
               </div>
             </div>
@@ -226,9 +238,25 @@ export default function LoginPage() {
               </button>
             </div>
           </form>
+            <p role="status" aria-live="polite" className="sr-only">{loading ? t("Signing in...") : ""}</p>
 
           {/* Social login section */}
           <div>
+            <p ref={providerStatusRef} tabIndex={-1} role="status" className="mt-6 rounded-radius-md text-center text-sm text-text-tertiary focus:outline-2 focus:outline-offset-2 focus:outline-primary-400">
+              {!providersLoaded ? t("Loading...") :
+                !oauthProviders ? t("error.something_went_wrong") :
+                  !isOAuthProviderConfigured("google", oauthProviders) || !isOAuthProviderConfigured("github", oauthProviders)
+                    ? t("This sign-in provider is not configured right now") : null}
+            </p>
+            {providersLoaded && !oauthProviders && (
+              <button type="button" onClick={() => {
+                providerStatusRef.current?.focus();
+                setProvidersLoaded(false);
+                setProvidersAttempt((attempt) => attempt + 1);
+              }} className="mx-auto mt-2 block min-h-11 rounded-radius-md px-3 text-sm font-semibold text-primary-400 hover:bg-subtle">
+                {t("Try again")}
+              </button>
+            )}
             <div className="mt-10 flex items-center gap-x-6">
               <div className="w-full flex-1 border-t border-border-subtle" />
               <p className="text-sm/6 font-medium text-nowrap text-text-tertiary">
@@ -301,6 +329,6 @@ export default function LoginPage() {
           </Link>
         </p>
       </div>
-    </div>
+    </main>
   );
 }

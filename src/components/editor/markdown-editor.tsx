@@ -16,6 +16,9 @@ import useLayoutStore, {
 } from "@/lib/notes/state/layout.zustand";
 import useNoteStore from "@/lib/notes/state/note";
 import useSyncStatusStore from "@/lib/notes/state/sync-status";
+import useSaveIndicatorStore, {
+  SaveState,
+} from "@/lib/notes/state/save-indicator";
 import { useSettingsStore } from "@/lib/notes/state/ui/settings";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { toast } from "sonner";
@@ -40,6 +43,7 @@ const DRAFT_DEBOUNCE_MS = 1000;
  */
 const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
   const router = useRouter();
+  const draftOwner = file.draftOwner ?? pane;
   const [localContent, setLocalContent] = useState("");
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -69,6 +73,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
   const editRevision = useRef(0);
   const saveInFlight = useRef(false);
   const saveQueued = useRef(false);
+  const editorGeneration = useRef(0);
   const saveLatest = useRef<() => void>(() => {});
   const editorWidth = getEditorWidthStyle(resolvedEditorSize ?? editorSize);
 
@@ -107,26 +112,30 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (!isDirtyRef.current) return;
       if (draftTimer.current) clearTimeout(draftTimer.current);
-      // fire-and-forget flush — IDB write is fast enough to land before teardown
-      writeDraft(currentFileId.current, localContentRef.current).catch(
+      // best effort; browsers may stop asynchronous work during teardown
+      writeDraft(currentFileId.current, draftOwner, localContentRef.current).catch(
         () => {},
       );
       e.preventDefault();
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, []);
+  }, [draftOwner]);
 
   // load note content when file changes.
   // priority: draft (if newer) > API > IDB cache
   useEffect(() => {
     if (!file.fileId) return;
     currentFileId.current = file.fileId;
+    editorGeneration.current += 1;
     setLoaded(false);
     setIsDirty(false);
     isDirtyRef.current = false;
     editRevision.current = 0;
     saveQueued.current = false;
+    saveInFlight.current = false;
+    setIsSaving(false);
+    setSaveError(false);
     serverUpdatedAt.current = undefined;
 
     let cancelled = false;
@@ -136,11 +145,17 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
       // check for an unsaved draft first — restore immediately if it exists
       let draftRestored = false;
       try {
-        const draft = await readDraft(file.fileId);
+        const draft = await readDraft(file.fileId, draftOwner, () => {
+          const layout = useLayoutStore.getState();
+          const other = pane === "A" ? layout.paneB : layout.paneA;
+          return !cancelled && currentFileId.current === stale && other?.fileId !== file.fileId;
+        });
         if (draft && !cancelled && currentFileId.current === stale) {
           setLocalContent(draft.content);
           setLoaded(true);
           setIsDirty(true);
+          isDirtyRef.current = true;
+          localContentRef.current = draft.content;
           draftRestored = true;
           toast.info(t("Restored unsaved draft"), { duration: 3000 });
         }
@@ -187,7 +202,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
           // If a draft was restored, do not overwrite the user's unsaved work.
           // Check whether the server version is newer.
           if (draftRestored) {
-            const draft = await readDraft(file.fileId);
+            const draft = await readDraft(file.fileId, draftOwner);
             const serverMs = result.updatedAt
               ? new Date(result.updatedAt).getTime()
               : 0;
@@ -217,17 +232,18 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
 
     return () => {
       cancelled = true;
+      editorGeneration.current += 1;
       if (draftTimer.current) {
         clearTimeout(draftTimer.current);
         draftTimer.current = null;
       }
       if (isDirtyRef.current) {
-        writeDraft(currentFileId.current, localContentRef.current).catch(
+        writeDraft(file.fileId, draftOwner, localContentRef.current).catch(
           () => {},
         );
       }
     };
-  }, [dismissUnavailablePane, file.fileId, fetchNote, pane, router, t]);
+  }, [dismissUnavailablePane, draftOwner, file.fileId, fetchNote, pane, router, t]);
 
   // removed: the old effect watched the global `note` singleton, meaning a
   // fetchNote in pane B would push new state into pane A and cause a flash.
@@ -267,10 +283,10 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
       if (!file.fileId) return;
       if (draftTimer.current) clearTimeout(draftTimer.current);
       draftTimer.current = setTimeout(() => {
-        writeDraft(file.fileId, content).catch(() => {});
+        writeDraft(file.fileId, draftOwner, content).catch(() => {});
       }, DRAFT_DEBOUNCE_MS);
     },
-    [file.fileId],
+    [file.fileId, draftOwner],
   );
 
   // save via API
@@ -283,6 +299,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
 
     const contentToSave = localContentRef.current;
     const revisionToSave = editRevision.current;
+    const generationToSave = editorGeneration.current;
     saveInFlight.current = true;
     saveQueued.current = false;
     if (draftTimer.current) {
@@ -293,7 +310,10 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
     setIsSaving(true);
     setSaveError(false);
     try {
+      // try to persist the edit before the request without blocking a server save
+      const savedDraft = await writeDraft(file.fileId, draftOwner, contentToSave).catch(() => null);
       await mutateNote(file.fileId, { content: contentToSave });
+      if (generationToSave !== editorGeneration.current) return;
       const savedCurrentRevision =
         revisionToSave === editRevision.current &&
         contentToSave === localContentRef.current;
@@ -301,7 +321,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
         isDirtyRef.current = false;
         setIsDirty(false);
         markSynced(file.fileId);
-        await clearDraft(file.fileId).catch(() => {});
+        if (savedDraft) await clearDraft(file.fileId, draftOwner, savedDraft).catch(() => {});
       } else {
         isDirtyRef.current = true;
         setIsDirty(true);
@@ -318,18 +338,21 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
         }),
       );
     } catch (error) {
+      if (generationToSave !== editorGeneration.current) return;
       console.error("Save failed:", error);
       setSaveError(true);
       toast.error(t("Failed to save note"));
     } finally {
-      saveInFlight.current = false;
-      setIsSaving(false);
-      if (saveQueued.current && isDirtyRef.current) {
-        saveQueued.current = false;
-        queueMicrotask(() => saveLatest.current());
+      if (generationToSave === editorGeneration.current) {
+        saveInFlight.current = false;
+        setIsSaving(false);
+        if (saveQueued.current && isDirtyRef.current) {
+          saveQueued.current = false;
+          queueMicrotask(() => saveLatest.current());
+        }
       }
     }
-  }, [file.fileId, mutateNote, markModified, markSynced, t]);
+  }, [file.fileId, draftOwner, mutateNote, markModified, markSynced, t]);
 
   saveLatest.current = () => {
     void handleSave();
@@ -339,7 +362,9 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
   // toolbar/outer-shell focus so the editor still behaves like one mode.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
       if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+        if (useLayoutStore.getState().activePane !== pane) return;
         e.preventDefault();
         handleSave();
       }
@@ -347,7 +372,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleSave]);
+  }, [handleSave, pane]);
 
   // save on blur — when user clicks away from the editor
   const handleEditorBlur = useCallback(
@@ -360,47 +385,37 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
     [isDirty, handleSave],
   );
 
+  // publish save state to the pane header — the filename bar owns the button
+  const setIndicator = useSaveIndicatorStore((s) => s.setIndicator);
+  const clearIndicator = useSaveIndicatorStore((s) => s.clearIndicator);
+  const saveState: SaveState = isSaving
+    ? "saving"
+    : saveError
+      ? "error"
+      : isDirty
+        ? "dirty"
+        : "saved";
+
+  const requestSave = useCallback(() => {
+    saveLatest.current();
+  }, []);
+
+  useEffect(() => {
+    setIndicator(pane, {
+      fileId: file.fileId,
+      state: saveState,
+      save: requestSave,
+    });
+  }, [pane, file.fileId, saveState, requestSave, setIndicator]);
+
+  useEffect(() => {
+    const paneId = pane;
+    const fileId = file.fileId;
+    return () => clearIndicator(paneId, fileId);
+  }, [pane, file.fileId, clearIndicator]);
+
   return (
     <div className="relative h-full flex flex-col bg-app-page" onBlur={handleEditorBlur}>
-      {/* Actions share the visual row owned by Crepe's formatting toolbar. */}
-      <div className="absolute right-3 top-0 z-30 flex h-11 items-center gap-1.5">
-          {isDirty && !isSaving ? (
-            <button
-              onClick={handleSave}
-              className="inline-flex h-7 items-center gap-1.5 rounded-radius-sm px-2 text-xs font-mono text-yellow-500 transition-colors hover:bg-yellow-500/10 hover:text-yellow-400"
-              title={t("Save (Ctrl+S)")}
-            >
-              <svg
-                className="w-3 h-3"
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M5 3h8l4 4v8a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
-                <path d="M7 3v4h6V3M7 13h6" />
-              </svg>
-              {t("Unsaved")}
-            </button>
-          ) : (
-            <span
-              className={`inline-flex h-7 items-center rounded-radius-sm px-2 text-xs font-mono ${
-                isSaving
-                  ? "text-yellow-500"
-                  : saveError
-                    ? "text-error-400"
-                    : "text-success-500"
-              }`}
-            >
-              {isSaving
-                ? t("Saving...")
-                : saveError
-                  ? t("Save failed")
-                  : t("Saved")}
-            </span>
-          )}
-      </div>
-
       {/* Content Area */}
       <div
         className="flex-1 overflow-hidden bg-app-page"

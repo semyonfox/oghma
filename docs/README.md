@@ -14,6 +14,7 @@ Use this page to find the owner of a fact. Link to that owner instead of copying
 | Run the app locally | [Local setup](../SETUP.md) |
 | Find current work | [Current-work pointers](../TODO.md) |
 | Understand the running code | [Architecture](engineering/architecture.md) |
+| [Anonymous usage counts](engineering/anonymous-telemetry.md) | Default-off collection, privacy controls, transport contract and retired reporting |
 | Operate the current deployment | [Infrastructure index](../infra/README.md) and [homelab runbook](../infra/HOMELAB.md) |
 | Operate import and vault workers | [Import-worker runbook](operations/import-worker.md) |
 | Prepare a beta or paid launch | [Launch checklist](product/launch-checklist.md) |
@@ -28,7 +29,7 @@ Use this page to find the owner of a fact. Link to that owner instead of copying
 | [Roadmap](product/roadmap.md) | Product outcomes, phases, and sequencing |
 | [Positioning](product/positioning.md) | Public promise, message hierarchy, and claim boundaries |
 | [Pricing](product/pricing.md) | Price ranges, entitlements, allowances, and cost triggers |
-| [Growth analytics](product/growth-analytics.md) | Funnel events, attribution, privacy limits, dashboard, and retention |
+| [Growth analytics](product/growth-analytics.md) | Retired acquisition design; current anonymous counts are documented under Engineering |
 | [Launch checklist](product/launch-checklist.md) | Beta and paid-launch gates |
 | [Company admin](product/company-admin.md) | Company/payment administrative sequence; not professional advice |
 

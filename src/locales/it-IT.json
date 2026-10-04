@@ -1088,10 +1088,11 @@
   "The selected notes will be moved to Trash.": "Le note selezionate verranno spostate nel cestino.",
   "This folder and all its contents will be moved to Trash.": "Questa cartella e tutto il suo contenuto verranno spostati nel cestino.",
   "This item will be permanently deleted. This cannot be undone.": "Questo elemento verrà eliminato definitivamente. Questa azione non può essere annullata.",
-  "Trash": "Cestino",
   "Contains {count} items": "Contiene {count} elementi",
   "Expires today": "Scade oggi",
   "Expires tomorrow": "Scade domani",
   "Failed to change language": "Impossibile cambiare lingua",
-  "Failed to save language preference": "Impossibile salvare la preferenza della lingua"
+  "Failed to save language preference": "Impossibile salvare la preferenza della lingua",
+  "Search results: {count}": "Risultati di ricerca: {count}",
+  "Retry save": "Riprova a salvare"
 }
