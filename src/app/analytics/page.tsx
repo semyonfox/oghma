@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { validateSession } from "@/lib/auth";
+import { validateSession } from "@/lib/auth/session";
 import { isAnalyticsAdmin } from "@/lib/marketing/admin";
 
 export default async function AnalyticsPage() {

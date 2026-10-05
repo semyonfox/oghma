@@ -55,7 +55,7 @@ function queuePrefixFromUrl(value: string | undefined): string | null {
   }
 }
 
-export function getQueuePrefix(): string {
+function getQueuePrefix(): string {
   return (
     sanitizeQueuePrefix(process.env.QUEUE_PREFIX) ??
     sanitizeQueuePrefix(process.env.BULLMQ_QUEUE_PREFIX) ??

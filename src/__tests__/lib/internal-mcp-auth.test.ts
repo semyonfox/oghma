@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createInternalMcpToken,
   verifyInternalMcpToken,
-} from "@/lib/mcp/internal-auth";
+} from "@/lib/auth/internal-mcp-token";
 
 describe("internal MCP auth", () => {
   it("round-trips a short-lived token", () => {

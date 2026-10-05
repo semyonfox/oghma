@@ -17,7 +17,7 @@ vi.mock("@/lib/notes/hooks/use-i18n", () => ({
   }),
 }));
 
-vi.mock("@/lib/notes/state/calendar.zustand", () => {
+vi.mock("@/lib/notes/state/calendar", () => {
   const state = {
     view: "month" as const,
     currentDate: "2026-08-15T12:00:00.000Z",
@@ -34,7 +34,7 @@ vi.mock("@/lib/notes/state/calendar.zustand", () => {
   };
 });
 
-vi.mock("@/lib/notes/state/assignments.zustand", () => {
+vi.mock("@/lib/notes/state/assignments", () => {
   const state = { assignments: [] };
   return {
     default: (selector: (value: typeof state) => unknown) => selector(state),

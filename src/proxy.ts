@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || "http://localhost:3000").split(",").map((o: string) => o.trim());
+const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || "http://localhost:3000")
+  .split(",")
+  .map((o: string) => o.trim());
 
 if (process.env.NEXT_PUBLIC_APP_URL) {
     ALLOWED_ORIGINS.push(process.env.NEXT_PUBLIC_APP_URL);
@@ -59,16 +61,7 @@ export async function proxy(request: NextRequest) {
     const nextAuthSession = request.cookies.get("authjs.session-token")?.value
         || request.cookies.get("__Secure-authjs.session-token")?.value;
     const isAuthenticated = !!(session || nextAuthSession);
-    const isAgentRegistration =
-        pathname === "/register" &&
-        request.nextUrl.searchParams.has("agent_claim_token");
-
-    // redirect authenticated users away from login/register (skip the page load)
-    if (isAuthenticated && !isAgentRegistration && (pathname === "/login" || pathname === "/register")) {
-        const response = NextResponse.redirect(new URL("/notes", request.url));
-        Object.entries(corsHeaders).forEach(([key, value]) => response.headers.set(key, value));
-        return response;
-    }
+    // cookie presence cannot establish validity; login must remain reachable after revocation
 
     // redirect unauthenticated users to login for protected routes
     // (skip auth pages to avoid redirect loops)

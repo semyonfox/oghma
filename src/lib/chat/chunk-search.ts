@@ -1,14 +1,14 @@
 import sql from "@/database/pgsql";
-import { embedText } from "@/lib/embedText";
+import { embedText } from "@/lib/rag/embeddings";
 import { searchChunkVectors } from "@/lib/qdrant";
 import { getChatMaxDistance } from "@/lib/ai-config";
 import { Metrics } from "@/lib/metrics";
-import { hydrateOwnedNoteChunks } from "@/lib/search/owned-note-chunks";
+import { hydrateOwnedNoteChunks } from "@/lib/rag/owned-note-chunks";
 
 const MAX_RESULTS = 12;
 const QUERY_LIMIT = 10;
 
-export type ChatChunkSearchMode = "semantic" | "exact" | "both";
+type ChatChunkSearchMode = "semantic" | "exact" | "both";
 
 export interface ChatChunkHit {
   noteId: string;
@@ -48,6 +48,7 @@ export async function searchChatChunks({
   mode,
   scopedNoteIds,
 }: SearchChatChunksParams): Promise<ChatChunkHit[]> {
+  if (scopedNoteIds?.length === 0) return [];
   const scoped = !!(scopedNoteIds && scopedNoteIds.length > 0);
   const seenChunkIds = new Set<string>();
   const results: ChatChunkHit[] = [];

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { stripMarkdown } from "@/lib/strip-markdown";
+import { stripMarkdown } from "@/lib/rag/strip-markdown";
 
 describe("stripMarkdown", () => {
   it("removes heading and list syntax while preserving text", () => {

@@ -4,9 +4,10 @@ import {
   requireAuth,
   requireValidId,
   ApiError,
+  parseJsonObject,
   type RouteParamsContext,
 } from "@/lib/api-error";
-import { checkRateLimit } from "@/lib/rateLimiter";
+import { checkRateLimit } from "@/lib/rate-limiter";
 import { isValidUUID } from "@/lib/utils/uuid";
 import { generateUUID } from "@/lib/utils/uuid";
 import { createNoteWithTree } from "@/lib/notes/storage/create-note";
@@ -28,26 +29,29 @@ import { isSharedImportedFileKey } from "@/lib/canvas/import-cache";
  */
 export const POST = withErrorHandler(async (
   request: Request,
-  context: RouteParamsContext<{ id: string }>,
+  { params }: RouteParamsContext<{ id: string }>,
 ) => {
   const user = await requireAuth();
 
   const limited = await checkRateLimit("share", user.user_id);
   if (limited) return limited;
 
-  const { id } = await context.params;
+  const { id } = await params;
   const sourceNoteId = requireValidId(id, "note ID");
 
-  const body = await request.json();
-  const { targetUserId, targetParentId } = body;
+  const body = await parseJsonObject(request);
+  const { targetUserId } = body;
 
-  if (!targetUserId || !isValidUUID(targetUserId)) {
+  if (!isValidUUID(targetUserId)) {
     throw new ApiError(400, "Invalid or missing targetUserId");
   }
 
-  if (targetParentId && !isValidUUID(targetParentId)) {
+  if (body.targetParentId && !isValidUUID(body.targetParentId)) {
     throw new ApiError(400, "Invalid targetParentId");
   }
+  const targetParentId = isValidUUID(body.targetParentId)
+    ? body.targetParentId
+    : null;
 
   // cannot share to yourself
   if (targetUserId === user.user_id) {
@@ -134,7 +138,7 @@ export const POST = withErrorHandler(async (
       content: clonedContent,
       s3Key: clonedS3Key,
       isFolder: note.is_folder,
-      parentId: targetParentId || null,
+      parentId: targetParentId,
       clonedFrom: sourceNoteId,
       importedFileCacheId: note.imported_file_cache_id ?? null,
     });

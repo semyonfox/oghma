@@ -53,7 +53,12 @@ function treeStore() {
 describe("note save result handling", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useNoteStore.setState({ note: undefined, noteAPI: null, treeStore: null, sessionReady: true });
+    useNoteStore.setState({
+      note: undefined,
+      noteAPI: null,
+      treeStore: null,
+      sessionReady: true,
+    });
     useSyncStatusStore.setState({ status: {} });
   });
 

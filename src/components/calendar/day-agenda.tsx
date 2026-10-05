@@ -8,12 +8,13 @@ import {
 } from "@heroicons/react/24/outline";
 import { CheckCircleIcon as CheckCircleSolid } from "@heroicons/react/24/solid";
 import { toast } from "sonner";
-import useAssignmentStore from "@/lib/notes/state/assignments.zustand";
-import useCalendarStore from "@/lib/notes/state/calendar.zustand";
-import usePomodoroStore from "@/lib/notes/state/pomodoro.zustand";
+import useAssignmentStore from "@/lib/notes/state/assignments";
+import useCalendarStore from "@/lib/notes/state/calendar";
+import usePomodoroStore from "@/lib/notes/state/pomodoro";
 import { isoToDateKey, parseLocalDateKey } from "@/lib/notes/utils/calendar-date";
 import { getEffectiveAssignmentStatus } from "@/lib/notes/utils/assignment-status";
 import useI18n from "@/lib/notes/hooks/use-i18n";
+import { getCelebrationOrigin, triggerCelebration } from "@/lib/celebration";
 import AssignmentDetailsTrigger from "@/components/assignments/assignment-details-trigger";
 import AssignmentTypeIcon from "@/components/assignments/assignment-type-icon";
 
@@ -79,17 +80,33 @@ export default function DayAgenda({
     minute: "2-digit",
   });
 
-  const toggleAssignment = async (id: string, completed: boolean) => {
+  const toggleAssignment = async (
+    id: string,
+    completed: boolean,
+    control: HTMLElement,
+  ) => {
+    const origin = completed ? undefined : getCelebrationOrigin(control);
     const updated = await updateAssignment(id, {
       status: completed ? "upcoming" : "done",
     });
-    if (!updated) toast.error(t("Something went wrong"));
+    if (!updated) {
+      toast.error(t("Something went wrong"));
+      return;
+    }
+    if (!completed) void triggerCelebration("assignment", origin);
   };
 
-  const toggleBlock = async (id: string) => {
+  const toggleBlock = async (
+    id: string,
+    completed: boolean,
+    control: HTMLElement,
+  ) => {
+    const origin = completed ? undefined : getCelebrationOrigin(control);
     if (!(await toggleTimeBlockCompleted(id))) {
       toast.error(t("Something went wrong"));
+      return;
     }
+    if (!completed) void triggerCelebration("assignment", origin);
   };
 
   const removeBlock = async (id: string) => {
@@ -191,7 +208,13 @@ export default function DayAgenda({
                     <div className="flex items-start gap-2">
                       <button
                         type="button"
-                        onClick={() => void toggleBlock(block.id)}
+                        onClick={(event) =>
+                          void toggleBlock(
+                            block.id,
+                            block.completed,
+                            event.currentTarget,
+                          )
+                        }
                         className="flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-md text-text-tertiary hover:bg-subtle hover:text-primary-700 dark:hover:text-primary-300"
                         aria-label={
                           block.completed ? t("Mark incomplete") : t("Mark complete")
@@ -255,7 +278,13 @@ export default function DayAgenda({
                       <div className="flex items-start gap-2">
                         <button
                           type="button"
-                          onClick={() => void toggleAssignment(assignment.id, completed)}
+                          onClick={(event) =>
+                            void toggleAssignment(
+                              assignment.id,
+                              completed,
+                              event.currentTarget,
+                            )
+                          }
                           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-md text-text-tertiary hover:bg-subtle hover:text-primary-700 dark:hover:text-primary-300"
                           aria-label={completed ? t("Mark as upcoming") : t("Mark as done")}
                         >
@@ -265,7 +294,7 @@ export default function DayAgenda({
                             <CheckCircleIcon className="h-5 w-5" />
                           )}
                         </button>
-                        <div className="min-w-0 flex-1 pt-1">
+                        <div className="min-w-0 flex-1">
                           <div className="flex min-w-0 items-start gap-1.5">
                             <AssignmentTypeIcon type={assignment.assignment_type} />
                             <h4
@@ -277,7 +306,7 @@ export default function DayAgenda({
                             >
                               <AssignmentDetailsTrigger
                                 assignment={assignment}
-                                className="min-h-11 w-full cursor-pointer text-left underline decoration-border-subtle underline-offset-4 hover:decoration-current"
+                                className="flex min-h-11 w-full items-center rounded-radius-sm px-1 text-left underline decoration-border-subtle underline-offset-4 transition-colors hover:bg-subtle hover:decoration-current focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/60"
                               />
                             </h4>
                           </div>

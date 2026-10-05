@@ -1,12 +1,10 @@
 import { NextResponse } from "next/server";
-import { validateSession } from "@/lib/auth";
-import { withErrorHandler, tracedError } from "@/lib/api-error";
+import { requireAuth, withErrorHandler } from "@/lib/api-error";
 import { advanceQuizStreak } from "@/lib/quiz/streak";
 import sql from "@/database/pgsql";
 
 export const GET = withErrorHandler(async () => {
-  const user = await validateSession();
-  if (!user) return tracedError("Unauthorized", 401);
+  const user = await requireAuth();
 
   const rows = await sql`
         SELECT current_streak, longest_streak, last_review_date, total_review_days, streak_milestones
@@ -25,8 +23,7 @@ export const GET = withErrorHandler(async () => {
 });
 
 export const POST = withErrorHandler(async () => {
-  const user = await validateSession();
-  if (!user) return tracedError("Unauthorized", 401);
+  const user = await requireAuth();
 
   const { current_streak, newMilestone } = await advanceQuizStreak(user.user_id);
   return NextResponse.json({ current_streak, newMilestone });

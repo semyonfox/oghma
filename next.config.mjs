@@ -1,11 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     // Allow local browser automation/dev previews to hydrate on loopback or LAN.
-    allowedDevOrigins: ['127.0.0.1', '10.0.0.5'],
+    allowedDevOrigins: ['127.0.0.1', '10.0.0.5', ...(process.env.NEXT_DEV_ALLOWED_ORIGINS || '').split(',').map(value => value.trim()).filter(Boolean)],
     // keep native/credential-dependent packages out of the Turbopack bundle
     // Provider SDK credential loaders must stay external for Node/Docker builds.
-    serverExternalPackages: ['postgres', 'winston-cloudwatch', 'aws-xray-sdk-core',
-        '@aws-sdk/client-secrets-manager', '@aws-sdk/credential-provider-node'],
+    serverExternalPackages: ['postgres', '@aws-sdk/credential-provider-node'],
+    // next dev would otherwise append its own block to AGENTS.md on every start
+    agentRules: false,
     // standalone output keeps Docker/Node deployments small and portable
     output: 'standalone',
 

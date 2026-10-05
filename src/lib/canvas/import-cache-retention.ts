@@ -92,7 +92,7 @@ export function parseImportedFileCacheRetentionDays(
   return Math.min(MAX_RETENTION_DAYS, Math.max(MIN_RETENTION_DAYS, parsed));
 }
 
-export function importedFileCacheRetentionDays(): number {
+function importedFileCacheRetentionDays(): number {
   return parseImportedFileCacheRetentionDays(
     process.env.IMPORT_CACHE_RETENTION_DAYS,
   );

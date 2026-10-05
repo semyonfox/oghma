@@ -27,6 +27,7 @@ vi.mock("@/lib/api-error", () => {
   return {
     ApiError,
     requireAuth: mocks.requireAuth,
+    parseJsonObject: (request: NextRequest) => request.json(),
     withErrorHandler:
       (handler: (request: NextRequest) => Promise<Response>) =>
       async (request: NextRequest) => {
@@ -57,6 +58,10 @@ vi.mock("@aws-sdk/client-s3", () => ({
 vi.mock("@/lib/storage/s3", () => ({
   createS3ClientConfig: vi.fn(() => ({})),
   createS3ConfigFromEnv: vi.fn(() => ({ bucket: "test" })),
+}));
+// starting an export removes the previous archive first, which needs a storage provider
+vi.mock("@/lib/storage/init", () => ({
+  getStorageProvider: () => ({ deleteObject: vi.fn(async () => undefined) }),
 }));
 
 import appSql from "@/database/pgsql";
@@ -102,6 +107,12 @@ beforeEach(async () => {
   await fixtureSql`
     INSERT INTO app.login (user_id, email, hashed_password)
     VALUES (${userId}::uuid, ${`${userId}@example.test`}, 'unused')
+  `;
+  // an import can only start for an upload that was reserved when its URL was signed
+  await fixtureSql`
+    INSERT INTO app.vault_artifacts (user_id, kind, s3_key, reserved_bytes, expires_at)
+    VALUES (${userId}::uuid, 'upload', ${`vault-uploads/${userId}/upload/vault.zip`}, 12,
+            NOW() + INTERVAL '2 hours')
   `;
 });
 

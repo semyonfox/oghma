@@ -76,7 +76,7 @@ vi.mock("@/lib/notes/state/note", () => ({
 vi.mock("@/lib/notes/state/tree", () => ({
   default: { getState: () => mocks.treeState },
 }));
-vi.mock("@/lib/notes/state/layout.zustand", () => ({
+vi.mock("@/lib/notes/state/layout", () => ({
   default: { getState: () => ({ resetWorkspace: mocks.layoutReset }) },
 }));
 vi.mock("@/lib/notes/state/save-indicator", () => ({

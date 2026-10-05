@@ -17,7 +17,7 @@ vi.mock("@/database/pgsql", () => ({
   afterDatabaseRollback: () => undefined,
 }));
 
-vi.mock("@/lib/embeddings", () => ({
+vi.mock("@/lib/rag/embeddings", () => ({
   embedChunks: vi.fn(),
 }));
 
@@ -27,7 +27,7 @@ vi.mock("@/lib/qdrant", () => ({
   upsertChunkVectors: vi.fn(),
 }));
 
-import { embedChunks } from "@/lib/embeddings";
+import { embedChunks } from "@/lib/rag/embeddings";
 import {
   deleteChunkVectors,
   setChunkVectorsSearchable,

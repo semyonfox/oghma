@@ -21,12 +21,14 @@ type CanvasCourseResult = {
 type CanvasCoursesResult = {
   data?: CanvasCourse[] | null;
   forbidden?: boolean;
+  unauthorized?: boolean;
   error?: string;
 };
 
 type CanvasEnrollmentsResult = {
   data?: CanvasRecord[] | null;
   forbidden?: boolean;
+  unauthorized?: boolean;
   error?: string;
 };
 
@@ -235,6 +237,9 @@ export async function discoverCanvasCourses(
     return {
       data: [],
       forbidden: Boolean(enrollmentResult?.forbidden),
+      unauthorized: Boolean(
+        visibleResult?.unauthorized || enrollmentResult?.unauthorized,
+      ),
       error:
         enrollmentResult?.error ?? "Canvas could not list this user's enrollments",
     };

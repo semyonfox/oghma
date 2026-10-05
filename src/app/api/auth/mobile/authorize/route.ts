@@ -1,13 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { ApiError, parseJsonObject, withErrorHandler } from "@/lib/api-error";
 import {
+  MOBILE_AUTH_CALLBACK,
+  mobileAppLinksReady,
   MOBILE_AUTH_CODE_PATTERN,
   MOBILE_AUTH_STATE_PATTERN,
   MobileAuthStoreUnavailableError,
   getActiveAuthJsMobileUser,
   issueMobileAuthGrant,
-} from "@/lib/mobile-auth";
-import { checkRateLimit } from "@/lib/rateLimiter";
+} from "@/lib/auth/mobile";
+import { checkRateLimit } from "@/lib/rate-limiter";
 
 function json(data: object, status = 200): NextResponse {
   return NextResponse.json(data, {
@@ -17,6 +19,11 @@ function json(data: object, status = 200): NextResponse {
 }
 
 async function requireBrowserOAuthUser() {
+  if (!mobileAppLinksReady())
+    throw new ApiError(
+      503,
+      "Android sign-in needs verified App Links. Please use password sign-in until setup is complete.",
+    );
   const user = await getActiveAuthJsMobileUser();
   if (!user) throw new ApiError(401, "Unauthorized");
   return user;
@@ -46,9 +53,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   if (limited) return limited;
 
   try {
-    const code = await issueMobileAuthGrant(user.user_id, codeChallenge);
+    const code = await issueMobileAuthGrant(user.user_id, codeChallenge, user.session_version);
     return json({
-      url: `ie.oghmanotes.alpha://auth?code=${code}&state=${state}`,
+      url: `${MOBILE_AUTH_CALLBACK}?code=${code}&state=${state}`,
     });
   } catch (error) {
     if (error instanceof MobileAuthStoreUnavailableError) {

@@ -12,7 +12,7 @@ vi.mock("@/lib/notes/hooks/use-i18n", () => ({
   }),
 }));
 
-vi.mock("@/lib/notes/state/calendar.zustand", () => ({
+vi.mock("@/lib/notes/state/calendar", () => ({
   default: () => ({
     currentDate: "2026-07-15T12:00:00.000Z",
     selectedDate: null,
@@ -35,7 +35,7 @@ vi.mock("@/lib/notes/state/calendar.zustand", () => ({
   }),
 }));
 
-vi.mock("@/lib/notes/state/assignments.zustand", () => ({
+vi.mock("@/lib/notes/state/assignments", () => ({
   default: () => ({
     assignments: [
       {
@@ -55,7 +55,7 @@ describe("MonthView", () => {
     const { container } = render(React.createElement(MonthView));
 
     expect(container.querySelector("button button")).toBeNull();
-    expect(container.querySelector('button[aria-label="Mark complete"]')).not.toBeNull();
+    expect(container.querySelector('button[aria-label="Mark as done"]')).not.toBeNull();
     expect(container.querySelector('button[aria-label^="Select "]')).not.toBeNull();
   });
 });

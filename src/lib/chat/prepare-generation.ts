@@ -1,11 +1,8 @@
 import {
   buildPlainSystemPrompt,
   buildSystemPrompt,
-} from "@/lib/chat/rag-pipeline";
-import {
-  type RetrievalInfo,
-  type SourceRef,
-} from "@/lib/chat/rag-context";
+} from "@/lib/chat/system-prompt";
+import type { RetrievalInfo, SourceRef } from "@/lib/chat/stream-events";
 import { buildSessionMemoryPrompt } from "@/lib/chat/normalize-scope";
 import type { ChatSessionContext } from "@/lib/chat/session";
 import type { MessagePart } from "@/lib/chat/types";
@@ -33,7 +30,7 @@ export async function prepareChatGeneration(input: {
   sessionContext: ChatSessionContext;
 }): Promise<PreparedChatGeneration> {
   const systemPrompt = input.useRag
-    ? buildSystemPrompt([])
+    ? buildSystemPrompt()
     : buildPlainSystemPrompt();
   const retrieval: RetrievalInfo = {
     scopeMode: input.scopedNoteIds === null ? "global" : "scoped",

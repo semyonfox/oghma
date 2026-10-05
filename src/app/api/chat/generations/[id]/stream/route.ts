@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   requireAuth,
   requireValidId,
+  type RouteParamsContext,
   tracedError,
   withErrorHandler,
 } from "@/lib/api-error";
@@ -47,7 +48,7 @@ function durableTerminalEvent(generation: ChatGenerationRecord): string {
 export const GET = withErrorHandler(
   async (
     request: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
+    { params }: RouteParamsContext<{ id: string }>,
   ) => {
     const user = await requireAuth();
     const { id: rawId } = await params;

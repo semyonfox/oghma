@@ -9,7 +9,7 @@ import {
 } from "@heroicons/react/24/outline";
 import useLayoutStore, {
   type RightPanelTab,
-} from "@/lib/notes/state/layout.zustand";
+} from "@/lib/notes/state/layout";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { extractTags } from "@/lib/notes/utils/file-spec";
 import dynamic from "next/dynamic";
@@ -20,6 +20,7 @@ import {
 import { buildChatSessionHref, buildNewChatHref } from "@/lib/chat/routes";
 import { removeMarkdown } from "@/lib/notes/utils/markdown";
 import { toast } from "sonner";
+import NoteStudyLabels from "@/components/study-map/note-study-labels";
 
 const ChatInterface = dynamic(
   () => import("@/components/chat/chat-interface"),
@@ -463,6 +464,11 @@ export default function NoteInspectorPanel({
                       <PlusIcon className="w-3.5 h-3.5" />
                     </button>
                   </div>
+                </div>
+
+                <div>
+                  <p className="text-xs text-text-tertiary mb-2">{t("Study map")}</p>
+                  <NoteStudyLabels noteId={activeFile.fileId} compact />
                 </div>
 
                 <div className="space-y-4 border-t border-border-subtle pt-4">

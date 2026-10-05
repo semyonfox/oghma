@@ -21,7 +21,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => mocks.pathname,
 }));
 
-vi.mock("@/lib/notes/state/layout.zustand", () => {
+vi.mock("@/lib/notes/state/layout", () => {
   const state = {
     activeNav: "notes",
     setActiveNav: mocks.setActiveNav,
@@ -49,7 +49,7 @@ vi.mock("@/lib/global-search/state", () => ({
   },
 }));
 
-vi.mock("@/lib/notes/state/pomodoro.zustand", () => ({
+vi.mock("@/lib/notes/state/pomodoro", () => ({
   __esModule: true,
   default: (selector: (value: unknown) => unknown) =>
     selector({ phase: mocks.pomodoroPhase, start: mocks.pomodoroStart }),

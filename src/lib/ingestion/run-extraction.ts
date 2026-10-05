@@ -1,12 +1,11 @@
 import { replaceNoteEmbeddings } from "@/lib/rag/indexing";
-import { stripMarkdown } from "@/lib/strip-markdown";
+import { stripMarkdown } from "@/lib/rag/strip-markdown";
 import { extractContentFromBuffer } from "@/lib/ingestion/extraction-core";
 import sql from "@/database/pgsql";
-import { xraySubsegment } from "@/lib/xray";
 import { getStorageProvider } from "@/lib/storage/init";
 import logger from "@/lib/logger";
 import { enqueueExtractionRetry } from "@/lib/canvas/extraction-retry";
-import { persistMarkerAssetsForNote } from "@/lib/marker-output";
+import { persistMarkerAssetsForNote } from "@/lib/marker/output";
 
 export interface ExtractionResult {
   chunksStored: number;
@@ -59,14 +58,13 @@ export async function runExtraction(
 
   const filename = s3Key.split("/").pop() ?? "document.pdf";
 
-  const extracted = await xraySubsegment("document-extract", () =>
-    extractContentFromBuffer({
-      buffer,
-      filename,
-      mimeType,
-    }),
-  );
-  const { rawText, chunks, source, markerImages, markerMetadata, pageRange } = extracted;
+  const extracted = await extractContentFromBuffer({
+    buffer,
+    filename,
+    mimeType,
+  });
+  const { rawText, chunks, source, markerImages, markerMetadata, pageRange } =
+    extracted;
 
   if (source === "pdf-parse") {
     logger.warn("Marker unavailable, using pdf-parse fallback", {
@@ -91,7 +89,11 @@ export async function runExtraction(
 
   // persist Marker images to S3 and rewrite image paths in the markdown
   let finalMarkdown = rawText;
-  if (source === "marker" && markerImages && Object.keys(markerImages).length > 0) {
+  if (
+    source === "marker" &&
+    markerImages &&
+    Object.keys(markerImages).length > 0
+  ) {
     try {
       const storage = getStorageProvider();
       const markerAssets = await persistMarkerAssetsForNote({
@@ -140,9 +142,7 @@ export async function runExtraction(
     return { chunksStored: 0 };
   }
 
-  const chunksStored = await xraySubsegment("replace-embeddings", () =>
-    replaceNoteEmbeddings(documentId, userId, chunks),
-  );
+  const chunksStored = await replaceNoteEmbeddings(documentId, userId, chunks);
 
   return { chunksStored };
 }

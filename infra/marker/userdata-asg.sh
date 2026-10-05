@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # EC2 user-data for g5.xlarge ASG instances (NVIDIA A10G GPU)
-# deploys a real marker /marker/upload API used by src/lib/ocr.ts
+# deploys a real marker /marker/upload API used by src/lib/marker/ocr.ts
 set -euo pipefail
 
 exec > /var/log/marker-setup.log 2>&1

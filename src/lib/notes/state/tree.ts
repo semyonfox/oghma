@@ -1,6 +1,6 @@
 // extracted from Notea (MIT License)
 import { create } from "zustand";
-import { genId } from "@/lib/notes/utils/id";
+import { generateUUID } from "@/lib/utils/uuid";
 import TreeActions, {
   createEmptyTree,
   ROOT_ID,
@@ -304,8 +304,8 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => {
     },
 
     genNewId: () => {
-      let id = genId();
-      while (get().tree.items[id]) id = genId();
+      let id = generateUUID();
+      while (get().tree.items[id]) id = generateUUID();
       return id;
     },
 

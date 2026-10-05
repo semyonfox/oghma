@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { validateSession } from "@/lib/auth";
 import {
   parseJsonObject,
+  requireAuth,
+  type RouteParamsContext,
   withErrorHandler,
   tracedError,
 } from "@/lib/api-error";
@@ -11,10 +12,9 @@ import { canvasIdForBigintColumn } from "@/lib/canvas/id";
 export const PATCH = withErrorHandler(
   async (
     request: Request,
-    { params }: { params: Promise<{ courseId: string }> },
+    { params }: RouteParamsContext<{ courseId: string }>,
   ) => {
-    const user = await validateSession();
-    if (!user) return tracedError("Unauthorized", 401);
+    const user = await requireAuth();
 
     const userId = user.user_id;
     const { courseId: courseIdStr } = await params;
@@ -61,10 +61,9 @@ export const PATCH = withErrorHandler(
 export const DELETE = withErrorHandler(
   async (
     _request: Request,
-    { params }: { params: Promise<{ courseId: string }> },
+    { params }: RouteParamsContext<{ courseId: string }>,
   ) => {
-    const user = await validateSession();
-    if (!user) return tracedError("Unauthorized", 401);
+    const user = await requireAuth();
 
     const userId = user.user_id;
     const { courseId: courseIdStr } = await params;

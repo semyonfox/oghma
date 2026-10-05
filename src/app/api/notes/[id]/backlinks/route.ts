@@ -1,18 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateSession } from "@/lib/auth";
-import { isValidUUID } from "@/lib/utils/uuid";
-import { withErrorHandler, tracedError } from "@/lib/api-error";
+import {
+  requireAuth,
+  requireValidId,
+  type RouteParamsContext,
+  withErrorHandler,
+} from "@/lib/api-error";
 import sql from "@/database/pgsql";
 
-type NoteRouteContext = { params: Promise<{ id: string }> };
-
 export const GET = withErrorHandler(
-  async (_request: NextRequest, { params }: NoteRouteContext) => {
-    const user = await validateSession();
-    if (!user) return tracedError("Unauthorized", 401);
+  async (_request: NextRequest, { params }: RouteParamsContext<{ id: string }>) => {
+    const user = await requireAuth();
 
     const { id } = await params;
-    if (!isValidUUID(id)) return tracedError("Invalid note ID", 400);
+    requireValidId(id, "note ID");
 
     const incoming = await sql`
       SELECT source.note_id AS id, source.title,

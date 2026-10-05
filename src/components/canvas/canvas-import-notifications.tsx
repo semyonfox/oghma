@@ -2,7 +2,7 @@
 
 import { createContext, useContext, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { useCanvasImportStatus } from "@/hooks/useCanvasImportStatus";
+import { useCanvasImportStatus } from "@/lib/hooks/use-canvas-import-status";
 import { useWorkspaceSession } from "@/components/providers/workspace-lifecycle-provider";
 import useNoteTreeStore from "@/lib/notes/state/tree";
 

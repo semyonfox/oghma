@@ -4,7 +4,10 @@
 >
 > Audience: Deployment operators and application maintainers
 >
-> Last verified: 2026-08-12 against `Jenkinsfile` and runtime paths
+> Last verified: 2026-09-02 against the live Jenkins controller, dedicated
+> build agent, GitHub Actions, and runtime paths
+>
+> Local Jenkins job definitions reviewed 2026-09-26; live controller configuration not rechecked
 
 Production and development currently run as Docker containers on the homelab
 behind Cloudflare tunnels. This file describes what runs now. Future provider
@@ -90,29 +93,42 @@ Changes flow from `dev` to `main` through a pull request. Do not push directly
 to `main`.
 
 GitHub webhooks target the Jenkins GitHub webhook endpoint recorded in
-`AGENTS.md`.
+`AGENTS.md`. The local production job definition waits for the checked-out
+commit's `build` check. The local development job waits for `build`, `test`,
+and `PR Smoke E2E`. Neither definition currently requires `lint`; production
+also does not require `test` or `PR Smoke E2E`. Confirm the controller loaded
+these definitions before relying on this as the live gate.
 
 ## Jenkins Deployment
 
-The current pipeline performs the same guarded candidate flow for both
-environments:
+The deployment pipelines are managed as code under
+`/home/semyon/server-stacks/jenkins/oghma-dev/` and `oghma-prod/`. GitHub
+Actions owns linting, type checking, tests, E2E, and the production Next.js
+build. Jenkins owns image assembly, migration, candidate deployment, live
+health verification, and rollback.
 
-1. Reject branches other than `dev` and `main`.
-2. Build app and worker images in parallel.
-3. Run the disposable E2E smoke suite.
-4. Verify that `oghma-qdrant` and its persistent volume are available.
-5. Run `node --experimental-strip-types scripts/prebuild-migrate.ts` in the app image using
-   `MIGRATION_DATABASE_URL`.
-6. Drain pending extraction retries with the worker image.
-7. Start an app candidate named with the Jenkins build number and verify its
+The Jenkins controller has zero executors and no Docker socket. A dedicated,
+resource-limited inbound agent runs builds and deployments with access to the
+Docker socket and the Oghma network. App and worker builds use separate
+persistent BuildKit caches for production and development.
+
+The local job definitions use this candidate flow in both environments:
+
+1. Check out the job's configured branch, `dev` or `main`.
+2. Wait for that commit's configured GitHub Actions checks.
+3. Build app and worker images in parallel with isolated persistent caches.
+4. Run `npm run migrate` in the app image using `MIGRATION_DATABASE_URL`.
+5. Drain pending extraction retries with the worker image.
+6. Start an app candidate named with the Jenkins build number and verify its
    health.
-8. Rename the current app to a build-specific `previous` container, start the
+7. Rename the current app to a build-specific `previous` container, start the
    final fixed-name/fixed-IP app, and verify health. Restore `previous` if the
    final app fails.
-9. Repeat the candidate/previous health flow for the worker, including
+8. Repeat the candidate/previous health flow for the worker, including
    `npm run worker:healthcheck`.
-10. Run the public live smoke test.
-11. Remove candidate/previous containers after success and retain the three
+9. Check app `/api/health` and run the worker healthcheck. The local jobs do
+   not run the public browser smoke suite after deployment.
+10. Remove candidate/previous containers after success and retain the three
     most recent tagged images per app/worker repository and environment.
 
 The candidate container proves that the image can start before the fixed
@@ -211,5 +227,6 @@ Do not use retired AWS commands or edit migrations to imitate a rollback.
 - [Infrastructure map](README.md)
 - [Import worker runbook](../docs/operations/import-worker.md)
 - [Target hosting ADR](TARGET_HOSTING.md)
-- `Jenkinsfile`
+- `/home/semyon/server-stacks/jenkins/oghma-dev/Jenkinsfile`
+- `/home/semyon/server-stacks/jenkins/oghma-prod/Jenkinsfile`
 - `scripts/prebuild-migrate.ts`

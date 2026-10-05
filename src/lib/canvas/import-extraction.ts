@@ -186,7 +186,7 @@ interface MarkerJobRow {
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
-export const FILE_TIMEOUT_MS = Math.max(
+const FILE_TIMEOUT_MS = Math.max(
   60_000,
   Number.parseInt(process.env.CANVAS_FILE_TIMEOUT_MS ?? "", 10) ||
     10 * 60 * 1000,
@@ -573,6 +573,7 @@ async function reuseImportedPdfCache(
   const chunksStored = await cloneImportedPdfCacheToNote({
     cacheId: cache.id,
     noteId: md.noteId,
+    extractedFromNoteId: binary.noteId,
     userId: opts.userId,
     onlyIfEmpty: !md.created,
   });
@@ -2052,9 +2053,9 @@ export async function processMarkerComplete(msg: MarkerContinuationMessage) {
 
   try {
     const [markerResultModule, markerOutputModule, ocrModule] = await Promise.all([
-      import("../marker-result.ts"),
-      import("../marker-output.ts"),
-      import("../ocr.ts"),
+      import("../marker/result.ts"),
+      import("../marker/output.ts"),
+      import("../marker/ocr.ts"),
     ]);
     const { parseMarkerResult, markerResultByteLimit, MarkerResultValidationError } =
       markerResultModule;
@@ -2230,7 +2231,7 @@ export async function processMarkerComplete(msg: MarkerContinuationMessage) {
     logger.error(
       `[${ts()}] processMarkerComplete failed for marker job ${markerJobId}: ${message}`,
     );
-    const { MarkerResultValidationError } = await import("../marker-result.ts");
+    const { MarkerResultValidationError } = await import("../marker/result.ts");
     if (error instanceof MarkerResultValidationError) {
       await finalizeMarkerFailure(markerJob, "invalid_result", message);
       return;

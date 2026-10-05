@@ -18,7 +18,7 @@ vi.mock("@/database/pgsql", () => {
   return { default: sqlMock };
 });
 
-vi.mock("@/lib/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   validateSession: vi.fn(),
 }));
 
@@ -26,7 +26,7 @@ vi.mock("@/lib/logger", () => ({
   default: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
-vi.mock("@/lib/rateLimiter", () => ({
+vi.mock("@/lib/rate-limiter", () => ({
   checkRateLimit: vi.fn().mockResolvedValue(null),
 }));
 
@@ -34,9 +34,6 @@ vi.mock("@/lib/queue", () => ({
   enqueueCanvasJob: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("@/lib/xray", () => ({
-  xraySubsegment: vi.fn((_name: string, fn: () => unknown) => fn()),
-}));
 
 vi.mock("@/lib/config", () => ({
   config: { upload: { maxFileSizeBytes: 50 * 1024 * 1024 } },
@@ -59,7 +56,7 @@ vi.mock("@/lib/storage/init", () => ({
 
 import { NextRequest } from "next/server";
 import { GET } from "@/app/api/upload/route";
-import { validateSession } from "@/lib/auth";
+import { validateSession } from "@/lib/auth/session";
 import sql from "@/database/pgsql";
 
 const MOCK_USER = {

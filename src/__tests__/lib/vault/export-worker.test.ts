@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  sql: vi.fn(),
+  sql: Object.assign(vi.fn(), { begin: vi.fn() }),
   s3Send: vi.fn(),
   getSignedUrl: vi.fn().mockResolvedValue("https://signed.example/oghmanotes-vault.zip"),
   getStorageProvider: vi.fn(),
@@ -48,11 +48,16 @@ describe("processVaultExport", () => {
     process.env.STORAGE_BUCKET = "test";
     process.env.STORAGE_PREFIX = "oghma";
 
+    mocks.sql.begin.mockImplementation(
+      async (cb: (tx: typeof mocks.sql) => Promise<unknown>) => cb(mocks.sql),
+    );
     mocks.sql
+      .mockResolvedValueOnce([{ id: "job-1" }])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: "job-1" }])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
     mocks.s3Send
       .mockResolvedValueOnce({ UploadId: "upload-1" })

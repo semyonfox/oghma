@@ -10,6 +10,9 @@
  *   const { data, forbidden, error } = await client.getCourses();
  */
 
+import { safeCanvasFetch } from "./safe-fetch";
+import { stripHtmlToText } from "./content-formatting";
+
 // transient errors worth retrying (network blips, server hiccups)
 const RETRYABLE_CODES = new Set([
   "ECONNRESET",
@@ -19,12 +22,13 @@ const RETRYABLE_CODES = new Set([
   "UND_ERR_CONNECT_TIMEOUT",
 ]);
 const MAX_RETRIES = 3;
+const MAX_PAGINATION_PAGES = 100;
 const RETRY_BASE_MS = 1000;
 const CANVAS_JSON_ACCEPT = "application/json+canvas-string-ids";
 const RETRYABLE_HTTP_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
 
 export type CanvasId = string | number;
-export type CanvasJsonValue =
+type CanvasJsonValue =
   | null
   | boolean
   | number
@@ -55,7 +59,7 @@ export interface CanvasFile extends CanvasRecord {
   lock_explanation?: string;
 }
 
-export interface CanvasSubmission extends CanvasRecord {
+interface CanvasSubmission extends CanvasRecord {
   workflow_state?: string;
   submitted_at?: string | null;
   score?: number | null;
@@ -76,7 +80,7 @@ export interface CanvasAssignment extends CanvasRecord {
   submission?: CanvasSubmission | null;
 }
 
-export interface CanvasModule extends CanvasRecord {
+interface CanvasModule extends CanvasRecord {
   id: CanvasId;
   name: string;
 }
@@ -220,15 +224,25 @@ async function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
-function retryDelayMs(response: Response, attempt: number) {
-  const retryAfterSeconds = Number(response.headers.get("retry-after"));
-  if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds >= 0) {
-    return Math.min(60_000, Math.round(retryAfterSeconds * 1_000));
+function retryDelayMs(response: { headers: { get(name: string): string | null } }, attempt: number) {
+  const retryAfter = response.headers.get("retry-after");
+  if (retryAfter !== null) {
+    const retryAfterSeconds = Number(retryAfter);
+    if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds >= 0) {
+      return Math.min(60_000, Math.round(retryAfterSeconds * 1_000));
+    }
   }
   return RETRY_BASE_MS * 2 ** attempt;
 }
 
-function isRateLimitedResponse(response: Response) {
+async function discardResponse(response: { body?: { cancel(): Promise<void> } | null }) {
+  await response.body?.cancel().catch(() => undefined);
+}
+
+function isRateLimitedResponse(response: {
+  status: number;
+  headers: { get(name: string): string | null };
+}) {
   if (response?.status === 429) return true;
   if (response?.status !== 403) return false;
 
@@ -282,14 +296,13 @@ export class CanvasClient {
   async #get<T>(path: string, isExpected: (value: unknown) => value is T): Promise<CanvasApiResult<T>> {
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
-        const response = await fetch(`${this.baseUrl}${path}`, {
-          headers: {
-            Authorization: `Bearer ${this.token}`,
-            Accept: CANVAS_JSON_ACCEPT,
-          },
+        const response = await safeCanvasFetch(`${this.baseUrl}${path}`, {
+          Authorization: `Bearer ${this.token}`,
+          Accept: CANVAS_JSON_ACCEPT,
         });
 
         if (isRateLimitedResponse(response)) {
+          await discardResponse(response);
           if (attempt < MAX_RETRIES) {
             await sleep(retryDelayMs(response, attempt));
             continue;
@@ -305,6 +318,7 @@ export class CanvasClient {
         await this.#respectRateLimit(response);
 
         if (response.status === 403) {
+          await discardResponse(response);
           return {
             data: null,
             forbidden: true,
@@ -313,6 +327,7 @@ export class CanvasClient {
         }
 
         if (response.status === 401) {
+          await discardResponse(response);
           return {
             data: null,
             forbidden: false,
@@ -322,11 +337,13 @@ export class CanvasClient {
         }
 
         if (RETRYABLE_HTTP_STATUSES.has(response.status) && attempt < MAX_RETRIES) {
+          await discardResponse(response);
           await sleep(retryDelayMs(response, attempt));
           continue;
         }
 
         if (!response.ok) {
+          await discardResponse(response);
           return {
             data: null,
             forbidden: false,
@@ -359,7 +376,7 @@ export class CanvasClient {
   }
 
   // Pause if the Canvas X-Rate-Limit-Remaining header shows that the quota is low.
-  async #respectRateLimit(response: Response) {
+  async #respectRateLimit(response: { headers: { get(name: string): string | null } }) {
     const remaining = response.headers.get("x-rate-limit-remaining");
     if (remaining !== null && parseFloat(remaining) < 10) {
       await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -372,23 +389,30 @@ export class CanvasClient {
     isExpected: (value: unknown) => value is T,
   ): Promise<CanvasPaginatedResult<T>> {
     const results: T[] = [];
+    const visitedPages = new Set<string>();
 
     // Append per_page to the initial URL — Canvas default is 10 which is too slow
     let url: string | null = `${this.baseUrl}${path}${path.includes("?") ? "&" : "?"}per_page=100`;
 
     while (url) {
       const pageUrl = url;
+      if (visitedPages.has(pageUrl)) {
+        return { data: results, forbidden: false, error: "Canvas API pagination loop detected" };
+      }
+      if (visitedPages.size >= MAX_PAGINATION_PAGES) {
+        return { data: results, forbidden: false, error: "Canvas API pagination exceeded 100 pages" };
+      }
+      visitedPages.add(pageUrl);
       let pageSuccess = false;
       for (let attempt = 0; attempt <= MAX_RETRIES && !pageSuccess; attempt++) {
         try {
-          const response = await fetch(pageUrl, {
-            headers: {
-              Authorization: `Bearer ${this.token}`,
-              Accept: CANVAS_JSON_ACCEPT,
-            },
+          const response = await safeCanvasFetch(pageUrl, {
+            Authorization: `Bearer ${this.token}`,
+            Accept: CANVAS_JSON_ACCEPT,
           });
 
           if (isRateLimitedResponse(response)) {
+            await discardResponse(response);
             if (attempt < MAX_RETRIES) {
               await sleep(retryDelayMs(response, attempt));
               continue;
@@ -403,6 +427,7 @@ export class CanvasClient {
           await this.#respectRateLimit(response);
 
           if (response.status === 403) {
+            await discardResponse(response);
             return {
               data: results,
               forbidden: true,
@@ -411,6 +436,7 @@ export class CanvasClient {
           }
 
           if (response.status === 401) {
+            await discardResponse(response);
             return {
               data: results,
               forbidden: false,
@@ -420,11 +446,13 @@ export class CanvasClient {
           }
 
           if (RETRYABLE_HTTP_STATUSES.has(response.status) && attempt < MAX_RETRIES) {
+            await discardResponse(response);
             await sleep(retryDelayMs(response, attempt));
             continue;
           }
 
           if (!response.ok) {
+            await discardResponse(response);
             return {
               data: results,
               forbidden: false,
@@ -541,6 +569,23 @@ export class CanvasClient {
       `/courses/${courseId}?include[]=term&include[]=concluded`,
       isCanvasCourse,
     );
+  }
+
+  /**
+   * Returns the course syllabus and home page as plain text, for study map outlines.
+   * Either is null when the course does not use it or the lecturer restricts it.
+   */
+  async getCourseOutline(courseId: string) {
+    const [course, front] = await Promise.all([
+      this.#get(`/courses/${courseId}?include[]=syllabus_body`, isRecord),
+      this.#get(`/courses/${courseId}/front_page`, isRecord),
+    ]);
+    const text = (value: unknown) =>
+      typeof value === "string" && value.trim() ? stripHtmlToText(value) : null;
+    return {
+      syllabus: text(course.data?.syllabus_body),
+      frontPage: text(front.data?.body),
+    };
   }
 
   /**
@@ -664,13 +709,13 @@ export class CanvasClient {
   async downloadFile(url: string) {
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${this.token}`,
-          },
-        });
+        const headers: Record<string, string> = new URL(url).origin === new URL(this.baseUrl).origin
+          ? { Authorization: `Bearer ${this.token}` }
+          : {};
+        const response = await safeCanvasFetch(url, headers, true);
 
         if (isRateLimitedResponse(response)) {
+          await discardResponse(response);
           if (attempt < MAX_RETRIES) {
             await sleep(retryDelayMs(response, attempt));
             continue;
@@ -683,6 +728,7 @@ export class CanvasClient {
         }
 
         if (response.status === 403) {
+          await discardResponse(response);
           return {
             buffer: null,
             forbidden: true,
@@ -691,11 +737,13 @@ export class CanvasClient {
         }
 
         if (RETRYABLE_HTTP_STATUSES.has(response.status) && attempt < MAX_RETRIES) {
+          await discardResponse(response);
           await sleep(retryDelayMs(response, attempt));
           continue;
         }
 
         if (!response.ok) {
+          await discardResponse(response);
           return {
             buffer: null,
             forbidden: false,
@@ -708,6 +756,7 @@ export class CanvasClient {
           Number.isFinite(declaredLength) &&
           declaredLength > MAX_CANVAS_FILE_BYTES
         ) {
+          await discardResponse(response);
           return {
             buffer: null,
             forbidden: false,

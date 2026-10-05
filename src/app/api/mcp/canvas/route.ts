@@ -1,10 +1,15 @@
+import { readBoundedBody, BodyTooLargeError } from "@/lib/http/bounded-body";
 import { NextRequest, NextResponse } from "next/server";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import logger from "@/lib/logger";
-import { CanvasClient } from "@/lib/canvas-mcp/src/canvas/client";
+import {
+  CanvasClient,
+  type FetchLike,
+} from "@/lib/canvas-mcp/src/canvas/client";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
 import { createCanvasMcpServer } from "@/lib/canvas/mcp";
-import { verifyInternalMcpToken } from "@/lib/mcp/internal-auth";
+import { safeCanvasFetch } from "@/lib/canvas/safe-fetch";
+import { verifyInternalMcpToken } from "@/lib/auth/internal-mcp-token";
 
 export const dynamic = "force-dynamic";
 
@@ -40,16 +45,48 @@ export async function POST(request: NextRequest): Promise<Response> {
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
   });
+  const canvasOrigin = new URL(`https://${credentials.domain}`).origin;
+  const guardedFetch: FetchLike = (url, init) => {
+    if (new URL(url).origin !== canvasOrigin) {
+      throw new Error("Canvas request points to another host");
+    }
+    if (init?.body != null && typeof init.body !== "string") {
+      throw new Error("Canvas request body must be JSON");
+    }
+    return safeCanvasFetch(
+      url,
+      Object.fromEntries(new Headers(init?.headers).entries()),
+      false,
+      {
+        method: init?.method,
+        body: init?.body ?? undefined,
+        signal: init?.signal ?? undefined,
+      },
+    );
+  };
   const client = new CanvasClient({
     domain: credentials.domain,
     token: credentials.token,
+    fetch: guardedFetch,
   });
-  const server = createCanvasMcpServer(client);
+  const server = createCanvasMcpServer(client, userId);
 
   try {
     await server.connect(transport);
-    return await transport.handleRequest(request);
+    const bytes = await readBoundedBody(request, 512 * 1024);
+    return await transport.handleRequest(
+      new Request(request.url, {
+        method: "POST",
+        headers: request.headers,
+        body: bytes,
+      }),
+    );
   } catch (error) {
+    if (error instanceof BodyTooLargeError)
+      return NextResponse.json(
+        { error: "Request body too large" },
+        { status: 413 },
+      );
     logger.error("Canvas MCP request failed", {
       userId,
       error: error instanceof Error ? error.message : String(error),

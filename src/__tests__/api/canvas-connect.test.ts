@@ -47,13 +47,14 @@ vi.mock("@/lib/canvas/client", () => ({
   }),
 }));
 vi.mock("@/database/pgsql", () => ({ default: vi.fn() }));
-vi.mock("@/lib/rateLimiter", () => ({
+vi.mock("@/lib/rate-limiter", () => ({
   checkRateLimit: vi.fn().mockResolvedValue(null),
 }));
 
 import sql from "@/database/pgsql";
 import { parseJsonObject, requireAuth } from "@/lib/api-error";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
+import { CanvasClient } from "@/lib/canvas/client";
 import { GET, POST } from "@/app/api/canvas/connect/route";
 
 describe("GET /api/canvas/connect", () => {
@@ -78,6 +79,69 @@ describe("GET /api/canvas/connect", () => {
     });
   });
 
+  it("identifies an account that has never configured Canvas", async () => {
+    vi.mocked(loadCanvasCredentials).mockResolvedValue(null);
+
+    const response = await GET(
+      new NextRequest("http://localhost/api/canvas/connect"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      connected: false,
+      connectionState: "not-configured",
+    });
+    expect(canvas.getDiscoverableCourses).not.toHaveBeenCalled();
+  });
+
+  it("identifies a stored token rejected by Canvas", async () => {
+    canvas.getDiscoverableCourses.mockResolvedValue({
+      data: [],
+      unauthorized: true,
+      error: "Invalid or expired Canvas token",
+    });
+    canvas.getSelfEnrollments.mockResolvedValue({
+      data: [],
+      unauthorized: true,
+      error: "Invalid or expired Canvas token",
+    });
+    vi.mocked(sql).mockResolvedValue([] as never);
+
+    const response = await GET(
+      new NextRequest("http://localhost/api/canvas/connect"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      connected: false,
+      domain: "example.instructure.com",
+      connectionState: "needs-reconnection",
+    });
+  });
+
+  it("does not call a temporary Canvas failure an invalid token", async () => {
+    canvas.getDiscoverableCourses.mockResolvedValue({
+      data: [],
+      error: "Canvas API error: 503",
+    });
+    canvas.getSelfEnrollments.mockResolvedValue({
+      data: [],
+      error: "Canvas API error: 503",
+    });
+    vi.mocked(sql).mockResolvedValue([] as never);
+
+    const response = await GET(
+      new NextRequest("http://localhost/api/canvas/connect"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      connected: false,
+      domain: "example.instructure.com",
+      connectionState: "temporarily-unavailable",
+    });
+  });
+
   it("serializes Canvas IDs without eagerly loading every course's modules", async () => {
     canvas.getDiscoverableCourses.mockResolvedValue({
       data: [{ id: "9007199254740993", name: "Algorithms" }],
@@ -92,6 +156,7 @@ describe("GET /api/canvas/connect", () => {
     const body = await response.json();
 
     expect(canvas.getModules).not.toHaveBeenCalled();
+    expect(body.connectionState).toBe("connected");
     expect(body.courses).toMatchObject([
       {
         id: "9007199254740993",
@@ -180,6 +245,54 @@ describe("GET /api/canvas/connect", () => {
         body,
       }),
     );
+    expect(response.status).toBe(400);
+  });
+
+  it.each([
+    "school.instructure.com.attacker.test",
+    "localhost",
+    "169.254.169.254",
+    "https://canvas.school.edu:3000",
+  ])("rejects unsupported Canvas host %s before using the token", async (domain) => {
+    const response = await POST(
+      new NextRequest("http://localhost/api/canvas/connect", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ domain, token: "token" }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(sql).not.toHaveBeenCalled();
+    expect(canvas.getDiscoverableCourses).not.toHaveBeenCalled();
+  });
+
+  it("accepts a custom school Canvas address before checking the token", async () => {
+    vi.mocked(sql).mockResolvedValue([] as never);
+    canvas.getDiscoverableCourses.mockResolvedValue({
+      data: [],
+      unauthorized: true,
+      error: "Invalid or expired Canvas token",
+    });
+    canvas.getSelfEnrollments.mockResolvedValue({
+      data: [],
+      unauthorized: true,
+      error: "Invalid or expired Canvas token",
+    });
+
+    const response = await POST(
+      new NextRequest("http://localhost/api/canvas/connect", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          domain: "https://canvas.school.edu/courses/123",
+          token: "token",
+        }),
+      }),
+    );
+
+    expect(vi.mocked(CanvasClient)).toHaveBeenCalledWith("canvas.school.edu", "token");
+    expect(canvas.getDiscoverableCourses).toHaveBeenCalled();
     expect(response.status).toBe(400);
   });
 

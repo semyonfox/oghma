@@ -1,5 +1,6 @@
 import type { FinishReason, StepResult, TextStreamPart, ToolSet } from "ai";
 
+import { actionIdFromToolResult } from "./action-proposal";
 import {
   appendReasoningPart,
   partitionMessageParts,
@@ -9,7 +10,6 @@ import {
 } from "@/lib/chat/types";
 import { labelForTool } from "@/lib/chat/tool-labels";
 import {
-  noteSearchDetail,
   toolCallDetail,
   toolResultDetail,
   noteRefsFromToolResult,
@@ -33,7 +33,7 @@ export interface ChatGenerationResult {
   pendingText: string;
 }
 
-export type ChatGenerationEffect =
+type ChatGenerationEffect =
   | { type: "none" }
   | { type: "thinking"; text: string }
   | { type: "text"; text: string }
@@ -48,6 +48,7 @@ export type ChatGenerationEffect =
       toolCallId: string;
       detail?: string;
       notes?: NoteActivityRef[];
+      actionId?: string;
       status: "completed" | "failed";
     }
   | { type: "abort" }
@@ -67,29 +68,6 @@ export type ChatGenerationFinalization =
     }
   | { kind: "synthesize-final-answer"; result: ChatGenerationResult }
   | { kind: "invalid"; result: ChatGenerationResult; error: string };
-
-interface SearchResultTitle {
-  title?: string | null;
-}
-
-export function buildInitialChatParts(
-  useRag: boolean,
-  message: string,
-  searchResults: readonly SearchResultTitle[],
-): MessagePart[] {
-  if (!useRag) return [];
-  return [
-    {
-      type: "tool",
-      name: "ragSearch",
-      label: "Searched notes",
-      detail: noteSearchDetail(
-        message,
-        searchResults.map(({ title }) => ({ title: title || "Untitled" })),
-      ),
-    },
-  ];
-}
 
 export function createChatGenerationResult(
   parts: MessagePart[] = [],
@@ -218,13 +196,20 @@ export function applyChatGenerationEvent(
       ? "Tool execution failed"
       : toolResultDetail(event.toolName, event.output);
     const status = failed ? "failed" : "completed";
+    const actionId = failed ? undefined : actionIdFromToolResult(event.output);
     const notes = failed ? [] : noteRefsFromToolResult(event.toolName, event.output);
     return {
       result: {
         ...current,
         parts: current.parts.map((part) =>
           part.type === "tool" && part.callId === event.toolCallId
-            ? { ...part, resultDetail: detail, status, ...(notes.length > 0 && { notes }) }
+            ? {
+                ...part,
+                resultDetail: detail,
+                status,
+                ...(actionId && { actionId }),
+                ...(notes.length > 0 && { notes }),
+              }
             : part,
         ),
       },
@@ -233,6 +218,7 @@ export function applyChatGenerationEvent(
         toolCallId: event.toolCallId,
         detail,
         notes,
+        actionId,
         status,
       },
     };

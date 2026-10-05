@@ -10,7 +10,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import postgres from "postgres";
-import { embedChunks } from "../src/lib/embeddings.ts";
+import { embedChunks } from "../src/lib/rag/embeddings.ts";
 import { upsertChunkVectors } from "../src/lib/qdrant.ts";
 
 interface ChunkRow {

@@ -14,7 +14,7 @@ interface CanvasJobRow {
   completed_at: Date | string | null;
   expected_total: number | null;
   error_message: string | null;
-  discovery_progress?: { completedCourses?: number; totalCourses?: number; stage?: string; skippedCourses?: string[]; skippedFolders?: string[] } | null;
+  discovery_progress?: { completedCourses?: number; totalCourses?: number; stage?: string; skippedCourses?: string[]; skippedFolders?: string[]; processingStartedAt?: string } | null;
 }
 
 interface CanvasFileStatsRow {
@@ -210,11 +210,13 @@ export const GET = withErrorHandler(async (request) => {
       : null;
   // An ETA is only meaningful once at least one file has settled. Use the
   // observed job rate rather than inventing a fixed processing duration.
-  const elapsedSecs = job?.started_at
-    ? Math.max(0, (Date.now() - new Date(job.started_at).getTime()) / 1000)
+  const processingStartedAt =
+    job?.discovery_progress?.processingStartedAt ?? job?.started_at;
+  const elapsedSecs = processingStartedAt
+    ? Math.max(0, (Date.now() - new Date(processingStartedAt).getTime()) / 1000)
     : null;
   const estimatedSecsRemaining =
-    isActive && job?.status === "processing" && etaCompleted > 0 && denominator > etaCompleted && elapsedSecs != null
+    isActive && job?.status === "processing" && job.expected_total != null && etaCompleted > 0 && denominator > etaCompleted && elapsedSecs != null
       ? Math.max(1, Math.ceil((elapsedSecs / etaCompleted) * (denominator - etaCompleted)))
       : null;
 

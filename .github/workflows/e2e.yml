@@ -64,6 +64,7 @@ env:
   LLM_API_URL: http://127.0.0.1:8787/v1
   LLM_API_KEY: e2e
   LLM_MODEL: e2e-chat
+  STUDY_CLASSIFIER_PROVIDER: mock
   EMBEDDING_API_URL: http://127.0.0.1:8787/v1
   EMBEDDING_API_KEY: e2e
   EMBEDDING_MODEL: e2e-embedding-4096
@@ -79,7 +80,8 @@ env:
 jobs:
   changes:
     name: Select E2E checks
-    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
+    # Jenkins requires a successful smoke check on every dev deployment commit
+    if: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:

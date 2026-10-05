@@ -6,11 +6,11 @@ vi.mock("@/database/pgsql", () => {
   return { default: sqlMock };
 });
 
-vi.mock("@/lib/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   validateSession: vi.fn(),
 }));
 
-vi.mock("@/lib/embedText", () => ({
+vi.mock("@/lib/rag/embeddings", () => ({
   embedText: vi.fn().mockResolvedValue([0.1, 0.2, 0.3]),
 }));
 
@@ -33,15 +33,15 @@ vi.mock("@/lib/logger", () => ({
   },
 }));
 
-vi.mock("@/lib/rateLimiter", () => ({
+vi.mock("@/lib/rate-limiter", () => ({
   checkRateLimit: vi.fn(),
 }));
 
 import sql from "@/database/pgsql";
-import { validateSession } from "@/lib/auth";
-import { embedText } from "@/lib/embedText";
+import { validateSession } from "@/lib/auth/session";
+import { embedText } from "@/lib/rag/embeddings";
 import { searchChunkVectors } from "@/lib/qdrant";
-import { checkRateLimit } from "@/lib/rateLimiter";
+import { checkRateLimit } from "@/lib/rate-limiter";
 import { GET } from "@/app/api/global-search/route";
 
 type SqlCall = [TemplateStringsArray, ...unknown[]];

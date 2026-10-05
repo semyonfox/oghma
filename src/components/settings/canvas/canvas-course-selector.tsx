@@ -37,55 +37,53 @@ export default function CanvasCourseSelector({
   setCourseListOpen: Dispatch<SetStateAction<boolean>>;
   t: Translate;
 }) {
-  const importableCourses = courses.filter(
-    (course) =>
-      course.canvasStatus !== "inaccessible" &&
-      course.canvasStatus !== "unavailable",
-  );
-  const selectedImportableCount = importableCourses.filter((course) =>
+  const selectedCount = courses.filter((course) =>
     selectedCourseIds.includes(String(course.id)),
   ).length;
-  const allSelected =
-    importableCourses.length > 0 &&
-    selectedImportableCount === importableCourses.length;
+  const allSelected = courses.length > 0 && selectedCount === courses.length;
 
   return (
     <div className="glass-card rounded-radius-md">
-      <button
-        type="button"
-        onClick={() => setCourseListOpen(!courseListOpen)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-subtle transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          <h3 className="text-sm font-medium text-text-secondary">
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
+        <h3 className="text-sm font-medium text-text-secondary">
+          <button
+            type="button"
+            aria-expanded={courseListOpen}
+            onClick={() => setCourseListOpen(!courseListOpen)}
+            className="flex items-center gap-2 hover:text-text"
+          >
             {t("Courses")}
-          </h3>
-          {selectedImportableCount > 0 && (
-            <span className="text-xs bg-primary-500/20 text-primary-400 px-2 py-0.5 rounded-full">
-              {selectedImportableCount} {t("selected")}
-            </span>
-          )}
-        </div>
-        <ChevronDownIcon
-          className="size-4 text-text-tertiary"
-          open={courseListOpen}
-        />
-      </button>
+            <ChevronDownIcon
+              className="size-4 text-text-tertiary"
+              open={courseListOpen}
+            />
+          </button>
+        </h3>
+        {courses.length > 0 && (
+          <span className="text-xs text-text-tertiary" aria-live="polite">
+            {t("{count} selected", { count: selectedCount })}
+          </span>
+        )}
+        {courseListOpen && courses.length > 0 && (
+          <button
+            type="button"
+            onClick={onToggleSelectAll}
+            className="ml-auto rounded-radius-sm px-1 py-0.5 text-xs font-medium text-primary-400 hover:text-primary-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-400"
+          >
+            {allSelected ? t("Deselect all") : t("Select all")}
+          </button>
+        )}
+      </header>
 
       {courseListOpen && (
         <div className="border-t border-border-subtle px-4 py-3 space-y-3 bg-subtle">
-          {importableCourses.length > 0 && (
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={onToggleSelectAll}
-                className="text-xs text-primary-400 hover:text-primary-300 font-medium"
-              >
-                {allSelected ? t("Deselect all") : t("Select all")}
-              </button>
-            </div>
-          )}
-          <div className="space-y-2 max-h-64 overflow-y-auto">
+          <div
+            id="canvas-course-list"
+            role="region"
+            aria-label={t("Course list")}
+            tabIndex={courses.length > 5 ? 0 : undefined}
+            className="obsidian-scrollbar max-h-64 space-y-2 overflow-y-auto pr-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-400"
+          >
             {courses.map((course) => {
               const { status, error } = getCourseStatus(course.id);
               const unavailable = ["inaccessible", "unavailable"].includes(
@@ -95,20 +93,13 @@ export default function CanvasCourseSelector({
               return (
                 <label
                   key={course.id}
-                  className={`flex items-start gap-3 ${
-                    unavailable ? "cursor-not-allowed opacity-70" : "cursor-pointer"
-                  }`}
+                  className="flex items-start gap-3 cursor-pointer"
                 >
                   <input
                     type="checkbox"
-                    checked={
-                      !unavailable && selectedCourseIds.includes(String(course.id))
-                    }
-                    disabled={unavailable}
+                    checked={selectedCourseIds.includes(String(course.id))}
                     aria-describedby={unavailable ? reasonId : undefined}
-                    onChange={() => {
-                      if (!unavailable) onToggleCourse(course.id);
-                    }}
+                    onChange={() => onToggleCourse(course.id)}
                     className="mt-0.5 shrink-0"
                   />
                   <div className="flex-1 min-w-0">
@@ -136,7 +127,7 @@ export default function CanvasCourseSelector({
                       <p id={reasonId} className="text-xs text-text-tertiary">
                         {course.canvasStatus === "unavailable"
                           ? t("Canvas could not confirm access to this course. Try again later.")
-                          : t("This course is no longer available in Canvas.")}
+                          : t("Canvas data access depends on your permissions")}
                       </p>
                     )}
                     {(course.modules?.length ?? 0) > 0 && (
@@ -152,6 +143,11 @@ export default function CanvasCourseSelector({
               );
             })}
           </div>
+          {courses.length > 5 && (
+            <p className="text-xs text-text-tertiary">
+              {t("Scroll to see more courses")}
+            </p>
+          )}
         </div>
       )}
     </div>

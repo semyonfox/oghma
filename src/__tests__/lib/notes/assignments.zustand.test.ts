@@ -25,7 +25,7 @@ const storage = {
 };
 
 async function loadStore() {
-  return (await import("@/lib/notes/state/assignments.zustand")).default;
+  return (await import("@/lib/notes/state/assignments")).default;
 }
 
 describe("assignment store archive visibility", () => {

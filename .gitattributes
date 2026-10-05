@@ -1,0 +1,2 @@
+# keep every text file LF in the repository, whatever the contributor's git config says
+* text=auto eol=lf

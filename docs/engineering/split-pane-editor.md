@@ -4,7 +4,7 @@
 >
 > **Last reviewed:** 2026-09-15
 >
-> **Source of truth:** [`split-editor-pane.tsx`](../../src/components/editor/split-editor-pane.tsx), [`editor-pane.tsx`](../../src/components/editor/editor-pane.tsx), [`layout.zustand.ts`](../../src/lib/notes/state/layout.zustand.ts), [`file-spec.ts`](../../src/lib/notes/utils/file-spec.ts), and [`save-indicator.ts`](../../src/lib/notes/state/save-indicator.ts)
+> **Source of truth:** [`split-editor-pane.tsx`](../../src/components/editor/split-editor-pane.tsx), [`editor-pane.tsx`](../../src/components/editor/editor-pane.tsx), [`layout.ts`](../../src/lib/notes/state/layout.ts), [`file-spec.ts`](../../src/lib/notes/utils/file-spec.ts), and [`save-indicator.ts`](../../src/lib/notes/state/save-indicator.ts)
 
 The notes workspace shows one pane (A) by default and a second pane (B) once a
 file is opened on the right. This document owns how files move between the two

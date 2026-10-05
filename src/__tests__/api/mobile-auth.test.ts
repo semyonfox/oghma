@@ -9,11 +9,14 @@ const mocks = vi.hoisted(() => ({
   checkRateLimit: vi.fn(),
   getClientIp: vi.fn(() => "127.0.0.1"),
   createAuthSession: vi.fn(),
+  mobileReady: vi.fn(),
 }));
 
-vi.mock("@/lib/mobile-auth", () => {
+vi.mock("@/lib/auth/mobile", () => {
   class MobileAuthStoreUnavailableError extends Error {}
   return {
+    mobileAppLinksReady: mocks.mobileReady,
+    MOBILE_AUTH_CALLBACK: "https://oghmanotes.ie/auth/mobile/callback",
     MOBILE_AUTH_CODE_PATTERN: /^[A-Za-z0-9_-]{43}$/,
     MOBILE_AUTH_STATE_PATTERN: /^[0-9a-f]{64}$/i,
     MOBILE_AUTH_CODE_VERIFIER_PATTERN: /^[A-Za-z0-9._~-]{43,128}$/,
@@ -24,11 +27,11 @@ vi.mock("@/lib/mobile-auth", () => {
     consumeMobileAuthGrant: mocks.consumeGrant,
   };
 });
-vi.mock("@/lib/rateLimiter", () => ({
+vi.mock("@/lib/rate-limiter", () => ({
   checkRateLimit: mocks.checkRateLimit,
   getClientIp: mocks.getClientIp,
 }));
-vi.mock("@/lib/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   createAuthSession: mocks.createAuthSession,
   validateSession: vi.fn(),
   validateSessionLite: vi.fn(),
@@ -39,12 +42,13 @@ vi.mock("@/lib/logger", () => ({
 
 import { GET, POST as AUTHORIZE } from "@/app/api/auth/mobile/authorize/route";
 import { POST as EXCHANGE } from "@/app/api/auth/mobile/exchange/route";
-import { MobileAuthStoreUnavailableError } from "@/lib/mobile-auth";
+import { MobileAuthStoreUnavailableError } from "@/lib/auth/mobile";
 
 const USER = {
   user_id: "00000000-0000-4000-8000-000000000001",
   email: "student@example.com",
   displayName: "Student",
+  session_version: 0,
 };
 const STATE = "a".repeat(64);
 const CODE = "c".repeat(43);
@@ -69,10 +73,14 @@ function request(
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.mobileReady.mockReturnValue(true);
   mocks.getActiveUser.mockResolvedValue(USER);
   mocks.findActiveUser.mockResolvedValue(USER);
   mocks.issueGrant.mockResolvedValue(CODE);
-  mocks.consumeGrant.mockResolvedValue(USER.user_id);
+  mocks.consumeGrant.mockResolvedValue({
+    userId: USER.user_id,
+    sessionVersion: 0,
+  });
   mocks.checkRateLimit.mockResolvedValue(null);
   mocks.createAuthSession.mockResolvedValue(
     NextResponse.json({ success: true, user: USER }),
@@ -113,10 +121,10 @@ describe("POST /api/auth/mobile/authorize", () => {
 
     expect(response.status).toBe(200);
     expect(body).toEqual({
-      url: `ie.oghmanotes.alpha://auth?code=${CODE}&state=${STATE}`,
+      url: `https://oghmanotes.ie/auth/mobile/callback?code=${CODE}&state=${STATE}`,
     });
     expect(JSON.stringify(body)).not.toContain("student@example.com");
-    expect(mocks.issueGrant).toHaveBeenCalledWith(USER.user_id, CHALLENGE);
+    expect(mocks.issueGrant).toHaveBeenCalledWith(USER.user_id, CHALLENGE, 0);
     expect(mocks.checkRateLimit).toHaveBeenCalledWith(
       "mobile-auth-authorize",
       USER.user_id,
@@ -246,4 +254,38 @@ describe("POST /api/auth/mobile/exchange", () => {
     expect(response.status).toBe(503);
     expect(mocks.createAuthSession).not.toHaveBeenCalled();
   });
+});
+
+it("does not issue or exchange grants before domain verification", async () => {
+  mocks.mobileReady.mockReturnValue(false);
+  expect(
+    (
+      await AUTHORIZE(
+        request("authorize", { state: STATE, codeChallenge: CHALLENGE }),
+      )
+    ).status,
+  ).toBe(503);
+  expect(
+    (
+      await EXCHANGE(
+        request("exchange", { code: CODE, codeVerifier: VERIFIER }),
+      )
+    ).status,
+  ).toBe(503);
+  expect(mocks.issueGrant).not.toHaveBeenCalled();
+  expect(mocks.createAuthSession).not.toHaveBeenCalled();
+});
+it("rejects a grant issued before a password reset", async () => {
+  mocks.consumeGrant.mockResolvedValue({
+    userId: USER.user_id,
+    sessionVersion: -1,
+  });
+  expect(
+    (
+      await EXCHANGE(
+        request("exchange", { code: CODE, codeVerifier: VERIFIER }),
+      )
+    ).status,
+  ).toBe(403);
+  expect(mocks.createAuthSession).not.toHaveBeenCalled();
 });

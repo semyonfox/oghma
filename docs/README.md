@@ -44,6 +44,7 @@ Use this page to find the owner of a fact. Link to that owner instead of copying
 | [Canvas reliability handover](engineering/canvas-import-queue-reliability-handover.md) | Execution ownership, shared PDF dedupe, replacement/Stop contracts, and rollout gates |
 | [Canvas data emergency plan](engineering/canvas-data-emergency-plan.md) | Contingency modes for reducing or stopping retention of Canvas-originated content |
 | [Design system](engineering/design-system.md) | UI tokens and component conventions |
+| [Study maps](engineering/study-map.md) | Topic catalogues, source evidence, classification, canvas, discovery, and historical exam analysis |
 | [Split-pane editor](engineering/split-pane-editor.md) | Pane drag/swap resolution, save-affordance placement, and the second-editor cost decision |
 | [Markdown rendering](engineering/markdown-rendering.md) | Canonical Markdown, editor, renderer, highlighting, and sanitisation contract |
 | [Unified editor migration handover](engineering/markdown-editor-migration-handover.md) | Target Milkdown spike, implementation criteria, T3 Code visual reference, release gates, and research sources |
@@ -59,6 +60,7 @@ Use this page to find the owner of a fact. Link to that owner instead of copying
 | Document | Owns |
 |---|---|
 | [Infrastructure index](../infra/README.md) | The owner map for current, target, retained, and historical infrastructure |
+| [Security rollout](operations/security-rollout.md) | Session revocation, vault retention and verified Android association release gates |
 | [Chat](operations/chat.md) | Chat queue, delivery, readiness, diagnosis, and release verification |
 | [Import worker](operations/import-worker.md) | Worker deployment, verification, tuning, and recovery |
 | [Vast Serverless Marker](operations/vast-marker.md) | Ready-to-provision GPU queue boundary, image, scaling, monitoring, launch gates, and rollback |

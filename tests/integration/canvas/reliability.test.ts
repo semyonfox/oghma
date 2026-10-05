@@ -34,7 +34,7 @@ vi.mock("@/lib/qdrant", () => ({
   getChunkVectors: async () => [], deleteChunkVectors: mocks.deleteVectors,
   upsertChunkVectors: mocks.upsertVectors, setChunkVectorsSearchable: async () => undefined,
 }));
-vi.mock("@/lib/embeddings", () => ({ embedChunks: async (chunks: string[]) => chunks.map((chunk) => ({ chunk, vector: [0.1, 0.2] })) }));
+vi.mock("@/lib/rag/embeddings", () => ({ embedChunks: async (chunks: string[]) => chunks.map((chunk) => ({ chunk, vector: [0.1, 0.2] })) }));
 vi.mock("@/lib/canvas/client", () => ({
   MAX_CANVAS_FILE_BYTES: 1_000_000,
   CanvasClient: class {

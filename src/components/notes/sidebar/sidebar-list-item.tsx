@@ -17,7 +17,7 @@ import useNoteTreeStore from "@/lib/notes/state/tree";
 import usePortalStore from "@/lib/notes/state/portal";
 import useSyncStatusStore from "@/lib/notes/state/sync-status";
 import useI18n from "@/lib/notes/hooks/use-i18n";
-import useLayoutStore from "@/lib/notes/state/layout.zustand";
+import useLayoutStore from "@/lib/notes/state/layout";
 import { buildFileSpec } from "@/lib/notes/utils/file-spec";
 
 const TextSkeleton = () => (

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), sql: vi.fn() }));
-vi.mock("@/lib/auth", () => ({ validateSession: mocks.auth }));
+vi.mock("@/lib/auth/session", () => ({ validateSession: mocks.auth }));
 vi.mock("@/database/pgsql", () => ({ default: mocks.sql }));
 import { GET } from "@/app/api/notes/[id]/offline/route";
 

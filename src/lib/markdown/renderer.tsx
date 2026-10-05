@@ -13,6 +13,7 @@ import type { Pluggable, PluggableList } from "unified";
 import CodeBlock from "./components/code-block";
 import { markdownSanitizeSchema } from "./sanitize-schema";
 import { parseInternalNoteHref } from "@/lib/notes/internal-links";
+import { DocumentTextIcon } from "@heroicons/react/24/outline";
 
 export type MarkdownRendererVariant = "note" | "chat" | "quiz";
 
@@ -93,7 +94,7 @@ function hastNodeFrom(value: unknown): HastNode | undefined {
   };
 }
 
-export function parseCodeFenceTitle(meta?: string): string | undefined {
+function parseCodeFenceTitle(meta?: string): string | undefined {
   if (!meta) return undefined;
 
   const quoted = /(?:title|filename|file)=(['"])(.*?)\1/i.exec(meta);
@@ -166,16 +167,20 @@ function MarkdownCode({
 }
 
 const baseComponents: Partial<Components> = {
-  a: ({ href, children, ...props }) => {
-    const isInternalNote = Boolean(parseInternalNoteHref(href));
+  a: ({ href, children, node: _node, ...props }) => {
+    const isInternal = Boolean(href?.startsWith("/") && !href.startsWith("//"));
+    const isNote = Boolean(parseInternalNoteHref(href));
     return (
       <a
         href={href}
-        target={isInternalNote ? undefined : "_blank"}
-        rel={isInternalNote ? undefined : "noopener noreferrer"}
-        className="text-[var(--md-link)] underline underline-offset-2 hover:text-[var(--md-link-hover)] transition-colors"
+        target={isInternal ? undefined : "_blank"}
+        rel={isInternal ? undefined : "noopener noreferrer"}
         {...props}
+        className={isNote
+          ? "oghma-note-reference"
+          : "text-[var(--md-link)] underline underline-offset-2 hover:text-[var(--md-link-hover)] transition-colors"}
       >
+        {isNote && <DocumentTextIcon aria-hidden="true" className="oghma-note-reference-icon" />}
         {children}
       </a>
     );

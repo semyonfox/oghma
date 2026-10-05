@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   markerQueueEnabled,
   markerServerlessProvider,
-} from "@/lib/marker-serverless";
+} from "@/lib/marker/serverless";
 
 const variables = [
   "MARKER_OCR_ENABLED",

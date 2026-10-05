@@ -7,6 +7,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 import type { Message } from "./chat-interface";
+import ActionConfirmation from "./action-confirmation";
 import ChatMarkdown from "./chat-markdown";
 import { WorkLog, collectNoteActivity } from "./tool-call-pill";
 import { partitionMessageParts } from "@/lib/chat/types";
@@ -33,6 +34,16 @@ const AssistantBody: FC<{
         active={active}
         hasAnswer={presentation.answerText.trim().length > 0}
       />
+      {parts
+        .filter((part) => part.type === "tool" && part.actionId)
+        .map((part, index) =>
+          part.type === "tool" && part.actionId ? (
+            <ActionConfirmation
+              key={`action-${index}`}
+              actionId={part.actionId}
+            />
+          ) : null,
+        )}
       {answer.map((part, index) => (
         <div
           key={index}

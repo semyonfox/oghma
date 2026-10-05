@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 vi.mock("@/database/pgsql", () => {
@@ -25,6 +25,8 @@ describe("GET /api/canvas/status", () => {
     vi.clearAllMocks();
     vi.mocked(requireAuth).mockResolvedValue({ user_id: "user-123" } as never);
   });
+
+  afterEach(() => vi.restoreAllMocks());
 
   it("keeps pending_marker files active until GPU indexing finishes", async () => {
     vi.mocked(sql)
@@ -140,6 +142,85 @@ describe("GET /api/canvas/status", () => {
 
     expect(body.progress.completed).toBe(0);
     expect(body.estimatedSecsRemaining).toBeNull();
+  });
+
+  it.each([2, 9])(
+    "withholds ETA when a processing job has found %i files but has no fixed total",
+    async (total) => {
+      vi.mocked(sql)
+        .mockResolvedValueOnce([
+          {
+            id: JOB_ID,
+            status: "processing",
+            job_type: "import",
+            created_at: "2026-04-20T12:00:00.000Z",
+            started_at: "2026-04-20T12:00:05.000Z",
+            completed_at: null,
+            expected_total: null,
+          },
+        ] as never)
+        .mockResolvedValueOnce([
+          {
+            total,
+            indexed: 1,
+            indexing: 0,
+            downloading: total - 1,
+            processing: 0,
+            pending_retry: 0,
+            pending_marker: 0,
+            forbidden: 0,
+            error: 0,
+          },
+        ] as never)
+        .mockResolvedValueOnce([] as never);
+
+      const response = await GET(
+        new NextRequest("http://localhost/api/canvas/status"),
+      );
+      const body = await response.json();
+
+      expect(body.activeJob.phase).toBe("processing");
+      expect(body.progress.total).toBe(total);
+      expect(body.estimatedSecsRemaining).toBeNull();
+    },
+  );
+
+  it("starts the processing ETA after a long discovery phase", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(
+      Date.parse("2026-04-20T12:20:00.000Z"),
+    );
+    vi.mocked(sql)
+      .mockResolvedValueOnce([{
+        id: JOB_ID,
+        status: "processing",
+        job_type: "import",
+        created_at: "2026-04-20T12:00:00.000Z",
+        started_at: "2026-04-20T12:00:05.000Z",
+        completed_at: null,
+        expected_total: 4,
+        discovery_progress: {
+          processingStartedAt: "2026-04-20T12:18:00.000Z",
+        },
+      }] as never)
+      .mockResolvedValueOnce([{
+        total: 4,
+        indexed: 1,
+        indexing: 0,
+        downloading: 3,
+        processing: 0,
+        pending_retry: 0,
+        pending_marker: 0,
+        forbidden: 0,
+        error: 0,
+      }] as never)
+      .mockResolvedValueOnce([] as never);
+
+    const response = await GET(
+      new NextRequest("http://localhost/api/canvas/status"),
+    );
+    const body = await response.json();
+
+    expect(body.estimatedSecsRemaining).toBe(360);
   });
 
   it("does not report a failed parent as 100 percent complete", async () => {

@@ -1,5 +1,6 @@
 "use client";
 
+import { boundedChatHistory } from "@/lib/chat/request-history";
 import { useState, useRef, useCallback, useEffect } from "react";
 import type { LlmThinkingMode } from "@/lib/ai-config";
 import { toFriendlyChatError } from "@/lib/friendly-errors";
@@ -381,7 +382,7 @@ export function useChatStream(
             selectedNotes,
             selectedFolders,
             sessionId: requestSessionId,
-            history,
+            history: boundedChatHistory(history),
             stream: true,
             background: true,
             thinkingMode,

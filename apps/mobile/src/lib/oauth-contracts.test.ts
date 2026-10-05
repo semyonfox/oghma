@@ -13,9 +13,9 @@ const valid = `${oauthReturnUrl}?state=${state}&code=${code}`;
 test("only the exact native callback and pending state can complete sign-in", () => {
   assert.equal(parseOAuthReturn(valid, state), code);
   for (const url of [
-    valid.replace("ie.oghmanotes.alpha:", "https:"),
-    valid.replace("//auth", "//auth.attacker.test"),
-    valid.replace("//auth", "//user@auth"),
+    valid.replace("https:", "ie.oghmanotes.alpha:"),
+    valid.replace("//oghmanotes.ie", "//oghmanotes.ie.attacker.test"),
+    valid.replace("//oghmanotes.ie", "//user@oghmanotes.ie"),
     valid.replace("?state=", "/extra?state="),
     `${valid}&state=${state}`,
     `${valid}&code=${code}`,

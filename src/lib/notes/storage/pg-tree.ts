@@ -135,49 +135,6 @@ export async function getTreeFromPG(userId: string): Promise<TreeData> {
   }
 }
 
-/**
- * Add a note to user's tree (sorted A-Z by title)
- * Idempotent: if note is already in tree, silently succeeds
- */
-export async function addNoteToTree(
-  userId: string,
-  noteId: string,
-  parentId?: string | null,
-): Promise<void> {
-  try {
-    // tree_items.parent_id is UUID and references the parent note's UUID
-    // If no parentId provided, note is added to root (parent_id = NULL)
-    const actualParentId = parentId || null;
-
-    await sql`
-      INSERT INTO app.tree_items (user_id, note_id, parent_id)
-      VALUES (${userId}::uuid, ${noteId}::uuid, ${actualParentId})
-      ON CONFLICT (user_id, note_id) DO NOTHING
-    `;
-  } catch (error) {
-    console.error('Error adding note to tree:', error);
-    throw error;
-  }
-}
-
-/**
- * Remove a note from user's tree
- */
-export async function removeNoteFromTree(
-  userId: string,
-  noteId: string,
-): Promise<void> {
-  try {
-    await sql`
-      DELETE FROM app.tree_items
-      WHERE user_id = ${userId}::uuid AND note_id = ${noteId}::uuid
-    `;
-  } catch (error) {
-    console.error('Error removing note from tree:', error);
-    throw error;
-  }
-}
-
 /** Persist one live item's expansion state and return its current parent. */
 export async function updateTreeItem(
   userId: string,

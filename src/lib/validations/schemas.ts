@@ -45,14 +45,14 @@ export const searchQuerySchema = z.object({
 });
 
 export const loginSchema = z.object({
-  email: z.string().email().max(255).trim(),
+  email: z.string().trim().toLowerCase().email().max(255),
   password: z.string().min(1, "Password is required").max(128),
   rememberMe: z.boolean().optional(),
 });
 
 export const registerSchema = z.object({
-  email: z.string().email().max(255).trim(),
-  password: z.string().min(8).max(128),
+  email: z.string().trim().toLowerCase().email().max(255),
+  password: z.string(),
   agentClaimToken: z.string().length(64).optional(),
   agentUserCode: z.string().regex(/^\d{6}$/).optional(),
 }).refine(
@@ -206,30 +206,42 @@ export const timeBlockUpdateSchema = z
     { message: "ends_at must be after starts_at", path: ["ends_at"] },
   );
 
+export const pomodoroStartSchema = z.object({
+  assignment_id: z.string().uuid().nullish(),
+  time_block_id: z.string().uuid().nullish(),
+  duration_mins: z.number().int().positive().nullish(),
+  type: z.string().min(1).max(50).nullish(),
+});
+
+export const pomodoroEndSchema = z.object({
+  id: z.string().uuid(),
+  completed: z.boolean().nullish(),
+});
+
 const chatScopeItemSchema = z.object({
-  id: z.string(),
-  title: z.string(),
+  id: z.string().max(64),
+  title: z.string().max(500),
 }).strict();
 
 export const chatRequestSchema = z.object({
   message: z.string().trim().min(1).max(2000),
-  noteId: z.string().optional(),
-  noteTitle: z.string().optional(),
-  noteIds: z.array(z.string()).optional(),
-  folderIds: z.array(z.string()).optional(),
-  selectedNotes: z.array(chatScopeItemSchema).optional(),
-  selectedFolders: z.array(chatScopeItemSchema).optional(),
+  noteId: z.string().max(64).optional(),
+  noteTitle: z.string().max(500).optional(),
+  noteIds: z.array(z.string().max(64)).max(100).optional(),
+  folderIds: z.array(z.string().max(64)).max(100).optional(),
+  selectedNotes: z.array(chatScopeItemSchema).max(100).optional(),
+  selectedFolders: z.array(chatScopeItemSchema).max(100).optional(),
   // The browser sends `null` until the first session has been created.
-  sessionId: z.string().nullable().optional(),
+  sessionId: z.string().max(64).nullable().optional(),
   history: z.array(z.object({
-    role: z.enum(["user", "assistant", "system"]),
-    content: z.string(),
-  }).strict()).optional(),
+    role: z.enum(["user", "assistant"]),
+    content: z.string().max(20_000),
+  }).strict()).max(20).optional(),
   stream: z.boolean().optional(),
   background: z.boolean().optional(),
   thinkingMode: z.enum(["off", "auto"]).optional(),
   useRag: z.boolean().optional(),
-  clientDateTime: z.string().optional(),
+  clientDateTime: z.string().max(64).optional(),
 }).strict();
 
 // ── validation helpers ──────────────────────────────────────────────────────

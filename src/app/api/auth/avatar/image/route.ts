@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { Readable } from "stream";
 import { getStorageProvider } from "@/lib/storage/init";
 import { getSettingsFromS3 } from "@/lib/notes/storage/s3-storage";
-import { getAuthenticatedUserId } from "@/lib/auth";
+import { getAuthenticatedUserId } from "@/lib/auth/session";
 
 export async function GET() {
   const userId = await getAuthenticatedUserId();

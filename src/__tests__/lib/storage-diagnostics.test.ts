@@ -5,7 +5,10 @@ afterEach(() => vi.restoreAllMocks());
 describe("storage diagnostic output", () => {
   it("never forwards names, error objects or interpolation arguments", () => {
     const output = vi.spyOn(console, "error").mockImplementation(() => {});
-    createLogger("private object /vault/private-id").error(new Error("private email@example.test"), { key: "secret" });
+    createLogger("private object /vault/private-id").error(
+      new Error("private email@example.test"),
+      { key: "secret" },
+    );
     expect(output).toHaveBeenCalledExactlyOnceWith("storage_failed");
   });
   it("keeps malformed private JSON out of diagnostic output", () => {

@@ -67,7 +67,11 @@ export default function MobileSignIn() {
     void fetch("/api/auth/mobile/authorize", { cache: "no-store" })
       .then(async (response) => {
         if (!response.ok)
-          throw new Error("Your sign-in expired. Please sign in again.");
+          throw new Error(
+            response.status === 503
+              ? "App sign-in is awaiting Android link verification. Use email and password in the app for now."
+              : "Your sign-in expired. Please sign in again.",
+          );
         const data = accountSchema.parse(await response.json());
         if (active) setAccount(data.user);
       })
@@ -94,12 +98,20 @@ export default function MobileSignIn() {
         body: JSON.stringify({ state, codeChallenge }),
       });
       if (!response.ok)
-        throw new Error("Could not finish signing in. Please try again.");
+        throw new Error(
+          response.status === 503
+            ? "App sign-in is awaiting Android link verification. Use email and password in the app for now."
+            : "Could not finish signing in. Please try again.",
+        );
       const { url } = replySchema.parse(await response.json());
       const parsed = new URL(url);
       if (
-        parsed.protocol !== "ie.oghmanotes.alpha:" ||
-        parsed.host !== "auth" ||
+        parsed.protocol !== "https:" ||
+        parsed.host !== "oghmanotes.ie" ||
+        parsed.pathname !== "/auth/mobile/callback" ||
+        parsed.username ||
+        parsed.password ||
+        parsed.hash ||
         parsed.searchParams.get("state") !== state
       )
         throw new Error("Unexpected app return address.");

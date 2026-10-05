@@ -16,6 +16,7 @@ export async function GET(
   const [loginRow] = await sql`
     SELECT user_id FROM app.login
     WHERE calendar_export_token = ${token}::uuid
+      AND is_active = true AND deleted_at IS NULL
   `;
 
   if (!loginRow) {
@@ -114,7 +115,7 @@ export async function GET(
       "Content-Type": "text/calendar; charset=utf-8",
       "Content-Disposition": 'attachment; filename="oghmanotes.ics"',
       // allow calendar apps to cache for up to 1 hour
-      "Cache-Control": "private, max-age=3600",
+      "Cache-Control": "no-store",
     },
   });
 }

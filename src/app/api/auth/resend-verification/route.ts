@@ -1,8 +1,8 @@
 import sql from "@/database/pgsql";
-import { createErrorResponse, parseJsonBody } from "@/lib/auth";
-import { generateSecureToken, hashToken } from "@/lib/tokens";
+import { createErrorResponse, parseJsonBody } from "@/lib/auth/session";
+import { generateSecureToken, hashToken } from "@/lib/auth/tokens";
 import { EmailSendError, sendVerificationEmail } from "@/lib/email";
-import { checkRateLimit } from "@/lib/rateLimiter";
+import { checkRateLimit } from "@/lib/rate-limiter";
 import logger from "@/lib/logger";
 import { ApiError, assertTrustedOrigin } from "@/lib/api-error";
 import { Locale, normalizeLocale } from "@/locales";
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest): Promise<Response> {
             SELECT user_id, email, email_verified, locale,
               verification_token, verification_token_expires
             FROM app.login
-            WHERE email = ${email.trim()}
+            WHERE lower(btrim(email)) = ${email.trim().toLowerCase()}
         `;
 
     // constant-time: same work whether email exists or not
@@ -98,7 +98,14 @@ export async function POST(request: NextRequest): Promise<Response> {
       } catch {
         logger.error("failed to restore verification token after resend failure");
       }
-      throw sendError;
+      logger.error("resend verification email failed", {
+        reason:
+          sendError instanceof EmailSendError ? sendError.reason : "unexpected",
+        httpStatus:
+          sendError instanceof EmailSendError ? sendError.httpStatus : undefined,
+        providerCode:
+          sendError instanceof EmailSendError ? sendError.providerCode : undefined,
+      });
     }
 
     const elapsed = Date.now() - start;
@@ -110,16 +117,10 @@ export async function POST(request: NextRequest): Promise<Response> {
     if (error instanceof ApiError) {
       return createErrorResponse(error.userMessage, error.statusCode);
     }
-    logger.error("resend verification error", {
-      reason: error instanceof EmailSendError ? error.reason : "unexpected",
-      httpStatus:
-        error instanceof EmailSendError ? error.httpStatus : undefined,
-      providerCode:
-        error instanceof EmailSendError ? error.providerCode : undefined,
-    });
+    logger.error("resend verification error", { reason: "unexpected" });
     return createErrorResponse(
       "Could not request a verification link. Please try again later.",
-      error instanceof EmailSendError ? 503 : 500,
+      500,
     );
   }
 }

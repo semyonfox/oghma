@@ -1,4 +1,4 @@
-import type { FileSpec, FileType, PaneId } from '@/lib/notes/state/layout.zustand';
+import type { FileSpec, FileType, PaneId } from '@/lib/notes/state/layout';
 
 export const FILE_DRAG_MIME = 'application/x-oghmanotes-file';
 

@@ -41,7 +41,7 @@ vi.mock("@/lib/global-search/state", () => ({
   __esModule: true,
   default: { getState: () => ({ open: mocks.globalSearchOpen }) },
 }));
-vi.mock("@/lib/notes/state/pomodoro.zustand", () => ({
+vi.mock("@/lib/notes/state/pomodoro", () => ({
   __esModule: true,
   default: (
     selector: (state: {
@@ -137,29 +137,18 @@ describe("MobileBottomNavigation", () => {
     ).toBe("page");
   });
 
-  it("floats above the chat composer without reserving a layout row", async () => {
-    vi.stubGlobal("ResizeObserver", class {
-      observe() {}
-      disconnect() {}
-    });
+  it("stays at the bottom of the screen on chat, below the composer", () => {
+    mocks.pathname = "/chat";
     const { container } = render(
       <div>
-        <div
-          data-chat-composer
-          ref={(element) => {
-            if (element) {
-              vi.spyOn(element, "getBoundingClientRect").mockReturnValue(
-                new DOMRect(0, 0, 0, 96),
-              );
-            }
-          }}
-        />
-        <MobileBottomNavigation aboveComposer />
+        <div data-chat-composer />
+        <MobileBottomNavigation />
       </div>,
     );
     const dock = container.querySelector<HTMLElement>("[data-mobile-dock]");
-    await waitFor(() => expect(dock?.style.bottom).toBe("96px"));
     expect(dock?.className).toContain("fixed");
+    expect(dock?.className).toContain("bottom-0");
+    expect(screen.getByRole("navigation").className).toContain("bottom-[calc(12px+var(--safe-bottom))]");
   });
 
   it("contracts on downward scrolling and expands on upward scroll, focus, and navigation", async () => {

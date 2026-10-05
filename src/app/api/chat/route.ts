@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { checkRateLimit } from "@/lib/rateLimiter";
+import { checkRateLimit } from "@/lib/rate-limiter";
 import { Metrics } from "@/lib/metrics";
 import {
   parseJsonObject,
@@ -72,7 +72,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   const validation = validateBody(
     chatRequestSchema,
-    await parseJsonObject(request),
+    await parseJsonObject(request, 512 * 1024),
   );
   if (!validation.success) return validation.response;
   const body = validation.data;
@@ -382,6 +382,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                       update.effect.detail,
                       update.effect.status,
                       update.effect.notes,
+                      update.effect.actionId,
                     );
                   } else if (update.effect.type === "abort") {
                     throw new Error("Generation aborted: client disconnected");

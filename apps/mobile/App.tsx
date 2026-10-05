@@ -228,7 +228,7 @@ function Workspace() {
         ref={webView}
         source={source}
         style={{ flex: 1, backgroundColor: colors.background }}
-        applicationNameForUserAgent="OghmaNotesAndroid/0.1.4 OghmaNotesOffline/1"
+        applicationNameForUserAgent="OghmaNotesAndroid/0.1.5 OghmaNotesOffline/1"
         injectedJavaScriptBeforeContentLoaded={bottomInsetScript(bottomInset)}
         originWhitelist={["*"]}
         onShouldStartLoadWithRequest={(request) => navigate(request.url)}

@@ -15,10 +15,7 @@ export function parseTreeMutation(
   }
 
   if (body.action === "mutate") {
-    if (
-      typeof data.id !== "string" ||
-      typeof data.isExpanded !== "boolean"
-    ) {
+    if (typeof data.id !== "string" || typeof data.isExpanded !== "boolean") {
       throw new ApiError(400, "Invalid tree item mutation");
     }
     return {

@@ -27,9 +27,9 @@ import ChatSplash from "./chat-splash";
 // re-export types so existing consumers keep working
 export type {
   Message,
-  MessagePart,
-  SearchContextData,
-  ChatContextItem,
+  
+  
+  
 } from "@/lib/chat/types";
 
 /**
@@ -537,11 +537,11 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
         </div>
       </div>
 
-      {/* input area */}
+      {/* input area; the mobile dock sits below it, so it reserves the dock's height */}
       <div
         data-chat-composer
         className="flex-shrink-0 px-3 py-3 lg:px-10"
-        style={{ paddingBottom: "max(0.75rem, var(--safe-bottom))" }}
+        style={{ paddingBottom: "max(0.75rem, var(--mobile-dock-space, var(--safe-bottom)))" }}
       >
         <div className="mx-auto max-w-3xl">
           {(selectedNotes.length > 0 || selectedFolders.length > 0 || (noteTitle && selectedNotes.length === 0)) && (

@@ -5,10 +5,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import CanvasImportIndicator from "@/components/canvas/canvas-import-indicator";
 import BrandLogo from "@/components/brand-logo";
-import useLayoutStore from "@/lib/notes/state/layout.zustand";
+import useLayoutStore from "@/lib/notes/state/layout";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import useGlobalSearchStore from "@/lib/global-search/state";
-import usePomodoroStore from "@/lib/notes/state/pomodoro.zustand";
+import usePomodoroStore from "@/lib/notes/state/pomodoro";
 import { useNativeAppBridge, supportsNativeOffline, postNativeOfflineOpen } from "@/lib/native-app";
 import {
   DocumentTextIcon,
@@ -19,6 +19,7 @@ import {
   AcademicCapIcon,
   ClockIcon,
   ArrowDownTrayIcon,
+  Square3Stack3DIcon,
 } from "@heroicons/react/24/outline";
 
 interface NavItem {
@@ -26,7 +27,7 @@ interface NavItem {
   labelKey: string;
   icon: FC<{ className?: string }>;
   href: string;
-  section: "notes" | "search" | "calendar" | "settings" | "chat" | "quiz";
+  section: "notes" | "search" | "calendar" | "settings" | "chat" | "quiz" | "study-map";
 }
 
 interface PrimaryNavigationProps {
@@ -42,6 +43,7 @@ const NAV_ITEMS: NavItem[] = [
     href: "/notes",
     section: "notes",
   },
+  { id: "study-map", labelKey: "Study map", icon: Square3Stack3DIcon, href: "/study-map", section: "study-map" },
   {
     id: "search",
     labelKey: "Search OghmaNotes",
@@ -116,6 +118,8 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
     "/settings",
   )
     ? "settings"
+    : pathname?.startsWith("/study-map")
+      ? "study-map"
     : pathname?.startsWith("/quiz")
       ? "quiz"
       : pathname?.startsWith("/calendar")

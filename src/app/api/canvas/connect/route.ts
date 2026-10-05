@@ -8,17 +8,12 @@ import {
 import { CanvasClient } from "@/lib/canvas/client";
 import sql from "@/database/pgsql";
 import { encrypt } from "@/lib/crypto";
-import { checkRateLimit } from "@/lib/rateLimiter";
+import { checkRateLimit } from "@/lib/rate-limiter";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
 import { discoverCanvasCourses } from "@/lib/canvas/sync-courses";
+import { canvasHostFromInput } from "@/lib/canvas/institution-search";
 
-const INSTRUCTURE_DOMAIN = /^[\w-]+\.instructure\.com$/i;
 const CANVAS_TOKEN_MAX_LENGTH = 4096;
-
-function isValidCanvasDomain(domain: unknown): domain is string {
-  if (!domain || typeof domain !== "string") return false;
-  return INSTRUCTURE_DOMAIN.test(domain.trim());
-}
 
 function noStoreJson(body: unknown, init?: ResponseInit): NextResponse {
   const response = NextResponse.json(body, init);
@@ -30,7 +25,9 @@ export const GET = withErrorHandler(async () => {
   const user = await requireAuth();
 
   const credentials = await loadCanvasCredentials(user.user_id);
-  if (!credentials) return noStoreJson({ connected: false });
+  if (!credentials) {
+    return noStoreJson({ connected: false, connectionState: "not-configured" });
+  }
 
   const client = new CanvasClient(credentials.domain, credentials.token);
 
@@ -57,7 +54,15 @@ export const GET = withErrorHandler(async () => {
       client,
       (previousCourseRows ?? []).map((row) => String(row.canvas_course_id)),
     );
-    if (discovery.error) return noStoreJson({ connected: false });
+    if (discovery.error) {
+      return noStoreJson({
+        connected: false,
+        domain: credentials.domain,
+        connectionState: discovery.unauthorized
+          ? "needs-reconnection"
+          : "temporarily-unavailable",
+      });
+    }
     courses = discovery.data;
     courseDiscoveryDegraded = Boolean(discovery.degraded);
   } catch (error) {
@@ -67,6 +72,7 @@ export const GET = withErrorHandler(async () => {
 
   return noStoreJson({
     connected: true,
+    connectionState: "connected",
     domain: credentials.domain,
     // Module/file discovery happens only once the user starts an import. A
     // settings-page refresh must not fan out one Canvas request per course.
@@ -98,10 +104,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   const { token, domain } = await parseJsonObject(request);
   const normalizedToken = typeof token === "string" ? token.trim() : "";
-  const normalizedDomain =
-    typeof domain === "string" ? domain.trim().toLowerCase() : "";
+  const enteredDomain = typeof domain === "string" ? domain.trim() : "";
 
-  if (!normalizedToken || !normalizedDomain) {
+  if (!normalizedToken || !enteredDomain) {
     throw new ApiError(400, "Token and domain are required");
   }
 
@@ -109,8 +114,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     throw new ApiError(400, "Canvas token is too long");
   }
 
-  if (!isValidCanvasDomain(normalizedDomain)) {
-    throw new ApiError(400, "Domain must be a valid *.instructure.com address");
+  const normalizedDomain = canvasHostFromInput(enteredDomain);
+  if (!normalizedDomain) {
+    throw new ApiError(400, "Enter a valid HTTPS Canvas address without a port");
   }
 
   // Validate the token against Canvas before storing. The enrollment ledger is

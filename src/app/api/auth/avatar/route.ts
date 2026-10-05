@@ -1,6 +1,6 @@
 // avatar API route - handles profile picture upload and retrieval
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthenticatedUserId } from "@/lib/auth";
+import { getAuthenticatedUserId } from "@/lib/auth/session";
 import { getStorageProvider } from "@/lib/storage/init";
 import {
   getSettingsFromS3,
@@ -8,7 +8,7 @@ import {
 } from "@/lib/notes/storage/s3-storage";
 import logger from "@/lib/logger";
 import { assertTrustedOrigin } from "@/lib/api-error";
-import { checkRateLimit } from "@/lib/rateLimiter";
+import { checkRateLimit } from "@/lib/rate-limiter";
 
 const ALLOWED_MIME: Record<string, string> = {
   "image/jpeg": "jpg",

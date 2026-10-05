@@ -30,7 +30,7 @@ The application owns user-facing requests and durable relational state. The work
 
 ## Prerequisites
 
-- Node.js 22+
+- Node.js `^22.22.2`, `^24.15.0`, or `>=26.0.0` (the ranges in `package.json`)
 - npm
 - Docker Engine with Docker Compose for mock and integration services
 - For browser tests, Playwright Chromium and its OS dependencies
@@ -39,7 +39,7 @@ Use **npm** for this repository.
 
 ## Quick start: disposable mock environment
 
-This path starts local PostgreSQL, Redis, Qdrant, MinIO, Mailpit and a deterministic fake-AI provider. It is intended for development, not representative AI quality.
+This path starts local PostgreSQL, Redis, Qdrant, RustFS, Mailpit and a deterministic fake-AI provider. It is intended for development, not representative AI quality.
 
 ```bash
 npm ci

@@ -4,6 +4,7 @@ import {
   parseJsonObject,
   requireAuth,
   requireValidId,
+  type RouteParamsContext,
   tracedError,
   withErrorHandler,
 } from "@/lib/api-error";
@@ -76,7 +77,7 @@ async function stopActiveSessionGenerations(
 export const GET = withErrorHandler(
   async (
     _req: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
+    { params }: RouteParamsContext<{ id: string }>,
   ) => {
     try {
       const { userId, sessionId } = await authenticateSessionRequest(params);
@@ -132,7 +133,7 @@ export const GET = withErrorHandler(
 export const PATCH = withErrorHandler(
   async (
     req: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
+    { params }: RouteParamsContext<{ id: string }>,
   ) => {
     const { userId, sessionId } = await authenticateSessionRequest(params);
     const body = await parseJsonObject(req);
@@ -176,7 +177,7 @@ export const PATCH = withErrorHandler(
 export const DELETE = withErrorHandler(
   async (
     _req: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
+    { params }: RouteParamsContext<{ id: string }>,
   ) => {
     try {
       const { userId, sessionId } = await authenticateSessionRequest(params);

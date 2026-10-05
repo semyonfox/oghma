@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
-import { getClientIp } from "@/lib/rateLimiter";
+import { getClientIp } from "@/lib/rate-limiter";
 
 function makeRequest(headers: Record<string, string>): NextRequest {
   return new NextRequest("https://oghmanotes.test", { headers });

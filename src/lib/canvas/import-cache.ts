@@ -9,18 +9,18 @@ import {
 } from "@/lib/qdrant";
 import { cacheInvalidate, cacheKeys } from "@/lib/cache";
 import { getStorageProvider } from "@/lib/storage/init";
-import { markerAssetKey, sanitizeMarkerAssetName } from "@/lib/marker-output";
+import { markerAssetKey, sanitizeMarkerAssetName } from "@/lib/marker/output";
 
 // Cache vectors are canonical reusable representations, not user-searchable
 // note chunks. Export this identity so lifecycle code can distinguish them
 // without duplicating a magic payload value.
-export const IMPORTED_FILE_CACHE_QDRANT_USER = "__imported_file_cache__";
+const IMPORTED_FILE_CACHE_QDRANT_USER = "__imported_file_cache__";
 const NOTE_ASSET_CAPTURE_RE =
   /\/api\/notes\/([0-9a-f-]{36})\/assets\?name=([^\s)]+)/gi;
 
 // Bump this whenever extraction, chunking, Marker policy, or the embedding
 // model changes in a way that makes old derived artifacts incompatible.
-export const IMPORT_PIPELINE_VERSION =
+const IMPORT_PIPELINE_VERSION =
   process.env.IMPORT_PIPELINE_VERSION?.trim() ||
   `${process.env.EMBEDDING_MODEL?.trim() || "default"}:${
     process.env.QDRANT_VECTOR_SIZE?.trim() ||
@@ -398,6 +398,7 @@ export async function cloneImportedPdfCacheToNote(params: {
   noteId: string;
   userId: string;
   onlyIfEmpty?: boolean;
+  extractedFromNoteId?: string;
 }): Promise<number> {
   const [cache] = await sql<{
     extracted_markdown: string | null;
@@ -431,6 +432,32 @@ export async function cloneImportedPdfCacheToNote(params: {
       FOR UPDATE
     `;
     if (!note) return null;
+
+    if (params.extractedFromNoteId) {
+      const paired = await tx`
+        UPDATE app.notes companion
+        SET extracted_from_note_id = original.note_id, updated_at = NOW()
+        FROM app.notes original
+        WHERE companion.note_id = ${params.noteId}::uuid
+          AND companion.user_id = ${params.userId}::uuid
+          AND companion.deleted_at IS NULL
+          AND companion.is_folder = FALSE
+          AND companion.is_import_cache_source = FALSE
+          AND original.note_id = ${params.extractedFromNoteId}::uuid
+          AND original.user_id = companion.user_id
+          AND original.note_id <> companion.note_id
+          AND original.deleted_at IS NULL
+          AND original.is_folder = FALSE
+          AND original.is_import_cache_source = FALSE
+          AND original.s3_key IS NOT NULL
+          AND EXISTS (SELECT 1 FROM app.tree_items tree
+            WHERE tree.note_id = companion.note_id AND tree.user_id = companion.user_id)
+          AND EXISTS (SELECT 1 FROM app.tree_items tree
+            WHERE tree.note_id = original.note_id AND tree.user_id = original.user_id)
+        RETURNING companion.note_id
+      `;
+      if (!paired.length) throw new Error("Cache replay requires an active owned source file and Markdown companion");
+    }
 
     // A cache replay creates a fresh user reference. Clear a pending retention
     // schedule before cloning derived state so a daily collector cannot treat

@@ -2,11 +2,11 @@
 // The HTTP POST handler remains for manual/admin triggers only
 import { runExtraction } from "@/lib/ingestion/run-extraction";
 import { NextRequest, NextResponse } from "next/server";
-import { validateSession } from "@/lib/auth";
+import { validateSession } from "@/lib/auth/session";
 import sql from "@/database/pgsql";
 import { withErrorHandler } from "@/lib/api-error";
 import { ApiError } from "@/lib/api-error";
-import { checkRateLimit } from "@/lib/rateLimiter";
+import { checkRateLimit } from "@/lib/rate-limiter";
 
 function isAllowedUrl(raw: string): boolean {
   let parsed: URL;
@@ -37,15 +37,27 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     throw new ApiError(400, "url and documentId are required");
   if (!isAllowedUrl(url)) throw new ApiError(400, "Invalid or disallowed URL");
 
-  // verify documentId belongs to the authenticated user before extraction
+  const s3Key = new URL(url).pathname.replace(/^\//, "");
+  // only extract files recorded for this note, not arbitrary objects in its storage path
   const [ownedNote] = await sql`
-    SELECT 1 FROM app.notes
-    WHERE note_id = ${documentId}::uuid AND user_id = ${userId}::uuid
+    SELECT s3_key FROM app.notes
+    WHERE note_id = ${documentId}::uuid
+      AND user_id = ${userId}::uuid
+      AND deleted_at IS NULL
     LIMIT 1
   `;
   if (!ownedNote) throw new ApiError(404, "Note not found");
 
-  const s3Key = new URL(url).pathname.replace(/^\//, "");
+  if (ownedNote.s3_key !== s3Key) {
+    const [attachment] = await sql`
+      SELECT 1 FROM app.attachments
+      WHERE note_id = ${documentId}::uuid
+        AND user_id = ${userId}::uuid
+        AND s3_key = ${s3Key}
+      LIMIT 1
+    `;
+    if (!attachment) throw new ApiError(400, "Invalid file URL");
+  }
   const mimeType = "application/pdf";
 
   const result = await runExtraction(documentId, userId, s3Key, mimeType);

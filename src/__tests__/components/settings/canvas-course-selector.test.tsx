@@ -61,19 +61,19 @@ describe("CanvasCourseSelector", () => {
     expect(pastRow?.textContent).toContain("Synced");
   });
 
-  it("disables inaccessible courses and never delegates their selection", () => {
+  it("allows requesting inaccessible courses while retaining their access warning", () => {
     const { onToggleCourse } = renderSelector();
     const unavailable = screen.getByRole("checkbox", {
       name: /Unavailable Networks/i,
     });
 
-    expect((unavailable as HTMLInputElement).disabled).toBe(true);
+    expect((unavailable as HTMLInputElement).disabled).toBe(false);
     const descriptionId = unavailable.getAttribute("aria-describedby");
     expect(document.getElementById(descriptionId ?? "")?.textContent).toBe(
-      "This course is no longer available in Canvas.",
+      "Canvas data access depends on your permissions",
     );
     fireEvent.click(unavailable);
-    expect(onToggleCourse).not.toHaveBeenCalled();
+    expect(onToggleCourse).toHaveBeenCalledWith("unavailable");
   });
 
   it("distinguishes a temporary Canvas lookup failure from revoked access", () => {
@@ -92,14 +92,14 @@ describe("CanvasCourseSelector", () => {
     const checkbox = screen.getByRole("checkbox", {
       name: /Checking History/i,
     });
-    expect((checkbox as HTMLInputElement).disabled).toBe(true);
+    expect((checkbox as HTMLInputElement).disabled).toBe(false);
     expect(
       document.getElementById(checkbox.getAttribute("aria-describedby") ?? "")
         ?.textContent,
     ).toBe("Canvas could not confirm access to this course. Try again later.");
   });
 
-  it("keeps locally restricted current courses selectable and excludes unavailable courses from select all", () => {
+  it("keeps locally restricted current courses selectable", () => {
     const { onToggleCourse, onToggleSelectAll } = renderSelector();
 
     fireEvent.click(
@@ -109,5 +109,45 @@ describe("CanvasCourseSelector", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Select all" }));
     expect(onToggleSelectAll).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the bulk control visible with a long, keyboard-accessible course list", () => {
+    const longCourses = Array.from({ length: 12 }, (_, index) => ({
+      id: String(index + 1),
+      name: `Course ${index + 1}`,
+      course_code: `CT${index + 1}`,
+      canvasStatus: index === 11 ? "unavailable" : "current",
+    }));
+    const { onToggleSelectAll } = renderSelector({
+      courses: longCourses,
+      selectedCourseIds: ["1", "2"],
+      t: (key: string, params?: Record<string, unknown>) =>
+        key.replace(/\{(\w+)\}/g, (_, name: string) => String(params?.[name] ?? "")),
+    });
+
+    expect(screen.getByText("2 selected")).toBeTruthy();
+    expect(screen.getByText("Scroll to see more courses")).toBeTruthy();
+
+    const list = screen.getByRole("region", { name: "Course list" });
+    expect(list.getAttribute("tabindex")).toBe("0");
+    expect(list.querySelectorAll('input[type="checkbox"]')).toHaveLength(12);
+    expect((screen.getByRole("checkbox", { name: /Course 12/i }) as HTMLInputElement).disabled)
+      .toBe(false);
+
+    const selectAll = screen.getByRole("button", { name: "Select all" });
+    expect(selectAll.closest("header")).toBeTruthy();
+    selectAll.focus();
+    expect(document.activeElement).toBe(selectAll);
+    fireEvent.click(selectAll);
+    expect(onToggleSelectAll).toHaveBeenCalledOnce();
+  });
+
+  it("offers Deselect all when every listed course is selected", () => {
+    const { onToggleSelectAll } = renderSelector({
+      selectedCourseIds: courses.map((course) => course.id),
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Deselect all" }));
+    expect(onToggleSelectAll).toHaveBeenCalledOnce();
   });
 });

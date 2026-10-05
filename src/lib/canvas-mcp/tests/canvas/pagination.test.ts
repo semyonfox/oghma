@@ -40,4 +40,26 @@ describe("CanvasClient.getPaginated", () => {
     const all = await client.collectPaginated<string>("/api/v1/y");
     expect(all).toEqual(["a", "b"]);
   });
+
+  it("rejects a cross-origin Link before sending the bearer token", async () => {
+    const fetch = vi.fn().mockResolvedValueOnce(
+      page([1], "https://other.example.edu/api/v1/things?page=2"),
+    );
+    const client = new CanvasClient({ domain: "x.instructure.com", token: "t", fetch });
+
+    await expect(client.collectPaginated<number>("/api/v1/things")).rejects.toThrow(
+      "Canvas pagination URL points to another host",
+    );
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a protocol-relative API path before fetching", async () => {
+    const fetch = vi.fn();
+    const client = new CanvasClient({ domain: "x.instructure.com", token: "t", fetch });
+
+    await expect(client.get("//other.example.edu/api/v1/things")).rejects.toThrow(
+      "Canvas path points to another host",
+    );
+    expect(fetch).not.toHaveBeenCalled();
+  });
 });

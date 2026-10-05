@@ -1,3 +1,5 @@
+import confetti from "canvas-confetti";
+
 export type CelebrationType =
   | "default"
   | "assignment"
@@ -7,27 +9,50 @@ export type CelebrationType =
   | "streak"
   | "streak_milestone";
 
+export interface CelebrationOrigin {
+  x: number;
+  y: number;
+}
+
+export function getCelebrationOrigin(source: HTMLElement): CelebrationOrigin {
+  const bounds = source.getBoundingClientRect();
+  return {
+    x: Math.min(
+      1,
+      Math.max(0, (bounds.left + bounds.width / 2) / window.innerWidth),
+    ),
+    y: Math.min(
+      1,
+      Math.max(0, (bounds.top + bounds.height / 2) / window.innerHeight),
+    ),
+  };
+}
+
 export async function triggerCelebration(
   type: CelebrationType = "default",
+  origin?: CelebrationOrigin,
 ): Promise<void> {
   if (typeof window === "undefined") return;
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return;
 
   try {
-    const { default: confetti } = await import("canvas-confetti");
+    // canvas-confetti reuses the first active canvas, including its z-index
+    const fire = (options: Parameters<typeof confetti>[0]) =>
+      confetti({ zIndex: 20_000, ...options });
 
     if (type === "quiz_perfect") {
-      confetti({
+      fire({
         particleCount: 120,
         spread: 78,
         origin: { y: 0.55 },
       });
-      confetti({
+      fire({
         particleCount: 90,
         angle: 60,
         spread: 70,
         origin: { x: 0, y: 0.7 },
       });
-      confetti({
+      fire({
         particleCount: 90,
         angle: 120,
         spread: 70,
@@ -37,7 +62,7 @@ export async function triggerCelebration(
     }
 
     if (type === "pomodoro") {
-      confetti({
+      fire({
         particleCount: 80,
         spread: 65,
         origin: { y: 0.65 },
@@ -46,7 +71,7 @@ export async function triggerCelebration(
     }
 
     if (type === "quiz_good") {
-      confetti({
+      fire({
         particleCount: 60,
         spread: 55,
         origin: { y: 0.6 },
@@ -55,7 +80,7 @@ export async function triggerCelebration(
     }
 
     if (type === "streak") {
-      confetti({
+      fire({
         particleCount: 50,
         spread: 50,
         origin: { y: 0.5 },
@@ -65,21 +90,21 @@ export async function triggerCelebration(
     }
 
     if (type === "streak_milestone") {
-      confetti({
+      fire({
         particleCount: 150,
         spread: 90,
         origin: { y: 0.5 },
         colors: ["#f59e0b", "#fbbf24", "#f97316", "#ef4444"],
       });
       await new Promise((r) => setTimeout(r, 200));
-      confetti({
+      fire({
         particleCount: 80,
         angle: 60,
         spread: 70,
         origin: { x: 0, y: 0.6 },
         colors: ["#f59e0b", "#fbbf24"],
       });
-      confetti({
+      fire({
         particleCount: 80,
         angle: 120,
         spread: 70,
@@ -90,15 +115,20 @@ export async function triggerCelebration(
     }
 
     if (type === "assignment") {
-      confetti({
-        particleCount: 70,
-        spread: 58,
-        origin: { y: 0.6 },
+      fire({
+        particleCount: 42,
+        spread: 50,
+        startVelocity: 28,
+        scalar: 1,
+        ticks: 110,
+        gravity: 0.8,
+        colors: ["#818cf8", "#5eead4", "#fbbf24"],
+        origin: origin ?? { y: 0.6 },
       });
       return;
     }
 
-    confetti({
+    fire({
       particleCount: 80,
       spread: 60,
       origin: { y: 0.55 },

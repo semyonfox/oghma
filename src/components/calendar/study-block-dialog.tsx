@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from "@headlessui/react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
-import useCalendarStore from "@/lib/notes/state/calendar.zustand";
+import useCalendarStore from "@/lib/notes/state/calendar";
 import { formatDateKey, parseDateKey } from "@/lib/notes/utils/calendar-date";
 import useSwipeDismiss from "@/components/navigation/use-swipe-dismiss";
 import useI18n from "@/lib/notes/hooks/use-i18n";

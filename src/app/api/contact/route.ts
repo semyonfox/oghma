@@ -3,7 +3,7 @@ import { z } from "zod";
 import sql from "@/database/pgsql";
 import { withErrorHandler } from "@/lib/api-error";
 import logger from "@/lib/logger";
-import { checkRateLimit, getClientIp } from "@/lib/rateLimiter";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
 import { sendEmail } from "@/lib/email";
 
 const contactSchema = z.object({

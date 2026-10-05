@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { withErrorHandler, requireAuth, ApiError } from "@/lib/api-error";
+import { withErrorHandler, requireAuth, ApiError, parseJsonObject } from "@/lib/api-error";
 import { generateUUID } from "@/lib/utils/uuid";
 import { filterNoteFields } from "@/lib/notes/utils/filter-fields";
 import {
@@ -111,7 +111,7 @@ export const GET = withErrorHandler(async (request) => {
 export const POST = withErrorHandler(async (request) => {
   const user = await requireAuth();
 
-  const rawBody = await request.json();
+  const rawBody = await parseJsonObject(request);
 
   // validate input shape
   const validation = validateBody(noteCreateSchema, rawBody);

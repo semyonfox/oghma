@@ -70,10 +70,6 @@ export default function CanvasIntegrationSettings() {
   const [isDownloadingCanvasFiles, setIsDownloadingCanvasFiles] =
     useState(false);
 
-  const isCourseImportable = (course: Course) =>
-    course.canvasStatus !== "inaccessible" &&
-    course.canvasStatus !== "unavailable";
-
   // import/polling state (custom hook)
   const {
     pendingReplacement, setPendingReplacement, confirmReplacement, isReplacing,
@@ -114,19 +110,26 @@ export default function CanvasIntegrationSettings() {
     const checkConnection = async () => {
       try {
         const res = await fetch("/api/canvas/connect");
+        if (res.status === 401) {
+          setConnectionWarning(
+            t("Your session has expired. Please log in again."),
+          );
+          return;
+        }
         const data = await res.json() as {
           connected?: boolean;
+          connectionState?:
+            | "connected"
+            | "not-configured"
+            | "needs-reconnection"
+            | "temporarily-unavailable";
           domain?: string;
           courses?: Course[];
           forbiddenCourseIds?: Array<string | number>;
           courseDiscoveryDegraded?: boolean;
         };
 
-        if (res.status === 401) {
-          setConnectionWarning(
-            t("Your session has expired. Please log in again."),
-          );
-        } else if (res.ok && data.connected) {
+        if (res.ok && data.connected) {
           setIsConnected(true);
           setConnectedDomain(data.domain ?? "");
           setCourses(data.courses ?? []);
@@ -149,10 +152,9 @@ export default function CanvasIntegrationSettings() {
           const savedSelection = localStorage.getItem(LS_SELECTED);
           const savedIds = JSON.parse(savedSelection ?? "[]");
           const validIds = (data.courses ?? [])
-            .filter(isCourseImportable)
             .map((c) => String(c.id));
           const historicalIds = (data.courses ?? [])
-            .filter((course) => course.historical && isCourseImportable(course))
+            .filter((course) => course.historical)
             .map((course) => String(course.id));
           setSelectedCourseIds(
             Array.from(
@@ -173,13 +175,23 @@ export default function CanvasIntegrationSettings() {
             .catch(() => {})
             .finally(() => setSyncChecked(true));
 
-        } else if (res.ok && !data.connected) {
+        } else if (res.ok && data.connectionState === "needs-reconnection") {
+          setDomain(data.domain ?? "");
           setConnectionWarning(
             t("Your Canvas token is invalid or expired. Please reconnect."),
           );
+        } else if (res.ok && data.connectionState === "not-configured") {
+          setConnectionWarning(null);
+        } else {
+          setDomain(data.domain ?? "");
+          setConnectionWarning(
+            t("Could not check Canvas right now. Reload this page to try again."),
+          );
         }
       } catch {
-        // network error — show the form
+        setConnectionWarning(
+          t("Could not check Canvas right now. Reload this page to try again."),
+        );
       } finally {
         setIsCheckingConnection(false);
       }
@@ -192,8 +204,9 @@ export default function CanvasIntegrationSettings() {
 
   // ── Persist selected courses whenever they change ────────────────────────
   useEffect(() => {
+    if (isCheckingConnection || !isConnected) return;
     localStorage.setItem(LS_SELECTED, JSON.stringify(selectedCourseIds));
-  }, [selectedCourseIds]);
+  }, [isCheckingConnection, isConnected, selectedCourseIds]);
 
   const handleConnect = async () => {
     const rawToken = tokenInputRef.current?.value?.trim() ?? "";
@@ -228,6 +241,7 @@ export default function CanvasIntegrationSettings() {
 
       reportTelemetry({ kind: "count", name: "action_completed", route: "settings" });
       setIsConnected(true);
+      setConnectionWarning(null);
       setConnectedDomain(domain);
       setCourses(data.courses ?? []);
       setCourseDiscoveryDegraded(Boolean(data.courseDiscoveryDegraded));
@@ -235,10 +249,9 @@ export default function CanvasIntegrationSettings() {
       const savedSelection = localStorage.getItem(LS_SELECTED);
       const savedIds = JSON.parse(savedSelection ?? "[]");
       const validIds = (data.courses ?? [])
-        .filter(isCourseImportable)
         .map((c) => String(c.id));
       const historicalIds = (data.courses ?? [])
-        .filter((course) => course.historical && isCourseImportable(course))
+        .filter((course) => course.historical)
         .map((course) => String(course.id));
       setSelectedCourseIds(
         Array.from(
@@ -264,6 +277,7 @@ export default function CanvasIntegrationSettings() {
     } finally {
       resetStatus();
       setIsConnected(false);
+      setConnectionWarning(null);
       setConnectedDomain("");
       setCourses([]);
       setCourseDiscoveryDegraded(false);
@@ -293,7 +307,6 @@ export default function CanvasIntegrationSettings() {
           ? courses
               .filter(
                 (course) =>
-                  isCourseImportable(course) &&
                   selectedCourseIds.includes(String(course.id)),
               )
               .map((c) => ({
@@ -348,7 +361,7 @@ export default function CanvasIntegrationSettings() {
   const toggleCourse = (courseId: string | number) => {
     const id = String(courseId);
     const course = courses.find((item) => String(item.id) === id);
-    if (!course || !isCourseImportable(course)) return;
+    if (!course) return;
     setSelectedCourseIds((prev) =>
       prev.includes(id)
         ? prev.filter((selectedId) => selectedId !== id)
@@ -357,16 +370,14 @@ export default function CanvasIntegrationSettings() {
   };
 
   const toggleSelectAll = () => {
-    const importableIds = courses
-      .filter(isCourseImportable)
-      .map((course) => String(course.id));
+    const listedIds = courses.map((course) => String(course.id));
     const allSelected =
-      importableIds.length > 0 &&
-      importableIds.every((id) => selectedCourseIds.includes(id));
+      listedIds.length > 0 &&
+      listedIds.every((id) => selectedCourseIds.includes(id));
     if (allSelected) {
       setSelectedCourseIds([]);
     } else {
-      setSelectedCourseIds(importableIds);
+      setSelectedCourseIds(listedIds);
     }
   };
 
@@ -406,16 +417,15 @@ export default function CanvasIntegrationSettings() {
 
   if (isCheckingConnection) {
     return (
-      <div className="text-sm text-text-tertiary animate-pulse">
+      <div role="status" className="text-sm text-text-tertiary animate-pulse">
         {t("Checking Canvas connection...")}
       </div>
     );
   }
 
   const showProgress = (isImporting || importSummary) && progress;
-  const selectedImportableCourseCount = courses.filter(
+  const selectedCourseCount = courses.filter(
     (course) =>
-      isCourseImportable(course) &&
       selectedCourseIds.includes(String(course.id)),
   ).length;
 
@@ -553,11 +563,11 @@ export default function CanvasIntegrationSettings() {
           <div className="flex flex-wrap gap-3">
             <button
                 type="button"
-                disabled={selectedImportableCourseCount === 0 || isSyncing}
+                disabled={selectedCourseCount === 0 || isSyncing}
                 onClick={handleImport}
                 className="rounded-radius-md bg-primary-600 px-3 py-2 text-sm font-semibold text-text-on-primary hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {`${t("Import selected courses")}${selectedImportableCourseCount > 0 ? ` (${selectedImportableCourseCount})` : ""}`}
+                {`${t("Import selected courses")}${selectedCourseCount > 0 ? ` (${selectedCourseCount})` : ""}`}
               </button>
             <button
               type="button"
@@ -566,7 +576,7 @@ export default function CanvasIntegrationSettings() {
                 isSyncing ||
                 isDownloadingCanvasFiles ||
                 (selectedCourseIds.length > 0 &&
-                  selectedImportableCourseCount === 0)
+                  selectedCourseCount === 0)
               }
               onClick={handleDownloadCanvasFiles}
               className="rounded-radius-md glass-card-interactive px-3 py-2 text-sm font-semibold text-text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
@@ -574,8 +584,8 @@ export default function CanvasIntegrationSettings() {
               {isDownloadingCanvasFiles
                 ? t("Preparing archive...")
                 : `${t("Download full Canvas archive")}${
-                    selectedImportableCourseCount > 0
-                      ? ` (${selectedImportableCourseCount})`
+                    selectedCourseCount > 0
+                      ? ` (${selectedCourseCount})`
                       : ` (${t("all courses")})`
                   }`}
             </button>

@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CanvasClient } from "@/lib/canvas/client";
 
+vi.mock("@/lib/canvas/safe-fetch", () => ({
+  safeCanvasFetch: (url: string, headers: Record<string, string>) =>
+    fetch(url, { headers, redirect: "manual" }),
+}));
+
 const STRING_IDS_ACCEPT = "application/json+canvas-string-ids";
 
 afterEach(() => {
@@ -246,6 +251,48 @@ describe("CanvasClient string-ID requests", () => {
     expect(fetchMock.mock.calls[1][0]).toBe(nextUrl);
   });
 
+  it("stops when Canvas repeats a pagination URL", async () => {
+    const firstUrl =
+      "https://example.instructure.com/api/v1/courses?enrollment_state=active&include[]=term&per_page=100";
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify([{ id: "1" }]), {
+        headers: { Link: `<${firstUrl}>; rel="next"` },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await new CanvasClient("example.instructure.com", "token")
+      .getCourses();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({
+      data: [{ id: "1" }],
+      forbidden: false,
+      error: "Canvas API pagination loop detected",
+    });
+  });
+
+  it("stops pagination after 100 pages", async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      const currentPage = Number(new URL(url).searchParams.get("page") ?? "1");
+      const nextUrl = new URL(url);
+      nextUrl.searchParams.set("page", String(currentPage + 1));
+      return Promise.resolve(
+        new Response(JSON.stringify([{ id: String(currentPage) }]), {
+          headers: { Link: `<${nextUrl.href}>; rel="next"` },
+        }),
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await new CanvasClient("example.instructure.com", "token")
+      .getCourses();
+
+    expect(fetchMock).toHaveBeenCalledTimes(100);
+    expect(result.data).toHaveLength(100);
+    expect(result.error).toBe("Canvas API pagination exceeded 100 pages");
+  });
+
   it("enumerates self enrollments with the complete non-deleted state contract", async () => {
     const nextUrl =
       "https://example.instructure.com/api/v1/users/self/enrollments?opaque=next";
@@ -365,6 +412,26 @@ describe("CanvasClient string-ID requests", () => {
     });
   });
 
+  it("cancels a failed response and backs off when Retry-After is absent", async () => {
+    vi.useFakeTimers();
+    const failedResponse = new Response("temporary failure", { status: 503 });
+    const cancel = vi.spyOn(failedResponse.body!, "cancel");
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(failedResponse)
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: "1" })));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const resultPromise = new CanvasClient("example.instructure.com", "token")
+      .getCourse("1");
+    await vi.advanceTimersByTimeAsync(999);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(cancel).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect((await resultPromise).data?.id).toBe("1");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("merges active, pending, and completed courses without duplicating IDs", async () => {
     const fetchMock = vi
       .fn()
@@ -451,5 +518,6 @@ describe("CanvasClient string-ID requests", () => {
       forbidden: false,
       error: expect.stringContaining("CANVAS_MAX_FILE_BYTES"),
     });
+    expect(fetchMock.mock.calls[0][1].headers).not.toHaveProperty("Authorization");
   });
 });

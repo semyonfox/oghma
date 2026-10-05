@@ -355,7 +355,7 @@ export class StoreS3 extends StoreProvider {
   /**
    * Delete an object
    */
-  async deleteObject(path: string): Promise<void> {
+  async deleteObject(path: string, signal?: AbortSignal): Promise<void> {
     const fullPath = this.getPath(path);
     this.logger.debug(`Deleting object: ${fullPath}`);
 
@@ -364,7 +364,8 @@ export class StoreS3 extends StoreProvider {
         new DeleteObjectCommand({
           Bucket: this.config.bucket,
           Key: fullPath,
-        })
+        }),
+        { abortSignal: signal }
       );
     } catch (error) {
       this.logger.error(error instanceof Error ? error : String(error), `Error deleting object: ${fullPath}`);
@@ -396,7 +397,7 @@ export class StoreS3 extends StoreProvider {
         .map((entry) => entry.Key)
         .filter((key): key is string => Boolean(key));
       if (objects.length > 0) {
-        await this.client.send(
+        const deleted = await this.client.send(
           new DeleteObjectsCommand({
             Bucket: this.config.bucket,
             Delete: {
@@ -405,6 +406,11 @@ export class StoreS3 extends StoreProvider {
             },
           }),
         );
+        if (deleted.Errors?.length) {
+          throw new Error(
+            `Failed to delete ${deleted.Errors.length} storage object${deleted.Errors.length === 1 ? "" : "s"}`,
+          );
+        }
       }
       continuationToken = listed.IsTruncated
         ? listed.NextContinuationToken

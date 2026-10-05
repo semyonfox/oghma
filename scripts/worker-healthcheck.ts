@@ -12,7 +12,7 @@ import {
 } from "../src/lib/queue.ts";
 import {
   validateMarkerWorkerConfiguration,
-} from "../src/lib/marker-worker-config.ts";
+} from "../src/lib/marker/worker-config.ts";
 import { Queue } from "bullmq";
 
 function errorMessage(error: unknown): string {

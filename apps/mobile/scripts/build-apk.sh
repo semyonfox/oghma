@@ -31,9 +31,9 @@ OGHMA_ANDROID_KEY_PASSWORD="$(cat "$OGHMA_ANDROID_PASSWORD_FILE")"
 trap 'unset OGHMA_ANDROID_KEY_PASSWORD' EXIT
 npm run typecheck
 npm run test
+export NODE_ENV=production
 CI=1 npm exec -- expo prebuild --platform android --no-install
 cd android
-export NODE_ENV=production
 ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
 cd ..
 mkdir -p dist

@@ -43,7 +43,7 @@ function isMutationCurrent(
   );
 }
 
-export interface TrashStoreState {
+interface TrashStoreState {
   keyword: string | undefined;
   list: NoteCacheItem[] | undefined;
   trashAPI: TrashAPI | null;

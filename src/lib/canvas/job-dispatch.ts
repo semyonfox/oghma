@@ -6,7 +6,7 @@
 
 export type CanvasJobData = Record<string, unknown>;
 
-export interface DirectExtractionJobData extends CanvasJobData {
+interface DirectExtractionJobData extends CanvasJobData {
   noteId: string;
   userId: string;
   s3Key: string;
@@ -14,7 +14,7 @@ export interface DirectExtractionJobData extends CanvasJobData {
   filename?: string;
 }
 
-export interface ExtractionRetryJobData extends CanvasJobData {
+interface ExtractionRetryJobData extends CanvasJobData {
   noteId: string;
   userId: string;
   s3Key: string | null;
@@ -136,11 +136,11 @@ function extractionRetryData(data: CanvasJobData): ExtractionRetryJobData {
   };
 }
 
-export function canvasJobType(job: CanvasJob): string | undefined {
+function canvasJobType(job: CanvasJob): string | undefined {
   return typeof job.data?.type === "string" ? job.data.type : job.name;
 }
 
-export function jobAttempt(job: CanvasJob): number {
+function jobAttempt(job: CanvasJob): number {
   return typeof job.attemptsMade === "number" &&
     Number.isInteger(job.attemptsMade) &&
     job.attemptsMade >= 0

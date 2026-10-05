@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { withErrorHandler, requireAuth, ApiError, parseJson } from '@/lib/api-error';
 import sql from '@/database/pgsql';
-import { pomodoroCountForRange } from '@/lib/time-blocks';
+import { pomodoroCountForRange } from '@/lib/calendar/time-blocks';
 import {
   timeBlockCreateSchema,
   timeBlockRangeSchema,

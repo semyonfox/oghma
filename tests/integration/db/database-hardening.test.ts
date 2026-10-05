@@ -9,7 +9,7 @@ const vectors = vi.hoisted(() => ({ delete: vi.fn().mockResolvedValue(undefined)
 vi.mock('@/lib/qdrant', () => ({ deleteChunkVectors: vectors.delete, setChunkVectorsSearchable: vi.fn() }));
 vi.mock('@/lib/canvas/import-cache', () => ({ isSharedImportedFileKey: () => false }));
 vi.mock('@/lib/storage/init', () => ({ getStorageProvider: () => { throw new Error('Vector-only cleanup must not require object storage'); } }));
-vi.mock('@/lib/auth', () => ({ validateSession: async () => ({ user_id: auth.userId }), validateSessionLite: vi.fn() }));
+vi.mock('@/lib/auth/session', () => ({ validateSession: async () => ({ user_id: auth.userId }), validateSessionLite: vi.fn() }));
 vi.mock('@/lib/cache', () => ({ cacheGet: async () => null, cacheSet: async () => {}, cacheInvalidate: async () => {}, cacheKeys: { treeFull: () => 'tree', notesList: () => 'notes' } }));
 vi.mock('@/lib/redis', () => ({ redis: {} }));
 vi.mock('@/lib/logger', () => ({ default: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));

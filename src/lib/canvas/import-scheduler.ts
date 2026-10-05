@@ -5,7 +5,7 @@ import { enqueueCanvasJob } from "../queue.ts";
 
 export type ImportServiceClass = "free" | "semester" | "academic_year";
 
-export const IMPORT_CLASS_WEIGHTS: Record<ImportServiceClass, number> = {
+const IMPORT_CLASS_WEIGHTS: Record<ImportServiceClass, number> = {
   free: 1,
   semester: 3,
   academic_year: 5,
@@ -50,7 +50,7 @@ interface DispatchRecord {
  * pending row forever. Releasing only still-pending rows is safe because the
  * consumer compare-and-swaps pending -> downloading before doing any work.
  */
-export async function recoverStaleCanvasDispatches(limit = 100): Promise<number> {
+async function recoverStaleCanvasDispatches(limit = 100): Promise<number> {
   const released = await sql`
     WITH candidates AS (
       SELECT ci.id

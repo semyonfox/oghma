@@ -40,7 +40,11 @@ vi.mock("@/lib/notes/cache", () => ({
   },
 }));
 
-async function persistDraft(id: string, owner: "A" | "B", content: string): Promise<NoteDraft> {
+async function persistDraft(
+  id: string,
+  owner: "A" | "B",
+  content: string,
+): Promise<NoteDraft> {
   const draft = await writeDraft(id, content, owner);
   if (!draft) throw new Error("Draft writes are disabled");
   return draft;

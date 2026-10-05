@@ -14,6 +14,7 @@ import {
   SparklesIcon,
   ExclamationTriangleIcon,
   ArrowRightStartOnRectangleIcon,
+  ShieldCheckIcon,
 } from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { Locale, normalizeLocale } from "@/locales";
@@ -33,7 +34,7 @@ import CourseVisibilityManager, {
 } from "@/components/course-visibility/course-visibility-manager";
 import EditorThemeSection from "@/components/settings/editor-theme-section";
 import PasswordSection from "@/components/settings/password-section";
-import useCourseStore from "@/lib/notes/state/courses.zustand";
+import useCourseStore from "@/lib/notes/state/courses";
 import { postNativeUpdates, postNativeOfflineAccount, useNativeAppBridge } from "@/lib/native-app";
 import { useWorkspaceSession } from "@/components/providers/workspace-lifecycle-provider";
 import { resetWorkspaceClientState } from "@/lib/notes/workspace-lifecycle";
@@ -72,6 +73,7 @@ const SECTION_IDS = [
   "canvas",
   "ai",
   "course-visibility",
+  "privacy",
   "data",
   "danger",
 ];
@@ -87,6 +89,7 @@ const NAVIGATION_ITEMS = [
     id: "course-visibility",
     icon: ArchiveBoxIcon,
   },
+  { label: "Privacy", id: "privacy", icon: ShieldCheckIcon },
   { label: "Data & Export", id: "data", icon: ArrowDownTrayIcon },
   { label: "Danger Zone", id: "danger", icon: ExclamationTriangleIcon },
 ];
@@ -274,21 +277,58 @@ export default function SettingsPage() {
 
   useEffect(() => {
     const handleScroll = () => {
+      let visibleSection: string | null = null;
       for (const id of SECTION_IDS) {
         const el = document.getElementById(id);
         if (el) {
           const rect = el.getBoundingClientRect();
           if (rect.top <= 200 && rect.bottom >= 0) {
-            setActiveSection(id);
-            break;
+            visibleSection = id;
           }
         }
       }
+      if (visibleSection) setActiveSection(visibleSection);
     };
     const content = contentRef.current;
     if (!content) return;
     content.addEventListener("scroll", handleScroll);
     return () => content.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  useEffect(() => {
+    const content = contentRef.current;
+    if (!content) return;
+
+    let observer: MutationObserver | null = null;
+    const scrollToHash = () => {
+      observer?.disconnect();
+      observer = null;
+
+      const id = window.location.hash.slice(1);
+      if (!SECTION_IDS.includes(id)) return;
+
+      const scrollWhenReady = () => {
+        const section = document.getElementById(id);
+        if (!section) return;
+        observer?.disconnect();
+        observer = null;
+        section.scrollIntoView({ behavior: "auto" });
+        setActiveSection(id);
+      };
+
+      scrollWhenReady();
+      if (!document.getElementById(id)) {
+        observer = new MutationObserver(scrollWhenReady);
+        observer.observe(content, { childList: true, subtree: true });
+      }
+    };
+
+    scrollToHash();
+    window.addEventListener("hashchange", scrollToHash);
+    return () => {
+      window.removeEventListener("hashchange", scrollToHash);
+      observer?.disconnect();
+    };
   }, []);
 
   useEffect(() => {
@@ -546,9 +586,19 @@ export default function SettingsPage() {
               )}
             </div>
           </section>
-          <section aria-labelledby="privacy-heading" className="rounded-radius-lg border border-border-subtle bg-surface p-5">
-            <h2 id="privacy-heading" className="mb-3 text-lg font-semibold">Privacy</h2>
-            <TelemetryPreference />
+          <section
+            className="grid grid-cols-1 gap-x-8 gap-y-10 py-12 md:grid-cols-3"
+            id="privacy"
+          >
+            <div>
+              <h2 className="text-base/7 font-semibold text-text">
+                {t("Privacy")}
+              </h2>
+            </div>
+
+            <div className="md:col-span-2">
+              <TelemetryPreference />
+            </div>
           </section>
           <DataExportSection />
           <DangerSection />

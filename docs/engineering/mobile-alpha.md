@@ -1,8 +1,8 @@
 # Android alpha
 
-> Status: full web workspace in a React Native Android shell, version 0.1.3
+> Status: 0.1.4 released; 0.1.5 EAS Update APK built locally, unreleased
 >
-> Last reviewed: 2026-09-14
+> Last reviewed: 2026-10-04 (authentication patch pending release)
 
 The Android application lives in [`apps/mobile`](../../apps/mobile/README.md), with its own npm package and lockfile. Version 0.1.3 replaces the limited native notes/chat screens with the existing Next.js website in React Native WebView. The website remains at the repository root. Its responsive navigation, Milkdown rich editor, PDF.js renderer, chat, calendar, quizzes and settings are used directly inside the app.
 
@@ -16,7 +16,12 @@ The website owns typography, appearance and account theme persistence. A small n
 
 Email/password sign-in uses the website form and ordinary WebView cookies. Google and GitHub use the existing Auth.js browser providers and account linking. The provider buttons send only the provider name to the native shell, which opens the existing external-browser OAuth flow. This keeps provider sign-in outside the embedded browser.
 
-The browser handoff keeps a random verifier in SecureStore across process restarts. A 120-second single-use Redis grant is bound to its SHA-256 challenge. Only the code and state return through `ie.oghmanotes.alpha://auth`. HTTPS redemption issues the session after an active-account check. The dedicated native web-session module installs that cookie with HttpOnly, Secure and SameSite attributes in Android CookieManager and flushes it before opening the workspace. Session cookies never pass through page JavaScript or URLs.
+The browser handoff keeps a random verifier in SecureStore across process restarts. A 120-second single-use Redis grant is bound to its SHA-256 challenge. Only the code and state return through the verified Android App Link
+`https://oghmanotes.ie/auth/mobile/callback`. Custom URI schemes cannot complete
+this handoff. HTTPS redemption checks the active account and the session version
+observed when the grant was issued. The native intent filter and server
+association must ship together; see [security rollout](../operations/security-rollout.md)
+for the signing fingerprint and device verification gate. The dedicated native web-session module installs that cookie with HttpOnly, Secure and SameSite attributes in Android CookieManager and flushes it before opening the workspace. Session cookies never pass through page JavaScript or URLs.
 
 An existing alpha session transfers to the WebView once. The old SecureStore session is removed only after successful transfer, preventing an old native session from signing the user back in after website logout. Previous native draft keys remain on the device; the web editor does not import those drafts. New edits use the website's existing save and recovery behaviour.
 
@@ -92,9 +97,58 @@ remove it, reconnect, sign out and switch accounts. Confirm that the native
 reader does not interrupt an open editor or make network requests for note
 images. Keyboard, OAuth-return and APK-installer behaviour remain unverified on a physical phone for this update.
 
+## 0.1.5 EAS Update preparation
+
+Status: unreleased source target as of 2026-09-25. Version 0.1.5 adds the
+`expo-updates` native module to the existing signed APK build. It will use the
+public project ID of [foxscope/oghmanotes-alpha](https://expo.dev/accounts/foxscope/projects/oghmanotes-alpha), the `production` update channel
+for the production website origin, and the app version as its runtime version.
+The current 0.1.4 APK has no EAS Update client and cannot receive these updates.
+The Expo project is linked in `apps/mobile/app.config.ts`. No OTA update or 0.1.5
+APK has been published. The Expo `production` channel is linked to its
+`production` branch, with no updates published yet. The [mobile README](../../apps/mobile/README.md)
+owns the build and publishing steps.
+
+Local verification on 2026-09-25: the signed 0.1.5 APK built successfully with
+package `ie.oghmanotes.alpha` and versionCode 6. Its signing certificate matches
+the published 0.1.4 APK. The packaged Android manifest contains the Expo update
+URL, `production` channel and runtime version `0.1.5`. The APK verifies, is not
+debuggable and passes 16 KB ZIP alignment. The only permission added since 0.1.4
+is `ACCESS_NETWORK_STATE`. Mobile type checking, 32 contract tests, Expo dependency
+compatibility and Android JavaScript export passed. Installation on a device and
+OTA delivery still need verification.
+
+### Edge-to-edge frame
+
+Added to the unreleased 0.1.5 source on 2026-09-27. The shell pads only the
+top and sides, so the workspace runs under Android's gesture bar. It injects
+the bar's height into the page as `--oghma-inset-bottom` (zero while the
+keyboard is open). The website combines it with `env(safe-area-inset-bottom)`
+into `--safe-bottom`. On phones, the navigation dock floats over scrolling
+pages, which end with a `mobile-dock-clearance` spacer. Chat keeps the dock
+below its composer. Deploy the website change before shipping an APK or OTA
+update containing this shell change. Otherwise the current website places
+the dock over the gesture bar. The 0.1.4 shell keeps working with the new
+website because it never injects the inset. Not yet checked on a physical
+device.
+
+EAS Update covers bundled React Native JavaScript and assets compatible with
+the installed native runtime. The WebView still loads website changes from the
+deployed site. Native capability changes continue through the signed APK
+release flow and the existing verified APK updater. A separate Dev app and
+update channel are outside this preparation.
+
 ## References
 
 - [React Native WebView guide](https://github.com/react-native-webview/react-native-webview/blob/master/docs/Guide.md)
 - [React Native WebView reference](https://github.com/react-native-webview/react-native-webview/blob/master/docs/Reference.md)
 - [Expo browser authentication](https://docs.expo.dev/versions/latest/sdk/webbrowser/)
 - [Local native builds](https://docs.expo.dev/guides/local-app-development/)
+
+## 0.1.6 authentication patch
+
+Status: unreleased source target as of 2026-10-04. The native version is 0.1.6
+and versionCode 7. It adds a verified HTTPS App Link intent filter and a separate
+Expo runtime from 0.1.5. An OTA update cannot add this filter. The
+[security rollout](../operations/security-rollout.md) owns the certificate,
+association, native build and device-verification gates.

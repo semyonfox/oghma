@@ -1,3 +1,5 @@
+import { isReadOnlyCanvasTool } from "./tool-policy";
+import { proposeToolAction } from "@/lib/chat/actions";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { ZodTypeAny } from "zod";
@@ -87,7 +89,7 @@ export const canvasMcpToolSchemas: Record<string, { inputSchema: ZodTypeAny }> =
   );
 
 export const canvasToolInstruction =
-  "Canvas student tools are available for course data and student actions.\n" +
+  "Canvas student tools are available for course data. Changes return a proposal that the user must review and approve before it runs.\n" +
   "Available categories: courses, assignments, submissions, grades, modules, pages, calendar/planner, announcements, discussions, files, messages, notifications, profile, quizzes, rubrics.\n" +
   "Disabled in this student profile: instructor/admin authoring and grading flows (course/assignment/page/module creation or deletion, quiz/rubric authoring, admin user management).";
 
@@ -135,6 +137,7 @@ function registerCanvasTool(
   server: McpServer,
   client: CanvasClient,
   tool: ToolDef,
+  userId?: string,
 ) {
   server.registerTool(
     tool.name,
@@ -143,20 +146,29 @@ function registerCanvasTool(
       inputSchema: tool.inputSchema,
     },
     async (args: unknown) => {
-      const result = await executeTool(tool, args, { canvas: client });
+      const parsed = tool.inputSchema.parse(args);
+      if (!isReadOnlyCanvasTool(tool.name)) {
+        if (!userId) throw new Error("Action confirmation requires an authenticated account");
+        const proposal = await proposeToolAction(userId, null, tool.name, parsed);
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify(proposal) }],
+          structuredContent: proposal,
+        };
+      }
+      const result = await executeTool(tool, parsed, { canvas: client });
       return normalizeToolOutput(result);
     },
   );
 }
 
-export function createCanvasMcpServer(client: CanvasClient) {
+export function createCanvasMcpServer(client: CanvasClient, userId?: string) {
   const server = new McpServer({
     name: "oghmanotes-canvas",
     version: "2.0.0",
   });
 
   for (const tool of canvasMcpStudentTools) {
-    registerCanvasTool(server, client, tool);
+    registerCanvasTool(server, client, tool, userId);
   }
 
   return server;

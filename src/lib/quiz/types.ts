@@ -2,7 +2,7 @@ export type QuestionType = 'mcq' | 'true_false' | 'fill_in';
 export type BloomLevel = 1 | 2 | 3 | 4;
 export type CardState = 'new' | 'learning' | 'review' | 'relearning';
 export type FilterType = 'course' | 'module' | 'note' | 'search' | 'chat_session' | 'all';
-export type FSRSRating = 1 | 2 | 3 | 4; // again, hard, good, easy
+type FSRSRating = 1 | 2 | 3 | 4; // again, hard, good, easy
 
 export interface QuizOption {
     text: string;
@@ -100,33 +100,6 @@ export interface QuizAnswerResponse {
     isLeech: boolean;
     streakResult: QuizStreakResult | null;
     sessionProgress: QuizSessionProgress;
-}
-
-export interface QuizCard {
-    id: string;
-    user_id: string;
-    question_id: string;
-    state: CardState;
-    stability: number;
-    difficulty: number;
-    elapsed_days: number;
-    scheduled_days: number;
-    reps: number;
-    lapses: number;
-    due: string;
-    last_review: string | null;
-}
-
-export interface QuizSession {
-    id: string;
-    user_id: string;
-    filter_type: FilterType;
-    filter_value: unknown;
-    total_questions: number;
-    correct_count: number;
-    bloom_distribution: Record<string, number>;
-    started_at: string;
-    completed_at: string | null;
 }
 
 export interface UserStreak {

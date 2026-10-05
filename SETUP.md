@@ -14,7 +14,7 @@ Use `npm` for every package and script command.
 
 ## Recommended: disposable mock environment
 
-This path starts PostgreSQL, Redis, Qdrant, MinIO, Mailpit, and a deterministic fake AI provider. It uses synthetic data and does not need production credentials.
+This path starts PostgreSQL, Redis, Qdrant, RustFS, Mailpit, and a deterministic fake AI provider. It uses synthetic data and does not need production credentials.
 
 ```bash
 npm ci

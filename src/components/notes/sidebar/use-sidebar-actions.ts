@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import useNoteTreeStore from "@/lib/notes/state/tree";
 import { publishWorkspaceInvalidation } from "@/lib/notes/workspace-invalidation";
 import useNoteStore from "@/lib/notes/state/note";
-import useLayoutStore from "@/lib/notes/state/layout.zustand";
+import useLayoutStore from "@/lib/notes/state/layout";
 import useContextMenuStore from "@/lib/notes/state/context-menu";
 import { buildFileSpec } from "@/lib/notes/utils/file-spec";
 import { NOTE_PINNED } from "@/lib/notes/types/meta";

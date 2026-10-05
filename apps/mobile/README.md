@@ -1,6 +1,6 @@
 # OghmaNotes Android alpha
 
-Status: Android alpha 0.1.4 release source, 2026-09-14. The tracked download manifest identifies the APK served by a website deployment. See [mobile engineering notes](../../docs/engineering/mobile-alpha.md) for supported flows, verification and release boundaries.
+Status: 0.1.4 is the published Android alpha. A signed 0.1.5 APK with EAS Update support has been built locally but is not released, as of 2026-09-25. The tracked download manifest still identifies the APK served by a website deployment. See [mobile engineering notes](../../docs/engineering/mobile-alpha.md) for supported flows, verification and release boundaries.
 
 This is a separate Expo application using React Native WebView to load the full existing OghmaNotes website, including its rich editor and PDF.js viewer. The existing Next.js website stays at the repository root. It has its own npm lockfile so native dependency versions do not change the web application's React version.
 
@@ -22,6 +22,9 @@ Install JDK 17 and Android command-line tools, accept the SDK licenses, and inst
 npm run build:apk --prefix apps/mobile
 ```
 
+The Expo project is [foxscope/oghmanotes-alpha](https://expo.dev/accounts/foxscope/projects/oghmanotes-alpha). Its public project ID is bound in `app.config.ts`. A production-targeted APK uses the `production` update channel; builds targeting another website origin use the `preview` channel.
+The `production` channel is linked to its branch. The `preview` channel is reserved for the separate Dev app and has not been created.
+
 The script creates a dedicated private alpha signing identity on first use under `$XDG_DATA_HOME/oghmanotes-mobile`, falling back to `$HOME/.local/share/oghmanotes-mobile`. Keep that directory private and preserve it for future updates. Override its location with `OGHMA_ANDROID_SIGNING_DIR`. The build fails instead of replacing an incomplete signing identity. Never commit signing files or credentials.
 
 Output: `apps/mobile/dist/oghmanotes-alpha.apk`. It is a release APK with bundled JavaScript and does not need Metro. The package identifier is `ie.oghmanotes.alpha`. Increment `android.versionCode` and the version in `app.json` for each distributed update. Android native files are generated and ignored.
@@ -35,6 +38,17 @@ Version 0.1.4 adds explicit read-only downloads for ordinary notes. Save a note 
 Version 0.1.2 introduced the updater. Version 0.1.3 keeps it on the website login screen and in Settings inside the app, plus the shared update notice. The shared update screen handles progress, cancellation, verification, Android install permission and retry. The local Expo module in `modules/oghma-updater` requires a native build; Expo Go cannot load it.
 
 The updater checks `https://oghmanotes.ie/downloads/android-alpha.json` and downloads the fixed production APK endpoint. It compares Android versionCode, so a website rollback never offers a downgrade. APKs must match the installed package and signing identity as well as the release checksum. A process killed during download restarts the download next time. Silent installation and Play Store distribution are outside this alpha flow.
+
+The unreleased 0.1.5 build adds `expo-updates` for bundled React Native JavaScript and assets. It uses the app version as the native runtime version, so publish OTA updates only for the installed app version and channel. Expo checks on app launch, downloads a compatible update, and applies it after the next restart. Website changes already arrive through the WebView after a website deployment and do not need an EAS update. Native modules, Android permissions, Expo SDK changes, and native code still require a new signed APK. Existing 0.1.4 installations cannot receive EAS updates until they install 0.1.5.
+
+Publish a production OTA update from a verified source revision with the EAS CLI logged in:
+
+```sh
+cd apps/mobile
+npm exec --yes --package=eas-cli@latest -- eas update --channel production --environment production --message "Describe the change"
+```
+
+This command publishes remotely; running the website deploy or APK build does not publish an EAS update. The production EAS environment must bundle `EXPO_PUBLIC_API_URL` as `https://oghmanotes.ie` or leave it unset. Do not publish from a build containing unreviewed local changes. Check the installed 0.1.5 APK and a compatible OTA update on a device before using this for general releases. The separate Dev APK and its update path are later work.
 
 ## Stage the website download
 

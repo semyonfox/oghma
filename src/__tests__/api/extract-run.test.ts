@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { NextRequest } from "next/server";
 
 vi.mock("@/database/pgsql", () => ({
   default: vi.fn(() => Promise.resolve([])),
@@ -8,7 +9,7 @@ vi.mock("@/lib/rag/indexing", () => ({
   replaceNoteEmbeddings: vi.fn().mockResolvedValue(2),
 }));
 
-vi.mock("@/lib/strip-markdown", () => ({
+vi.mock("@/lib/rag/strip-markdown", () => ({
   stripMarkdown: vi.fn((value: string) => value.replace(/[#*`]/g, "")),
 }));
 
@@ -29,15 +30,12 @@ vi.mock("@/lib/storage/init", () => ({
   })),
 }));
 
-vi.mock("@/lib/xray", () => ({
-  xraySubsegment: vi.fn((_name: string, fn: () => unknown) => fn()),
-}));
 
 vi.mock("@/lib/canvas/extraction-retry", () => ({
   enqueueExtractionRetry: vi.fn(),
 }));
 
-vi.mock("@/lib/marker-output", () => ({
+vi.mock("@/lib/marker/output", () => ({
   persistMarkerAssetsForNote: vi.fn(),
 }));
 
@@ -49,16 +47,19 @@ vi.mock("@/lib/logger", () => ({
   },
 }));
 
-vi.mock("@/lib/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   validateSession: vi.fn(),
 }));
 
-vi.mock("@/lib/rateLimiter", () => ({
+vi.mock("@/lib/rate-limiter", () => ({
   checkRateLimit: vi.fn(),
 }));
 
 import sql from "@/database/pgsql";
+import { validateSession } from "@/lib/auth/session";
 import { replaceNoteEmbeddings } from "@/lib/rag/indexing";
+import { getStorageProvider } from "@/lib/storage/init";
+import { POST } from "@/app/api/extract/route";
 import { runExtraction } from "@/lib/ingestion/run-extraction";
 
 type SqlCall = [TemplateStringsArray, ...unknown[]];
@@ -127,5 +128,92 @@ describe("runExtraction", () => {
 
     expect(fetch).not.toHaveBeenCalled();
     expect(replaceNoteEmbeddings).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/extract", () => {
+  const noteId = "00000000-0000-0000-0000-000000000001";
+  const userId = "00000000-0000-0000-0000-000000000002";
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(sql).mockReset();
+    vi.mocked(validateSession).mockResolvedValue({
+      user_id: userId,
+      session_version: 0, email: "owner@example.com",
+    });
+  });
+
+  it("rejects another note's storage key before signing or fetching it", async () => {
+    vi.mocked(sql)
+      .mockResolvedValueOnce([{ s3_key: `notes/${noteId}/owned.pdf` }] as never)
+      .mockResolvedValueOnce([] as never);
+    const request = new NextRequest("http://localhost/api/extract", {
+      method: "POST",
+      body: JSON.stringify({
+        documentId: noteId,
+        url: "https://storage.example/notes/00000000-0000-0000-0000-000000000099/private.pdf",
+      }),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(400);
+    expect(getStorageProvider).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unregistered file under the owned note's storage path", async () => {
+    vi.mocked(sql)
+      .mockResolvedValueOnce([{ s3_key: `notes/${noteId}/owned.pdf` }] as never)
+      .mockResolvedValueOnce([] as never);
+    const request = new NextRequest("http://localhost/api/extract", {
+      method: "POST",
+      body: JSON.stringify({
+        documentId: noteId,
+        url: `https://storage.example/notes/${noteId}/old-upload.pdf`,
+      }),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(400);
+    expect(getStorageProvider).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("extracts a registered attachment for the owned note", async () => {
+    const attachmentKey = `notes/${noteId}/attachment.pdf`;
+    vi.mocked(sql)
+      .mockResolvedValueOnce([{ s3_key: `notes/${noteId}/owned.pdf` }] as never)
+      .mockResolvedValueOnce([{ exists: 1 }] as never)
+      .mockResolvedValueOnce([{ note_id: noteId }] as never)
+      .mockResolvedValueOnce([{ note_id: noteId }] as never);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        headers: { get: vi.fn(() => "1024") },
+        arrayBuffer: vi.fn(async () => Buffer.from("pdf bytes").buffer),
+      }),
+    );
+    const request = new NextRequest("http://localhost/api/extract", {
+      method: "POST",
+      body: JSON.stringify({
+        documentId: noteId,
+        url: `https://storage.example/${attachmentKey}`,
+      }),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(200);
+    expect(getStorageProvider).toHaveBeenCalledOnce();
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(replaceNoteEmbeddings).toHaveBeenCalledWith(
+      noteId,
+      userId,
+      ["Marker text", "Diagram text"],
+    );
   });
 });

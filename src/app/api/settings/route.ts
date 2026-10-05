@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { withErrorHandler, requireAuth } from "@/lib/api-error";
+import { parseJson, withErrorHandler, requireAuth } from "@/lib/api-error";
 import { DEFAULT_SETTINGS } from "@/lib/notes/types/settings";
 import {
   getSettingsFromS3,
@@ -49,7 +49,7 @@ export const GET = withErrorHandler(async () => {
 export const POST = withErrorHandler(async (request) => {
     const user = await requireAuth();
 
-    const body: unknown = await request.json();
+    const body = await parseJson(request);
 
     // only allow known settings keys to prevent arbitrary data injection
     const ALLOWED_KEYS = new Set<string>([

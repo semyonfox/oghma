@@ -77,7 +77,7 @@ function startCacheCleanup() {
   }, CACHE_CONFIG.cleanupInterval);
 }
 
-export function stopCacheCleanup() {
+function stopCacheCleanup() {
   if (cleanupIntervalId) {
     clearInterval(cleanupIntervalId);
     cleanupIntervalId = null;

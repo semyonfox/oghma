@@ -226,9 +226,9 @@ describe("registerSchema", () => {
     ).toBe(true);
   });
 
-  it("rejects password under 8 chars", () => {
+  it("rejects a non-string password before credential policy checks", () => {
     expect(
-      registerSchema.safeParse({ email: "u@example.com", password: "short" })
+      registerSchema.safeParse({ email: "u@example.com", password: 12345678 })
         .success,
     ).toBe(false);
   });

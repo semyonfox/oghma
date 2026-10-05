@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { validateSession } from "@/lib/auth";
+import { requireAuth, tracedError, withErrorHandler } from "@/lib/api-error";
 import sql from "@/database/pgsql";
 import logger from "@/lib/logger";
 
@@ -43,13 +43,10 @@ async function fetchLogs(userId: string, jobStart: Date | string | null) {
     ORDER BY updated_at DESC LIMIT 1000`;
 }
 
-export async function GET(request: Request) {
-  try {
-    const user = await validateSession();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+export const GET = withErrorHandler(async (request) => {
+  const user = await requireAuth();
 
+  try {
     const { searchParams } = new URL(request.url);
     const jobId = searchParams.get("jobId");
 
@@ -61,7 +58,7 @@ export async function GET(request: Request) {
         WHERE id = ${jobId}::uuid AND user_id = ${user.user_id}
       `;
       if (!rows.length) {
-        return NextResponse.json({ error: "Job not found" }, { status: 404 });
+        return tracedError("Job not found", 404);
       }
       jobStart = rows[0].created_at;
     }
@@ -76,6 +73,6 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     logger.error("canvas logs error", { error });
-    return NextResponse.json({ error: "Failed to fetch logs" }, { status: 500 });
+    return tracedError("Failed to fetch logs", 500);
   }
-}
+});

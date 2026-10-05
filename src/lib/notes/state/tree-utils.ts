@@ -72,7 +72,7 @@ export function buildPinnedTree(tree: TreeModel): TreeModel {
 }
 
 /** Convert the API's shallow tree item into the store's loaded-node shape. */
-export function buildTreeItemFromApi(item: TreeItemSummary): TreeItemModel {
+function buildTreeItemFromApi(item: TreeItemSummary): TreeItemModel {
   return {
     id: item.id,
     children: [],

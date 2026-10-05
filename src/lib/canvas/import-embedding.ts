@@ -9,7 +9,7 @@ import { CanvasClaimLostError, withCanvasPublication } from "./execution";
  */
 
 import sql from "../../database/pgsql";
-import { stripMarkdown } from "../strip-markdown.ts";
+import { stripMarkdown } from "../rag/strip-markdown.ts";
 import { getStorageProvider } from "../storage/init.ts";
 import { moveNoteToExtractionBundle } from "../notes/extraction-bundle.ts";
 import { replaceNoteEmbeddings } from "../rag/indexing.ts";
@@ -24,7 +24,7 @@ import {
   extractContentFromBuffer,
   type ExtractionResult,
 } from "../ingestion/extraction-core.ts";
-import { persistMarkerAssetsForNote } from "../marker-output.ts";
+import { persistMarkerAssetsForNote } from "../marker/output.ts";
 import { createAsyncLimiter } from "./async-limiter";
 import { parseEnvConcurrency } from "./import-metrics";
 import logger from "../logger.ts";
@@ -34,7 +34,7 @@ import {
   MarkerSubmissionCancelledError,
   processAllPdfsWithMarker,
   submitMarkerJob,
-} from "../marker-serverless.ts";
+} from "../marker/serverless.ts";
 
 // ── Concurrency limiters ────────────────────────────────────────────────────
 
@@ -369,7 +369,9 @@ export async function processRagPipeline(
     // stripped text for full-text search (no ### --- ** etc.)
     const updated = await sql`
       UPDATE app.notes
-      SET content = ${finalMarkdown}, extracted_text = ${searchText}, extraction_coverage = ${extractionCoverage}::jsonb, updated_at = NOW()
+      SET content = ${finalMarkdown}, extracted_text = ${searchText},
+          extracted_from_note_id = ${noteId}::uuid,
+          extraction_coverage = ${extractionCoverage}::jsonb, updated_at = NOW()
       WHERE note_id = ${mdNoteId}::uuid
         AND user_id = ${userId}::uuid
         AND deleted_at IS NULL

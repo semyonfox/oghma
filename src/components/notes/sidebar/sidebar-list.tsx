@@ -2,7 +2,7 @@
 import NoteContextMenu from "./note-context-menu";
 import TreeItem from "./tree-item";
 import useNoteTreeStore from "@/lib/notes/state/tree";
-import useLayoutStore from "@/lib/notes/state/layout.zustand";
+import useLayoutStore from "@/lib/notes/state/layout";
 import useContextMenuStore from "@/lib/notes/state/context-menu";
 import { buildFileSpec } from "@/lib/notes/utils/file-spec";
 import React, { memo, useMemo, useState, useCallback, useRef } from "react";

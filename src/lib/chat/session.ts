@@ -126,7 +126,7 @@ export async function loadSessionContext(
   return normalizeChatSessionContext(rows[0]?.context);
 }
 
-export async function updateSessionContext(
+async function updateSessionContext(
   sessionId: string,
   updater: (context: ChatSessionContext) => ChatSessionContext,
 ): Promise<ChatSessionContext> {

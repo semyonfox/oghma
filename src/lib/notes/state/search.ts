@@ -11,7 +11,7 @@ interface SearchState {
     filterNotes: (searchKeyword?: string) => Promise<NoteCacheItem[]>;
 }
 
-export const useSearchStore = create<SearchState>((set, get) => ({
+const useSearchStore = create<SearchState>((set, get) => ({
     list: undefined,
     keyword: '',
     setKeyword: (keyword) => set({ keyword }),

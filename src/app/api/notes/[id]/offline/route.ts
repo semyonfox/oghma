@@ -1,7 +1,11 @@
-import { validateSession } from "@/lib/auth";
-import { isValidUUID } from "@/lib/utils/uuid";
 import sql from "@/database/pgsql";
-import { withErrorHandler, tracedError } from "@/lib/api-error";
+import {
+  requireAuth,
+  requireValidId,
+  tracedError,
+  type RouteParamsContext,
+  withErrorHandler,
+} from "@/lib/api-error";
 import { NextResponse } from "next/server";
 
 interface SnapshotRow {
@@ -13,12 +17,11 @@ interface SnapshotRow {
 export const GET = withErrorHandler(
   async (
     _request: Request,
-    { params }: { params: Promise<{ id: string }> },
+    { params }: RouteParamsContext<{ id: string }>,
   ) => {
-    const user = await validateSession();
-    if (!user) return tracedError("Unauthorized", 401);
+    const user = await requireAuth();
     const { id } = await params;
-    if (!isValidUUID(id)) return tracedError("Invalid note ID", 400);
+    requireValidId(id, "note ID");
 
     // Owner and content come from the same authenticated request. Never pair a
     // separately fetched profile with a note fetched during an account switch.
