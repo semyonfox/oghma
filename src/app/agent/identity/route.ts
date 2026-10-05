@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server";
 import sql from "@/database/pgsql";
-import { createErrorResponse, parseJsonBody } from "@/lib/auth";
-import { createAgentRegistrationClaim, findOpenAgentRegistrationByEmail } from "@/lib/agent-registration";
-import { checkRateLimit, getClientIp } from "@/lib/rateLimiter";
+import { createErrorResponse, parseJsonBody } from "@/lib/auth/session";
+import { createAgentRegistrationClaim, findOpenAgentRegistrationByEmail } from "@/lib/auth/agent-registration";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
 import { agentRegistrationSchema, validateBody } from "@/lib/validations/schemas";
 import { getBaseUrl } from "@/lib/public/agent-content";
 

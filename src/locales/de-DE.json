@@ -1270,5 +1270,7 @@
   "Hide Canvas URL": "Canvas-URL ausblenden",
   "Canvas URL": "Canvas-URL",
   "Paste your Canvas URL or enter its address, for example": "Fügen Sie Ihre Canvas-URL ein oder geben Sie die Adresse ein, zum Beispiel",
-  "Use a Canvas address ending in .instructure.com": "Verwenden Sie eine Canvas-Adresse, die auf .instructure.com endet"
+  "Use a Canvas address ending in .instructure.com": "Verwenden Sie eine Canvas-Adresse, die auf .instructure.com endet",
+  "Search results: {count}": "Suchergebnisse: {count}",
+  "Retry save": "Speichern erneut versuchen"
 }

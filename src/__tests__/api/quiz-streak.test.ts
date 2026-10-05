@@ -4,7 +4,7 @@ vi.mock("@/database/pgsql", () => ({
   default: vi.fn(),
 }));
 
-vi.mock("@/lib/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   validateSession: vi.fn(),
 }));
 
@@ -14,7 +14,7 @@ vi.mock("@/lib/quiz/streak", () => ({
 
 import { NextRequest } from "next/server";
 import { POST } from "@/app/api/quiz/streak/route";
-import { validateSession } from "@/lib/auth";
+import { validateSession } from "@/lib/auth/session";
 import { advanceQuizStreak } from "@/lib/quiz/streak";
 
 const request = new NextRequest("http://localhost/api/quiz/streak", {

@@ -5,11 +5,6 @@ import type {
   TreeMutationRequest,
 } from "@/lib/notes/types/tree";
 
-export interface TreeChildrenResponse {
-  parentId: string;
-  items: TreeItemSummary[];
-}
-
 export interface TreeApi {
   fetch: (signal?: AbortSignal) => Promise<{ items: TreeItemSummary[] } | undefined>;
   fetchChildren: (

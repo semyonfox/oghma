@@ -2,7 +2,7 @@
 
 > Status: 0.1.4 released; 0.1.5 EAS Update APK built locally, unreleased
 >
-> Last reviewed: 2026-09-25
+> Last reviewed: 2026-10-04 (authentication patch pending release)
 
 The Android application lives in [`apps/mobile`](../../apps/mobile/README.md), with its own npm package and lockfile. Version 0.1.3 replaces the limited native notes/chat screens with the existing Next.js website in React Native WebView. The website remains at the repository root. Its responsive navigation, Milkdown rich editor, PDF.js renderer, chat, calendar, quizzes and settings are used directly inside the app.
 
@@ -16,7 +16,12 @@ The website owns typography, appearance and account theme persistence. A small n
 
 Email/password sign-in uses the website form and ordinary WebView cookies. Google and GitHub use the existing Auth.js browser providers and account linking. The provider buttons send only the provider name to the native shell, which opens the existing external-browser OAuth flow. This keeps provider sign-in outside the embedded browser.
 
-The browser handoff keeps a random verifier in SecureStore across process restarts. A 120-second single-use Redis grant is bound to its SHA-256 challenge. Only the code and state return through `ie.oghmanotes.alpha://auth`. HTTPS redemption issues the session after an active-account check. The dedicated native web-session module installs that cookie with HttpOnly, Secure and SameSite attributes in Android CookieManager and flushes it before opening the workspace. Session cookies never pass through page JavaScript or URLs.
+The browser handoff keeps a random verifier in SecureStore across process restarts. A 120-second single-use Redis grant is bound to its SHA-256 challenge. Only the code and state return through the verified Android App Link
+`https://oghmanotes.ie/auth/mobile/callback`. Custom URI schemes cannot complete
+this handoff. HTTPS redemption checks the active account and the session version
+observed when the grant was issued. The native intent filter and server
+association must ship together; see [security rollout](../operations/security-rollout.md)
+for the signing fingerprint and device verification gate. The dedicated native web-session module installs that cookie with HttpOnly, Secure and SameSite attributes in Android CookieManager and flushes it before opening the workspace. Session cookies never pass through page JavaScript or URLs.
 
 An existing alpha session transfers to the WebView once. The old SecureStore session is removed only after successful transfer, preventing an old native session from signing the user back in after website logout. Previous native draft keys remain on the device; the web editor does not import those drafts. New edits use the website's existing save and recovery behaviour.
 
@@ -139,3 +144,11 @@ update channel are outside this preparation.
 - [React Native WebView reference](https://github.com/react-native-webview/react-native-webview/blob/master/docs/Reference.md)
 - [Expo browser authentication](https://docs.expo.dev/versions/latest/sdk/webbrowser/)
 - [Local native builds](https://docs.expo.dev/guides/local-app-development/)
+
+## 0.1.6 authentication patch
+
+Status: unreleased source target as of 2026-10-04. The native version is 0.1.6
+and versionCode 7. It adds a verified HTTPS App Link intent filter and a separate
+Expo runtime from 0.1.5. An OTA update cannot add this filter. The
+[security rollout](../operations/security-rollout.md) owns the certificate,
+association, native build and device-verification gates.

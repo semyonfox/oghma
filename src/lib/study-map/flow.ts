@@ -8,18 +8,18 @@ import {
 } from "./types";
 
 export const CARD_WIDTH = 240;
-export const COLUMN_WIDTH = 284;
+const COLUMN_WIDTH = 284;
 export const LEGEND_WIDTH = 300;
 export const MODULE_HEADER = 170;
-export const ROW_GAP = 172;
-export const CARD_GAP = 16;
+const ROW_GAP = 172;
+const CARD_GAP = 16;
 export const MODULE_GAP = 220;
 export const UNSORTED = "unsorted";
 
-export type FlowCardKind = "note" | "pdf" | "image" | "file" | "assignment";
-export type WeekSource = "set" | "title" | "folder" | "linked" | null;
+type FlowCardKind = "note" | "pdf" | "image" | "file" | "assignment";
+type WeekSource = "set" | "title" | "folder" | "linked" | null;
 
-export interface FlowTag {
+interface FlowTag {
   topicId: string;
   relevance: "core" | "supporting";
   probability: number | null;
@@ -53,13 +53,13 @@ export interface FlowLink {
   origin: "note" | "yours" | "assignment";
 }
 
-export interface FlowRow {
+interface FlowRow {
   key: string;
   topic: StudyTopic | null;
   y: number;
 }
 
-export interface FlowColumn {
+interface FlowColumn {
   week: number | null;
   x: number;
 }
@@ -73,10 +73,17 @@ export interface ModuleLayout {
   positions: Map<string, { x: number; y: number; manual: boolean }>;
 }
 
-const HEIGHTS: Record<FlowCardKind, number> = { note: 140, file: 140, pdf: 196, image: 196, assignment: 140 };
+const HEIGHTS: Record<FlowCardKind, number> = {
+  note: 140,
+  file: 140,
+  pdf: 196,
+  image: 196,
+  assignment: 140,
+};
 const EXPLICIT_WEEK = /\b(?:week|wk)\s*[-_#:.]?\s*0?(\d{1,2})\b/i;
 const SHORT_WEEK = /(?:^|[\s_([-])w0?(\d{1,2})(?=$|[\s_)\].:-])/i;
-const SESSION = /\b(?:lecture|lect|lec|lab|tutorial|tut|practical|session|class|seminar|workshop)\s*[-_#:.]?\s*0?(\d{1,2})\b/i;
+const SESSION =
+  /\b(?:lecture|lect|lec|lab|tutorial|tut|practical|session|class|seminar|workshop)\s*[-_#:.]?\s*0?(\d{1,2})\b/i;
 const LEADING = /^\s*0?(\d{1,2})\s*[-_.:)]\s*\S/;
 
 function match(pattern: RegExp, text: string | null): number | null {
@@ -86,7 +93,10 @@ function match(pattern: RegExp, text: string | null): number | null {
 }
 
 /** explicit week numbers win over lecture or lab numbers, and the title wins over its folder */
-export function inferWeek(title: string, folder: string | null): { week: number; source: "title" | "folder" } | null {
+export function inferWeek(
+  title: string,
+  folder: string | null,
+): { week: number; source: "title" | "folder" } | null {
   for (const pattern of [EXPLICIT_WEEK, SHORT_WEEK, SESSION, LEADING]) {
     const fromTitle = match(pattern, title);
     if (fromTitle !== null) return { week: fromTitle, source: "title" };
@@ -98,12 +108,21 @@ export function inferWeek(title: string, folder: string | null): { week: number;
 
 function cardKind(material: StudyMaterial): FlowCardKind {
   if (!material.isFile) return "note";
-  if (material.mimeType === "application/pdf" || (!material.mimeType && /\.pdf$/i.test(material.title))) return "pdf";
-  if (material.mimeType?.startsWith("image/") || (!material.mimeType && /\.(png|jpe?g|webp|gif|avif|svg)$/i.test(material.title))) return "image";
+  if (
+    material.mimeType === "application/pdf" ||
+    (!material.mimeType && /\.pdf$/i.test(material.title))
+  )
+    return "pdf";
+  if (
+    material.mimeType?.startsWith("image/") ||
+    (!material.mimeType &&
+      /\.(png|jpe?g|webp|gif|avif|svg)$/i.test(material.title))
+  )
+    return "image";
   return "file";
 }
 
-export function plainText(html: string | null): string {
+function plainText(html: string | null): string {
   if (!html) return "";
   return html
     .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, " ")
@@ -118,20 +137,30 @@ export function plainText(html: string | null): string {
     .trim();
 }
 
-const normal = (value: string) => value.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+const normal = (value: string) =>
+  value
+    .toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
 
 /** assignment briefs are not classified; a topic counts when its name or an alias appears as whole words */
 export function mentionedTopics(text: string, topics: StudyTopic[]): string[] {
   const haystack = ` ${normal(text)} `;
   return topics
-    .filter((topic) => [topic.name, ...topic.aliases].some((name) => {
-      const needle = normal(name);
-      return needle.length >= 3 && haystack.includes(` ${needle} `);
-    }))
+    .filter((topic) =>
+      [topic.name, ...topic.aliases].some((name) => {
+        const needle = normal(name);
+        return needle.length >= 3 && haystack.includes(` ${needle} `);
+      }),
+    )
     .map((topic) => topic.id);
 }
 
-function tagsFor(material: StudyMaterial, taxonomyVersion: number, topicIds: Set<string>): FlowTag[] {
+function tagsFor(
+  material: StudyMaterial,
+  taxonomyVersion: number,
+  topicIds: Set<string>,
+): FlowTag[] {
   return effectiveAssociations(material, taxonomyVersion)
     .filter((association) => topicIds.has(association.topicId))
     .map((association) => ({
@@ -141,28 +170,49 @@ function tagsFor(material: StudyMaterial, taxonomyVersion: number, topicIds: Set
       suggested: association.status === "suggested",
       mentioned: false,
     }))
-    .sort((left, right) => Number(right.relevance === "core") - Number(left.relevance === "core")
-      || (right.probability ?? 1) - (left.probability ?? 1));
+    .sort(
+      (left, right) =>
+        Number(right.relevance === "core") -
+          Number(left.relevance === "core") ||
+        (right.probability ?? 1) - (left.probability ?? 1),
+    );
 }
 
-const isReferenceMaterial = (material: StudyMaterial) => material.kind === "syllabus" || material.kind === "past_paper";
+const isReferenceMaterial = (material: StudyMaterial) =>
+  material.kind === "syllabus" || material.kind === "past_paper";
 // extracted Markdown can be stored as an uploaded .md file, so its type decides, not whether it has a file key
-const isTextual = (material: StudyMaterial) => !material.isFile || /^text\//.test(material.mimeType ?? "") || /\.(md|markdown|txt)$/i.test(material.title);
+const isTextual = (material: StudyMaterial) =>
+  !material.isFile ||
+  /^text\//.test(material.mimeType ?? "") ||
+  /\.(md|markdown|txt)$/i.test(material.title);
 
 /** builds the cards for one module; syllabus and past papers belong to topics and exam history rather than the weekly flow */
-export function moduleItems(snapshot: StudyMapSnapshot, board: StudyBoard): FlowItem[] {
+export function moduleItems(
+  snapshot: StudyMapSnapshot,
+  board: StudyBoard,
+): FlowItem[] {
   const { map } = snapshot;
   const topicIds = new Set(map.topics.map((topic) => topic.id));
-  const materials = snapshot.materials.filter((material) => !isReferenceMaterial(material));
-  const byId = new Map(materials.map((material) => [material.noteId, material]));
+  const materials = snapshot.materials.filter(
+    (material) => !isReferenceMaterial(material),
+  );
+  const byId = new Map(
+    materials.map((material) => [material.noteId, material]),
+  );
   const textVersions = new Map<string, string>();
   for (const material of materials) {
     if (!isTextual(material)) continue;
     const original = material.references.find((reference) => {
       const target = byId.get(reference.id);
-      return reference.relation === "extraction" && target !== undefined && target.isFile && !isTextual(target);
+      return (
+        reference.relation === "extraction" &&
+        target !== undefined &&
+        target.isFile &&
+        !isTextual(target)
+      );
     });
-    if (original && !textVersions.has(original.id)) textVersions.set(original.id, material.noteId);
+    if (original && !textVersions.has(original.id))
+      textVersions.set(original.id, material.noteId);
   }
   const hidden = new Set(textVersions.values());
   const items: FlowItem[] = [];
@@ -178,8 +228,9 @@ export function moduleItems(snapshot: StudyMapSnapshot, board: StudyBoard): Flow
       mapId: map.id,
       kind,
       title: material.title,
-      week: override !== undefined ? override || null : inferred?.week ?? null,
-      weekSource: override !== undefined ? "set" : inferred?.source ?? null,
+      week:
+        override !== undefined ? override || null : (inferred?.week ?? null),
+      weekSource: override !== undefined ? "set" : (inferred?.source ?? null),
       tags: tagsFor(material, map.taxonomyVersion, topicIds),
       height: HEIGHTS[kind],
       material,
@@ -190,8 +241,16 @@ export function moduleItems(snapshot: StudyMapSnapshot, board: StudyBoard): Flow
   const notes = [...items];
   for (const assignment of snapshot.assignments) {
     const ref = `assignment:${assignment.id}`;
-    const tags: FlowTag[] = mentionedTopics(`${assignment.title} ${plainText(assignment.description)}`, map.topics)
-      .map((topicId) => ({ topicId, relevance: "core", probability: null, suggested: false, mentioned: true }));
+    const tags: FlowTag[] = mentionedTopics(
+      `${assignment.title} ${plainText(assignment.description)}`,
+      map.topics,
+    ).map((topicId) => ({
+      topicId,
+      relevance: "core",
+      probability: null,
+      suggested: false,
+      mentioned: true,
+    }));
     const override = board.weeks[ref];
     const titled = inferWeek(assignment.title, null);
     const card: FlowItem = {
@@ -210,25 +269,50 @@ export function moduleItems(snapshot: StudyMapSnapshot, board: StudyBoard): Flow
     };
     // without a teaching calendar, an assignment sits after the latest week of the material it most depends on
     const sources = assignmentSources(card, notes);
-    const attached = sources.filter((item) => assignment.noteIds.includes(item.id) || assignment.noteIds.includes(item.textVersionId ?? ""));
-    const weeks = (attached.length ? attached : sources.slice(0, 3)).map((item) => item.week).filter((week): week is number => week !== null);
+    const attached = sources.filter(
+      (item) =>
+        assignment.noteIds.includes(item.id) ||
+        assignment.noteIds.includes(item.textVersionId ?? ""),
+    );
+    const weeks = (attached.length ? attached : sources.slice(0, 3))
+      .map((item) => item.week)
+      .filter((week): week is number => week !== null);
     const linked = weeks.length ? Math.max(...weeks) : null;
-    card.week = override !== undefined ? override || null : titled?.week ?? linked;
-    card.weekSource = override !== undefined ? "set" : titled ? "title" : linked !== null ? "linked" : null;
+    card.week =
+      override !== undefined ? override || null : (titled?.week ?? linked);
+    card.weekSource =
+      override !== undefined
+        ? "set"
+        : titled
+          ? "title"
+          : linked !== null
+            ? "linked"
+            : null;
     items.push(card);
   }
   return items;
 }
 
-const coreTopics = (item: FlowItem) => item.tags.filter((tag) => tag.relevance === "core").map((tag) => tag.topicId);
+const coreTopics = (item: FlowItem) =>
+  item.tags.filter((tag) => tag.relevance === "core").map((tag) => tag.topicId);
 
 /** keeps the syllabus hierarchy, then chains each sibling to the one it shares most material with */
-export function orderTopics(topics: StudyTopic[], items: FlowItem[]): StudyTopic[] {
+export function orderTopics(
+  topics: StudyTopic[],
+  items: FlowItem[],
+): StudyTopic[] {
   const ids = new Set(topics.map((topic) => topic.id));
-  const tagged = items.map((item) => new Set(item.tags.map((tag) => tag.topicId)));
-  const shared = (left: string, right: string) => tagged.filter((set) => set.has(left) && set.has(right)).length;
-  const children = (parentId: string | null) => topics.filter((topic) =>
-    parentId === null ? topic.parentId === null || !ids.has(topic.parentId) : topic.parentId === parentId);
+  const tagged = items.map(
+    (item) => new Set(item.tags.map((tag) => tag.topicId)),
+  );
+  const shared = (left: string, right: string) =>
+    tagged.filter((set) => set.has(left) && set.has(right)).length;
+  const children = (parentId: string | null) =>
+    topics.filter((topic) =>
+      parentId === null
+        ? topic.parentId === null || !ids.has(topic.parentId)
+        : topic.parentId === parentId,
+    );
   const ordered: StudyTopic[] = [];
   const seen = new Set<string>();
   const walk = (siblings: StudyTopic[]) => {
@@ -238,7 +322,10 @@ export function orderTopics(topics: StudyTopic[], items: FlowItem[]): StudyTopic
       let best = 0;
       if (previous) {
         rest.forEach((topic, index) => {
-          if (shared(previous!.id, topic.id) > shared(previous!.id, rest[best].id)) best = index;
+          if (
+            shared(previous!.id, topic.id) > shared(previous!.id, rest[best].id)
+          )
+            best = index;
         });
       }
       const [next] = rest.splice(best, 1);
@@ -254,7 +341,10 @@ export function orderTopics(topics: StudyTopic[], items: FlowItem[]): StudyTopic
   return ordered;
 }
 
-const weight = (tag: FlowTag) => (tag.relevance === "core" ? 1 : 0.4) * (tag.suggested ? 0.7 : 1) * (tag.mentioned ? 0.8 : 1);
+const weight = (tag: FlowTag) =>
+  (tag.relevance === "core" ? 1 : 0.4) *
+  (tag.suggested ? 0.7 : 1) *
+  (tag.mentioned ? 0.8 : 1);
 
 export function layoutModule(
   mapId: string,
@@ -263,31 +353,56 @@ export function layoutModule(
   placements: StudyBoard["placements"],
 ): ModuleLayout {
   const order = orderTopics(topics, items);
-  const rows: FlowRow[] = order.map((topic, index) => ({ key: topic.id, topic, y: MODULE_HEADER + 40 + index * ROW_GAP }));
+  const rows: FlowRow[] = order.map((topic, index) => ({
+    key: topic.id,
+    topic,
+    y: MODULE_HEADER + 40 + index * ROW_GAP,
+  }));
   if (!rows.length || items.some((item) => item.tags.length === 0)) {
-    rows.push({ key: UNSORTED, topic: null, y: MODULE_HEADER + 40 + rows.length * ROW_GAP });
+    rows.push({
+      key: UNSORTED,
+      topic: null,
+      y: MODULE_HEADER + 40 + rows.length * ROW_GAP,
+    });
   }
   const rowY = new Map(rows.map((row) => [row.key, row.y]));
-  const weeks = [...new Set(items.map((item) => item.week).filter((week): week is number => week !== null))].sort((a, b) => a - b);
-  const columns: FlowColumn[] = [...weeks, ...(items.some((item) => item.week === null) ? [null] : [])]
-    .map((week, index) => ({ week, x: LEGEND_WIDTH + index * COLUMN_WIDTH }));
+  const weeks = [
+    ...new Set(
+      items
+        .map((item) => item.week)
+        .filter((week): week is number => week !== null),
+    ),
+  ].sort((a, b) => a - b);
+  const columns: FlowColumn[] = [
+    ...weeks,
+    ...(items.some((item) => item.week === null) ? [null] : []),
+  ].map((week, index) => ({ week, x: LEGEND_WIDTH + index * COLUMN_WIDTH }));
   const columnX = new Map(columns.map((column) => [column.week, column.x]));
-  const manual = new Map(placements.map((placement) => [placement.id, placement]));
+  const manual = new Map(
+    placements.map((placement) => [placement.id, placement]),
+  );
   const positions: ModuleLayout["positions"] = new Map();
   let bottom = rows[rows.length - 1].y + ROW_GAP / 2;
   for (const column of columns) {
-    const stack = items.filter((item) => item.week === column.week).map((item) => {
-      let total = 0;
-      let sum = 0;
-      for (const tag of item.tags) {
-        const y = rowY.get(tag.topicId);
-        if (y === undefined) continue;
-        total += weight(tag);
-        sum += weight(tag) * y;
-      }
-      const centre = total ? sum / total : rowY.get(UNSORTED) ?? rows[0].y;
-      return { item, target: centre - Math.min(item.height / 2, 60) };
-    }).sort((left, right) => left.target - right.target || left.item.title.localeCompare(right.item.title));
+    const stack = items
+      .filter((item) => item.week === column.week)
+      .map((item) => {
+        let total = 0;
+        let sum = 0;
+        for (const tag of item.tags) {
+          const y = rowY.get(tag.topicId);
+          if (y === undefined) continue;
+          total += weight(tag);
+          sum += weight(tag) * y;
+        }
+        const centre = total ? sum / total : (rowY.get(UNSORTED) ?? rows[0].y);
+        return { item, target: centre - Math.min(item.height / 2, 60) };
+      })
+      .sort(
+        (left, right) =>
+          left.target - right.target ||
+          left.item.title.localeCompare(right.item.title),
+      );
     let previous = -Infinity;
     const tops = stack.map(({ item, target }) => {
       const top = Math.max(target, previous + CARD_GAP);
@@ -295,43 +410,92 @@ export function layoutModule(
       return top;
     });
     // crowded weeks drift down; lift the column back towards its topics without crossing the header
-    const drift = stack.reduce((sum, entry, index) => sum + tops[index] - entry.target, 0) / Math.max(stack.length, 1);
-    const lift = Math.max(0, Math.min(drift, (tops[0] ?? 0) - (MODULE_HEADER + 8)));
+    const drift =
+      stack.reduce((sum, entry, index) => sum + tops[index] - entry.target, 0) /
+      Math.max(stack.length, 1);
+    const lift = Math.max(
+      0,
+      Math.min(drift, (tops[0] ?? 0) - (MODULE_HEADER + 8)),
+    );
     stack.forEach(({ item }, index) => {
       const placed = manual.get(item.ref);
       const position = placed
         ? { x: placed.x, y: placed.y, manual: true }
-        : { x: (columnX.get(column.week) ?? LEGEND_WIDTH) + (COLUMN_WIDTH - CARD_WIDTH) / 2, y: tops[index] - lift, manual: false };
+        : {
+            x:
+              (columnX.get(column.week) ?? LEGEND_WIDTH) +
+              (COLUMN_WIDTH - CARD_WIDTH) / 2,
+            y: tops[index] - lift,
+            manual: false,
+          };
       positions.set(item.ref, position);
       bottom = Math.max(bottom, position.y + item.height);
     });
   }
-  const right = Math.max(LEGEND_WIDTH + columns.length * COLUMN_WIDTH, ...[...positions.values()].map((position) => position.x + CARD_WIDTH));
-  return { mapId, width: right + 48, height: bottom + 72, rows, columns, positions };
+  const right = Math.max(
+    LEGEND_WIDTH + columns.length * COLUMN_WIDTH,
+    ...[...positions.values()].map((position) => position.x + CARD_WIDTH),
+  );
+  return {
+    mapId,
+    width: right + 48,
+    height: bottom + 72,
+    rows,
+    columns,
+    positions,
+  };
 }
 
 /** the notes that carry a topic as core, in teaching order */
-export function topicTrail(topicId: string, items: FlowItem[], layout: ModuleLayout): FlowItem[] {
+export function topicTrail(
+  topicId: string,
+  items: FlowItem[],
+  layout: ModuleLayout,
+): FlowItem[] {
   return items
-    .filter((item) => item.tags.some((tag) => tag.topicId === topicId && tag.relevance === "core"))
-    .sort((left, right) => (left.week ?? 99) - (right.week ?? 99)
-      || (layout.positions.get(left.ref)?.y ?? 0) - (layout.positions.get(right.ref)?.y ?? 0));
+    .filter((item) =>
+      item.tags.some(
+        (tag) => tag.topicId === topicId && tag.relevance === "core",
+      ),
+    )
+    .sort(
+      (left, right) =>
+        (left.week ?? 99) - (right.week ?? 99) ||
+        (layout.positions.get(left.ref)?.y ?? 0) -
+          (layout.positions.get(right.ref)?.y ?? 0),
+    );
 }
 
 /** notes an assignment draws on: its attached files first, then notes covering the topics it names */
-export function assignmentSources(assignment: FlowItem, items: FlowItem[]): FlowItem[] {
+export function assignmentSources(
+  assignment: FlowItem,
+  items: FlowItem[],
+): FlowItem[] {
   const named = new Set(coreTopics(assignment));
   const attached = new Set(assignment.assignment?.noteIds ?? []);
-  const score = (item: FlowItem) => (attached.has(item.id) || attached.has(item.textVersionId ?? "") ? 10 : 0)
-    + item.tags.filter((tag) => tag.relevance === "core" && named.has(tag.topicId)).length;
+  const score = (item: FlowItem) =>
+    (attached.has(item.id) || attached.has(item.textVersionId ?? "") ? 10 : 0) +
+    item.tags.filter(
+      (tag) => tag.relevance === "core" && named.has(tag.topicId),
+    ).length;
   return items
-    .filter((item) => item.kind !== "assignment" && item.mapId === assignment.mapId && score(item) > 0)
-    .sort((left, right) => score(right) - score(left) || (left.week ?? 99) - (right.week ?? 99))
+    .filter(
+      (item) =>
+        item.kind !== "assignment" &&
+        item.mapId === assignment.mapId &&
+        score(item) > 0,
+    )
+    .sort(
+      (left, right) =>
+        score(right) - score(left) || (left.week ?? 99) - (right.week ?? 99),
+    )
     .slice(0, 8);
 }
 
 /** stored note references across every loaded module, plus labelled links drawn on each board */
-export function flowLinks(modules: Array<{ items: FlowItem[]; board: StudyBoard }>): FlowLink[] {
+export function flowLinks(
+  modules: Array<{ items: FlowItem[]; board: StudyBoard }>,
+): FlowLink[] {
   const items = modules.flatMap((module) => module.items);
   const byNote = new Map<string, FlowItem>();
   for (const item of items) {
@@ -348,13 +512,20 @@ export function flowLinks(modules: Array<{ items: FlowItem[]; board: StudyBoard 
       const key = `${item.ref}>${target?.ref}`;
       if (!target || target.ref === item.ref || seen.has(key)) continue;
       seen.add(key);
-      links.push({ id: `note-${item.id}-${target.id}`, source: item.ref, target: target.ref, label: reference.relation === "attachment" ? "attaches" : "links to", origin: "note" });
+      links.push({
+        id: `note-${item.id}-${target.id}`,
+        source: item.ref,
+        target: target.ref,
+        label: reference.relation === "attachment" ? "attaches" : "links to",
+        origin: "note",
+      });
     }
   }
   const refs = new Set(items.map((item) => item.ref));
   for (const { board } of modules) {
     for (const link of board.links) {
-      if (refs.has(link.source) && refs.has(link.target)) links.push({ ...link, origin: "yours" });
+      if (refs.has(link.source) && refs.has(link.target))
+        links.push({ ...link, origin: "yours" });
     }
   }
   return links;
@@ -368,7 +539,10 @@ export interface TopicBridge {
 }
 
 /** relates topics in different modules when they share a name or alias, or when their notes link to each other */
-export function topicBridges(modules: Array<{ mapId: string; topics: StudyTopic[]; items: FlowItem[] }>, links: FlowLink[]): TopicBridge[] {
+export function topicBridges(
+  modules: Array<{ mapId: string; topics: StudyTopic[]; items: FlowItem[] }>,
+  links: FlowLink[],
+): TopicBridge[] {
   const bridges = new Map<string, TopicBridge>();
   const put = (a: string, b: string, reason: TopicBridge["reason"]) => {
     const [first, second] = a < b ? [a, b] : [b, a];
@@ -382,17 +556,23 @@ export function topicBridges(modules: Array<{ mapId: string; topics: StudyTopic[
       for (const a of left.topics) {
         const names = new Set([a.name, ...a.aliases].map(normal));
         for (const b of right.topics) {
-          if ([b.name, ...b.aliases].some((name) => names.has(normal(name)))) put(a.id, b.id, "same name");
+          if ([b.name, ...b.aliases].some((name) => names.has(normal(name))))
+            put(a.id, b.id, "same name");
         }
       }
     }
   }
-  const byRef = new Map(modules.flatMap((module) => module.items.map((item) => [item.ref, item] as const)));
+  const byRef = new Map(
+    modules.flatMap((module) =>
+      module.items.map((item) => [item.ref, item] as const),
+    ),
+  );
   for (const link of links) {
     const source = byRef.get(link.source);
     const target = byRef.get(link.target);
     if (!source || !target || source.mapId === target.mapId) continue;
-    for (const a of coreTopics(source)) for (const b of coreTopics(target)) put(a, b, "linked notes");
+    for (const a of coreTopics(source))
+      for (const b of coreTopics(target)) put(a, b, "linked notes");
   }
   return [...bridges.values()];
 }

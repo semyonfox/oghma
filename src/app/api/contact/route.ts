@@ -3,9 +3,7 @@ import { z } from "zod";
 import sql from "@/database/pgsql";
 import { withErrorHandler } from "@/lib/api-error";
 import logger from "@/lib/logger";
-import { checkRateLimit, getClientIp } from "@/lib/rateLimiter";
-import { recordMarketingEvent } from "@/lib/marketing/events";
-import { cleanAttribution } from "@/lib/marketing/attribution";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
 import { sendEmail } from "@/lib/email";
 
 const contactSchema = z.object({
@@ -17,39 +15,12 @@ const contactSchema = z.object({
     "support",
     "billing",
     "partnership",
+    "other",
   ]),
   message: z.string().trim().min(1).max(5000),
-  marketing: z
-    .object({
-      utm: z
-        .object({
-          source: z.string().max(120).optional(),
-          medium: z.string().max(120).optional(),
-          campaign: z.string().max(120).optional(),
-          content: z.string().max(120).optional(),
-          term: z.string().max(120).optional(),
-        })
-        .optional(),
-    })
-    .optional(),
   source: z.enum(["contact", "home"]).optional().default("contact"),
   website: z.string().trim().max(200).optional().default(""),
 });
-
-function leadAnalyticsProperties(body: z.infer<typeof contactSchema>) {
-  const messageLength = body.message.length;
-  return {
-    page: body.source,
-    form: "contact",
-    interest: body.interest,
-    message_length_bucket:
-      messageLength <= 100
-        ? "0-100"
-        : messageLength <= 500
-          ? "101-500"
-          : "500+",
-  };
-}
 
 function escapeHtml(value: string) {
   return value.replace(
@@ -126,7 +97,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     return NextResponse.json({ success: true, notificationDelivered: false });
   }
 
-  const attribution = cleanAttribution(body.marketing?.utm);
   const [lead] = await sql`
     INSERT INTO app.marketing_leads (
       first_name,
@@ -157,11 +127,11 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       ${null},
       ${body.message},
       ${"contact_form"},
-      ${attribution.source ?? null},
-      ${attribution.medium ?? null},
-      ${attribution.campaign ?? null},
-      ${attribution.content ?? null},
-      ${attribution.term ?? null},
+      ${null},
+      ${null},
+      ${null},
+      ${null},
+      ${null},
       ${sql.json({})},
       false,
       null
@@ -188,24 +158,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
           : String(updateError),
     });
   }
-
-  await recordMarketingEvent(
-    {
-      eventName: "contact_form_success",
-      path: request.nextUrl.pathname,
-      utm: attribution,
-      properties: {
-        ...leadAnalyticsProperties(body),
-        notification_delivered: notification.delivered,
-      },
-    },
-    request,
-    { trusted: false },
-  ).catch((eventError) => {
-    logger.warn("failed to record contact marketing event", {
-      error: eventError.message,
-    });
-  });
 
   return NextResponse.json({
     success: true,

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, type MockedFunction } from "vitest";
 
+vi.mock("@/database/pgsql", () => ({ default: vi.fn().mockResolvedValue([{ user_id: "user-123", email: "synthetic@example.test", session_version: 0 }]) }));
 vi.mock("@/auth", () => ({
   auth: vi.fn().mockResolvedValue(null),
 }));
@@ -15,11 +16,11 @@ import {
   validateSessionLite,
   createErrorResponse,
   createValidationErrorResponse,
-} from "@/lib/auth";
+} from "@/lib/auth/session";
 
-type OAuthSession = { user?: { id?: string } } | null;
+type OAuthSession = { user?: { id?: string; sessionVersion?: number } } | null;
 const authMock = auth as unknown as MockedFunction<() => Promise<OAuthSession>>;
-type CookieStore = { get: (name: string) => { name: string; value: string } | undefined };
+type CookieStore = { getAll: () => { name: string; value: string }[]; get: (name: string) => { name: string; value: string } | undefined };
 const cookiesMock = cookies as unknown as MockedFunction<() => Promise<CookieStore>>;
 
 // JWT_SECRET is set in setup.ts
@@ -103,12 +104,13 @@ describe("verifyJWTToken", () => {
 describe("validateSessionLite", () => {
   beforeEach(() => {
     authMock.mockResolvedValue(null);
-    cookiesMock.mockResolvedValue({ get: () => undefined });
+    cookiesMock.mockResolvedValue({ get: () => undefined, getAll: () => [] });
   });
 
-  it("resolves the user from a valid session cookie without any db call", async () => {
-    const token = generateJWTToken({ user_id: "user-123" });
+  it("resolves the user from a valid session cookie after revalidating the current session version", async () => {
+    const token = generateJWTToken({ user_id: "user-123", session_version: 0 });
     cookiesMock.mockResolvedValue({
+      getAll: () => [],
       get: (name) => (name === "session" ? { name: "session", value: token } : undefined),
     });
 
@@ -118,8 +120,9 @@ describe("validateSessionLite", () => {
   });
 
   it("rejects a tampered session cookie", async () => {
-    const token = generateJWTToken({ user_id: "user-123" });
+    const token = generateJWTToken({ user_id: "user-123", session_version: 0 });
     cookiesMock.mockResolvedValue({
+      getAll: () => [],
       get: () => ({ name: "session", value: token.slice(0, -3) + "xxx" }),
     });
 
@@ -127,10 +130,10 @@ describe("validateSessionLite", () => {
   });
 
   it("falls back to the NextAuth session for OAuth users", async () => {
-    authMock.mockResolvedValue({ user: { id: "oauth-user-9" } });
+    authMock.mockResolvedValue({ user: { id: "user-123", sessionVersion: 0 } });
 
     await expect(validateSessionLite()).resolves.toEqual({
-      user_id: "oauth-user-9",
+      user_id: "user-123",
     });
   });
 

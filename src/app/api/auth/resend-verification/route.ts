@@ -1,8 +1,8 @@
 import sql from "@/database/pgsql";
-import { createErrorResponse, parseJsonBody } from "@/lib/auth";
-import { generateSecureToken, hashToken } from "@/lib/tokens";
+import { createErrorResponse, parseJsonBody } from "@/lib/auth/session";
+import { generateSecureToken, hashToken } from "@/lib/auth/tokens";
 import { EmailSendError, sendVerificationEmail } from "@/lib/email";
-import { checkRateLimit } from "@/lib/rateLimiter";
+import { checkRateLimit } from "@/lib/rate-limiter";
 import logger from "@/lib/logger";
 import { ApiError, assertTrustedOrigin } from "@/lib/api-error";
 import { Locale, normalizeLocale } from "@/locales";
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest): Promise<Response> {
             SELECT user_id, email, email_verified, locale,
               verification_token, verification_token_expires
             FROM app.login
-            WHERE email = ${email.trim()}
+            WHERE lower(btrim(email)) = ${email.trim().toLowerCase()}
         `;
 
     // constant-time: same work whether email exists or not

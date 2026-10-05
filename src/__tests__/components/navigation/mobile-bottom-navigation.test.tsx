@@ -41,7 +41,7 @@ vi.mock("@/lib/global-search/state", () => ({
   __esModule: true,
   default: { getState: () => ({ open: mocks.globalSearchOpen }) },
 }));
-vi.mock("@/lib/notes/state/pomodoro.zustand", () => ({
+vi.mock("@/lib/notes/state/pomodoro", () => ({
   __esModule: true,
   default: (
     selector: (state: {

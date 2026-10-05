@@ -186,8 +186,8 @@ variable.
 | [`src/lib/canvas/import-extraction.ts`](../../src/lib/canvas/import-extraction.ts) | Download, dedupe/claim, note creation, timeouts, and retry handlers |
 | [`src/lib/canvas/import-cache.ts`](../../src/lib/canvas/import-cache.ts) | Content hashing, shared artifacts, cached vector reuse, and ownership guards |
 | [`src/lib/canvas/import-embedding.ts`](../../src/lib/canvas/import-embedding.ts) | Extraction, chunking, embedding, and Qdrant indexing handoff |
-| [`src/lib/marker-serverless.ts`](../../src/lib/marker-serverless.ts) | Durable Marker submission, provider dispatch, result handoff, and recovery |
-| [`src/lib/vast-serverless.ts`](../../src/lib/vast-serverless.ts) | Bounded Vast REST routing/polling client |
+| [`src/lib/marker/serverless.ts`](../../src/lib/marker/serverless.ts) | Durable Marker submission, provider dispatch, result handoff, and recovery |
+| [`src/lib/marker/vast.ts`](../../src/lib/marker/vast.ts) | Bounded Vast REST routing/polling client |
 | [`src/lib/canvas/extraction-retry.ts`](../../src/lib/canvas/extraction-retry.ts) | Delayed retry schedule |
 | [`src/lib/vault/import-worker.ts`](../../src/lib/vault/import-worker.ts) | Streaming vault import, progress, and cancellation |
 | [`src/lib/vault/export-worker.ts`](../../src/lib/vault/export-worker.ts) | Streaming vault export, progress, and cancellation |

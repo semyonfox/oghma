@@ -9,7 +9,7 @@ vi.mock("@/lib/rag/indexing", () => ({
   replaceNoteEmbeddings: vi.fn().mockResolvedValue(2),
 }));
 
-vi.mock("@/lib/strip-markdown", () => ({
+vi.mock("@/lib/rag/strip-markdown", () => ({
   stripMarkdown: vi.fn((value: string) => value.replace(/[#*`]/g, "")),
 }));
 
@@ -30,15 +30,12 @@ vi.mock("@/lib/storage/init", () => ({
   })),
 }));
 
-vi.mock("@/lib/xray", () => ({
-  xraySubsegment: vi.fn((_name: string, fn: () => unknown) => fn()),
-}));
 
 vi.mock("@/lib/canvas/extraction-retry", () => ({
   enqueueExtractionRetry: vi.fn(),
 }));
 
-vi.mock("@/lib/marker-output", () => ({
+vi.mock("@/lib/marker/output", () => ({
   persistMarkerAssetsForNote: vi.fn(),
 }));
 
@@ -50,19 +47,20 @@ vi.mock("@/lib/logger", () => ({
   },
 }));
 
-vi.mock("@/lib/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   validateSession: vi.fn(),
 }));
 
-vi.mock("@/lib/rateLimiter", () => ({
+vi.mock("@/lib/rate-limiter", () => ({
   checkRateLimit: vi.fn(),
 }));
 
 import sql from "@/database/pgsql";
-import { validateSession } from "@/lib/auth";
+import { validateSession } from "@/lib/auth/session";
 import { replaceNoteEmbeddings } from "@/lib/rag/indexing";
 import { getStorageProvider } from "@/lib/storage/init";
-import { POST, runExtraction } from "@/app/api/extract/route";
+import { POST } from "@/app/api/extract/route";
+import { runExtraction } from "@/lib/ingestion/run-extraction";
 
 type SqlCall = [TemplateStringsArray, ...unknown[]];
 
@@ -142,7 +140,7 @@ describe("POST /api/extract", () => {
     vi.mocked(sql).mockReset();
     vi.mocked(validateSession).mockResolvedValue({
       user_id: userId,
-      email: "owner@example.com",
+      session_version: 0, email: "owner@example.com",
     });
   });
 
@@ -158,7 +156,7 @@ describe("POST /api/extract", () => {
       }),
     });
 
-    const response = await POST(request, undefined);
+    const response = await POST(request);
 
     expect(response.status).toBe(400);
     expect(getStorageProvider).not.toHaveBeenCalled();
@@ -177,7 +175,7 @@ describe("POST /api/extract", () => {
       }),
     });
 
-    const response = await POST(request, undefined);
+    const response = await POST(request);
 
     expect(response.status).toBe(400);
     expect(getStorageProvider).not.toHaveBeenCalled();
@@ -207,7 +205,7 @@ describe("POST /api/extract", () => {
       }),
     });
 
-    const response = await POST(request, undefined);
+    const response = await POST(request);
 
     expect(response.status).toBe(200);
     expect(getStorageProvider).toHaveBeenCalledOnce();

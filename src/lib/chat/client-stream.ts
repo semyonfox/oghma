@@ -11,8 +11,8 @@ import {
 
 export function logChatStream(
   level: "debug" | "info" | "warn" | "error",
-  message: string,
-  details: Record<string, unknown> = {},
+  _message: string,
+  _details: Record<string, unknown> = {},
 ): void {
   if (
     process.env.NODE_ENV !== "development" ||
@@ -21,7 +21,7 @@ export function logChatStream(
     return;
   }
   const logger = console[level] ?? console.log;
-  logger(`[chat-stream] ${message}`, details);
+  logger("chat_stream_event");
 }
 
 function appendTokenPart(parts: MessagePart[], text: string): MessagePart[] {
@@ -116,6 +116,7 @@ export function applyUpdate(
             ? {
                 ...part,
                 resultDetail: update.detail,
+                ...(update.actionId && { actionId: update.actionId }),
                 ...(update.notes && update.notes.length > 0 && { notes: update.notes }),
                 status: update.status ?? "completed",
               }
@@ -161,7 +162,7 @@ interface ConsumeStreamOptions {
   isActive?: () => boolean;
 }
 
-export class ChatGenerationFailedError extends Error {}
+class ChatGenerationFailedError extends Error {}
 
 function abortError(): DOMException {
   return new DOMException("Chat stream detached", "AbortError");

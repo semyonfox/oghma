@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import NewTaskModal from "@/components/assignments/new-task-modal";
-import type { Assignment } from "@/lib/notes/state/assignments.zustand";
+import type { Assignment } from "@/lib/notes/state/assignments";
 
 const mocks = vi.hoisted(() => ({
   create: vi.fn(),
@@ -34,7 +34,7 @@ const task: Assignment = {
 vi.mock("@/lib/notes/hooks/use-i18n", () => ({
   default: () => ({ t: (key: string) => key, activeLocale: "en-IE" }),
 }));
-vi.mock("@/lib/notes/state/assignments.zustand", () => ({
+vi.mock("@/lib/notes/state/assignments", () => ({
   default: (selector: (state: { createAssignment: typeof mocks.create; updateAssignment: typeof mocks.update }) => unknown) =>
     selector({ createAssignment: mocks.create, updateAssignment: mocks.update }),
 }));

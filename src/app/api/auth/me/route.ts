@@ -1,9 +1,8 @@
-import { auth } from "@/auth";
-import { validateSession } from "@/lib/auth";
-import { getLinkedProviders } from "@/lib/auth-oauth";
+import { validateSession } from "@/lib/auth/session";
+import { getLinkedProviders } from "@/lib/auth/oauth";
 import sql from "@/database/pgsql";
 import logger from "@/lib/logger";
-import type { NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 
 interface ProfileRow {
   display_name: string | null;
@@ -29,23 +28,6 @@ async function fetchProfile(userId: string) {
 
 export async function GET(_request: NextRequest): Promise<Response> {
   try {
-    // try Auth.js session first (OAuth users)
-    const authJsSession = await auth();
-    if (authJsSession?.user?.id) {
-      const userId = authJsSession.user.id;
-      const profile = await fetchProfile(userId);
-      return Response.json({
-        success: true,
-        user: {
-          user_id: userId,
-          email: authJsSession.user.email,
-          name: authJsSession.user.name,
-          ...profile,
-        },
-      });
-    }
-
-    // fall back to custom JWT (email/password users)
     const jwtUser = await validateSession();
     if (jwtUser) {
       const profile = await fetchProfile(jwtUser.user_id);
@@ -59,7 +41,22 @@ export async function GET(_request: NextRequest): Promise<Response> {
       });
     }
 
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+    const response = NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const names = new Set(["session", "authjs.session-token", "__Secure-authjs.session-token"]);
+    for (const cookie of _request.cookies.getAll()) {
+      if (/^(?:__Secure-)?authjs\.session-token\.\d+$/.test(cookie.name)) names.add(cookie.name);
+    }
+    for (const name of names)
+      response.cookies.set(name, "", {
+        path: "/",
+        maxAge: 0,
+        httpOnly: true,
+        sameSite: "lax",
+        secure:
+          name.startsWith("__Secure-") ||
+          _request.nextUrl.protocol === "https:",
+      });
+    return response;
   } catch (error) {
     logger.error("auth me error", { error });
     return Response.json(

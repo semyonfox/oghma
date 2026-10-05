@@ -1,3 +1,4 @@
+import { NextRequest, NextResponse } from "next/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
@@ -9,6 +10,7 @@ import {
   assertTrustedOrigin,
   parseJson,
   parseJsonObject,
+  withErrorHandler,
 } from "@/lib/api-error";
 
 afterEach(() => {
@@ -99,5 +101,16 @@ describe("assertTrustedOrigin", () => {
         }),
       );
     }).toThrow(ApiError);
+  });
+});
+
+describe("withErrorHandler", () => {
+  it("preserves and forwards the required dynamic route context", async () => {
+    const handler = withErrorHandler(async (_request, context: { params: Promise<{ id: string }> }) => {
+      const { id } = await context.params;
+      return NextResponse.json({ id });
+    });
+    const response = await handler(new NextRequest("https://example.com/api/notes/test"), { params: Promise.resolve({ id: "synthetic" }) });
+    expect(await response.json()).toEqual({ id: "synthetic" });
   });
 });

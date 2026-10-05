@@ -22,7 +22,7 @@ function response(body: unknown, ok = true) {
 }
 
 async function loadStore() {
-  return (await import("@/lib/notes/state/calendar.zustand")).default;
+  return (await import("@/lib/notes/state/calendar")).default;
 }
 
 describe("calendar store", () => {

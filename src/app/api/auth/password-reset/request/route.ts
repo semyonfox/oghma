@@ -1,8 +1,8 @@
 import sql from "@/database/pgsql";
 import { sendPasswordResetEmail } from "@/lib/email";
-import { createErrorResponse, parseJsonBody } from "@/lib/auth";
-import { generateSecureToken, hashToken } from "@/lib/tokens";
-import { checkRateLimit } from "@/lib/rateLimiter";
+import { createErrorResponse, parseJsonBody } from "@/lib/auth/session";
+import { generateSecureToken, hashToken } from "@/lib/auth/tokens";
+import { checkRateLimit } from "@/lib/rate-limiter";
 import logger from "@/lib/logger";
 import { assertTrustedOrigin } from "@/lib/api-error";
 import type { NextRequest } from "next/server";
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     if (limited) return limited;
 
     const users = await sql<{ user_id: string; email: string }[]>`
-            SELECT user_id, email FROM app.login WHERE email = ${email.trim()}
+            SELECT user_id, email FROM app.login WHERE lower(btrim(email)) = ${email.trim().toLowerCase()}
         `;
 
     // constant-time: perform the same work regardless of whether email exists

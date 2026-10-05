@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from "react";
-import type { FileSpec } from "@/lib/notes/state/layout.zustand";
+import type { FileSpec } from "@/lib/notes/state/layout";
 import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -21,7 +21,7 @@ vi.mock("@/lib/hooks/use-media-query", () => ({
   default: () => mocks.isDesktop,
 }));
 
-vi.mock("@/lib/notes/state/layout.zustand", () => ({
+vi.mock("@/lib/notes/state/layout", () => ({
   __esModule: true,
   default: (selector: (state: typeof layoutState) => unknown) =>
     selector(layoutState),

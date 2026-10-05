@@ -23,7 +23,7 @@ const { sqlMock, beginMock, storage, objects } = vi.hoisted(() => {
 vi.mock("@/database/pgsql", () => ({
   default: Object.assign(sqlMock, { begin: beginMock }),
 }));
-vi.mock("@/lib/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   validateSession: vi.fn(async () => ({
     user_id: "00000000-0000-0000-0000-0000000000aa",
     email: "reader@example.com",
@@ -32,7 +32,7 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("@/lib/logger", () => ({
   default: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
-vi.mock("@/lib/rateLimiter", () => ({ checkRateLimit: vi.fn(async () => null) }));
+vi.mock("@/lib/rate-limiter", () => ({ checkRateLimit: vi.fn(async () => null) }));
 vi.mock("@/lib/queue", () => ({ enqueueCanvasJob: vi.fn(async () => undefined) }));
 vi.mock("@/lib/xray", () => ({
   xraySubsegment: vi.fn((_name: string, fn: () => unknown) => fn()),

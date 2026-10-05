@@ -94,7 +94,7 @@ function hastNodeFrom(value: unknown): HastNode | undefined {
   };
 }
 
-export function parseCodeFenceTitle(meta?: string): string | undefined {
+function parseCodeFenceTitle(meta?: string): string | undefined {
   if (!meta) return undefined;
 
   const quoted = /(?:title|filename|file)=(['"])(.*?)\1/i.exec(meta);

@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
-import { withErrorHandler, requireAuth, ApiError } from "@/lib/api-error";
+import {
+  withErrorHandler,
+  requireAuth,
+  ApiError,
+  type RouteParamsContext,
+} from "@/lib/api-error";
 import sql from "@/database/pgsql";
 
 export const DELETE = withErrorHandler(
-  async (_request, { params }: { params: Promise<{ jobId: string }> }) => {
+  async (_request, { params }: RouteParamsContext<{ jobId: string }>) => {
     const user = await requireAuth();
     const { jobId } = await params;
 

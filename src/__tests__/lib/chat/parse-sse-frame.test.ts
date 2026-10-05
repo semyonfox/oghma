@@ -70,8 +70,7 @@ describe("parseSseFrame — tool-call events", () => {
       expect(metricSpy).toHaveBeenCalledOnce();
       expect(warnSpy).toHaveBeenCalledOnce();
       expect(warnSpy).toHaveBeenCalledWith(
-        "Malformed SSE frame payload",
-        expect.objectContaining({ event: "tool-call" }),
+        "chat_stream_invalid_event",
       );
     } finally {
       warnSpy.mockRestore();
@@ -148,4 +147,20 @@ describe("parseSseFrame — lifecycle events", () => {
       type: "done",
     });
   });
+});
+
+it("keeps private stream messages and details out of development diagnostics", async () => {
+  const { logChatStream } = await import("@/lib/chat/client-stream");
+  vi.stubEnv("NODE_ENV", "development");
+  const spy = vi.spyOn(console, "debug").mockImplementation(() => {});
+  try {
+    logChatStream("debug", "synthetic private note title", { userId: "synthetic-user", content: "synthetic private question" });
+    expect(spy).toHaveBeenCalledOnce();
+    const emitted = JSON.stringify(spy.mock.calls);
+    expect(emitted).not.toContain("synthetic");
+    expect(spy.mock.calls[0]).toHaveLength(1);
+  } finally {
+    spy.mockRestore();
+    vi.unstubAllEnvs();
+  }
 });

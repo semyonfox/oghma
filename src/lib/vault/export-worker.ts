@@ -1,3 +1,4 @@
+import logger from "@/lib/logger";
 /**
  * Vault Export Worker
  * Queries user's tree, streams files from S3, builds a zip via fflate's
@@ -19,6 +20,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { getStorageProvider } from "../storage/init.ts";
 import { createS3ClientFromEnv } from "../storage/s3.ts";
 import { buildExportPathMap } from "./tree-builder";
+import { lockVaultExport } from "./artifacts";
 import { sendVaultExportCompleteEmail } from "../email";
 
 const MIN_PART_SIZE = 5 * 1024 * 1024; // 5MB minimum for S3 multipart
@@ -102,11 +104,8 @@ class S3MultipartZipUploader {
             UploadId: this.uploadId,
           }),
         );
-      } catch (err) {
-        console.error(
-          "[vault-export] Failed to abort multipart upload:",
-          errorMessage(err),
-        );
+      } catch {
+        logger.error("worker_event");
       }
     }
   }
@@ -135,8 +134,7 @@ export async function processVaultExport(
 ): Promise<void> {
   const jobId = requireMessageString(msg, "jobId");
   const userId = requireMessageString(msg, "userId");
-  const ts = () => new Date().toISOString();
-  console.log(`[${ts()}] Starting vault export: job=${jobId}`);
+  logger.info("worker_event");
 
   const bucket = process.env.STORAGE_BUCKET;
   const prefix = process.env.STORAGE_PREFIX || "oghma";
@@ -149,13 +147,18 @@ export async function processVaultExport(
   const uploader = new S3MultipartZipUploader(s3, bucket, outputKey);
 
   try {
-    await sql`UPDATE app.canvas_import_jobs SET status = 'processing', started_at = NOW() WHERE id = ${jobId}::uuid`;
+    const [claimed] = await sql`
+      UPDATE app.canvas_import_jobs SET status = 'processing', started_at = NOW()
+      WHERE id = ${jobId}::uuid AND user_id = ${userId}::uuid
+        AND type = 'vault-export' AND status = 'queued' RETURNING id
+    `;
+    if (!claimed) return;
 
     getStorageProvider();
     const exportMap = await buildExportPathMap(userId);
     const totalFiles = exportMap.size;
 
-    console.log(`[${ts()}] Found ${totalFiles} files to export`);
+    logger.info("worker_event");
     await sql`UPDATE app.canvas_import_jobs SET expected_total = ${totalFiles} WHERE id = ${jobId}::uuid`;
 
     await uploader.init();
@@ -173,7 +176,7 @@ export async function processVaultExport(
     let processed = 0;
     const failedPaths: string[] = [];
 
-    for (const [noteId, entry] of exportMap) {
+    for (const [_noteId, entry] of exportMap) {
       try {
         const { path, s3Key, content } = entry;
         let fileData: Buffer;
@@ -192,9 +195,7 @@ export async function processVaultExport(
           // text note — write as UTF-8
           fileData = Buffer.from(content, "utf-8");
         } else {
-          console.log(
-            `[${ts()}] Skipping note ${noteId}: no s3_key and no content`,
-          );
+          logger.info("worker_event");
           continue;
         }
 
@@ -224,7 +225,7 @@ export async function processVaultExport(
           WHERE id = ${jobId}::uuid
         `;
         if (cancelRow?.cancel_requested_at || cancelRow?.status === "cancelled") {
-          console.log(`[${ts()}] Cancel requested for ${jobId}; aborting after ${processed} files`);
+          logger.info("worker_event");
           await uploader.abort();
           await sql`
             UPDATE app.canvas_import_jobs
@@ -239,13 +240,10 @@ export async function processVaultExport(
             SET processed_files = ${processed}, updated_at = NOW()
             WHERE id = ${jobId}::uuid AND status = 'processing'
           `;
-          console.log(`[${ts()}] Exported ${processed}/${totalFiles} files`);
+          logger.info("worker_event");
         }
-      } catch (err) {
-        console.error(
-          `[${ts()}] Failed to export ${entry.path}:`,
-          errorMessage(err),
-        );
+      } catch {
+        logger.error("worker_event");
         failedPaths.push(entry.path);
       }
     }
@@ -269,34 +267,32 @@ export async function processVaultExport(
     // finalize zip
     zip.end();
 
-    // complete the multipart upload (flushes remaining buffer + finalizes)
-    await uploader.complete();
-
-    // generate 24-hour presigned download URL
-    const downloadUrl = await getSignedUrl(
-      s3,
-      new GetObjectCommand({
-        Bucket: bucket,
-        Key: outputKey,
+    // completion and cleanup take the same lock, so a cancelled worker cannot publish a late copy
+    const downloadUrl = await sql.begin(async tx => {
+      await lockVaultExport(tx, userId);
+      const [job] = await tx`
+        SELECT j.id FROM app.canvas_import_jobs j
+        JOIN app.vault_artifacts a ON a.job_id = j.id AND a.kind = 'export'
+        WHERE j.id = ${jobId}::uuid AND j.user_id = ${userId}::uuid
+          AND j.status = 'processing' AND j.cancel_requested_at IS NULL
+        FOR UPDATE OF j, a
+      `;
+      if (!job) return null;
+      await uploader.complete();
+      const url = await getSignedUrl(s3, new GetObjectCommand({
+        Bucket: bucket, Key: outputKey,
         ResponseContentDisposition: 'attachment; filename="oghmanotes-vault.zip"',
-      }),
-      { expiresIn: 86400 },
-    );
-
-    // update job with results — guard against overwriting a cancelled job
-    const outputS3Key = `exports/${userId}/${jobId}/vault-export.zip`;
-    const completed = await sql<{ id: string }[]>`
-      UPDATE app.canvas_import_jobs
-      SET status = 'complete',
-          completed_at = NOW(),
-          updated_at = NOW(),
-          output_s3_key = ${outputS3Key},
-          download_url = ${downloadUrl}
-      WHERE id = ${jobId}::uuid AND status = 'processing'
-      RETURNING id
-    `;
-    if (completed.length === 0) {
-      console.log(`[${ts()}] Export ${jobId} finished but row was already terminal (cancelled/failed); skipping email`);
+      }), { expiresIn: 86400 });
+      await tx`
+        UPDATE app.canvas_import_jobs SET status = 'complete', completed_at = NOW(), updated_at = NOW(),
+          output_s3_key = ${`exports/${userId}/${jobId}/vault-export.zip`}, download_url = ${url}
+        WHERE id = ${jobId}::uuid
+      `;
+      await tx`UPDATE app.vault_artifacts SET expires_at = NOW() + INTERVAL '24 hours' WHERE job_id = ${jobId}::uuid`;
+      return url;
+    });
+    if (!downloadUrl) {
+      await uploader.abort();
       return;
     }
 
@@ -308,16 +304,13 @@ export async function processVaultExport(
       if (user?.email) {
         await sendVaultExportCompleteEmail(user.email, { downloadUrl });
       }
-    } catch (emailErr) {
-      console.error(
-        `[${ts()}] Email notification failed:`,
-        errorMessage(emailErr),
-      );
+    } catch {
+      logger.error("worker_event");
     }
 
-    console.log(`[${ts()}] Vault export complete: ${processed} files`);
+    logger.info("worker_event");
   } catch (error) {
-    console.error(`[${ts()}] Vault export failed:`, error);
+    logger.error("worker_event");
     await uploader.abort();
     await sql`
       UPDATE app.canvas_import_jobs

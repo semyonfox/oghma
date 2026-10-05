@@ -1,10 +1,11 @@
+import logger from "@/lib/logger";
 import sql from "../../database/pgsql";
 import type postgres from "postgres";
 import { enqueueCanvasJob } from "../queue.ts";
 
 export type ImportServiceClass = "free" | "semester" | "academic_year";
 
-export const IMPORT_CLASS_WEIGHTS: Record<ImportServiceClass, number> = {
+const IMPORT_CLASS_WEIGHTS: Record<ImportServiceClass, number> = {
   free: 1,
   semester: 3,
   academic_year: 5,
@@ -49,7 +50,7 @@ interface DispatchRecord {
  * pending row forever. Releasing only still-pending rows is safe because the
  * consumer compare-and-swaps pending -> downloading before doing any work.
  */
-export async function recoverStaleCanvasDispatches(limit = 100): Promise<number> {
+async function recoverStaleCanvasDispatches(limit = 100): Promise<number> {
   const released = await sql`
     WITH candidates AS (
       SELECT ci.id
@@ -103,7 +104,7 @@ export async function dispatchFairCanvasFiles(limit = 10): Promise<number> {
   `;
   const recovered = await recoverStaleCanvasDispatches();
   if (recovered > 0) {
-    console.warn(`Released ${recovered} stale Canvas dispatch lease(s)`);
+    logger.warn("worker_event");
   }
   const selected = await sql.begin(async (tx: postgres.TransactionSql) => {
     await tx`SELECT pg_advisory_xact_lock(hashtext('oghma-import-fair-dispatch'))`;
@@ -205,12 +206,12 @@ export async function dispatchFairCanvasFiles(limit = 10): Promise<number> {
         userId: record.user_id,
       });
       enqueued += 1;
-    } catch (error) {
+    } catch {
       await sql`
         UPDATE app.canvas_imports SET dispatched_at = NULL
         WHERE id = ${record.id}::uuid AND status = 'pending'
       `;
-      console.error(`Fair import dispatch failed for ${record.id}:`, error);
+      logger.error("worker_event");
     }
   }
   return enqueued;

@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
-import { withErrorHandler, requireAuth, ApiError } from "@/lib/api-error";
+import { withErrorHandler, requireAuth, ApiError, parseJsonObject } from "@/lib/api-error";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { reserveVaultUpload, VAULT_UPLOAD_MAX_BYTES } from "@/lib/vault/artifacts";
+import { checkRateLimit } from "@/lib/rate-limiter";
 import { v4 as uuidv4 } from "uuid";
 import { createS3ClientConfig, createS3ConfigFromEnv } from "@/lib/storage/s3";
 
@@ -15,7 +17,9 @@ import { createS3ClientConfig, createS3ConfigFromEnv } from "@/lib/storage/s3";
 export const POST = withErrorHandler(async (request) => {
   const user = await requireAuth();
 
-  const { filename, contentLength } = await request.json();
+  const limited = await checkRateLimit("upload", user.user_id);
+  if (limited) return limited;
+  const { filename, contentLength } = await parseJsonObject(request, 4096);
 
   if (typeof filename !== "string") {
     throw new ApiError(400, "filename is required");
@@ -30,11 +34,11 @@ export const POST = withErrorHandler(async (request) => {
     throw new ApiError(400, "Only .zip files are accepted");
   }
 
-  const expectedSize = Number(contentLength);
+  const expectedSize = typeof contentLength === "number" ? contentLength : NaN;
   if (!Number.isSafeInteger(expectedSize) || expectedSize <= 0) {
     throw new ApiError(400, "contentLength must be a positive integer");
   }
-  if (expectedSize > 10 * 1024 * 1024 * 1024) {
+  if (expectedSize > VAULT_UPLOAD_MAX_BYTES) {
     throw new ApiError(400, "File too large (max 10GB)");
   }
 
@@ -43,13 +47,15 @@ export const POST = withErrorHandler(async (request) => {
 
   const uploadId = uuidv4();
   const prefix = process.env.STORAGE_PREFIX || "oghma";
-  const s3Key = `vault-uploads/${user.user_id}/${uploadId}/${normalizedFilename}`;
-  const fullKey = `${prefix}/${s3Key}`;
+  const proposedKey = `vault-uploads/${user.user_id}/${uploadId}/${normalizedFilename}`;
 
   const s3 = new S3Client({
     ...createS3ClientConfig(createS3ConfigFromEnv()),
     requestChecksumCalculation: "WHEN_REQUIRED",
   });
+
+  const s3Key = await reserveVaultUpload(user.user_id, proposedKey, expectedSize);
+  const fullKey = `${prefix}/${s3Key}`;
 
   const uploadUrl = await getSignedUrl(
     s3,
@@ -62,7 +68,7 @@ export const POST = withErrorHandler(async (request) => {
     }),
     {
       expiresIn: 900,
-      signableHeaders: new Set(["content-type", "x-amz-meta-expected-size"]),
+      signableHeaders: new Set(["content-length", "content-type", "x-amz-meta-expected-size"]),
       unhoistableHeaders: new Set(["x-amz-meta-expected-size"]),
     }, // 15 minutes
   );

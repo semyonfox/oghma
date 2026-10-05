@@ -1,7 +1,7 @@
 import type postgres from "postgres";
 import { NextResponse } from "next/server";
 import { withErrorHandler, requireAuth } from "@/lib/api-error";
-import { checkRateLimit } from "@/lib/rateLimiter";
+import { checkRateLimit } from "@/lib/rate-limiter";
 import { cancelActiveCanvasImportJobs } from "@/lib/canvas/cancel-import-jobs";
 import {
   permanentlyDeleteNotes,
@@ -20,6 +20,7 @@ import sql from "@/database/pgsql";
  * collected later by their reference-aware retention job.
  */
 export const DELETE = withErrorHandler(async () => {
+  const clearedAt = new Date();
   const user = await requireAuth();
   const limited = await checkRateLimit("vault-delete", user.user_id);
   if (limited) return limited;
@@ -66,6 +67,7 @@ export const DELETE = withErrorHandler(async () => {
   const vaultStorageCleanupPending = await queueVaultStorageCleanup(
     user.user_id,
     snapshot.jobs,
+    clearedAt,
   );
 
   // A cancelled job can have discovery rows without a note yet. They are not

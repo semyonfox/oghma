@@ -1,7 +1,7 @@
 "use client";
 
 import { FC, useRef } from "react";
-import { FileSpec } from "@/lib/notes/state/layout.zustand";
+import { FileSpec } from "@/lib/notes/state/layout";
 import { useSignedUrl } from "./use-signed-url";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 

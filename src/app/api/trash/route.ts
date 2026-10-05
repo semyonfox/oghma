@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   ApiError,
+  parseJsonObject,
   requireAuth,
   requireValidId,
   withErrorHandler,
@@ -12,13 +13,15 @@ import {
   restoreTrashRoot,
 } from "@/lib/notes/storage/note-lifecycle";
 
-type TrashAction = "restore" | "delete" | "empty" | "list";
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 function requestId(body: Record<string, unknown>): unknown {
   if (body.id) return body.id;
   const data = body.data;
-  return data && typeof data === "object" && !Array.isArray(data)
-    ? (data as Record<string, unknown>).id
+  return isRecord(data)
+    ? data.id
     : undefined;
 }
 
@@ -33,17 +36,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const user = await requireAuth();
   let body: Record<string, unknown>;
   try {
-    const value: unknown = await request.json();
-    if (!value || typeof value !== "object" || Array.isArray(value)) {
-      throw new ApiError(400, "Invalid Trash request");
-    }
-    body = value as Record<string, unknown>;
-  } catch (error) {
-    if (error instanceof ApiError) throw error;
+    body = await parseJsonObject(request);
+  } catch {
     throw new ApiError(400, "Invalid Trash request");
   }
 
-  const action = body.action as TrashAction | undefined;
+  const action = body.action;
   if (!action) throw new ApiError(400, "Missing Trash action");
 
   if (action === "list") {

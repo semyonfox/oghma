@@ -18,7 +18,7 @@ vi.mock("@/lib/api-error", () => ({
     (request: NextRequest) =>
       handler(request),
 }));
-vi.mock("@/lib/rateLimiter", () => ({
+vi.mock("@/lib/rate-limiter", () => ({
   checkRateLimit: mockRateLimit,
   getClientIp: vi.fn(() => "127.0.0.1"),
 }));
@@ -110,11 +110,9 @@ describe("POST /api/contact", () => {
         reply_to: "ada@example.com",
       }),
     );
-    expect(mockRecordMarketingEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ eventName: "contact_form_success" }),
-      expect.any(NextRequest),
-      { trusted: false },
-    );
+    expect(mockRecordMarketingEvent).not.toHaveBeenCalled();
+    expect(mockSql.mock.calls.map((call) => String(call[0])).join(" ")).not.toContain("app.marketing_events");
+
   });
 
   it("keeps a stored submission successful when notification fails", async () => {
@@ -140,6 +138,13 @@ describe("POST /api/contact", () => {
     expect(response.status).toBe(200);
     expect(mockSql).not.toHaveBeenCalled();
     expect(fetch).not.toHaveBeenCalled();
+    expect(mockRecordMarketingEvent).not.toHaveBeenCalled();
+  });
+
+  it("accepts the Other reason offered by the contact form without analytics writes", async () => {
+    const response = await POST(request({ ...validBody, interest: "other" }));
+    expect(response.status).toBe(200);
+    expect(mockSql).toHaveBeenCalledTimes(2);
     expect(mockRecordMarketingEvent).not.toHaveBeenCalled();
   });
 

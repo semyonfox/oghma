@@ -35,7 +35,7 @@ test.describe("auth and notes smoke", () => {
       await page.getByRole("button", { name: "Meta" }).click();
       await expect(page.getByRole("dialog", { name: "Meta" })).toBeVisible();
       await page.getByRole("dialog", { name: "Meta" })
-        .getByRole("button", { name: "Global Tasks" }).click();
+        .getByRole("tab", { name: "Global Tasks" }).click();
       const inspector = page.getByRole("dialog", { name: "Global Tasks" });
       await expect(inspector).toBeVisible();
       await inspector.getByRole("button", { name: "Close", exact: true }).first().click();

@@ -30,9 +30,9 @@ export default function CookiesPage() {
       <InfoSection title="Analytics And Advertising">
         <p>
           We do not currently use non-essential analytics cookies, advertising
-          pixels, or cross-site tracking cookies. Limited first-party funnel
-          measurement uses no browser identifier and honors Do Not Track and
-          Global Privacy Control.
+          pixels, or cross-site tracking cookies. Optional anonymous counts stay off until configured, use no visitor
+          identifier, and honor Do Not Track and Global Privacy Control. You can
+          disable them on the Privacy page or in Settings.
         </p>
       </InfoSection>
 
@@ -47,7 +47,7 @@ export default function CookiesPage() {
       </InfoSection>
 
       <InfoSection title="Last Updated">
-        <p>July 11, 2026.</p>
+        <p>October 4, 2026.</p>
       </InfoSection>
     </PublicInfoPage>
   );

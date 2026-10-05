@@ -245,7 +245,6 @@ html,
 body {
   @apply overflow-x-hidden antialiased;
   direction: ltr;
-  font-size: 16px;
   line-height: 1.5;
 }
 
@@ -271,7 +270,12 @@ body {
   }
 }
 
+html {
+  font-size: 100%;
+}
+
 body {
+  font-size: inherit;
   font-optical-sizing: auto;
   font-kerning: normal;
   font-synthesis: none;

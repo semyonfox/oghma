@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import type postgres from "postgres";
 import { withErrorHandler, requireAuth } from "@/lib/api-error";
+import { reserveVaultExport, lockVaultExport } from "@/lib/vault/artifacts";
+import { checkRateLimit } from "@/lib/rate-limiter";
 import sql from "@/database/pgsql";
 import { enqueueCanvasJob } from "@/lib/queue";
 
@@ -22,6 +24,8 @@ function isUniqueViolation(error: unknown): boolean {
  */
 export const POST = withErrorHandler(async (request) => {
   const user = await requireAuth();
+  const limited = await checkRateLimit("upload", user.user_id);
+  if (limited) return limited;
   const { searchParams } = new URL(request.url);
   const force = searchParams.get("force") === "true";
 
@@ -43,6 +47,7 @@ export const POST = withErrorHandler(async (request) => {
   let jobId: string;
   try {
     jobId = await sql.begin(async (tx: postgres.TransactionSql) => {
+      await lockVaultExport(tx, user.user_id);
       if (existing) {
         // also set cancel_requested_at so any running worker stops cooperatively
         await tx`
@@ -58,6 +63,7 @@ export const POST = withErrorHandler(async (request) => {
         VALUES (${user.user_id}::uuid, 'vault-export', 'queued')
         RETURNING id
       `;
+      await reserveVaultExport(tx, user.user_id, row.id);
       return row.id;
     });
   } catch (error) {

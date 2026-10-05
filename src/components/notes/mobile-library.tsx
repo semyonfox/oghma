@@ -24,7 +24,7 @@ import MobileNoteActions, { mobileActionClass } from "./mobile-note-actions";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import useNoteTreeStore from "@/lib/notes/state/tree";
 import useNoteStore from "@/lib/notes/state/note";
-import useLayoutStore from "@/lib/notes/state/layout.zustand";
+import useLayoutStore from "@/lib/notes/state/layout";
 import useGlobalSearchStore from "@/lib/global-search/state";
 import { buildFileSpec } from "@/lib/notes/utils/file-spec";
 import { NOTE_PINNED } from "@/lib/notes/types/meta";
@@ -193,7 +193,7 @@ export default function MobileLibrary() {
     }
   };
   return (
-    <div className="flex h-full flex-col">
+    <div key={folderPath} className="flex h-full flex-col overflow-y-auto overscroll-contain">
       <MobileAppHeader
         title={t("Notes")}
         actions={
@@ -250,7 +250,7 @@ export default function MobileLibrary() {
               </span>
             </button>
           ) : (
-            <div className="flex min-w-0 flex-1 gap-1" aria-label={t("Notes")}>
+            <div className="flex min-w-0 flex-1 flex-wrap gap-1" aria-label={t("Notes")}>
               <button
                 type="button"
                 aria-pressed={!pinnedOnly}
@@ -308,8 +308,7 @@ export default function MobileLibrary() {
         )}
       </div>
       <div
-        className="mobile-dock-clearance min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-5"
-        key={folderPath}
+        className="mobile-dock-clearance shrink-0 px-3 pb-5"
       >
         {invalidPath ? (
           <div className="p-5 text-center">

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 vi.mock("@/database/pgsql", () => ({ default: vi.fn() }));
-vi.mock("@/lib/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   createErrorResponse: (error: string, status: number) =>
     Response.json({ error }, { status }),
   parseJsonBody: async (request: Request) => ({
@@ -10,7 +10,7 @@ vi.mock("@/lib/auth", () => ({
     error: null,
   }),
 }));
-vi.mock("@/lib/rateLimiter", () => ({
+vi.mock("@/lib/rate-limiter", () => ({
   checkRateLimit: vi.fn().mockResolvedValue(null),
 }));
 vi.mock("@/lib/email", async (importOriginal) => ({

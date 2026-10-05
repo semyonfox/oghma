@@ -1,26 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateSession } from "@/lib/auth";
-import { isValidUUID } from "@/lib/utils/uuid";
 import { filterNoteFields } from "@/lib/notes/utils/filter-fields";
 import { mapNoteFromDB } from "@/lib/notes/utils/map-note";
 import { cacheGet, cacheSet, cacheInvalidate, cacheKeys } from "@/lib/cache";
 import sql from "@/database/pgsql";
 import logger from "@/lib/logger";
-import { chunkText } from "@/lib/chunking";
+import { chunkText } from "@/lib/rag/chunking";
 import { replaceNoteEmbeddings } from "@/lib/rag/indexing";
 import { processExtractedText } from "@/lib/canvas/text-processing";
 import { noteUpdateSchema, validateBody } from "@/lib/validations/schemas";
-import { withErrorHandler, tracedError } from "@/lib/api-error";
+import {
+  parseJsonObject,
+  requireAuth,
+  requireValidId,
+  tracedError,
+  type RouteParamsContext,
+  withErrorHandler,
+} from "@/lib/api-error";
 import { replaceNoteLinks } from "@/lib/notes/storage/note-links";
 import { moveSubtreeToTrash } from "@/lib/notes/storage/note-lifecycle";
 
-interface NoteRouteParams {
-  id: string;
-}
-
-type NoteRouteContext = {
-  params: Promise<NoteRouteParams>;
-};
+type NoteRouteContext = RouteParamsContext<{ id: string }>;
 
 interface NoteSummaryRow {
   note_id: string;
@@ -50,17 +49,10 @@ const MAX_CONTENT_LENGTH = parseInt(
 );
 
 export const GET = withErrorHandler(async (request: NextRequest, { params }: NoteRouteContext) => {
-  const user = await validateSession();
-  if (!user) {
-    return tracedError("Unauthorized", 401);
-  }
+  const user = await requireAuth();
 
   const { id } = await params;
-  const noteId = id;
-
-  if (!isValidUUID(noteId)) {
-    return tracedError("Invalid note ID", 400);
-  }
+  const noteId = requireValidId(id, "note ID");
 
   const url = new URL(request.url);
   const fieldsParam = url.searchParams.get("fields");
@@ -98,19 +90,12 @@ export const GET = withErrorHandler(async (request: NextRequest, { params }: Not
 });
 
 export const PUT = withErrorHandler(async (request: NextRequest, { params }: NoteRouteContext) => {
-  const user = await validateSession();
-  if (!user) {
-    return tracedError("Unauthorized", 401);
-  }
+  const user = await requireAuth();
 
   const { id } = await params;
-  const noteId = id;
+  const noteId = requireValidId(id, "note ID");
 
-  if (!isValidUUID(noteId)) {
-    return tracedError("Invalid note ID", 400);
-  }
-
-  const rawBody = await request.json();
+  const rawBody = await parseJsonObject(request);
 
   const bodyValidation = validateBody(noteUpdateSchema, rawBody);
   if (!bodyValidation.success) return bodyValidation.response;
@@ -207,17 +192,10 @@ export const PUT = withErrorHandler(async (request: NextRequest, { params }: Not
 export const PATCH = PUT;
 
 export const DELETE = withErrorHandler(async (request: NextRequest, { params }: NoteRouteContext) => {
-  const user = await validateSession();
-  if (!user) {
-    return tracedError("Unauthorized", 401);
-  }
+  const user = await requireAuth();
 
   const { id } = await params;
-  const noteId = id;
-
-  if (!isValidUUID(noteId)) {
-    return tracedError("Invalid note ID", 400);
-  }
+  const noteId = requireValidId(id, "note ID");
 
   const result = await moveSubtreeToTrash(user.user_id, noteId);
   if (!result) return tracedError("Note not found", 404);

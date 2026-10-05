@@ -1,16 +1,19 @@
-import { NextRequest, NextResponse } from "next/server";
-import { validateSession } from "@/lib/auth";
-import { withErrorHandler, tracedError } from "@/lib/api-error";
+import { NextResponse } from "next/server";
+import {
+  requireAuth,
+  type RouteParamsContext,
+  withErrorHandler,
+  tracedError,
+} from "@/lib/api-error";
 import { normalizeQuizQuestion } from "@/lib/quiz/normalize-question";
 import sql from "@/database/pgsql";
 
 export const GET = withErrorHandler(
   async (
-    _request: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
+    _request,
+    { params }: RouteParamsContext<{ id: string }>,
   ) => {
-    const user = await validateSession();
-    if (!user) return tracedError("Unauthorized", 401);
+    const user = await requireAuth();
 
     const { id: cardId } = await params;
     const rows = await sql`

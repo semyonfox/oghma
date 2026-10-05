@@ -3,7 +3,7 @@
 
 import useNoteTreeStore from "./state/tree";
 import useNoteStore from "./state/note";
-import useLayoutStore from "./state/layout.zustand";
+import useLayoutStore from "./state/layout";
 
 function runWhenIdle(fn: () => void) {
   if (typeof window === "undefined") return;

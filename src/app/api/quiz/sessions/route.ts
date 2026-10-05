@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse, after } from "next/server";
-import { validateSession } from "@/lib/auth";
 import {
   parseJsonObject,
+  requireAuth,
   withErrorHandler,
   tracedError,
 } from "@/lib/api-error";
@@ -35,8 +35,7 @@ type QuizCardRow = Parameters<typeof cardFromDB>[0] & {
 };
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
-  const user = await validateSession();
-  if (!user) return tracedError("Unauthorized", 401);
+  const user = await requireAuth();
 
   const rawBody = await parseJsonObject(request);
 
@@ -45,7 +44,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   if (!zodResult.success) return zodResult.response;
   const body = zodResult.data;
 
-  const filterType = body.filterType as FilterType;
+  const filterType: FilterType = body.filterType;
   const filterValue = "filterValue" in body ? body.filterValue : undefined;
 
   if (!filterType) return tracedError("filterType is required", 400);

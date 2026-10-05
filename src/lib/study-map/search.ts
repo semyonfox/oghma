@@ -2,30 +2,45 @@ import { z } from "zod";
 import sql from "@/database/pgsql";
 import { ApiError } from "@/lib/api-errors";
 import {
-  documentKindSchema, materialOverridesSchema, topicAssociationSchema, topicSchema,
-  type DocumentKind, type MaterialReference, type Relevance, type TopicAssociation,
+  documentKindSchema,
+  materialOverridesSchema,
+  topicAssociationSchema,
+  topicSchema,
+  type DocumentKind,
+  type MaterialReference,
+  type Relevance,
+  type TopicAssociation,
 } from "./types";
 
-export const studySearchFiltersSchema = z.object({
-  q: z.string().trim().max(200).optional(),
-  mapId: z.uuid().optional(),
-  topicId: z.uuid().optional(),
-  kind: documentKindSchema.optional(),
-  label: z.string().trim().min(1).max(64).optional(),
-  sort: z.enum(["relevance", "title", "updated", "topics"]).default("relevance"),
-  limit: z.number().int().min(1).max(100).default(50),
-  offset: z.number().int().min(0).max(50_000).default(0),
-}).strict();
+export const studySearchFiltersSchema = z
+  .object({
+    q: z.string().trim().max(200).optional(),
+    mapId: z.uuid().optional(),
+    topicId: z.uuid().optional(),
+    kind: documentKindSchema.optional(),
+    label: z.string().trim().min(1).max(64).optional(),
+    sort: z
+      .enum(["relevance", "title", "updated", "topics"])
+      .default("relevance"),
+    limit: z.number().int().min(1).max(100).default(50),
+    offset: z.number().int().min(0).max(50_000).default(0),
+  })
+  .strict();
 export type StudySearchFilters = z.input<typeof studySearchFiltersSchema>;
 
-export interface StudySearchResult {
+interface StudySearchResult {
   noteId: string;
   title: string;
   mapId: string;
   mapName: string;
   kind: DocumentKind;
   labels: string[];
-  topics: Array<{ id: string; name: string; relevance: Relevance; status: "suggested" | "accepted" }>;
+  topics: Array<{
+    id: string;
+    name: string;
+    relevance: Relevance;
+    status: "suggested" | "accepted";
+  }>;
   updatedAt: string;
   stale: boolean;
   sourceNoteId: string;
@@ -75,15 +90,26 @@ interface SearchMaterialRow {
   material_references: unknown;
 }
 
-const referenceSchema = z.array(z.object({ id: z.uuid(), title: z.string(), kind: z.enum(["note", "file", "embedded"]) }));
+const referenceSchema = z.array(
+  z.object({
+    id: z.uuid(),
+    title: z.string(),
+    kind: z.enum(["note", "file", "embedded"]),
+  }),
+);
 const labelsSchema = z.array(z.string().max(60)).max(20);
 const associationsSchema = z.array(topicAssociationSchema).max(80);
 const statusSchema = z.enum(["unclassified", "classified", "stale", "failed"]);
 const normalize = (text: string): string => text.toLowerCase();
-const contains = (text: string, query: string): boolean => normalize(text).includes(query);
-const compareText = (left: string, right: string): number => normalize(left).localeCompare(normalize(right), "en");
+const contains = (text: string, query: string): boolean =>
+  normalize(text).includes(query);
+const compareText = (left: string, right: string): number =>
+  normalize(left).localeCompare(normalize(right), "en");
 
-export async function searchStudyMaterials(userId: string, filters: StudySearchFilters = {}): Promise<StudySearchResponse> {
+export async function searchStudyMaterials(
+  userId: string,
+  filters: StudySearchFilters = {},
+): Promise<StudySearchResponse> {
   const ownerId = z.uuid().parse(userId);
   const input = studySearchFiltersSchema.parse(filters);
   const query = normalize(input.q ?? "");
@@ -115,19 +141,43 @@ export async function searchStudyMaterials(userId: string, filters: StudySearchF
     ORDER BY m.updated_at DESC, m.id
     LIMIT 101
   `;
-  if (maps.length > 100) throw new ApiError(422, "Search supports up to 100 study maps. Remove unused maps before searching.");
+  if (maps.length > 100)
+    throw new ApiError(
+      422,
+      "Search supports up to 100 study maps. Remove unused maps before searching.",
+    );
   if (maps.some((map) => map.material_count > 500)) {
-    throw new ApiError(422, "A study map has more than 500 active materials. Split it into smaller maps before searching.");
+    throw new ApiError(
+      422,
+      "A study map has more than 500 active materials. Split it into smaller maps before searching.",
+    );
   }
-  if (maps.length === 0) return { results: [], total: 0, limit: input.limit, nextOffset: null, availableFacets: { maps: [], topics: [], kinds: [], labels: [] } };
+  if (maps.length === 0)
+    return {
+      results: [],
+      total: 0,
+      limit: input.limit,
+      nextOffset: null,
+      availableFacets: { maps: [], topics: [], kinds: [], labels: [] },
+    };
 
   const staleTaxonomyMaps = new Set<string>();
-  const reviewedTopics = new Map(maps.map((map) => {
-    const currentIds = new Set(map.current_topic_ids);
-    const topics = z.array(topicSchema).max(80).parse(map.topics);
-    if (topics.some((topic) => topic.reviewed && !currentIds.has(topic.id))) staleTaxonomyMaps.add(map.id);
-    return [map.id, new Map(topics.filter((topic) => topic.reviewed && currentIds.has(topic.id)).map((topic) => [topic.id, topic]))];
-  }));
+  const reviewedTopics = new Map(
+    maps.map((map) => {
+      const currentIds = new Set(map.current_topic_ids);
+      const topics = z.array(topicSchema).max(80).parse(map.topics);
+      if (topics.some((topic) => topic.reviewed && !currentIds.has(topic.id)))
+        staleTaxonomyMaps.add(map.id);
+      return [
+        map.id,
+        new Map(
+          topics
+            .filter((topic) => topic.reviewed && currentIds.has(topic.id))
+            .map((topic) => [topic.id, topic]),
+        ),
+      ];
+    }),
+  );
   const mapsById = new Map(maps.map((map) => [map.id, map]));
 
   // the binary rule and newest visible text extraction mirror repository.documentFor
@@ -186,12 +236,23 @@ export async function searchStudyMaterials(userId: string, filters: StudySearchF
     FROM selected_sources
   `;
   const counts = new Map<string, number>();
-  for (const row of rows) counts.set(row.map_id, (counts.get(row.map_id) ?? 0) + 1);
-  if (rows.length > 50_000 || [...counts.values()].some((count) => count > 500)) {
-    throw new ApiError(422, "A study map has more than 500 active materials. Split it into smaller maps before searching.");
+  for (const row of rows)
+    counts.set(row.map_id, (counts.get(row.map_id) ?? 0) + 1);
+  if (
+    rows.length > 50_000 ||
+    [...counts.values()].some((count) => count > 500)
+  ) {
+    throw new ApiError(
+      422,
+      "A study map has more than 500 active materials. Split it into smaller maps before searching.",
+    );
   }
 
-  const candidates: Array<{ result: StudySearchResult; score: number; matchesQuery: boolean }> = [];
+  const candidates: Array<{
+    result: StudySearchResult;
+    score: number;
+    matchesQuery: boolean;
+  }> = [];
   for (const row of rows) {
     const map = mapsById.get(row.map_id);
     const topicsById = reviewedTopics.get(row.map_id);
@@ -199,88 +260,214 @@ export async function searchStudyMaterials(userId: string, filters: StudySearchF
     const overrides = materialOverridesSchema.parse(row.overrides);
     const status = statusSchema.parse(row.status);
     const taxonomyEvidenceStale = staleTaxonomyMaps.has(map.id);
-    const classificationIdentityCurrent = row.classification_source_note_id === row.source_note_id && row.classification_source_field === row.source_field;
-    const classificationCurrent = !taxonomyEvidenceStale && status === "classified" && classificationIdentityCurrent && row.source_hash === row.current_hash && row.taxonomy_version === map.taxonomy_version;
-    const correctionsCurrent = !taxonomyEvidenceStale && overrides.sourceHash === row.current_hash && overrides.taxonomyVersion === map.taxonomy_version;
-    const hasCorrections = overrides.kind !== undefined || overrides.labels !== undefined || Object.keys(overrides.topics).length > 0;
-    const classificationStale = (Boolean(row.source_hash) || status === "classified") && (taxonomyEvidenceStale || !classificationIdentityCurrent || row.source_hash !== row.current_hash || row.taxonomy_version !== map.taxonomy_version);
+    const classificationIdentityCurrent =
+      row.classification_source_note_id === row.source_note_id &&
+      row.classification_source_field === row.source_field;
+    const classificationCurrent =
+      !taxonomyEvidenceStale &&
+      status === "classified" &&
+      classificationIdentityCurrent &&
+      row.source_hash === row.current_hash &&
+      row.taxonomy_version === map.taxonomy_version;
+    const correctionsCurrent =
+      !taxonomyEvidenceStale &&
+      overrides.sourceHash === row.current_hash &&
+      overrides.taxonomyVersion === map.taxonomy_version;
+    const hasCorrections =
+      overrides.kind !== undefined ||
+      overrides.labels !== undefined ||
+      Object.keys(overrides.topics).length > 0;
+    const classificationStale =
+      (Boolean(row.source_hash) || status === "classified") &&
+      (taxonomyEvidenceStale ||
+        !classificationIdentityCurrent ||
+        row.source_hash !== row.current_hash ||
+        row.taxonomy_version !== map.taxonomy_version);
     const associations = new Map<string, TopicAssociation>();
     for (const association of associationsSchema.parse(row.associations)) {
-      if (classificationCurrent && association.status !== "rejected" && topicsById.has(association.topicId)) associations.set(association.topicId, association);
+      if (
+        classificationCurrent &&
+        association.status !== "rejected" &&
+        topicsById.has(association.topicId)
+      )
+        associations.set(association.topicId, association);
     }
     if (correctionsCurrent) {
       for (const [topicId, relevance] of Object.entries(overrides.topics)) {
         if (!topicsById.has(topicId)) continue;
         if (relevance === "excluded") associations.delete(topicId);
-        else associations.set(topicId, { topicId, relevance, status: "accepted", origin: "manual", probability: null, evidence: [] });
+        else
+          associations.set(topicId, {
+            topicId,
+            relevance,
+            status: "accepted",
+            origin: "manual",
+            probability: null,
+            evidence: [],
+          });
       }
     }
-    const resultTopics: StudySearchResult["topics"] = [...associations.values()].flatMap((association) => {
+    const resultTopics: StudySearchResult["topics"] = [
+      ...associations.values(),
+    ].flatMap((association) => {
       const topic = topicsById.get(association.topicId);
       if (!topic || association.status === "rejected") return [];
-      return [{ id: topic.id, name: topic.name, relevance: association.relevance, status: association.status }];
+      return [
+        {
+          id: topic.id,
+          name: topic.name,
+          relevance: association.relevance,
+          status: association.status,
+        },
+      ];
     });
-    const labels = correctionsCurrent && overrides.labels !== undefined ? overrides.labels : classificationCurrent ? labelsSchema.parse(row.labels) : [];
+    const labels =
+      correctionsCurrent && overrides.labels !== undefined
+        ? overrides.labels
+        : classificationCurrent
+          ? labelsSchema.parse(row.labels)
+          : [];
     const title = row.title ?? "Untitled";
     const topicMatch = resultTopics.some((topic) => {
       const definition = topicsById.get(topic.id);
-      return contains(topic.name, query) || definition?.aliases.some((alias) => contains(alias, query));
+      return (
+        contains(topic.name, query) ||
+        definition?.aliases.some((alias) => contains(alias, query))
+      );
     });
     const labelMatch = labels.some((label) => contains(label, query));
     const titleMatch = contains(title, query);
     const mapMatch = contains(map.name, query);
-    const kind = correctionsCurrent && overrides.kind !== undefined ? overrides.kind : documentKindSchema.parse(row.kind);
+    const kind =
+      correctionsCurrent && overrides.kind !== undefined
+        ? overrides.kind
+        : documentKindSchema.parse(row.kind);
     const kindMatch = contains(kind.replaceAll("_", " "), query);
-    const score = query ? (normalize(title) === query ? 5 : titleMatch ? 3 : 0)
-      + (topicMatch ? 2 : 0) + (labelMatch ? 2 : 0) + (mapMatch ? 1 : 0) + (kindMatch ? 1 : 0) + (row.content_match ? 1 : 0) : 0;
-    candidates.push({ score, matchesQuery: !query || score > 0, result: {
-      noteId: row.note_id, title, mapId: map.id, mapName: map.name, kind, labels: [...new Set(labels)], topics: resultTopics,
-      updatedAt: (row.updated_at instanceof Date ? row.updated_at : new Date(row.updated_at)).toISOString(),
-      stale: status === "stale" || classificationStale || (hasCorrections && !correctionsCurrent),
-      sourceNoteId: row.source_note_id, references: referenceSchema.parse(row.material_references),
-    } });
+    const score = query
+      ? (normalize(title) === query ? 5 : titleMatch ? 3 : 0) +
+        (topicMatch ? 2 : 0) +
+        (labelMatch ? 2 : 0) +
+        (mapMatch ? 1 : 0) +
+        (kindMatch ? 1 : 0) +
+        (row.content_match ? 1 : 0)
+      : 0;
+    candidates.push({
+      score,
+      matchesQuery: !query || score > 0,
+      result: {
+        noteId: row.note_id,
+        title,
+        mapId: map.id,
+        mapName: map.name,
+        kind,
+        labels: [...new Set(labels)],
+        topics: resultTopics,
+        updatedAt: (row.updated_at instanceof Date
+          ? row.updated_at
+          : new Date(row.updated_at)
+        ).toISOString(),
+        stale:
+          status === "stale" ||
+          classificationStale ||
+          (hasCorrections && !correctionsCurrent),
+        sourceNoteId: row.source_note_id,
+        references: referenceSchema.parse(row.material_references),
+      },
+    });
   }
 
   // facets describe the entire visible collection, before query, filters, sorting, or limit
-  const mapFacets = new Map<string, StudySearchResponse["availableFacets"]["maps"][number]>();
-  const topicFacets = new Map<string, StudySearchResponse["availableFacets"]["topics"][number]>();
+  const mapFacets = new Map<
+    string,
+    StudySearchResponse["availableFacets"]["maps"][number]
+  >();
+  const topicFacets = new Map<
+    string,
+    StudySearchResponse["availableFacets"]["topics"][number]
+  >();
   const kindFacets = new Map<DocumentKind, number>();
   const labelFacets = new Map<string, { label: string; count: number }>();
   for (const { result } of candidates) {
-    const mapFacet = mapFacets.get(result.mapId) ?? { id: result.mapId, name: result.mapName, count: 0 };
+    const mapFacet = mapFacets.get(result.mapId) ?? {
+      id: result.mapId,
+      name: result.mapName,
+      count: 0,
+    };
     mapFacet.count += 1;
     mapFacets.set(result.mapId, mapFacet);
     for (const topic of result.topics) {
       const key = `${result.mapId}:${topic.id}`;
-      const topicFacet = topicFacets.get(key) ?? { id: topic.id, name: topic.name, mapId: result.mapId, count: 0 };
+      const topicFacet = topicFacets.get(key) ?? {
+        id: topic.id,
+        name: topic.name,
+        mapId: result.mapId,
+        count: 0,
+      };
       topicFacet.count += 1;
       topicFacets.set(key, topicFacet);
     }
     kindFacets.set(result.kind, (kindFacets.get(result.kind) ?? 0) + 1);
     for (const label of new Set(result.labels.map(normalize))) {
-      const labelFacet = labelFacets.get(label) ?? { label: result.labels.find((item) => normalize(item) === label) ?? label, count: 0 };
+      const labelFacet = labelFacets.get(label) ?? {
+        label: result.labels.find((item) => normalize(item) === label) ?? label,
+        count: 0,
+      };
       labelFacet.count += 1;
       labelFacets.set(label, labelFacet);
     }
   }
-  const filtered = candidates.filter(({ result, matchesQuery }) => matchesQuery
-    && (!input.mapId || result.mapId === input.mapId)
-    && (!input.topicId || result.topics.some((topic) => topic.id === input.topicId))
-    && (!input.kind || result.kind === input.kind)
-    && (!input.label || result.labels.some((label) => normalize(label) === normalize(input.label ?? ""))));
+  const filtered = candidates.filter(
+    ({ result, matchesQuery }) =>
+      matchesQuery &&
+      (!input.mapId || result.mapId === input.mapId) &&
+      (!input.topicId ||
+        result.topics.some((topic) => topic.id === input.topicId)) &&
+      (!input.kind || result.kind === input.kind) &&
+      (!input.label ||
+        result.labels.some(
+          (label) => normalize(label) === normalize(input.label ?? ""),
+        )),
+  );
   filtered.sort((left, right) => {
     let order = 0;
     if (input.sort === "relevance") order = right.score - left.score;
-    if (input.sort === "updated") order = right.result.updatedAt.localeCompare(left.result.updatedAt);
-    if (input.sort === "topics") order = right.result.topics.length - left.result.topics.length;
-    return order || compareText(left.result.title, right.result.title) || left.result.mapId.localeCompare(right.result.mapId) || left.result.noteId.localeCompare(right.result.noteId);
+    if (input.sort === "updated")
+      order = right.result.updatedAt.localeCompare(left.result.updatedAt);
+    if (input.sort === "topics")
+      order = right.result.topics.length - left.result.topics.length;
+    return (
+      order ||
+      compareText(left.result.title, right.result.title) ||
+      left.result.mapId.localeCompare(right.result.mapId) ||
+      left.result.noteId.localeCompare(right.result.noteId)
+    );
   });
-  const nextOffset = input.offset + input.limit < filtered.length ? input.offset + input.limit : null;
-  return { results: filtered.slice(input.offset, input.offset + input.limit).map(({ result }) => result), total: filtered.length,
-    limit: input.limit, nextOffset, availableFacets: {
-    maps: [...mapFacets.values()].sort((left, right) => compareText(left.name, right.name) || left.id.localeCompare(right.id)),
-    topics: [...topicFacets.values()].sort((left, right) => compareText(left.name, right.name) || left.id.localeCompare(right.id)),
-    kinds: [...kindFacets].map(([kind, count]) => ({ kind, count })).sort((left, right) => compareText(left.kind, right.kind)),
-    labels: [...labelFacets.values()].sort((left, right) => compareText(left.label, right.label)),
-  } };
+  const nextOffset =
+    input.offset + input.limit < filtered.length
+      ? input.offset + input.limit
+      : null;
+  return {
+    results: filtered
+      .slice(input.offset, input.offset + input.limit)
+      .map(({ result }) => result),
+    total: filtered.length,
+    limit: input.limit,
+    nextOffset,
+    availableFacets: {
+      maps: [...mapFacets.values()].sort(
+        (left, right) =>
+          compareText(left.name, right.name) || left.id.localeCompare(right.id),
+      ),
+      topics: [...topicFacets.values()].sort(
+        (left, right) =>
+          compareText(left.name, right.name) || left.id.localeCompare(right.id),
+      ),
+      kinds: [...kindFacets]
+        .map(([kind, count]) => ({ kind, count }))
+        .sort((left, right) => compareText(left.kind, right.kind)),
+      labels: [...labelFacets.values()].sort((left, right) =>
+        compareText(left.label, right.label),
+      ),
+    },
+  };
 }

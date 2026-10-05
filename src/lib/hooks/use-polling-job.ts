@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-export interface PollingJobData {
+interface PollingJobData {
   job?: {
     status?: string;
     error?: string;

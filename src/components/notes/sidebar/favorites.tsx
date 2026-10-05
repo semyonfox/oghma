@@ -3,7 +3,7 @@ import IconButton from "@/components/icon-button";
 import { ROOT_ID } from "@/lib/notes/types/tree";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import useNoteTreeStore from "@/lib/notes/state/tree";
-import React, { FC, useCallback, useMemo, useState } from "react";
+import { FC, useCallback, useMemo, useState } from "react";
 import SidebarListItem from "./sidebar-list-item";
 import {
   ControlledTreeEnvironment,

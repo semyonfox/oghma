@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   MarkerResultValidationError,
   parseMarkerResult,
-} from "@/lib/marker-result";
+} from "@/lib/marker/result";
 
 const callbackId = "11111111-1111-4111-8111-111111111111";
 const resultKey = `marker-results/${callbackId}.json`;

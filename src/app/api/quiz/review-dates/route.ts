@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateSession } from "@/lib/auth";
-import { withErrorHandler, tracedError } from "@/lib/api-error";
+import { requireAuth, withErrorHandler, tracedError } from "@/lib/api-error";
 import sql from "@/database/pgsql";
 
 interface ReviewDateRow {
@@ -8,8 +7,7 @@ interface ReviewDateRow {
 }
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
-  const user = await validateSession();
-  if (!user) return tracedError("Unauthorized", 401);
+  const user = await requireAuth();
 
   const { searchParams } = new URL(request.url);
   const start = searchParams.get("start");

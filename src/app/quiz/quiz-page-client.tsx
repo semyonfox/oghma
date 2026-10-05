@@ -5,7 +5,7 @@ import PrimaryNavigation from "@/components/navigation/primary-navigation";
 import MobileAppHeader from "@/components/navigation/mobile-app-header";
 import MobileBottomNavigation from "@/components/navigation/mobile-bottom-navigation";
 import QuizDashboard from "@/components/quiz/quiz-dashboard";
-import useLayoutStore from "@/lib/notes/state/layout.zustand";
+import useLayoutStore from "@/lib/notes/state/layout";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import type { QuizDashboardInitialData } from "./server-data";
 

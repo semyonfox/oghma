@@ -6,12 +6,12 @@ vi.mock("@/database/pgsql", () => {
   return { default: sqlMock };
 });
 
-vi.mock("@/lib/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   validateSession: vi.fn(),
 }));
 
 import sql from "@/database/pgsql";
-import { validateSession, type SessionUser } from "@/lib/auth";
+import { validateSession, type SessionUser } from "@/lib/auth/session";
 import { GET as getDashboard } from "@/app/api/quiz/dashboard/route";
 import { NextRequest } from "next/server";
 
@@ -21,7 +21,7 @@ describe("GET /api/quiz/dashboard", () => {
     vi.clearAllMocks();
     vi.mocked(validateSession).mockResolvedValue({
       user_id: "user-123",
-      email: "student@example.com",
+      session_version: 0, email: "student@example.com",
     } satisfies SessionUser);
     vi.mocked(sql)
       .mockResolvedValueOnce([

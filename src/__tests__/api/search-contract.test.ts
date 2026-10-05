@@ -9,11 +9,11 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/database/pgsql", () => ({ default: mocks.sql }));
-vi.mock("@/lib/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   validateSession: mocks.validateSession,
   validateSessionLite: vi.fn(),
 }));
-vi.mock("@/lib/embedText", () => ({ embedText: mocks.embedText }));
+vi.mock("@/lib/rag/embeddings", () => ({ embedText: mocks.embedText }));
 vi.mock("@/lib/qdrant", () => ({
   searchChunkVectors: mocks.searchChunkVectors,
 }));

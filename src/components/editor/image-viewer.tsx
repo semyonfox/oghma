@@ -1,7 +1,7 @@
 "use client";
 
 import { FC, useState, useCallback } from "react";
-import { FileSpec } from "@/lib/notes/state/layout.zustand";
+import { FileSpec } from "@/lib/notes/state/layout";
 import {
   MagnifyingGlassMinusIcon,
   MagnifyingGlassPlusIcon,

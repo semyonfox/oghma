@@ -18,6 +18,7 @@ vi.mock("@/lib/notes/cache", () => ({
   uiCache: {
     getItem: async (key: string) => mocks.cache.get(key),
     setItem: async (key: string, value: unknown) => { mocks.cache.set(key, value); },
+    removeItemIf: async (key: string, matches: (value: unknown) => boolean) => { if (matches(mocks.cache.get(key))) mocks.cache.delete(key); },
     removeItem: async (key: string) => { mocks.cache.delete(key); },
   },
   noteCacheInstance: { getItem: async () => null },
@@ -96,7 +97,7 @@ it("saves genuine edits and keeps a newer edit dirty while an earlier save compl
   expect(state()).toBe("saved");
   fireEvent.change(screen.getByRole("textbox"), { target: { value: "First edit" } });
   expect(state()).toBe("dirty");
-  act(() => useSaveIndicatorStore.getState().files.note.save());
+  await act(async () => useSaveIndicatorStore.getState().files.note.save());
   fireEvent.change(screen.getByRole("textbox"), { target: { value: "Second edit" } });
   await act(async () => finishSave());
   expect(mocks.mutateNote).toHaveBeenCalledWith("note", { content: "First edit" });

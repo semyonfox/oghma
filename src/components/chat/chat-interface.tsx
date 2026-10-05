@@ -13,6 +13,7 @@ import {
   PointerEvent,
 } from "react";
 import { PaperAirplaneIcon, StopCircleIcon, DocumentTextIcon, FolderIcon } from "@heroicons/react/24/outline";
+import useNoteStore from "@/lib/notes/state/note";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { useChatStream } from "@/lib/chat/hooks/use-chat-stream";
 import {
@@ -26,9 +27,9 @@ import ChatSplash from "./chat-splash";
 // re-export types so existing consumers keep working
 export type {
   Message,
-  MessagePart,
-  SearchContextData,
-  ChatContextItem,
+  
+  
+  
 } from "@/lib/chat/types";
 
 /**
@@ -120,6 +121,9 @@ export function isChatComposerReady(
 ): boolean {
   return !busy && (!controlledSessionId || restored);
 }
+
+// retain note questions while the inspector closes or changes layout
+const noteComposerDrafts = new Map<string, string>();
 
 const ChatInterface: FC<ChatInterfaceProps> = ({
   compact = false,
@@ -310,14 +314,31 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages, busy]);
 
-  // input state (local to this component -- not worth extracting)
-  const [input, setInput] = useState("");
+  const workspaceGeneration = useNoteStore((state) => state.generation);
+  const draftKey = compact && noteId ? `${workspaceGeneration}:${noteId}` : undefined;
+  const [composer, setComposer] = useState({
+    key: draftKey,
+    value: draftKey ? noteComposerDrafts.get(draftKey) ?? "" : "",
+  });
+  const input = composer.key === draftKey
+    ? composer.value
+    : draftKey ? noteComposerDrafts.get(draftKey) ?? "" : "";
+  const setInput = useCallback((value: string) => {
+    if (draftKey) {
+      if (value) noteComposerDrafts.set(draftKey, value);
+      else noteComposerDrafts.delete(draftKey);
+    }
+    setComposer({ key: draftKey, value });
+  }, [draftKey]);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
+  const previousSessionId = useRef(controlledSessionId);
   useEffect(() => {
+    if (previousSessionId.current === controlledSessionId) return;
+    previousSessionId.current = controlledSessionId;
     setInput("");
     pinnedToBottomRef.current = true;
-  }, [controlledSessionId]);
+  }, [controlledSessionId, setInput]);
 
   const thinkingActive = thinkingMode !== "off";
   const thinkingLabel = thinkingActive ? t("Thinking on") : t("Thinking off");

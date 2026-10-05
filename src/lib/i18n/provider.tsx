@@ -13,12 +13,8 @@ import {
 } from "react";
 import rosetta from "rosetta";
 import pupa from "pupa";
-import { Locale, supportedLocales } from "@/locales";
+import { Locale } from "@/locales";
 import type { LocaleDictionary } from "@/lib/i18n/locale-data";
-
-export const defaultLanguage = Locale.EN;
-
-export const languages = supportedLocales;
 
 export type Translate = (
   key: string | readonly (string | number)[],

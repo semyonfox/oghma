@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateSession } from "@/lib/auth";
-import { withErrorHandler, tracedError } from "@/lib/api-error";
-import { embedText } from "@/lib/embedText";
+import { withErrorHandler, requireAuth } from "@/lib/api-error";
+import { embedText } from "@/lib/rag/embeddings";
 import logger from "@/lib/logger";
 import { searchChunkVectors } from "@/lib/qdrant";
-import { checkRateLimit } from "@/lib/rateLimiter";
-import { hydrateOwnedNoteChunks } from "@/lib/search/owned-note-chunks";
+import { checkRateLimit } from "@/lib/rate-limiter";
+import { hydrateOwnedNoteChunks } from "@/lib/rag/owned-note-chunks";
 import { searchStudyMaterials } from "@/lib/study-map/search";
 import sql from "@/database/pgsql";
 
@@ -476,8 +475,7 @@ async function embedGlobalQuery(query: string): Promise<SemanticVector | null> {
 }
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
-  const user = await validateSession();
-  if (!user) return tracedError("Unauthorized", 401);
+  const user = await requireAuth();
 
   const userId = user.user_id;
   const url = new URL(request.url);

@@ -41,11 +41,12 @@ vi.mock("@/lib/canvas/import-embedding", () => ({
   processRagPipeline: vi.fn(),
 }));
 
-vi.mock("@/lib/marker-output.ts", () => ({
+vi.mock("@/lib/marker/output.ts", async (original) => ({
+  ...await original<typeof import("@/lib/marker/output")>(),
   normalizeMarkerMarkdown: vi.fn((markdown: string) => markdown.trim()),
 }));
 
-vi.mock("@/lib/ocr.ts", () => ({
+vi.mock("@/lib/marker/ocr.ts", () => ({
   splitMarkdownToChunks: vi.fn(() => ["chunk-1"]),
 }));
 

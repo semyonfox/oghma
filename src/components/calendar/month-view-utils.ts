@@ -1,13 +1,13 @@
 import { formatDateKey, isoToDateKey } from "@/lib/notes/utils/calendar-date";
 
-export interface MonthCellAssignment {
+interface MonthCellAssignment {
   id: string;
   title: string;
   courseColor: string | null;
   status: string;
 }
 
-export interface MonthCellTimeBlock {
+interface MonthCellTimeBlock {
   id: string;
   title: string | null;
   courseColor: string | null;
@@ -23,7 +23,7 @@ export interface MonthCell {
   timeBlocks: MonthCellTimeBlock[];
 }
 
-export interface MonthViewAssignment {
+interface MonthViewAssignment {
   id: string;
   title: string;
   course_color: string | null;
@@ -31,7 +31,7 @@ export interface MonthViewAssignment {
   status: string;
 }
 
-export interface MonthViewTimeBlock {
+interface MonthViewTimeBlock {
   id: string;
   title: string | null;
   starts_at: string;

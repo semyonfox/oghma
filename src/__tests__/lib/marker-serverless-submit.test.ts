@@ -23,7 +23,7 @@ vi.mock("@/lib/queue", () => ({
 import {
   MarkerSubmissionCancelledError,
   submitMarkerJob,
-} from "@/lib/marker-serverless";
+} from "@/lib/marker/serverless";
 
 const input = {
   sourceKey: "canvas/user/file.pdf",

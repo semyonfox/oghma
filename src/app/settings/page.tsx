@@ -25,6 +25,7 @@ import {
 } from "@/lib/notes/editor-width";
 
 import dynamic from "next/dynamic";
+import TelemetryPreference from "@/components/telemetry-preference";
 import AccountSection from "@/components/settings/account-section";
 import type { FormState } from "@/components/settings/account-section";
 import CourseVisibilityManager, {
@@ -32,7 +33,7 @@ import CourseVisibilityManager, {
 } from "@/components/course-visibility/course-visibility-manager";
 import EditorThemeSection from "@/components/settings/editor-theme-section";
 import PasswordSection from "@/components/settings/password-section";
-import useCourseStore from "@/lib/notes/state/courses.zustand";
+import useCourseStore from "@/lib/notes/state/courses";
 import { postNativeUpdates, postNativeOfflineAccount, useNativeAppBridge } from "@/lib/native-app";
 import { useWorkspaceSession } from "@/components/providers/workspace-lifecycle-provider";
 import { resetWorkspaceClientState } from "@/lib/notes/workspace-lifecycle";
@@ -581,6 +582,10 @@ export default function SettingsPage() {
                 />
               )}
             </div>
+          </section>
+          <section aria-labelledby="privacy-heading" className="rounded-radius-lg border border-border-subtle bg-surface p-5">
+            <h2 id="privacy-heading" className="mb-3 text-lg font-semibold">Privacy</h2>
+            <TelemetryPreference />
           </section>
           <DataExportSection />
           <DangerSection />

@@ -65,7 +65,7 @@ const useSidebarStore = createSidebarStore(false, false);
 const useSplitStore = createSplitStore(DEFAULT_SETTINGS.split_sizes);
 
 // Composite hook that returns full UI state
-export const useUIComposite = (): UIState => {
+const useUIComposite = (): UIState => {
   const baseState = useUIBaseStore();
   const sidebar = useSidebarStore();
   const split = useSplitStore();

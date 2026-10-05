@@ -14,6 +14,7 @@ Use this page to find the owner of a fact. Link to that owner instead of copying
 | Run the app locally | [Local setup](../SETUP.md) |
 | Find current work | [Current-work pointers](../TODO.md) |
 | Understand the running code | [Architecture](engineering/architecture.md) |
+| Understand anonymous usage counts | [Anonymous usage counts](engineering/anonymous-telemetry.md) |
 | Build or distribute the Android alpha | [Android alpha](engineering/mobile-alpha.md) |
 | Operate the current deployment | [Infrastructure index](../infra/README.md) and [homelab runbook](../infra/HOMELAB.md) |
 | Operate import and vault workers | [Import-worker runbook](operations/import-worker.md) |
@@ -29,7 +30,7 @@ Use this page to find the owner of a fact. Link to that owner instead of copying
 | [Roadmap](product/roadmap.md) | Product outcomes, phases, and sequencing |
 | [Positioning](product/positioning.md) | Public promise, message hierarchy, and claim boundaries |
 | [Pricing](product/pricing.md) | Price ranges, entitlements, allowances, and cost triggers |
-| [Growth analytics](product/growth-analytics.md) | Funnel events, attribution, privacy limits, dashboard, and retention |
+| [Growth analytics](product/growth-analytics.md) | Retired acquisition design; current anonymous counts are documented under Engineering |
 | [Launch checklist](product/launch-checklist.md) | Beta and paid-launch gates |
 | [Company admin](product/company-admin.md) | Company/payment administrative sequence; not professional advice |
 
@@ -59,6 +60,7 @@ Use this page to find the owner of a fact. Link to that owner instead of copying
 | Document | Owns |
 |---|---|
 | [Infrastructure index](../infra/README.md) | The owner map for current, target, retained, and historical infrastructure |
+| [Security rollout](operations/security-rollout.md) | Session revocation, vault retention and verified Android association release gates |
 | [Chat](operations/chat.md) | Chat queue, delivery, readiness, diagnosis, and release verification |
 | [Import worker](operations/import-worker.md) | Worker deployment, verification, tuning, and recovery |
 | [Vast Serverless Marker](operations/vast-marker.md) | Ready-to-provision GPU queue boundary, image, scaling, monitoring, launch gates, and rollback |

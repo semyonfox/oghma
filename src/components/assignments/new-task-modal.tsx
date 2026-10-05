@@ -9,8 +9,8 @@ import {
 } from "@headlessui/react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
-import useAssignmentStore from "@/lib/notes/state/assignments.zustand";
-import type { Assignment } from "@/lib/notes/state/assignments.zustand";
+import useAssignmentStore from "@/lib/notes/state/assignments";
+import type { Assignment } from "@/lib/notes/state/assignments";
 import useSwipeDismiss from "@/components/navigation/use-swipe-dismiss";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 

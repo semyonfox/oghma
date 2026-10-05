@@ -33,7 +33,7 @@ import {
   getLinkedProviders,
   findOrCreateOAuthUser,
   resolveVerifiedOAuthEmail,
-} from "@/lib/auth-oauth";
+} from "@/lib/auth/oauth";
 import sql from "@/database/pgsql";
 import { Locale } from "@/locales";
 
@@ -168,100 +168,85 @@ describe("getLinkedProviders", () => {
 });
 
 describe("findOrCreateOAuthUser", () => {
-  const googleProfile = {
-    provider: "google",
-    providerAccountId: "g-123",
-    email: "user@gmail.com",
-    name: "Test User",
-    image: "https://example.com/avatar.png",
-    locale: "en",
-  };
-
-  it("returns existing user_id when oauth account already exists", async () => {
-    // findOAuthAccount returns a row
-    mockSql.mockResolvedValueOnce([
-      { id: "oa-1", user_id: "u-1", provider: "google", provider_id: "g-123" },
-    ]);
-    // linkOAuthAccount upsert
-    mockSql.mockResolvedValueOnce([]);
-    // syncProfileToLogin
-    mockSql.mockResolvedValueOnce([]);
-    // mark the login email verified
-    mockSql.mockResolvedValueOnce([]);
-    const result = await findOrCreateOAuthUser(googleProfile, {
-      email_verified: true,
+  const profile = { provider: "google", providerAccountId: "g-123", email: "owner@example.test" };
+  function transaction(
+    options: {
+      linked?: boolean;
+      created?: boolean;
+      verified?: boolean;
+      active?: boolean;
+    } = {},
+  ) {
+    const tx = vi.fn(async (strings: TemplateStringsArray) => {
+      const query = strings.join("?");
+      if (query.includes("SELECT user_id FROM app.oauth_accounts"))
+        return options.linked ? [{ user_id: "u-existing" }] : [];
+      if (query.includes("INSERT INTO app.login"))
+        return options.created ? [{ user_id: "u-existing" }] : [];
+      if (
+        query.includes(
+          "SELECT user_id FROM app.login WHERE lower(btrim(email))",
+        )
+      )
+        return [{ user_id: "u-existing" }];
+      if (query.includes("SELECT user_id, email_verified"))
+        return [
+          {
+            user_id: "u-existing",
+            email_verified: options.verified ?? true,
+            is_active: options.active ?? true,
+            deleted_at: null,
+          },
+        ];
+      return [];
     });
-    expect(result).toBe("u-1");
-  });
-
-  it("auto-links to existing login when email is verified", async () => {
-    // findOAuthAccount: not found
-    mockSql.mockResolvedValueOnce([]);
-    // login lookup by email: found
-    mockSql.mockResolvedValueOnce([{ user_id: "u-existing" }]);
-    // linkOAuthAccount
-    mockSql.mockResolvedValueOnce([]);
-    // syncProfileToLogin
-    mockSql.mockResolvedValueOnce([]);
-    // mark the login email verified
-    mockSql.mockResolvedValueOnce([]);
-    const result = await findOrCreateOAuthUser(googleProfile, {
-      email_verified: true,
-    });
-    expect(result).toBe("u-existing");
-  });
-
-  it("creates new user when no existing account or login found", async () => {
-    // findOAuthAccount: not found
-    mockSql.mockResolvedValueOnce([]);
-    // login lookup by email: not found
-    mockSql.mockResolvedValueOnce([]);
-    const tx = vi.fn().mockResolvedValue([{ user_id: "u-new" }]);
-    (sql as typeof sql & { begin: ReturnType<typeof vi.fn> }).begin.mockImplementation(
-      async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+    (
+      sql as typeof sql & { begin: ReturnType<typeof vi.fn> }
+    ).begin.mockImplementation(
+      async (callback: (transaction: typeof tx) => Promise<unknown>) =>
+        callback(tx),
     );
-    // linkOAuthAccount
-    mockSql.mockResolvedValueOnce([]);
-    const result = await findOrCreateOAuthUser(googleProfile, {
-      email_verified: true,
-    }, Locale.de_DE);
-    expect(result).toBe("u-new");
+    return tx;
+  }
+  it("retains verified users' credentials when linking another provider", async () => {
+    const tx = transaction({ verified: true });
+    await expect(findOrCreateOAuthUser(profile, { email_verified: true })).resolves.toBe("u-existing");
+    expect(tx.mock.calls.some(([parts]) => parts.join('').includes('hashed_password ='))).toBe(false);
+  });
+  it("replaces an unverified registrant's password and revokes every outstanding token atomically", async () => {
+    const tx = transaction({ verified: false });
+    await findOrCreateOAuthUser(profile, { email_verified: true });
+    const update = tx.mock.calls.find(([parts]) =>
+      parts.join("").includes("hashed_password ="),
+    );
+    expect(update?.[0].join("")).toContain(
+      "session_version = session_version + 1",
+    );
+    expect(update?.[0].join("")).toContain("verification_token = NULL");
+    expect(update?.[0].join("")).toContain("reset_token = NULL");
+    expect(
+      tx.mock.calls.some(([parts]) => parts.join("").includes("FOR UPDATE")),
+    ).toBe(true);
+  });
+  it("rejects a deactivated linked account", async () => {
+    transaction({ linked: true, active: false });
+    await expect(findOrCreateOAuthUser(profile, { email_verified: true })).rejects.toThrow('unavailable');
+  });
+  it("seeds the requested locale only for a newly inserted account", async () => {
+    transaction({ created: true });
+    await findOrCreateOAuthUser(profile, { email_verified: true }, Locale.de_DE);
     expect(mocks.insertNoteWithTree).toHaveBeenCalledWith(
-      tx,
-      expect.objectContaining({
-        userId: "u-new",
-        title: "Erste Schritte",
-        content: expect.stringContaining("Einstellungen → Canvas"),
-      }),
+      expect.any(Function),
+      expect.objectContaining({ title: "Erste Schritte" }),
     );
   });
-
-  it("does not seed a second welcome note when a concurrent request created the account", async () => {
-    mockSql.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
-    const tx = vi.fn().mockResolvedValue([]);
-    (sql as typeof sql & { begin: ReturnType<typeof vi.fn> }).begin.mockImplementation(
-      async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
-    );
-    mockSql.mockResolvedValueOnce([{ user_id: "u-race" }]);
-    mockSql.mockResolvedValueOnce([]);
-
-    const result = await findOrCreateOAuthUser(googleProfile, {
-      email_verified: true,
-    });
-
-    expect(result).toBe("u-race");
+  it("does not seed a second note after a registration race", async () => {
+    transaction();
+    await findOrCreateOAuthUser(profile, { email_verified: true });
     expect(mocks.insertNoteWithTree).not.toHaveBeenCalled();
   });
-
-  it("rejects an unverified provider email", async () => {
-    const ghProfile = {
-      ...googleProfile,
-      provider: "github",
-      providerAccountId: "gh-1",
-    };
-    await expect(
-      findOrCreateOAuthUser(ghProfile, { email_verified: false }),
-    ).rejects.toThrow("verified email");
-    expect(mockSql).not.toHaveBeenCalled();
+  it("rejects an unverified provider before starting a transaction", async () => {
+    await expect(findOrCreateOAuthUser(profile, { email_verified: false })).rejects.toThrow('verified email');
+    expect(sql.begin).not.toHaveBeenCalled();
   });
 });

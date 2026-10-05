@@ -10,7 +10,7 @@ import noteCache from "@/lib/notes/cache/note";
 
 vi.mock("@/lib/notes/cache/note", () => ({
   default: {
-    getItem: vi.fn(async () => note("previous")),
+    getItem: vi.fn(async () => undefined),
     mutateItem: vi.fn(async () => {}),
     setItem: vi.fn(async () => {}),
   },
@@ -31,7 +31,7 @@ function note(content: string): NoteModel {
 
 function noteApi(mutate: NoteApi["mutate"]): NoteApi {
   return {
-    find: vi.fn(async () => undefined),
+    find: vi.fn(async () => note("original")),
     create: vi.fn(async () => undefined),
     mutate,
     remove: vi.fn(async () => undefined),
@@ -53,7 +53,12 @@ function treeStore() {
 describe("note save result handling", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useNoteStore.setState({ note: undefined, noteAPI: null, treeStore: null });
+    useNoteStore.setState({
+      note: undefined,
+      noteAPI: null,
+      treeStore: null,
+      sessionReady: true,
+    });
     useSyncStatusStore.setState({ status: {} });
   });
 

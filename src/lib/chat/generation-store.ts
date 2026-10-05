@@ -7,7 +7,7 @@ import type { MessageMetadata, MessagePart } from "@/lib/chat/types";
 const EVENT_TTL_SECONDS = 60 * 60;
 const EVENT_MAX_LENGTH = 4_000;
 const CANCEL_FLAG_TTL_SECONDS = 60 * 60;
-export const CHAT_GENERATION_LEASE_MS = 45_000;
+const CHAT_GENERATION_LEASE_MS = 45_000;
 const CHAT_GENERATION_QUEUED_RECOVERY_MS = 5 * 60_000;
 
 export interface ChatGenerationPayload {

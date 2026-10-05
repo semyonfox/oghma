@@ -8,9 +8,10 @@ import {
   markerAssetPrefix,
   markerMetadataKey,
   sanitizeMarkerAssetName,
-} from "@/lib/marker-output";
+} from "@/lib/marker/output";
 import { deleteChunkVectors, setChunkVectorsSearchable } from "@/lib/qdrant";
 import { getStorageProvider } from "@/lib/storage/init";
+import { lockVaultArtifacts } from "@/lib/vault/artifacts";
 
 const DEFAULT_TRASH_RETENTION_DAYS = 30;
 const MAX_TRASH_RETENTION_DAYS = 365;
@@ -106,7 +107,7 @@ function boundedInteger(
   return Math.min(max, Math.max(min, value));
 }
 
-export function trashRetentionDays(): number {
+function trashRetentionDays(): number {
   return boundedInteger(
     process.env.TRASH_RETENTION_DAYS,
     DEFAULT_TRASH_RETENTION_DAYS,
@@ -673,34 +674,6 @@ export async function permanentlyDeleteNotes(
   return result;
 }
 
-// legacy whole-user delete; Clear Vault passes its snapshot to permanentlyDeleteNotes
-export async function permanentlyDeleteAllUserNotes(
-  userId: string,
-): Promise<PermanentDeleteResult> {
-  const result = await sql.begin(async (tx: TransactionSql) => {
-    await lockUserTree(tx, userId);
-    const ownedRows = (await tx`
-      SELECT note_id
-      FROM app.notes
-      WHERE user_id = ${userId}::uuid
-      FOR UPDATE
-    `) as Array<{ note_id: string }>;
-    const ownedIds = ownedRows.map((row) => String(row.note_id));
-    const removal = await removeNoteRowsPermanently(tx, userId, ownedIds);
-    return {
-      noteIds: ownedIds,
-      cleanupTaskId: removal.cleanupTaskId,
-      objectKeys: removal.objectKeys,
-    };
-  });
-
-  await invalidateLifecycleCaches(userId, result.noteIds);
-  if (result.cleanupTaskId) {
-    await processNoteDeletionCleanupTask(result.cleanupTaskId);
-  }
-  return result;
-}
-
 /** Permanently delete exactly one Trash bundle, addressed by its root note. */
 export async function permanentlyDeleteTrashRoot(
   userId: string,
@@ -932,27 +905,63 @@ export interface VaultCleanupJob {
   input_s3_key: string | null;
 }
 
-// persist the cancelled imports' zip keys and job scopes before deleting jobs
+function isVaultObjectKey(userId: string, key: string): boolean {
+  return (
+    key.startsWith(`vault-uploads/${userId}/`) ||
+    key.startsWith(`exports/${userId}/`)
+  );
+}
+
+/**
+ * Clear Vault also owns raw zip uploads, export archives and intermediate
+ * Vault objects that may not have reached a note row when cancellation
+ * occurred. The scope is fixed at the clear: the job snapshot taken under its
+ * lock plus the upload and export reservations that existed at clearedAt, so
+ * a delayed retry can never reach an import or export started afterwards.
+ */
 export async function queueVaultStorageCleanup(
   userId: string,
   jobs: readonly VaultCleanupJob[],
+  clearedAt = new Date(),
 ): Promise<boolean> {
   const vaultJobs = jobs.filter((job) => job.type === "vault-import");
-  const prefixes = uniqueStrings(vaultJobs.map((job) => `vault/${userId}/${job.id}/`));
-  const keys = uniqueStrings(vaultJobs.map((job) => job.input_s3_key));
-  if (prefixes.some((prefix) => !isSafeCleanupPrefix(userId, prefix)) ||
-      keys.some((key) => !key.startsWith(`vault-uploads/${userId}/`))) {
+  const prefixes = uniqueStrings(
+    vaultJobs.map((job) => `vault/${userId}/${job.id}/`),
+  );
+  const uploadKeys = uniqueStrings(vaultJobs.map((job) => job.input_s3_key));
+  if (
+    prefixes.some((prefix) => !isSafeCleanupPrefix(userId, prefix)) ||
+    uploadKeys.some((key) => !key.startsWith(`vault-uploads/${userId}/`))
+  ) {
     throw new Error("Refusing to queue an invalid vault cleanup scope");
   }
-  if (prefixes.length === 0 && keys.length === 0) return false;
-  const [task] = await sql`
-    INSERT INTO app.note_deletion_cleanup_tasks
-      (user_id, object_prefixes, object_keys)
-    VALUES (${userId}::uuid, ${prefixes}::text[], ${keys}::text[])
-    RETURNING id
-  `;
-  if (!task?.id) return false;
-  return !(await processNoteDeletionCleanupTask(String(task.id)));
+  const taskId = await sql.begin(async (tx) => {
+    await lockVaultArtifacts(tx);
+    const archives = await tx<{ s3_key: string }[]>`
+      SELECT s3_key FROM app.vault_artifacts
+      WHERE user_id = ${userId}::uuid AND created_at <= ${clearedAt}
+    `;
+    // a key queued for deletion must never be handed back by a later signing retry
+    await tx`
+      UPDATE app.vault_artifacts SET is_current = false
+      WHERE user_id = ${userId}::uuid AND kind = 'upload' AND created_at <= ${clearedAt}
+    `;
+    const archiveKeys = archives.map((row) => row.s3_key);
+    if (archiveKeys.some((key) => !isVaultObjectKey(userId, key))) {
+      throw new Error("Refusing to queue an invalid vault cleanup scope");
+    }
+    const keys = uniqueStrings([...archiveKeys, ...uploadKeys]);
+    if (prefixes.length === 0 && keys.length === 0) return null;
+    const [task] = await tx<{ id: string }[]>`
+      INSERT INTO app.note_deletion_cleanup_tasks
+        (user_id, object_prefixes, object_keys)
+      VALUES (${userId}::uuid, ${prefixes}::text[], ${keys}::text[])
+      RETURNING id
+    `;
+    return task?.id ?? null;
+  });
+  if (!taskId) return false;
+  return !(await processNoteDeletionCleanupTask(String(taskId)));
 }
 
 /** Worker entry point: retry external cleanup left by permanent deletion. */

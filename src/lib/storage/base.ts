@@ -114,7 +114,7 @@ export abstract class StoreProvider {
   /**
    * Delete an object from storage
    */
-  abstract deleteObject(path: string): Promise<void>;
+  abstract deleteObject(path: string, signal?: AbortSignal): Promise<void>;
 
   /**
    * Delete every object below a storage prefix. Callers must pass a narrowly

@@ -7,7 +7,7 @@ import type {
   TreeItemIndex,
 } from "react-complex-tree";
 
-export type SidebarTreeItem = ComplexTreeItem<NoteModel | undefined>;
+type SidebarTreeItem = ComplexTreeItem<NoteModel | undefined>;
 
 // converts the flat note tree to react-complex-tree format
 export function useTreeData() {

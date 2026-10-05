@@ -1,11 +1,11 @@
 import bcrypt from "bcryptjs";
 import sql from "@/database/pgsql";
-import { createErrorResponse, parseJsonBody } from "@/lib/auth";
-import { validateAuthCredentials } from "@/lib/auth-credentials";
-import { checkRateLimit, getClientIp } from "@/lib/rateLimiter";
+import { createErrorResponse, parseJsonBody } from "@/lib/auth/session";
+import { validateAuthCredentials } from "@/lib/auth/credentials";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
 import logger from "@/lib/logger";
 import { assertTrustedOrigin } from "@/lib/api-error";
-import { hashToken } from "@/lib/tokens";
+import { hashToken } from "@/lib/auth/tokens";
 import type { NextRequest } from "next/server";
 
 export async function POST(request: NextRequest): Promise<Response> {
@@ -44,6 +44,7 @@ export async function POST(request: NextRequest): Promise<Response> {
         FROM app.login
         WHERE reset_token = ${tokenHash}
           AND reset_token_expires > NOW()
+          AND is_active = true AND deleted_at IS NULL
         FOR UPDATE
       `;
       if (!candidate) return null;
@@ -53,7 +54,8 @@ export async function POST(request: NextRequest): Promise<Response> {
         UPDATE app.login
         SET hashed_password = ${hashedPassword},
             reset_token = NULL,
-            reset_token_expires = NULL
+            reset_token_expires = NULL,
+            session_version = session_version + 1
         WHERE user_id = ${candidate.user_id}::uuid
           AND reset_token = ${tokenHash}
         RETURNING user_id, email

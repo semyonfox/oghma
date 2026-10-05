@@ -10,7 +10,7 @@ const { tx, sql } = vi.hoisted(() => {
 });
 
 vi.mock("@/database/pgsql", () => ({ default: sql }));
-vi.mock("@/lib/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   createAuthSession: vi.fn().mockResolvedValue(Response.json({ success: true })),
   createErrorResponse: (error: string, status = 400) =>
     Response.json({ success: false, error }, { status }),
@@ -19,8 +19,8 @@ vi.mock("@/lib/auth", () => ({
     error: null,
   }),
 }));
-vi.mock("@/lib/tokens", () => ({ hashToken: vi.fn(() => "stored-hash") }));
-vi.mock("@/lib/rateLimiter", () => ({
+vi.mock("@/lib/auth/tokens", () => ({ hashToken: vi.fn(() => "stored-hash") }));
+vi.mock("@/lib/rate-limiter", () => ({
   checkRateLimit: vi.fn().mockResolvedValue(null),
   getClientIp: vi.fn(() => "127.0.0.1"),
 }));
@@ -32,14 +32,14 @@ vi.mock("@/lib/marketing/events", () => ({
   recordActivationMilestone: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { createAuthSession } from "@/lib/auth";
+import { createAuthSession } from "@/lib/auth/session";
 import { POST } from "@/app/api/auth/verify-email/route";
 
 function request() {
   return new NextRequest("https://oghmanotes.ie/api/auth/verify-email", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token: "verification-token" }),
+    body: JSON.stringify({ token: "verification-token", password: "OwnerPass123" }),
   });
 }
 
@@ -53,6 +53,7 @@ beforeEach(() => {
         email: "student@example.com",
       },
     ])
+    .mockResolvedValueOnce([{ user_id: "00000000-0000-4000-8000-000000000001", email: "student@example.com", session_version: 1 }])
     .mockResolvedValueOnce([]);
   sql.begin.mockReset();
   sql.begin.mockImplementation(async (callback) => callback(tx));
@@ -64,11 +65,12 @@ describe("email verification with an agent registration claim", () => {
 
     expect(response.status).toBe(200);
     expect(sql.begin).toHaveBeenCalledOnce();
-    expect(tx).toHaveBeenCalledTimes(2);
+    expect(tx).toHaveBeenCalledTimes(3);
     expect(createAuthSession).toHaveBeenCalledWith(
       {
         user_id: "00000000-0000-4000-8000-000000000001",
         email: "student@example.com",
+        session_version: 1,
       },
       1,
     );

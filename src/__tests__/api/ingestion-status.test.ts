@@ -2,15 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 vi.mock("@/database/pgsql", () => ({ default: vi.fn() }));
-vi.mock("@/lib/auth", () => ({ validateSession: vi.fn() }));
-vi.mock("@/lib/api-error", () => ({
-  withErrorHandler: (handler: unknown) => handler,
-  tracedError: (error: string, status: number) =>
-    Response.json({ error }, { status }),
-}));
+vi.mock("@/lib/auth/session", () => ({ validateSession: vi.fn() }));
 
 import sql from "@/database/pgsql";
-import { validateSession } from "@/lib/auth";
+import { validateSession } from "@/lib/auth/session";
 import { GET } from "@/app/api/ingestion-status/route";
 
 const NOTE_ID = "11111111-1111-4111-8111-111111111111";

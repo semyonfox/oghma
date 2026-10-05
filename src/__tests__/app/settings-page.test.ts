@@ -79,7 +79,7 @@ vi.mock("@/lib/notes/state/ui/settings", () => ({
   }),
 }));
 
-vi.mock("@/lib/notes/state/courses.zustand", () => ({
+vi.mock("@/lib/notes/state/courses", () => ({
   default: () => ({
     settings: [],
     fetchSettings: mocks.fetchSettings,

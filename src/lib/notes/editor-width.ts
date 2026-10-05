@@ -1,4 +1,4 @@
-export const EDITOR_WIDTH_VALUES = ["large", "full"] as const;
+const EDITOR_WIDTH_VALUES = ["large", "full"] as const;
 
 export type EditorSize = (typeof EDITOR_WIDTH_VALUES)[number];
 
@@ -13,7 +13,7 @@ export const EDITOR_WIDTH_OPTIONS: Array<{
   { value: "full", label: "Full", detail: "Full width" },
 ];
 
-export const EDITOR_WIDTH_STYLES: Record<
+const EDITOR_WIDTH_STYLES: Record<
   EditorSize,
   {
     sourceMaxWidth: string;

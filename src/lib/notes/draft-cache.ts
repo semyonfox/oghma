@@ -3,7 +3,8 @@
 
 import { uiCache } from "./cache";
 
-const key = (noteId: string) => `draft:${noteId}`;
+const key = (noteId: string, owner: "A" | "B" = "A") =>
+  owner === "A" ? `draft:${noteId}` : `draft:B:${noteId}`;
 const LEGACY_DRAFT_PREFIX = "legacy-unowned-draft:";
 let generation = 0;
 let writable = true;
@@ -21,6 +22,7 @@ export function acknowledgeDraftRecovery(noteId: string): boolean {
 export interface NoteDraft {
   content: string;
   draftAt: number; // epoch ms — compare against note.updatedAt to decide winner
+  version?: string;
 }
 
 const pendingByNote = new Map<string, Promise<void>>();
@@ -37,11 +39,12 @@ function queueDraftChange(noteId: string, change: () => Promise<unknown>): Promi
   return operation;
 }
 
-export async function writeDraft(noteId: string, content: string): Promise<void> {
+export async function writeDraft(noteId: string, content: string, owner: "A" | "B" = "A"): Promise<NoteDraft | undefined> {
   if (!writable) return;
   knownDrafts.add(noteId);
-  const draft = { content, draftAt: Date.now() };
-  await queueDraftChange(noteId, () => uiCache.setItem<NoteDraft>(key(noteId), draft));
+  const draft = { content, draftAt: Date.now(), version: crypto.randomUUID() };
+  await queueDraftChange(noteId, () => uiCache.setItem<NoteDraft>(key(noteId, owner), draft));
+  return draft;
 }
 
 // Reset blocks new writers, then drains writes already opening an IDB connection.
@@ -50,17 +53,26 @@ export async function waitForDraftWrites(): Promise<void> {
   await Promise.allSettled([...pendingWrites]);
 }
 
-export async function readDraft(noteId: string): Promise<NoteDraft | null> {
+export async function readDraft(noteId: string, owner: "A" | "B" = "A", recoverOtherOwner?: () => boolean): Promise<NoteDraft | null> {
   if (!writable) return null;
   const readGeneration = generation;
   await pendingByNote.get(noteId)?.catch(() => {});
   if (!writable || generation !== readGeneration) return null;
-  return (await uiCache.getItem<NoteDraft>(key(noteId))) ?? null;
+  const current = await uiCache.getItem<NoteDraft>(key(noteId, owner));
+  if (current) return current;
+  if (recoverOtherOwner) {
+    return (await uiCache.getOrMoveItem<NoteDraft>(key(noteId, owner), key(noteId, owner === "A" ? "B" : "A"), recoverOtherOwner)) ?? null;
+  }
+  return null;
 }
 
-export async function clearDraft(noteId: string): Promise<void> {
+export async function clearDraft(noteId: string, savedDraft?: NoteDraft, owner: "A" | "B" = "A"): Promise<void> {
   if (!writable) return;
-  await queueDraftChange(noteId, () => uiCache.removeItem(key(noteId)));
+  await queueDraftChange(noteId, () => savedDraft
+    ? uiCache.removeItemIf<NoteDraft>(key(noteId, owner), (current) =>
+      savedDraft.version !== undefined ? current?.version === savedDraft.version
+        : current?.version === undefined && current?.content === savedDraft.content && current?.draftAt === savedDraft.draftAt)
+    : uiCache.removeItem(key(noteId, owner)));
 }
 
 export function beginDraftCacheReset(): number {

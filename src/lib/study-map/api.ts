@@ -1,9 +1,13 @@
 import { z } from "zod";
 import { ApiError } from "@/lib/api-errors";
 
-export async function readStudyBody<Schema extends z.ZodType>(request: Request, schema: Schema): Promise<z.output<Schema>> {
+export async function readStudyBody<Schema extends z.ZodType>(
+  request: Request,
+  schema: Schema,
+): Promise<z.output<Schema>> {
   const maxBytes = 4_000_000;
-  if (Number(request.headers.get("content-length")) > maxBytes) throw new ApiError(413, "This request is too large");
+  if (Number(request.headers.get("content-length")) > maxBytes)
+    throw new ApiError(413, "This request is too large");
   const reader = request.body?.getReader();
   if (!reader) throw new ApiError(400, "A JSON body is required");
   const decoder = new TextDecoder("utf-8", { fatal: true });
@@ -28,9 +32,17 @@ export async function readStudyBody<Schema extends z.ZodType>(request: Request, 
     reader.releaseLock();
   }
   let body: unknown;
-  try { body = JSON.parse(text); } catch { throw new ApiError(400, "Invalid JSON body"); }
+  try {
+    body = JSON.parse(text);
+  } catch {
+    throw new ApiError(400, "Invalid JSON body");
+  }
   const result = schema.safeParse(body);
-  if (!result.success) throw new ApiError(400, result.error.issues[0]?.message ?? "Invalid study map data");
+  if (!result.success)
+    throw new ApiError(
+      400,
+      result.error.issues[0]?.message ?? "Invalid study map data",
+    );
   return result.data;
 }
 

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { rerankChunks } from "@/lib/rerank";
+import { rerankChunks } from "@/lib/rag/rerank";
 
 describe("rerankChunks", () => {
   beforeEach(() => {

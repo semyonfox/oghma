@@ -10,7 +10,7 @@ import {
 } from '@/lib/api-error';
 import sql from '@/database/pgsql';
 import { timeBlockUpdateSchema, validateBody } from '@/lib/validations/schemas';
-import { pomodoroCountForRange } from '@/lib/time-blocks';
+import { pomodoroCountForRange } from '@/lib/calendar/time-blocks';
 
 interface StoredTimeRange {
   starts_at: string | Date;
@@ -23,11 +23,11 @@ interface StoredTimeRange {
  */
 export const PATCH = withErrorHandler(async (
   request,
-  context: RouteParamsContext<{ id: string }>,
+  { params }: RouteParamsContext<{ id: string }>,
 ) => {
   const user = await requireAuth();
 
-  const { id } = await context.params;
+  const { id } = await params;
   requireValidId(id);
 
   const validation = validateBody(timeBlockUpdateSchema, await parseJson(request));
@@ -85,11 +85,11 @@ export const PATCH = withErrorHandler(async (
  */
 export const DELETE = withErrorHandler(async (
   _request,
-  context: RouteParamsContext<{ id: string }>,
+  { params }: RouteParamsContext<{ id: string }>,
 ) => {
   const user = await requireAuth();
 
-  const { id } = await context.params;
+  const { id } = await params;
   requireValidId(id);
 
   const result = await sql`

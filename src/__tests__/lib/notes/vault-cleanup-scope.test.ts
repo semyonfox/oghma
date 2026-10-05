@@ -95,6 +95,14 @@ async function journalQuery(
   ...values: unknown[]
 ): Promise<unknown[]> {
   const query = strings.join(" ").replace(/\s+/g, " ").trim();
+  // this user has no upload or export reservations, so only the job snapshot defines the scope
+  if (
+    query.startsWith("SELECT pg_advisory_xact_lock") ||
+    query.startsWith("SELECT s3_key FROM app.vault_artifacts") ||
+    query.startsWith("UPDATE app.vault_artifacts SET is_current = false")
+  ) {
+    return [];
+  }
   if (query.startsWith("INSERT INTO app.note_deletion_cleanup_tasks")) {
     const task = taskWithScope(stringArray(values[1]));
     task.user_id = stringValue(values[0]);
@@ -202,6 +210,8 @@ describe("vault cleanup scope", () => {
       ]);
       for (const [key, content] of survivingObjects) objects.set(key, content);
 
+      // queueing reads the reservations in a transaction; the retry itself must not hold one
+      mocks.sql.begin.mockClear();
       await expect(processPendingNoteDeletionCleanup()).resolves.toBe(1);
 
       expect(objects).toEqual(survivingObjects);
@@ -255,7 +265,7 @@ describe("vault cleanup scope", () => {
       input_s3_key: "imports/cache/shared.pdf",
     }])).resolves.toBe(false);
 
-    expect(mocks.sql).not.toHaveBeenCalled();
+    expect(tasks.size).toBe(0);
     expect(mocks.getStorageProvider).not.toHaveBeenCalled();
   });
 

@@ -130,10 +130,15 @@ const jobStateSchema = z.enum(["pending", "running", "completed", "failed"]);
 const MAX_SOURCE_CHARS = 320_000;
 
 function timestamp(value: Date | string): string {
-  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+  return value instanceof Date
+    ? value.toISOString()
+    : new Date(value).toISOString();
 }
 
-async function readMaps(userId: string, mapId: string | null = null): Promise<MapRow[]> {
+async function readMaps(
+  userId: string,
+  mapId: string | null = null,
+): Promise<MapRow[]> {
   return sql<MapRow[]>`
     SELECT m.id, m.name, m.academic_year, m.root_note_id, m.canvas_course_id,
       m.syllabus_note_id, m.topics, m.taxonomy_version, m.version, m.board_version,
@@ -161,7 +166,10 @@ function summary(row: MapRow): StudyMapSummary {
   };
 }
 
-async function readNotes(userId: string, noteIds: string[]): Promise<NoteRow[]> {
+async function readNotes(
+  userId: string,
+  noteIds: string[],
+): Promise<NoteRow[]> {
   if (!noteIds.length) return [];
   return sql<NoteRow[]>`
     SELECT n.note_id, n.title, n.content, n.extracted_text, n.s3_key,
@@ -182,7 +190,10 @@ async function readNotes(userId: string, noteIds: string[]): Promise<NoteRow[]> 
   `;
 }
 
-async function readDerivedNotes(userId: string, noteIds: string[]): Promise<NoteRow[]> {
+async function readDerivedNotes(
+  userId: string,
+  noteIds: string[],
+): Promise<NoteRow[]> {
   if (!noteIds.length) return [];
   return sql<NoteRow[]>`
     SELECT n.note_id, n.title, n.content, n.extracted_text, n.s3_key,
@@ -204,11 +215,19 @@ async function readDerivedNotes(userId: string, noteIds: string[]): Promise<Note
   `;
 }
 
-
-function documentFor(note: NoteRow, derivedNotes: NoteRow[], enforceLimit = true): SourceDocument {
+function documentFor(
+  note: NoteRow,
+  derivedNotes: NoteRow[],
+  enforceLimit = true,
+): SourceDocument {
   const binary = isStudyBinary({ ...note, title: note.title ?? "" });
-  const derived = binary ? derivedNotes.find((candidate) =>
-    candidate.extracted_from_note_id === note.note_id && !isStudyBinary({ ...candidate, title: candidate.title ?? "" })) : undefined;
+  const derived = binary
+    ? derivedNotes.find(
+        (candidate) =>
+          candidate.extracted_from_note_id === note.note_id &&
+          !isStudyBinary({ ...candidate, title: candidate.title ?? "" }),
+      )
+    : undefined;
   const canonical = derived ?? note;
   try {
     return sourceDocument({
@@ -220,11 +239,19 @@ function documentFor(note: NoteRow, derivedNotes: NoteRow[], enforceLimit = true
       enforceLimit,
     });
   } catch (error) {
-    throw new ApiError(422, error instanceof Error ? error.message : "Split this material into smaller notes and try again.");
+    throw new ApiError(
+      422,
+      error instanceof Error
+        ? error.message
+        : "Split this material into smaller notes and try again.",
+    );
   }
 }
 
-function redactTopics(topics: StudyTopic[], sourceNotes: NoteRow[]): StudyTopic[] {
+function redactTopics(
+  topics: StudyTopic[],
+  sourceNotes: NoteRow[],
+): StudyTopic[] {
   const notes = new Map(sourceNotes.map((note) => [note.note_id, note]));
   const documents = new Map<string, SourceDocument | null>();
   const currentSource = (anchor: SourceAnchor): SourceDocument | null => {
@@ -251,17 +278,24 @@ function redactTopics(topics: StudyTopic[], sourceNotes: NoteRow[]): StudyTopic[
   };
   return topics.map((topic) => {
     const sources = topic.sources.filter((anchor) => notes.has(anchor.noteId));
-    const reviewed = topic.reviewed && sources.length === topic.sources.length && sources.every((anchor) => {
-      const source = currentSource(anchor);
-      return source !== null && isCurrentAnchor(anchor, source);
-    });
+    const reviewed =
+      topic.reviewed &&
+      sources.length === topic.sources.length &&
+      sources.every((anchor) => {
+        const source = currentSource(anchor);
+        return source !== null && isCurrentAnchor(anchor, source);
+      });
     return { ...topic, sources, reviewed };
   });
 }
 
 async function mapFromRow(userId: string, row: MapRow): Promise<StudyMap> {
   const topics = topicsSchema.parse(row.topics);
-  const sourceIds = [...new Set(topics.flatMap((topic) => topic.sources.map((source) => source.noteId)))];
+  const sourceIds = [
+    ...new Set(
+      topics.flatMap((topic) => topic.sources.map((source) => source.noteId)),
+    ),
+  ];
   const [sourceNotes, visibleRoots, materials] = await Promise.all([
     readNotes(userId, sourceIds),
     sql<Array<{ note_id: string; is_folder: boolean }>>`
@@ -288,10 +322,15 @@ async function mapFromRow(userId: string, row: MapRow): Promise<StudyMap> {
   ]);
   return {
     ...summary(row),
-    rootNoteId: visibleRoots.some((note) => note.note_id === row.root_note_id) ? row.root_note_id : null,
+    rootNoteId: visibleRoots.some((note) => note.note_id === row.root_note_id)
+      ? row.root_note_id
+      : null,
     canvasCourseId: row.canvas_course_id,
-    syllabusNoteId: visibleRoots.some((note) => note.note_id === row.syllabus_note_id && !note.is_folder)
-      ? row.syllabus_note_id : null,
+    syllabusNoteId: visibleRoots.some(
+      (note) => note.note_id === row.syllabus_note_id && !note.is_folder,
+    )
+      ? row.syllabus_note_id
+      : null,
     taxonomyVersion: row.taxonomy_version,
     version: row.version,
     boardVersion: row.board_version,
@@ -299,33 +338,57 @@ async function mapFromRow(userId: string, row: MapRow): Promise<StudyMap> {
     topics: redactTopics(topics, sourceNotes),
     board: {
       ...board,
-      placements: board.placements.filter((placement) => cardIds.has(placement.id) || placement.id.startsWith("assignment:")).map((placement) => ({
-        ...placement,
-        topicId: placement.topicId && topics.some((topic) => topic.id === placement.topicId) ? placement.topicId : null,
-      })),
-      links: board.links.filter((link) => cardIds.has(link.source) && cardIds.has(link.target)),
+      placements: board.placements
+        .filter(
+          (placement) =>
+            cardIds.has(placement.id) || placement.id.startsWith("assignment:"),
+        )
+        .map((placement) => ({
+          ...placement,
+          topicId:
+            placement.topicId &&
+            topics.some((topic) => topic.id === placement.topicId)
+              ? placement.topicId
+              : null,
+        })),
+      links: board.links.filter(
+        (link) => cardIds.has(link.source) && cardIds.has(link.target),
+      ),
     },
   };
 }
 
-export async function listStudyMaps(userId: string): Promise<StudyMapSummary[]> {
+export async function listStudyMaps(
+  userId: string,
+): Promise<StudyMapSummary[]> {
   return (await readMaps(userId)).map(summary);
 }
 
-export async function getStudyMap(userId: string, mapId: string): Promise<StudyMap> {
+export async function getStudyMap(
+  userId: string,
+  mapId: string,
+): Promise<StudyMap> {
   const [row] = await readMaps(userId, mapId);
   if (!row) throw new ApiError(404, "Study map not found");
   return mapFromRow(userId, row);
 }
 
-export async function loadStudySource(userId: string, noteId: string): Promise<SourceDocument> {
+export async function loadStudySource(
+  userId: string,
+  noteId: string,
+): Promise<SourceDocument> {
   const [note] = await readNotes(userId, [noteId]);
   if (!note) throw new ApiError(404, "Study material not found");
-  const derived = isStudyBinary({ ...note, title: note.title ?? "" }) ? await readDerivedNotes(userId, [noteId]) : [];
+  const derived = isStudyBinary({ ...note, title: note.title ?? "" })
+    ? await readDerivedNotes(userId, [noteId])
+    : [];
   return documentFor(note, derived);
 }
 
-async function readReferences(userId: string, noteIds: string[]): Promise<ReferenceRow[]> {
+async function readReferences(
+  userId: string,
+  noteIds: string[],
+): Promise<ReferenceRow[]> {
   if (!noteIds.length) return [];
   return sql<ReferenceRow[]>`
     WITH active_notes AS (
@@ -362,9 +425,18 @@ async function readReferences(userId: string, noteIds: string[]): Promise<Refere
   `;
 }
 
-const assignmentStatusSchema = z.enum(["upcoming", "in_progress", "done", "late"]);
+const assignmentStatusSchema = z.enum([
+  "upcoming",
+  "in_progress",
+  "done",
+  "late",
+]);
 
-async function readAssignments(userId: string, canvasCourseId: string | null, materialIds: string[]): Promise<StudyAssignment[]> {
+async function readAssignments(
+  userId: string,
+  canvasCourseId: string | null,
+  materialIds: string[],
+): Promise<StudyAssignment[]> {
   if (!canvasCourseId) return [];
   const rows = await sql<AssignmentRow[]>`
     SELECT a.id, a.canvas_course_id::text AS canvas_course_id, a.canvas_assignment_id::text AS canvas_assignment_id,
@@ -384,7 +456,8 @@ async function readAssignments(userId: string, canvasCourseId: string | null, ma
     ORDER BY a.due_at ASC NULLS LAST, a.title, a.id
     LIMIT 200
   `;
-  const optionalDate = (value: Date | string | null) => (value === null ? null : timestamp(value));
+  const optionalDate = (value: Date | string | null) =>
+    value === null ? null : timestamp(value);
   return rows.map((row) => ({
     id: row.id,
     canvas_course_id: row.canvas_course_id,
@@ -408,7 +481,10 @@ async function readAssignments(userId: string, canvasCourseId: string | null, ma
   }));
 }
 
-function referencesFor(noteId: string, rows: ReferenceRow[]): MaterialReference[] {
+function referencesFor(
+  noteId: string,
+  rows: ReferenceRow[],
+): MaterialReference[] {
   const references = new Map<string, MaterialReference>();
   for (const row of rows) {
     if (row.source_id !== noteId) continue;
@@ -416,21 +492,36 @@ function referencesFor(noteId: string, rows: ReferenceRow[]): MaterialReference[
     references.set(row.target_id, {
       id: row.target_id,
       title: row.title ?? "Untitled",
-      kind: row.relation === "embedded" ? "embedded" : row.s3_key || isStudyBinary({ ...row, title: row.title ?? "" }) ? "file" : "note",
+      kind:
+        row.relation === "embedded"
+          ? "embedded"
+          : row.s3_key || isStudyBinary({ ...row, title: row.title ?? "" })
+            ? "file"
+            : "note",
       relation: row.relation,
     });
   }
   return [...references.values()];
 }
 
-export async function getStudyMapSnapshot(userId: string, mapId: string): Promise<StudyMapSnapshot> {
+export async function getStudyMapSnapshot(
+  userId: string,
+  mapId: string,
+): Promise<StudyMapSnapshot> {
   const [mapRow] = await readMaps(userId, mapId);
   if (!mapRow) throw new ApiError(404, "Study map not found");
   const map = await mapFromRow(userId, mapRow);
-  const reviewedTopicIds = new Set(map.topics.filter((topic) => topic.reviewed).map((topic) => topic.id));
-  const taxonomyEvidenceStale = topicsSchema.parse(mapRow.topics).some((topic) => topic.reviewed && !reviewedTopicIds.has(topic.id));
+  const reviewedTopicIds = new Set(
+    map.topics.filter((topic) => topic.reviewed).map((topic) => topic.id),
+  );
+  const taxonomyEvidenceStale = topicsSchema
+    .parse(mapRow.topics)
+    .some((topic) => topic.reviewed && !reviewedTopicIds.has(topic.id));
   if (map.materialCount > 500) {
-    throw new ApiError(422, "This study map has more than 500 active materials. Remove materials or split them into smaller maps.");
+    throw new ApiError(
+      422,
+      "This study map has more than 500 active materials. Remove materials or split them into smaller maps.",
+    );
   }
   const rows = await sql<MaterialRow[]>`
     SELECT material.note_id, material.map_id, material.kind, material.labels,
@@ -448,15 +539,19 @@ export async function getStudyMapSnapshot(userId: string, mapId: string): Promis
     LIMIT 501
   `;
   if (rows.length > 500) {
-    throw new ApiError(422, "This study map has more than 500 active materials. Remove materials or split them into smaller maps.");
+    throw new ApiError(
+      422,
+      "This study map has more than 500 active materials. Remove materials or split them into smaller maps.",
+    );
   }
   const noteIds = rows.map((row) => row.note_id);
-  const [notes, derivedNotes, references, assignments, paperRows, jobRows] = await Promise.all([
-    readNotes(userId, noteIds),
-    readDerivedNotes(userId, noteIds),
-    readReferences(userId, noteIds),
-    readAssignments(userId, map.canvasCourseId, noteIds),
-    sql<PaperRow[]>`
+  const [notes, derivedNotes, references, assignments, paperRows, jobRows] =
+    await Promise.all([
+      readNotes(userId, noteIds),
+      readDerivedNotes(userId, noteIds),
+      readReferences(userId, noteIds),
+      readAssignments(userId, map.canvasCourseId, noteIds),
+      sql<PaperRow[]>`
       SELECT paper.note_id, paper.source_hash, paper.taxonomy_version, paper.reviewed, paper.structure
       FROM app.study_papers paper
       JOIN app.study_materials material ON material.map_id = paper.map_id
@@ -468,7 +563,7 @@ export async function getStudyMapSnapshot(userId: string, mapId: string): Promis
           WHERE tree.note_id = n.note_id AND tree.user_id = n.user_id)
       ORDER BY n.title, n.note_id
     `,
-    sql<JobRow[]>`
+      sql<JobRow[]>`
       SELECT job.id, job.kind, job.note_id, job.state, job.error, job.created_at
       FROM app.study_jobs job
       WHERE job.map_id = ${mapId}::uuid AND job.user_id = ${userId}::uuid
@@ -482,21 +577,39 @@ export async function getStudyMapSnapshot(userId: string, mapId: string): Promis
               WHERE tree.note_id = n.note_id AND tree.user_id = n.user_id)))
       ORDER BY (job.state IN ('pending', 'running')) DESC, job.created_at DESC, job.id DESC LIMIT 120
     `,
-  ]);
-  const associations = new Map(rows.map((row) => [row.note_id, associationsSchema.parse(row.associations)]));
-  const parsedPapers = paperRows.map((row) => ({ row, structure: examStructureSchema.parse(row.structure) }));
-  const evidenceIds = [...new Set([
-    ...[...associations.values()].flatMap((items) => items.flatMap((item) => item.evidence.map((evidence) => evidence.anchor.noteId))),
-    ...parsedPapers.flatMap(({ structure }) => [
-      ...structure.questions.map((question) => question.source.noteId),
-      ...structure.sections.flatMap((section) => section.source ? [section.source.noteId] : []),
+    ]);
+  const associations = new Map(
+    rows.map((row) => [
+      row.note_id,
+      associationsSchema.parse(row.associations),
     ]),
-  ])];
+  );
+  const parsedPapers = paperRows.map((row) => ({
+    row,
+    structure: examStructureSchema.parse(row.structure),
+  }));
+  const evidenceIds = [
+    ...new Set([
+      ...[...associations.values()].flatMap((items) =>
+        items.flatMap((item) =>
+          item.evidence.map((evidence) => evidence.anchor.noteId),
+        ),
+      ),
+      ...parsedPapers.flatMap(({ structure }) => [
+        ...structure.questions.map((question) => question.source.noteId),
+        ...structure.sections.flatMap((section) =>
+          section.source ? [section.source.noteId] : [],
+        ),
+      ]),
+    ]),
+  ];
   const accessibleEvidence = await readNotes(userId, evidenceIds);
   const accessibleIds = new Set(accessibleEvidence.map((note) => note.note_id));
   const topicIds = new Set(map.topics.map((topic) => topic.id));
   const notesById = new Map(notes.map((note) => [note.note_id, note]));
-  const documents = new Map(notes.map((note) => [note.note_id, documentFor(note, derivedNotes, false)]));
+  const documents = new Map(
+    notes.map((note) => [note.note_id, documentFor(note, derivedNotes, false)]),
+  );
   const materials: StudyMaterial[] = rows.flatMap((row) => {
     const note = notesById.get(row.note_id);
     const source = documents.get(row.note_id);
@@ -505,65 +618,121 @@ export async function getStudyMapSnapshot(userId: string, mapId: string): Promis
     const parsedOverrides = materialOverridesSchema.parse(row.overrides);
     const overrides = {
       ...parsedOverrides,
-      topics: Object.fromEntries(Object.entries(parsedOverrides.topics).filter(([topicId]) => topicIds.has(topicId))),
+      topics: Object.fromEntries(
+        Object.entries(parsedOverrides.topics).filter(([topicId]) =>
+          topicIds.has(topicId),
+        ),
+      ),
     };
-    const hasCorrections = overrides.kind !== undefined || overrides.labels !== undefined || Object.keys(overrides.topics).length > 0;
-    const correctionsStale = hasCorrections && (overrides.sourceHash !== source.hash || overrides.taxonomyVersion !== map.taxonomyVersion || taxonomyEvidenceStale);
+    const hasCorrections =
+      overrides.kind !== undefined ||
+      overrides.labels !== undefined ||
+      Object.keys(overrides.topics).length > 0;
+    const correctionsStale =
+      hasCorrections &&
+      (overrides.sourceHash !== source.hash ||
+        overrides.taxonomyVersion !== map.taxonomyVersion ||
+        taxonomyEvidenceStale);
     const originalStatus = statusSchema.parse(row.status);
     const storedAssociations = associations.get(row.note_id) ?? [];
-    const classificationStale = (Boolean(row.source_hash) || originalStatus === "classified") && (
-      row.source_hash !== source.hash || row.taxonomy_version !== map.taxonomyVersion || taxonomyEvidenceStale
-      || row.source_note_id !== source.noteId || row.source_field !== source.field
-      || storedAssociations.some((association) => association.origin === "automatic"
-        && !association.evidence.some((evidence) => isCurrentAnchor(evidence.anchor, source)))
-    );
-    return [{
-      noteId: row.note_id,
-      mapId: row.map_id,
-      title: note.title ?? "Untitled",
-      excerpt: sourceExcerpt(source),
-      kind: overrides.kind ?? documentKindSchema.parse(row.kind),
-      labels: overrides.labels ?? labelsSchema.parse(row.labels),
-      associations: storedAssociations.filter((association) => topicIds.has(association.topicId)).map((association) => ({
-        ...association,
-        evidence: association.evidence.filter((evidence) => accessibleIds.has(evidence.anchor.noteId)),
-      })),
-      overrides,
-      status: oversized ? "failed" : classificationStale || correctionsStale ? "stale" : originalStatus,
-      taxonomyEvidenceStale,
-      sourceHash: row.source_hash,
-      currentHash: source.hash,
-      taxonomyVersion: row.taxonomy_version,
-      updatedAt: timestamp(row.updated_at),
-      classifiedAt: row.classified_at ? timestamp(row.classified_at) : null,
-      isFile: Boolean(note.s3_key) || isStudyBinary({ ...note, title: note.title ?? "" }),
-      mimeType: note.mime_type,
-      references: referencesFor(row.note_id, references),
-      folder: note.folder_title,
-      createdAt: timestamp(note.created_at),
-      imported: note.imported,
-    }];
+    const classificationStale =
+      (Boolean(row.source_hash) || originalStatus === "classified") &&
+      (row.source_hash !== source.hash ||
+        row.taxonomy_version !== map.taxonomyVersion ||
+        taxonomyEvidenceStale ||
+        row.source_note_id !== source.noteId ||
+        row.source_field !== source.field ||
+        storedAssociations.some(
+          (association) =>
+            association.origin === "automatic" &&
+            !association.evidence.some((evidence) =>
+              isCurrentAnchor(evidence.anchor, source),
+            ),
+        ));
+    return [
+      {
+        noteId: row.note_id,
+        mapId: row.map_id,
+        title: note.title ?? "Untitled",
+        excerpt: sourceExcerpt(source),
+        kind: overrides.kind ?? documentKindSchema.parse(row.kind),
+        labels: overrides.labels ?? labelsSchema.parse(row.labels),
+        associations: storedAssociations
+          .filter((association) => topicIds.has(association.topicId))
+          .map((association) => ({
+            ...association,
+            evidence: association.evidence.filter((evidence) =>
+              accessibleIds.has(evidence.anchor.noteId),
+            ),
+          })),
+        overrides,
+        status: oversized
+          ? "failed"
+          : classificationStale || correctionsStale
+            ? "stale"
+            : originalStatus,
+        taxonomyEvidenceStale,
+        sourceHash: row.source_hash,
+        currentHash: source.hash,
+        taxonomyVersion: row.taxonomy_version,
+        updatedAt: timestamp(row.updated_at),
+        classifiedAt: row.classified_at ? timestamp(row.classified_at) : null,
+        isFile:
+          Boolean(note.s3_key) ||
+          isStudyBinary({ ...note, title: note.title ?? "" }),
+        mimeType: note.mime_type,
+        references: referencesFor(row.note_id, references),
+        folder: note.folder_title,
+        createdAt: timestamp(note.created_at),
+        imported: note.imported,
+      },
+    ];
   });
   const papers: StudyPaper[] = parsedPapers.flatMap(({ row, structure }) => {
     const note = notesById.get(row.note_id);
     const source = documents.get(row.note_id);
-    if (!note || !source || structure.questions.some((question) => !accessibleIds.has(question.source.noteId))
-      || structure.sections.some((section) => section.source && !accessibleIds.has(section.source.noteId))) return [];
-    return [{
-      noteId: row.note_id,
-      title: note.title ?? "Untitled",
-      sourceHash: row.source_hash,
-      currentHash: source.hash,
-      taxonomyVersion: row.taxonomy_version,
-      reviewed: row.reviewed && row.source_hash === source.hash && row.taxonomy_version === map.taxonomyVersion && !taxonomyEvidenceStale
-        && source.text.length <= MAX_SOURCE_CHARS
-        && structure.questions.every((question) => isCurrentAnchor(question.source, source))
-        && structure.sections.every((section) => section.source === null || isCurrentAnchor(section.source, source)),
-      structure: {
-        ...structure,
-        questions: structure.questions.map((question) => ({ ...question, topicIds: question.topicIds.filter((id) => topicIds.has(id)) })),
+    if (
+      !note ||
+      !source ||
+      structure.questions.some(
+        (question) => !accessibleIds.has(question.source.noteId),
+      ) ||
+      structure.sections.some(
+        (section) =>
+          section.source && !accessibleIds.has(section.source.noteId),
+      )
+    )
+      return [];
+    return [
+      {
+        noteId: row.note_id,
+        title: note.title ?? "Untitled",
+        sourceHash: row.source_hash,
+        currentHash: source.hash,
+        taxonomyVersion: row.taxonomy_version,
+        reviewed:
+          row.reviewed &&
+          row.source_hash === source.hash &&
+          row.taxonomy_version === map.taxonomyVersion &&
+          !taxonomyEvidenceStale &&
+          source.text.length <= MAX_SOURCE_CHARS &&
+          structure.questions.every((question) =>
+            isCurrentAnchor(question.source, source),
+          ) &&
+          structure.sections.every(
+            (section) =>
+              section.source === null ||
+              isCurrentAnchor(section.source, source),
+          ),
+        structure: {
+          ...structure,
+          questions: structure.questions.map((question) => ({
+            ...question,
+            topicIds: question.topicIds.filter((id) => topicIds.has(id)),
+          })),
+        },
       },
-    }];
+    ];
   });
   const jobs: StudyJob[] = jobRows.map((row) => ({
     id: row.id,
@@ -584,9 +753,15 @@ export async function getStudyMapSnapshot(userId: string, mapId: string): Promis
       materialCount: materials.length,
       board: {
         ...map.board,
-        placements: map.board.placements.filter((placement) => cardIds.has(placement.id)),
-        weeks: Object.fromEntries(Object.entries(map.board.weeks).filter(([ref]) => cardIds.has(ref))),
-        links: map.board.links.filter((link) => cardIds.has(link.source) && cardIds.has(link.target)),
+        placements: map.board.placements.filter((placement) =>
+          cardIds.has(placement.id),
+        ),
+        weeks: Object.fromEntries(
+          Object.entries(map.board.weeks).filter(([ref]) => cardIds.has(ref)),
+        ),
+        links: map.board.links.filter(
+          (link) => cardIds.has(link.source) && cardIds.has(link.target),
+        ),
       },
     },
     materials,
@@ -597,22 +772,36 @@ export async function getStudyMapSnapshot(userId: string, mapId: string): Promis
   };
 }
 
-export async function getNoteStudyMaps(userId: string, noteId: string): Promise<Array<{
-  mapId: string;
-  mapName: string;
-  material: StudyMaterial;
-  topics: StudyTopic[];
-  taxonomyVersion: number;
-}>> {
+export async function getNoteStudyMaps(
+  userId: string,
+  noteId: string,
+): Promise<
+  Array<{
+    mapId: string;
+    mapName: string;
+    material: StudyMaterial;
+    topics: StudyTopic[];
+    taxonomyVersion: number;
+  }>
+> {
   const [note] = await readNotes(userId, [noteId]);
   if (!note) return [];
   const binary = isStudyBinary({ ...note, title: note.title ?? "" });
   const related = binary
-    ? (await readDerivedNotes(userId, [noteId])).filter((candidate) => !isStudyBinary({ ...candidate, title: candidate.title ?? "" }))
+    ? (await readDerivedNotes(userId, [noteId])).filter(
+        (candidate) =>
+          !isStudyBinary({ ...candidate, title: candidate.title ?? "" }),
+      )
     : note.extracted_from_note_id
-      ? (await readNotes(userId, [note.extracted_from_note_id])).filter((candidate) => isStudyBinary({ ...candidate, title: candidate.title ?? "" }))
+      ? (await readNotes(userId, [note.extracted_from_note_id])).filter(
+          (candidate) =>
+            isStudyBinary({ ...candidate, title: candidate.title ?? "" }),
+        )
       : [];
-  const candidateIds = [noteId, ...related.map((candidate) => candidate.note_id)];
+  const candidateIds = [
+    noteId,
+    ...related.map((candidate) => candidate.note_id),
+  ];
   const rows = await sql<Array<{ map_id: string; note_id: string }>>`
     SELECT material.map_id, material.note_id FROM app.study_materials material
     JOIN app.study_maps map ON map.id = material.map_id AND map.user_id = material.user_id
@@ -631,11 +820,28 @@ export async function getNoteStudyMaps(userId: string, noteId: string): Promise<
   `;
   const selectedMaterials = new Map<string, string>();
   for (const row of rows) {
-    if (!selectedMaterials.has(row.map_id)) selectedMaterials.set(row.map_id, row.note_id);
+    if (!selectedMaterials.has(row.map_id))
+      selectedMaterials.set(row.map_id, row.note_id);
   }
-  const snapshots = await Promise.all([...selectedMaterials.keys()].map((mapId) => getStudyMapSnapshot(userId, mapId)));
+  const snapshots = await Promise.all(
+    [...selectedMaterials.keys()].map((mapId) =>
+      getStudyMapSnapshot(userId, mapId),
+    ),
+  );
   return snapshots.flatMap(({ map, materials }) => {
-    const material = materials.find((item) => item.noteId === selectedMaterials.get(map.id));
-    return material ? [{ mapId: map.id, mapName: map.name, material, topics: map.topics, taxonomyVersion: map.taxonomyVersion }] : [];
+    const material = materials.find(
+      (item) => item.noteId === selectedMaterials.get(map.id),
+    );
+    return material
+      ? [
+          {
+            mapId: map.id,
+            mapName: map.name,
+            material,
+            topics: map.topics,
+            taxonomyVersion: map.taxonomyVersion,
+          },
+        ]
+      : [];
   });
 }

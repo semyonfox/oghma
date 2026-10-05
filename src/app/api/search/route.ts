@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateSession } from "@/lib/auth";
 import sql from "@/database/pgsql";
-import { embedText } from "@/lib/embedText";
+import { embedText } from "@/lib/rag/embeddings";
 import logger from "@/lib/logger";
-import { withErrorHandler, tracedError } from "@/lib/api-error";
+import { requireAuth, tracedError, withErrorHandler } from "@/lib/api-error";
 import { searchChunkVectors } from "@/lib/qdrant";
 import { canvasIdForBigintColumn } from "@/lib/canvas/id";
-import { hydrateOwnedNoteChunks } from "@/lib/search/owned-note-chunks";
+import { hydrateOwnedNoteChunks } from "@/lib/rag/owned-note-chunks";
 
 interface ResultItem {
   note_id: string;
@@ -111,8 +110,7 @@ async function semanticSearch(
 
 // GET /api/search?q=query&mode=keyword|semantic&exclude=id1,id2
 export const GET = withErrorHandler(async (request: NextRequest) => {
-  const user = await validateSession();
-  if (!user) return tracedError("Unauthorized", 401);
+  const user = await requireAuth();
 
   const url = new URL(request.url);
   const query = url.searchParams.get("q")?.trim().slice(0, 200);

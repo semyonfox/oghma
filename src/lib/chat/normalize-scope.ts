@@ -1,5 +1,5 @@
+import sql from "@/database/pgsql";
 import { isValidUUID } from "@/lib/utils/uuid";
-import { normalizeUuidList, resolveScopedNoteIds } from "@/lib/chat/rag-pipeline";
 import type { ChatSessionContextItem, ChatSessionContext } from "@/lib/chat/session";
 import {
   loadSessionContext,
@@ -30,6 +30,51 @@ export interface NormalizedScope {
     notes: ChatSessionContextItem[];
     folders: ChatSessionContextItem[];
   };
+}
+
+function normalizeUuidList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const normalized = value.map((v) => String(v)).filter((v) => isValidUUID(v));
+  return [...new Set(normalized)];
+}
+
+// expands selected folders to the notes beneath them. null means no scope was chosen
+async function resolveScopedNoteIds(
+  userId: string,
+  noteIds: string[],
+  folderIds: string[],
+): Promise<string[] | null> {
+  if (noteIds.length === 0 && folderIds.length === 0) return null;
+
+  const scoped = new Set<string>(noteIds);
+
+  if (folderIds.length > 0) {
+    const folderDescendants = await sql`
+      WITH RECURSIVE subtree AS (
+        SELECT ti.note_id
+        FROM app.tree_items ti
+        WHERE ti.user_id = ${userId}::uuid
+          AND ti.note_id = ANY(${folderIds}::uuid[])
+        UNION
+        SELECT child.note_id
+        FROM app.tree_items child
+        JOIN subtree s ON child.parent_id = s.note_id
+        WHERE child.user_id = ${userId}::uuid
+      )
+      SELECT n.note_id
+      FROM app.notes n
+      JOIN subtree s ON s.note_id = n.note_id
+      WHERE n.user_id = ${userId}::uuid
+        AND n.is_folder = false
+        AND n.deleted_at IS NULL
+    `;
+
+    for (const row of folderDescendants as { note_id: string }[]) {
+      scoped.add(row.note_id);
+    }
+  }
+
+  return [...scoped];
 }
 
 function normalizeScopeItems(value: unknown): ChatSessionContextItem[] {

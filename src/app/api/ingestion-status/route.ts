@@ -1,9 +1,7 @@
 // ingestion-status API route
 // returns the extraction status for a given note so the frontend can poll
 import { NextRequest, NextResponse } from "next/server";
-import { validateSession } from "@/lib/auth";
-import { withErrorHandler, tracedError } from "@/lib/api-error";
-import { isValidUUID } from "@/lib/utils/uuid";
+import { requireAuth, requireValidId, withErrorHandler } from "@/lib/api-error";
 import sql from "@/database/pgsql";
 
 interface ExtractedNoteRow {
@@ -24,12 +22,12 @@ interface CanvasImportRow {
 }
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
-  const session = await validateSession();
-  if (!session) return tracedError("Unauthorized", 401);
+  const session = await requireAuth();
 
-  const noteId = request.nextUrl.searchParams.get("noteId");
-  if (!noteId || !isValidUUID(noteId))
-    return tracedError("Invalid noteId", 400);
+  const noteId = requireValidId(
+    request.nextUrl.searchParams.get("noteId"),
+    "noteId",
+  );
 
   const [job] = await sql<IngestionJobRow[]>`
     SELECT status, chunks_stored, created_at, updated_at

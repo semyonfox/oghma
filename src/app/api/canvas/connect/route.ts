@@ -1,4 +1,4 @@
-import { after, NextResponse, type NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import {
   withErrorHandler,
   requireAuth,
@@ -8,23 +8,12 @@ import {
 import { CanvasClient } from "@/lib/canvas/client";
 import sql from "@/database/pgsql";
 import { encrypt } from "@/lib/crypto";
-import { checkRateLimit } from "@/lib/rateLimiter";
+import { checkRateLimit } from "@/lib/rate-limiter";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
-import logger from "@/lib/logger";
-import { recordMarketingEvent } from "@/lib/marketing/events";
 import { discoverCanvasCourses } from "@/lib/canvas/sync-courses";
-import { cleanAttribution } from "@/lib/marketing/attribution";
 import { canvasHostFromInput } from "@/lib/canvas/institution-search";
 
 const CANVAS_TOKEN_MAX_LENGTH = 4096;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
 
 function noStoreJson(body: unknown, init?: ResponseInit): NextResponse {
   const response = NextResponse.json(body, init);
@@ -113,7 +102,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const limited = await checkRateLimit("canvas-connect", user.user_id);
   if (limited) return limited;
 
-  const { token, domain, marketing } = await parseJsonObject(request);
+  const { token, domain } = await parseJsonObject(request);
   const normalizedToken = typeof token === "string" ? token.trim() : "";
   const enteredDomain = typeof domain === "string" ? domain.trim() : "";
 
@@ -164,32 +153,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
           SET canvas_token = ${encryptedToken}, canvas_domain = ${normalizedDomain}
           WHERE user_id = ${user.user_id}
       `;
-
-  const marketingContext = isRecord(marketing) ? marketing : {};
-  const marketingEvent = {
-    eventName: "canvas_connect_success",
-    sessionId: marketingContext.sessionId,
-    userId: user.user_id,
-    path: "/settings",
-    source: "canvas_connect",
-    utm: cleanAttribution(marketingContext.utm),
-    properties: {
-      location: "settings",
-      course_count: normalizedCourses.length,
-      first_touch: marketingContext.firstTouch,
-    },
-  };
-
-  after(() =>
-    recordMarketingEvent(
-      marketingEvent,
-      request,
-    ).catch((eventError) => {
-      logger.warn("failed to record canvas marketing event", {
-        error: errorMessage(eventError),
-      });
-    }),
-  );
 
   return noStoreJson({
     success: true,

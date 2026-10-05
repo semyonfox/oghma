@@ -7,7 +7,7 @@ import {
   enqueueMarkerCompletionJob,
   enqueueMarkerFailureJob,
 } from "@/lib/queue";
-import { summarizeRunPodJobStatus } from "@/lib/runpod-serverless";
+import { summarizeRunPodJobStatus } from "@/lib/marker/runpod";
 
 interface RunPodWebhook {
   id?: string;

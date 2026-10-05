@@ -1,22 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  runRagPipeline: vi.fn(),
-  runKeywordFallback: vi.fn(),
   buildSystemPrompt: vi.fn(() => "rag prompt"),
   buildPlainSystemPrompt: vi.fn(() => "plain prompt"),
-  buildRetrievalInfo: vi.fn(),
 }));
 
-vi.mock("@/lib/chat/rag-pipeline", () => ({
-  runRagPipeline: mocks.runRagPipeline,
-  runKeywordFallback: mocks.runKeywordFallback,
+vi.mock("@/lib/chat/system-prompt", () => ({
   buildSystemPrompt: mocks.buildSystemPrompt,
   buildPlainSystemPrompt: mocks.buildPlainSystemPrompt,
-}));
-vi.mock("@/lib/chat/rag-context", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/chat/rag-context")>()),
-  buildRetrievalInfo: mocks.buildRetrievalInfo,
 }));
 
 import { createEmptyChatSessionContext } from "@/lib/chat/session";
@@ -36,9 +27,6 @@ describe("prepareChatGeneration", () => {
 
     expect(prepared.systemPrompt).toBe("plain prompt");
     expect(prepared.initialParts).toEqual([]);
-    expect(mocks.runRagPipeline).not.toHaveBeenCalled();
-    expect(mocks.runKeywordFallback).not.toHaveBeenCalled();
-    expect(mocks.buildRetrievalInfo).not.toHaveBeenCalled();
   });
 
   it("leaves note retrieval to scoped model tools", async () => {
@@ -57,9 +45,6 @@ describe("prepareChatGeneration", () => {
       semanticHits: [],
       usedFiles: [],
     });
-    expect(mocks.buildSystemPrompt).toHaveBeenCalledWith([]);
-    expect(mocks.runRagPipeline).not.toHaveBeenCalled();
-    expect(mocks.runKeywordFallback).not.toHaveBeenCalled();
-    expect(mocks.buildRetrievalInfo).not.toHaveBeenCalled();
+    expect(mocks.buildSystemPrompt).toHaveBeenCalledOnce();
   });
 });

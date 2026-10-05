@@ -2,7 +2,7 @@
 
 import { clearDeduplicationCache } from "@/lib/notes/api/request-deduplicator";
 import { noteCacheInstance, uiCache } from "@/lib/notes/cache";
-import useLayoutStore from "@/lib/notes/state/layout.zustand";
+import useLayoutStore from "@/lib/notes/state/layout";
 import useNoteStore from "@/lib/notes/state/note";
 import useNoteTreeStore from "@/lib/notes/state/tree";
 import useSaveIndicatorStore from "@/lib/notes/state/save-indicator";

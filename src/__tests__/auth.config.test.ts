@@ -3,9 +3,7 @@ import bcrypt from "bcryptjs";
 
 const mocks = vi.hoisted(() => ({
   sql: vi.fn(),
-  isAccountLocked: vi.fn(),
-  isRateLimited: vi.fn(),
-  recordFailedAttempt: vi.fn(),
+  reserveLoginAttempt: vi.fn(),
   clearFailedAttempts: vi.fn(),
 }));
 
@@ -25,7 +23,8 @@ vi.mock("@/database/pgsql", () => ({ default: mocks.sql }));
 vi.mock("@/lib/logger", () => ({
   default: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
 }));
-vi.mock("@/lib/auth-oauth", () => ({
+
+vi.mock("@/lib/auth/oauth", () => ({
   findOrCreateOAuthUser: vi.fn(),
   resolveVerifiedOAuthEmail: vi.fn(),
 }));
@@ -33,10 +32,8 @@ vi.mock("@/lib/i18n/server", () => ({
   getRequestLocale: vi.fn().mockResolvedValue("en"),
 }));
 
-vi.mock("@/lib/loginLockout", () => ({
-  isAccountLocked: mocks.isAccountLocked,
-  isRateLimited: mocks.isRateLimited,
-  recordFailedAttempt: mocks.recordFailedAttempt,
+vi.mock("@/lib/auth/login-lockout", () => ({
+  reserveLoginAttempt: mocks.reserveLoginAttempt,
   clearFailedAttempts: mocks.clearFailedAttempts,
 }));
 
@@ -79,9 +76,7 @@ async function authorizeCredentials(email: string, submittedPassword: string) {
 beforeEach(() => {
   vi.clearAllMocks();
   account = { ...baseUser };
-  mocks.isAccountLocked.mockResolvedValue(false);
-  mocks.isRateLimited.mockResolvedValue(false);
-  mocks.recordFailedAttempt.mockResolvedValue(undefined);
+  mocks.reserveLoginAttempt.mockResolvedValue(true);
   mocks.clearFailedAttempts.mockResolvedValue(undefined);
   mocks.sql.mockImplementation(
     async (parts: TemplateStringsArray, ...values: unknown[]) => {
@@ -115,30 +110,28 @@ describe("Auth.js credentials authorize", () => {
     });
   });
 
-  it("blocks a locked account before querying", async () => {
-    mocks.isAccountLocked.mockResolvedValue(true);
+  // the attempt is reserved against the shared budget before the account is read,
+  // so a locked or rate-limited email never reaches the query or bcrypt
+  it("blocks a locked or rate-limited account before querying", async () => {
+    mocks.reserveLoginAttempt.mockResolvedValue(false);
     await expect(authorizeCredentials(account.email, password)).resolves.toBeNull();
     expect(mocks.sql).not.toHaveBeenCalled();
   });
 
-  it("blocks a rate-limited account before querying", async () => {
-    mocks.isRateLimited.mockResolvedValue(true);
-    await expect(authorizeCredentials(account.email, password)).resolves.toBeNull();
-    expect(mocks.sql).not.toHaveBeenCalled();
-  });
-
-  it("records a failed password against the shared lockout store", async () => {
+  it("counts a failed password against the shared lockout store", async () => {
     await expect(authorizeCredentials(account.email, "wrong")).resolves.toBeNull();
-    expect(mocks.recordFailedAttempt).toHaveBeenCalledWith(account.email);
+    expect(mocks.reserveLoginAttempt).toHaveBeenCalledWith(account.email);
+    expect(mocks.clearFailedAttempts).not.toHaveBeenCalled();
   });
 
-  it("records an unknown account against the shared lockout store", async () => {
+  it("counts an unknown account against the shared lockout store", async () => {
     await expect(authorizeCredentials("missing@example.com", password)).resolves.toBeNull();
-    expect(mocks.recordFailedAttempt).toHaveBeenCalledWith("missing@example.com");
+    expect(mocks.reserveLoginAttempt).toHaveBeenCalledWith("missing@example.com");
+    expect(mocks.clearFailedAttempts).not.toHaveBeenCalled();
   });
 
   it("fails closed when the lockout store is unavailable", async () => {
-    mocks.isAccountLocked.mockRejectedValue(new Error("store unavailable"));
+    mocks.reserveLoginAttempt.mockRejectedValue(new Error("store unavailable"));
     await expect(authorizeCredentials(account.email, password)).resolves.toBeNull();
     expect(mocks.sql).not.toHaveBeenCalled();
   });

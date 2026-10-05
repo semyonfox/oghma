@@ -6,7 +6,7 @@ vi.mock("@/database/pgsql", () => {
   return { default: sqlMock };
 });
 
-vi.mock("@/lib/embedText", () => ({
+vi.mock("@/lib/rag/embeddings", () => ({
   embedText: vi.fn(),
 }));
 
@@ -23,7 +23,7 @@ vi.mock("@/lib/metrics", () => ({
 }));
 
 import sql from "@/database/pgsql";
-import { embedText } from "@/lib/embedText";
+import { embedText } from "@/lib/rag/embeddings";
 import { searchChunkVectors } from "@/lib/qdrant";
 import { searchChatChunks } from "@/lib/chat/chunk-search";
 

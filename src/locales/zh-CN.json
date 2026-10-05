@@ -1270,5 +1270,7 @@
   "Hide Canvas URL": "隐藏 Canvas 网址",
   "Canvas URL": "Canvas 网址",
   "Paste your Canvas URL or enter its address, for example": "粘贴你的 Canvas 网址或输入其地址，例如",
-  "Use a Canvas address ending in .instructure.com": "请使用以 .instructure.com 结尾的 Canvas 地址"
+  "Use a Canvas address ending in .instructure.com": "请使用以 .instructure.com 结尾的 Canvas 地址",
+  "Search results: {count}": "搜索结果：{count}",
+  "Retry save": "重试保存"
 }

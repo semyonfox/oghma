@@ -3,8 +3,8 @@
 // navigation. Losing a heartbeat is never an error worth failing loudly for.
 import { NextRequest, NextResponse } from "next/server";
 import { withErrorHandler, requireAuthLite, tracedError } from "@/lib/api-error";
-import { checkRateLimit } from "@/lib/rateLimiter";
-import { parseJsonBody } from "@/lib/auth";
+import { checkRateLimit } from "@/lib/rate-limiter";
+import { parseJsonBody } from "@/lib/auth/session";
 import { isValidPresenceTabId, recordChatPresence } from "@/lib/chat/presence";
 import logger from "@/lib/logger";
 

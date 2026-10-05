@@ -14,12 +14,11 @@ vi.mock("@/database/pgsql", () => {
   return { default: sqlMock };
 });
 
-vi.mock("@/lib/rateLimiter", () => ({ checkRateLimit: vi.fn() }));
+vi.mock("@/lib/rate-limiter", () => ({ checkRateLimit: vi.fn() }));
 vi.mock("@/lib/canvas/cancel-import-jobs", () => ({
   cancelActiveCanvasImportJobs: vi.fn(),
 }));
 vi.mock("@/lib/notes/storage/note-lifecycle", () => ({
-  permanentlyDeleteAllUserNotes: vi.fn(),
   permanentlyDeleteNotes: vi.fn(),
   queueVaultStorageCleanup: vi.fn(),
 }));
@@ -29,10 +28,9 @@ vi.mock("@/lib/api-error", () => ({
 }));
 
 import sql from "@/database/pgsql";
-import { checkRateLimit } from "@/lib/rateLimiter";
+import { checkRateLimit } from "@/lib/rate-limiter";
 import { cancelActiveCanvasImportJobs } from "@/lib/canvas/cancel-import-jobs";
 import {
-  permanentlyDeleteAllUserNotes,
   permanentlyDeleteNotes,
   queueVaultStorageCleanup,
 } from "@/lib/notes/storage/note-lifecycle";
@@ -51,11 +49,6 @@ describe("DELETE /api/vault", () => {
     vi.mocked(requireAuth).mockResolvedValue({ user_id: "user-123" } as never);
     vi.mocked(checkRateLimit).mockResolvedValue(null as never);
     vi.mocked(cancelActiveCanvasImportJobs).mockResolvedValue([] as never);
-    vi.mocked(permanentlyDeleteAllUserNotes).mockResolvedValue({
-      noteIds: ["note-123"],
-      cleanupTaskId: null,
-      objectKeys: 1,
-    });
     vi.mocked(permanentlyDeleteNotes).mockResolvedValue({
       noteIds: ["note-123"],
       cleanupTaskId: null,
@@ -90,8 +83,7 @@ describe("DELETE /api/vault", () => {
       "Vault permanently cleared by user",
     );
     expect(permanentlyDeleteNotes).toHaveBeenCalledWith("user-123", ["note-123"]);
-    expect(permanentlyDeleteAllUserNotes).not.toHaveBeenCalled();
-    expect(queueVaultStorageCleanup).toHaveBeenCalledWith("user-123", jobs);
+    expect(queueVaultStorageCleanup).toHaveBeenCalledWith("user-123", jobs, expect.any(Date));
     const deletes = vi.mocked(sql).mock.calls.filter(([strings]) =>
       Array.isArray(strings) && strings.join(" ").includes("DELETE FROM"),
     );
@@ -111,7 +103,6 @@ describe("DELETE /api/vault", () => {
       for (const id of ids) notes.delete(id);
       return { noteIds: ids, cleanupTaskId: null, objectKeys: 0 };
     };
-    vi.mocked(permanentlyDeleteAllUserNotes).mockImplementation(() => deleteNotes([...notes]));
     vi.mocked(permanentlyDeleteNotes).mockImplementation((_userId, ids) => deleteNotes(ids));
     transactions.begin.mockImplementationOnce(async (callback: (tx: typeof sql) => Promise<unknown>) => {
       const result = await callback(sql);

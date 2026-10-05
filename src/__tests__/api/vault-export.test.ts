@@ -16,6 +16,11 @@ vi.mock("@/lib/api-error", () => ({
   },
 }));
 
+vi.mock("@/lib/rate-limiter", () => ({ checkRateLimit: vi.fn().mockResolvedValue(null) }));
+vi.mock("@/lib/vault/artifacts", () => ({
+  reserveVaultExport: vi.fn().mockResolvedValue(undefined),
+  lockVaultExport: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock("@/lib/queue", () => ({
   enqueueCanvasJob: vi.fn().mockResolvedValue(undefined),
 }));

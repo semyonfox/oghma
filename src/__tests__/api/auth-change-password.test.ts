@@ -7,7 +7,7 @@ vi.mock("@/database/pgsql", () => {
   return { default: sqlMock };
 });
 
-vi.mock("@/lib/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   validateSession: vi.fn(),
   createErrorResponse: (
     message: string,
@@ -24,12 +24,12 @@ vi.mock("@/lib/email", () => ({
   sendPasswordResetEmail: vi.fn(),
 }));
 
-vi.mock("@/lib/tokens", () => ({
+vi.mock("@/lib/auth/tokens", () => ({
   generateSecureToken: vi.fn(),
   hashToken: vi.fn(),
 }));
 
-vi.mock("@/lib/rateLimiter", () => ({
+vi.mock("@/lib/rate-limiter", () => ({
   checkRateLimit: vi.fn(),
 }));
 
@@ -41,12 +41,16 @@ vi.mock("@/lib/logger", () => ({
 
 import sql from "@/database/pgsql";
 import { POST } from "@/app/api/auth/change-password/route";
-import { validateSession } from "@/lib/auth";
+import { validateSession } from "@/lib/auth/session";
 import { sendPasswordResetEmail } from "@/lib/email";
-import { checkRateLimit } from "@/lib/rateLimiter";
-import { generateSecureToken, hashToken } from "@/lib/tokens";
+import { checkRateLimit } from "@/lib/rate-limiter";
+import { generateSecureToken, hashToken } from "@/lib/auth/tokens";
 
-const MOCK_USER = { user_id: "user-123", email: "test@example.com" };
+const MOCK_USER = {
+  user_id: "user-123",
+  session_version: 0,
+  email: "test@example.com",
+};
 
 function makeRequest(): NextRequest {
   return new NextRequest("http://localhost/api/auth/change-password", {
@@ -76,7 +80,7 @@ describe("POST /api/auth/change-password", () => {
 
   it("does not offer a password flow to accounts without password sign-in", async () => {
     vi.mocked(sql).mockResolvedValueOnce([
-      { email: "test@example.com", hashed_password: null },
+      { session_version: 0, email: "test@example.com", hashed_password: null },
     ]);
 
     const response = await POST(makeRequest());
@@ -90,7 +94,11 @@ describe("POST /api/auth/change-password", () => {
   it("sends an email-confirmed password-change link instead of changing a password directly", async () => {
     vi.mocked(sql)
       .mockResolvedValueOnce([
-        { email: "test@example.com", hashed_password: "stored-hash" },
+        {
+          session_version: 0,
+          email: "test@example.com",
+          hashed_password: "stored-hash",
+        },
       ])
       .mockResolvedValueOnce([]);
 

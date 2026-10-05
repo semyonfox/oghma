@@ -97,21 +97,3 @@ export async function deleteAnnotations(
     throw error;
   }
 }
-
-/**
- * Delete all annotations for a note (when note is deleted)
- */
-export async function deleteNoteAnnotations(
-  userId: string,
-  noteId: string,
-): Promise<void> {
-  try {
-    await sql`
-      DELETE FROM app.pdf_annotations
-      WHERE user_id = ${userId}::uuid AND note_id = ${noteId}::uuid
-    `;
-  } catch (error) {
-    console.error('Error deleting note annotations:', error);
-    throw error;
-  }
-}

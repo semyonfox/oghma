@@ -8,7 +8,7 @@ import {
   Panel,
   Separator as PanelResizeHandle,
 } from "react-resizable-panels";
-import useLayoutStore from "@/lib/notes/state/layout.zustand";
+import useLayoutStore from "@/lib/notes/state/layout";
 import useNoteTreeStore from "@/lib/notes/state/tree";
 import { schedulePrefetch } from "@/lib/notes/prefetch";
 import useMediaQuery from "@/lib/hooks/use-media-query";
@@ -71,9 +71,7 @@ export default function NotesWorkspace({
     if (route.type === "ignore") return;
 
     if (route.type === "redirect") {
-      console.warn(
-        `[notes-workspace] non-UUID note id in URL: ${route.noteId} — redirecting to /notes`,
-      );
+      console.warn("note_route_invalid");
       router.replace("/notes");
       return;
     }
@@ -100,9 +98,9 @@ export default function NotesWorkspace({
           setPaneA(buildFileSpec(note));
         }
       })
-      .catch((error) => {
+      .catch(() => {
         if (!requestIsCurrent()) return;
-        console.error("Failed to resolve note route metadata:", error);
+        console.error("note_load_failed");
         setPaneA({ fileId, fileType: "note", title: fileId });
       });
 
@@ -223,7 +221,7 @@ export default function NotesWorkspace({
                 className="h-full min-h-0 w-full overflow-hidden bg-background"
               >
                 {!noteDependenciesReady ? (
-                  <div className="flex h-full items-center justify-center text-sm text-text-tertiary">
+                  <div role="status" className="flex h-full items-center justify-center text-sm text-text-tertiary">
                     {t("Loading...")}
                   </div>
                 ) : isTrashView ? (
@@ -273,7 +271,7 @@ export default function NotesWorkspace({
             className="h-full min-h-0 w-full overflow-hidden bg-background"
           >
             {isDesktop === null || !noteDependenciesReady ? (
-              <div className="flex h-full items-center justify-center text-sm text-text-tertiary">
+              <div role="status" className="flex h-full items-center justify-center text-sm text-text-tertiary">
                 {t("Loading...")}
               </div>
             ) : isTrashView ? (

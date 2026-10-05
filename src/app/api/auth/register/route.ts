@@ -2,7 +2,7 @@
  * register Route Handler
  * Creates new user account with validated credentials
  * 1. Validate request fields and password strength
- * 2. Check if user already exists
+ * 2. Reserve the address without disclosing an existing account
  * 3. Hash password and insert new user
  * 4. Generate verification token and send email
  * 5. Return success response (requires verification)
@@ -10,32 +10,26 @@
 
 import { after, NextResponse, type NextRequest } from "next/server";
 import sql from "@/database/pgsql";
-import { validateAuthCredentials } from "@/lib/auth-credentials";
+import { validateAuthCredentials } from "@/lib/auth/credentials";
 import {
   createErrorResponse,
   createValidationErrorResponse,
   parseJsonBody,
-} from "@/lib/auth";
+} from "@/lib/auth/session";
 import { generateUUID } from "@/lib/utils/uuid";
-import { generateSecureToken, hashToken } from "@/lib/tokens";
-import {
-  EmailSendError,
-  sendVerificationEmail,
-  type EmailDelivery,
-} from "@/lib/email";
-import { checkRateLimit, getClientIp } from "@/lib/rateLimiter";
+import { generateSecureToken, hashToken } from "@/lib/auth/tokens";
+import { EmailSendError, sendVerificationEmail } from "@/lib/email";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
 import bcrypt from "bcryptjs";
 import logger from "@/lib/logger";
 import { withErrorHandler } from "@/lib/api-error";
-import { recordMarketingEvent } from "@/lib/marketing/events";
 import { registerSchema, validateBody } from "@/lib/validations/schemas";
-import { validateAgentRegistrationForSignup } from "@/lib/agent-registration";
+import { validateAgentRegistrationForSignup } from "@/lib/auth/agent-registration";
 import {
   gettingStartedNoteTitle,
   renderGettingStartedNote,
 } from "@/lib/chat/app-guide";
 import { insertNoteWithTree } from "@/lib/notes/storage/create-note";
-import { cleanAttribution } from "@/lib/marketing/attribution";
 import { getRequestLocale } from "@/lib/i18n/server";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -48,6 +42,18 @@ function databaseError(error: unknown): { code?: string; detail?: string } {
     code: typeof error.code === "string" ? error.code : undefined,
     detail: typeof error.detail === "string" ? error.detail : undefined,
   };
+}
+
+function registrationResponse() {
+  return NextResponse.json(
+    {
+      success: true,
+      requiresVerification: true,
+      message:
+        "If this address can be registered, check your email to verify your account. You can request another verification email if needed.",
+    },
+    { status: 201 },
+  );
 }
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
@@ -70,17 +76,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     const validation = validateAuthCredentials(email, password, true);
     if (!validation.isValid) {
       return createValidationErrorResponse(validation.errors);
-    }
-
-    // 3. Check if user already exists
-    const existingUser = await sql`
-            SELECT user_id
-            FROM app.login
-            WHERE email = ${email.trim()}
-        `;
-
-    if (existingUser.length > 0) {
-      return createErrorResponse("User already exists", 409);
     }
 
     const agentClaim = agentClaimToken
@@ -115,9 +110,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     const data = await sql.begin(async (tx) => {
       const createdUser = await tx<{ user_id: string; email: string }[]>`
         INSERT INTO app.login (user_id, email, hashed_password, email_verified, verification_token, verification_token_expires, locale, welcome_note_id)
-        VALUES (${userId}::uuid, ${email.trim()}, ${hashedPassword}, false, ${tokenHash}, ${tokenExpires}, ${locale}, ${gettingStartedNoteId}::uuid)
+        VALUES (${userId}::uuid, ${email.trim().toLowerCase()}, ${hashedPassword}, false, ${tokenHash}, ${tokenExpires}, ${locale}, ${gettingStartedNoteId}::uuid)
+        ON CONFLICT ((lower(btrim(email)))) DO NOTHING
         RETURNING user_id, email
       `;
+
+      if (!createdUser[0]) return createdUser;
 
       await insertNoteWithTree(tx, {
         noteId: gettingStartedNoteId,
@@ -141,76 +139,26 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     const user = data[0];
 
     if (!user) {
-      return createErrorResponse(
-        "An error occurred while creating your account",
-        500,
-      );
+      return registrationResponse();
     }
 
-    // 8. Send verification email
-    let emailDelivery: EmailDelivery | "failed";
-    try {
-      emailDelivery = await sendVerificationEmail(
-        email.trim(),
-        verificationToken,
-        locale,
-      );
-    } catch (emailErr) {
-      emailDelivery = "failed";
-      logger.error("failed to send verification email during registration", {
-        reason:
-          emailErr instanceof EmailSendError ? emailErr.reason : "unexpected",
-        httpStatus:
-          emailErr instanceof EmailSendError ? emailErr.httpStatus : undefined,
-        providerCode:
-          emailErr instanceof EmailSendError ? emailErr.providerCode : undefined,
-      });
-    }
+    after(async () => {
+      // 8. Send verification email
+      try {
+        await sendVerificationEmail(email.trim(), verificationToken, locale);
+      } catch (emailErr) {
+        logger.error("failed to send verification email during registration", {
+          reason:
+            emailErr instanceof EmailSendError ? emailErr.reason : "unexpected",
+          httpStatus:
+            emailErr instanceof EmailSendError ? emailErr.httpStatus : undefined,
+          providerCode:
+            emailErr instanceof EmailSendError ? emailErr.providerCode : undefined,
+        });
+      }
+    });
 
-    const rawMarketing =
-      isRecord(rawBody) && isRecord(rawBody.marketing)
-        ? rawBody.marketing
-        : {};
-    const marketingEvent = {
-      eventName: "registration_success",
-      sessionId: rawMarketing.sessionId,
-      userId: user.user_id,
-      path: "/register",
-      source: "auth_register",
-      utm: cleanAttribution(rawMarketing.utm),
-      properties: {
-        method: "email",
-        requires_verification: true,
-        email_delivery_attempted: true,
-        email_delivery: emailDelivery,
-        first_touch: rawMarketing.firstTouch,
-      },
-    };
-
-    after(() =>
-      recordMarketingEvent(
-        marketingEvent,
-        request,
-      ).catch(() => {
-        logger.warn("failed to record registration marketing event");
-      }),
-    );
-
-    // 9. Return success with requiresVerification flag (no session created)
-    return NextResponse.json(
-      {
-        success: true,
-        requiresVerification: true,
-        emailDelivery,
-        message:
-          emailDelivery === "failed"
-            ? "Account created, but the verification email could not be sent. Try resending once or contact support."
-            : emailDelivery === "queued"
-              ? "Account created. Your verification email is queued."
-              : "Account created. Check your email to verify your account.",
-      },
-      { status: 201 },
-    );
+    return registrationResponse();
   } catch (error) {
     const { code, detail } = databaseError(error);
     if (
@@ -218,7 +166,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       detail &&
       detail.includes("email")
     ) {
-      return createErrorResponse("User already exists", 409);
+      return registrationResponse();
     }
     throw error;
   }

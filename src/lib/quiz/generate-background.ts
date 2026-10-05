@@ -34,7 +34,7 @@ function rowIds(rows: IdRow[]): string[] {
   return rows.map(({ id }) => id);
 }
 
-export async function getUncoveredChunkIds(
+async function getUncoveredChunkIds(
   userId: string,
   opts?: { chunkIds?: string[]; courseId?: string; limit?: number },
 ): Promise<string[]> {

@@ -1,10 +1,10 @@
 import sql from "@/database/pgsql";
-import { createErrorResponse, validateSession } from "@/lib/auth";
+import { createErrorResponse, validateSession } from "@/lib/auth/session";
 import { sendPasswordResetEmail } from "@/lib/email";
 import { ApiError, assertTrustedOrigin } from "@/lib/api-error";
 import logger from "@/lib/logger";
-import { checkRateLimit } from "@/lib/rateLimiter";
-import { generateSecureToken, hashToken } from "@/lib/tokens";
+import { checkRateLimit } from "@/lib/rate-limiter";
+import { generateSecureToken, hashToken } from "@/lib/auth/tokens";
 import type { NextRequest } from "next/server";
 
 type PasswordAccount = {

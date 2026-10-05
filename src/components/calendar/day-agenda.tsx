@@ -8,9 +8,9 @@ import {
 } from "@heroicons/react/24/outline";
 import { CheckCircleIcon as CheckCircleSolid } from "@heroicons/react/24/solid";
 import { toast } from "sonner";
-import useAssignmentStore from "@/lib/notes/state/assignments.zustand";
-import useCalendarStore from "@/lib/notes/state/calendar.zustand";
-import usePomodoroStore from "@/lib/notes/state/pomodoro.zustand";
+import useAssignmentStore from "@/lib/notes/state/assignments";
+import useCalendarStore from "@/lib/notes/state/calendar";
+import usePomodoroStore from "@/lib/notes/state/pomodoro";
 import { isoToDateKey, parseLocalDateKey } from "@/lib/notes/utils/calendar-date";
 import { getEffectiveAssignmentStatus } from "@/lib/notes/utils/assignment-status";
 import useI18n from "@/lib/notes/hooks/use-i18n";

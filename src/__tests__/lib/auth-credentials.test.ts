@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateAuthCredentials } from "@/lib/auth-credentials";
+import { validateAuthCredentials } from "@/lib/auth/credentials";
 
 describe("auth credential validation", () => {
   it("accepts existing-account passwords without applying signup policy", () => {

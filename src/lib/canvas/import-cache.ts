@@ -9,18 +9,18 @@ import {
 } from "@/lib/qdrant";
 import { cacheInvalidate, cacheKeys } from "@/lib/cache";
 import { getStorageProvider } from "@/lib/storage/init";
-import { markerAssetKey, sanitizeMarkerAssetName } from "@/lib/marker-output";
+import { markerAssetKey, sanitizeMarkerAssetName } from "@/lib/marker/output";
 
 // Cache vectors are canonical reusable representations, not user-searchable
 // note chunks. Export this identity so lifecycle code can distinguish them
 // without duplicating a magic payload value.
-export const IMPORTED_FILE_CACHE_QDRANT_USER = "__imported_file_cache__";
+const IMPORTED_FILE_CACHE_QDRANT_USER = "__imported_file_cache__";
 const NOTE_ASSET_CAPTURE_RE =
   /\/api\/notes\/([0-9a-f-]{36})\/assets\?name=([^\s)]+)/gi;
 
 // Bump this whenever extraction, chunking, Marker policy, or the embedding
 // model changes in a way that makes old derived artifacts incompatible.
-export const IMPORT_PIPELINE_VERSION =
+const IMPORT_PIPELINE_VERSION =
   process.env.IMPORT_PIPELINE_VERSION?.trim() ||
   `${process.env.EMBEDDING_MODEL?.trim() || "default"}:${
     process.env.QDRANT_VECTOR_SIZE?.trim() ||

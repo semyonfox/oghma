@@ -17,8 +17,7 @@ import CanvasCourseSelector from "./canvas/canvas-course-selector";
 import useCanvasImport from "./canvas/use-canvas-import";
 import { toFriendlyCanvasError } from "@/lib/friendly-errors";
 import {
-  getMarketingContext,
-  trackMarketingEvent,
+  reportTelemetry,
 } from "@/lib/marketing/client";
 
 type Course = {
@@ -215,12 +214,6 @@ export default function CanvasIntegrationSettings() {
 
     setIsConnecting(true);
     setConnectionError(null);
-    trackMarketingEvent("canvas_connect_attempt", {
-      source: "settings_canvas",
-      properties: {
-        location: "settings",
-      },
-    });
 
     try {
       const token = rawToken;
@@ -231,7 +224,7 @@ export default function CanvasIntegrationSettings() {
       const res = await fetch("/api/canvas/connect", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ domain, token, marketing: getMarketingContext() }),
+        body: JSON.stringify({ domain, token }),
       });
 
       const data = await res.json() as {
@@ -241,18 +234,12 @@ export default function CanvasIntegrationSettings() {
       };
 
       if (!res.ok) {
-        trackMarketingEvent("canvas_connect_error", {
-          source: "settings_canvas",
-          properties: {
-            location: "settings",
-            error_type: "api_error",
-          },
-        });
+        reportTelemetry({ kind: "error", name: "request_failed", route: "settings" });
         setConnectionError(toFriendlyCanvasError(data.error));
         return;
       }
 
-      // Successful connection is recorded once by the server as a canonical milestone.
+      reportTelemetry({ kind: "count", name: "action_completed", route: "settings" });
       setIsConnected(true);
       setConnectionWarning(null);
       setConnectedDomain(domain);
@@ -277,13 +264,7 @@ export default function CanvasIntegrationSettings() {
         ),
       );
     } catch {
-      trackMarketingEvent("canvas_connect_error", {
-        source: "settings_canvas",
-        properties: {
-          location: "settings",
-          error_type: "network_error",
-        },
-      });
+      reportTelemetry({ kind: "error", name: "request_failed", route: "settings" });
       setConnectionError(toFriendlyCanvasError("network"));
     } finally {
       setIsConnecting(false);

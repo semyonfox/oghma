@@ -9,7 +9,7 @@ import {
 } from "@heroicons/react/24/outline";
 import useLayoutStore, {
   type RightPanelTab,
-} from "@/lib/notes/state/layout.zustand";
+} from "@/lib/notes/state/layout";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { extractTags } from "@/lib/notes/utils/file-spec";
 import dynamic from "next/dynamic";
@@ -297,8 +297,8 @@ export default function NoteInspectorPanel({
     [activeFile?.fileId, note?.content, t],
   );
 
-  const tabClasses = (tab: Exclude<RightPanelTab, "tasks">) => `
-    min-h-11 px-3 py-2 text-sm font-medium transition-colors border-b-2 md:min-h-9 md:text-xs
+  const tabClasses = (tab: RightPanelTab) => `
+    min-h-11 px-2.5 py-1.5 text-xs font-medium transition-colors border-b-2 focus-visible:outline-2 focus-visible:outline-primary-400
     ${
       activeTab === tab
         ? "border-primary-500 text-text-secondary"
@@ -328,56 +328,27 @@ export default function NoteInspectorPanel({
         </div>
       )}
 
-      <div className="flex items-stretch justify-between border-b border-border-subtle px-2">
-        <div
-          className="flex"
-          role="tablist"
-          aria-label="Inspector tabs"
-          onKeyDown={(event) => {
-            if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-            event.preventDefault();
-            const nextTab = event.key === "Home" ? "meta" : event.key === "End" ? "ai" : activeTab === "meta" ? "ai" : "meta";
-            setRightPanelTab(nextTab);
-            event.currentTarget.querySelector<HTMLButtonElement>(`#tab-${nextTab}`)?.focus();
-          }}
-        >
-          <button
-            type="button"
-            role="tab"
-            id="tab-meta"
-            aria-selected={activeTab === "meta"}
-            aria-controls="panel-meta"
-            tabIndex={activeTab !== "ai" ? 0 : -1}
-            onClick={() => setRightPanelTab("meta")}
-            className={tabClasses("meta")}
-          >
-            {t("Meta")}
+      <div role="tablist" aria-label={t("Meta")} className="flex shrink-0 flex-wrap items-stretch border-b border-border-subtle px-2"
+        onKeyDown={(event) => {
+          const tabs = ["meta", "ai", "tasks"] as const;
+          const index = tabs.indexOf(activeTab);
+          const next = event.key === "ArrowRight" ? (index + 1) % tabs.length
+            : event.key === "ArrowLeft" ? (index + tabs.length - 1) % tabs.length
+              : event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : null;
+          if (next === null) return;
+          event.preventDefault();
+          const tab = tabs[next];
+          setRightPanelTab(tab);
+          event.currentTarget.querySelector<HTMLButtonElement>(`#tab-${tab}`)?.focus();
+        }}>
+        {(["meta", "ai", "tasks"] as const).map((tab) => (
+          <button key={tab} type="button" role="tab" id={`tab-${tab}`}
+            aria-selected={activeTab === tab} aria-controls={`panel-${tab}`}
+            tabIndex={activeTab === tab ? 0 : -1} onClick={() => setRightPanelTab(tab)}
+            className={tabClasses(tab)}>
+            {tab === "meta" ? t("Meta") : tab === "ai" ? t("AI") : t("Global Tasks")}
           </button>
-          <button
-            type="button"
-            role="tab"
-            id="tab-ai"
-            aria-selected={activeTab === "ai"}
-            aria-controls="panel-ai"
-            tabIndex={activeTab === "ai" ? 0 : -1}
-            onClick={() => setRightPanelTab("ai")}
-            className={tabClasses("ai")}
-          >
-            {t("AI")}
-          </button>
-        </div>
-        <button
-          type="button"
-          onClick={() => setRightPanelTab("tasks")}
-          aria-pressed={activeTab === "tasks"}
-          className={`min-h-11 border-b-2 px-3 py-2 text-sm font-medium transition-colors md:min-h-9 md:text-xs ${
-            activeTab === "tasks"
-              ? "border-primary-500 text-text-secondary"
-              : "border-transparent text-text-tertiary hover:text-text-secondary"
-          }`}
-        >
-          {t("Global Tasks")}
-        </button>
+        ))}
       </div>
 
       {/* Content */}
@@ -458,9 +429,9 @@ export default function NoteInspectorPanel({
                         <button
                           type="button"
                           onClick={() => void removeTag(tag)}
-                          className="flex h-11 w-11 items-center justify-center rounded-full transition-colors hover:bg-error-500/10 hover:text-error-600 dark:hover:text-error-400 md:h-6 md:w-6"
+                          className={`flex shrink-0 items-center justify-center rounded-full transition-opacity hover:text-error-400 ${presentation === "drawer" ? "h-11 w-11" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"}`}
                           title={t("Remove tag")}
-                          aria-label={t("Remove tag")}
+                          aria-label={`${t("Remove tag")} #${tag}`}
                         >
                           <XMarkIcon className="w-3 h-3" />
                         </button>
@@ -480,14 +451,14 @@ export default function NoteInspectorPanel({
                       disabled={isSavingTag}
                       placeholder={t("add tag")}
                       aria-label={t("add tag")}
-                      className="min-h-11 min-w-0 flex-1 bg-transparent text-base text-text placeholder:text-text-tertiary focus:outline-none disabled:opacity-50 md:min-h-8 md:text-sm"
+                      className={`flex-1 bg-transparent text-text placeholder:text-text-tertiary/60 focus:outline-none disabled:opacity-50 min-w-0 ${presentation === "drawer" ? "text-base" : "text-xs"}`}
                     />
                     <button
                       type="button"
                       onClick={() => void addTag()}
                       aria-label={t("add tag")}
                       disabled={!newTag.trim() || isSavingTag}
-                      className="ui-icon-button"
+                      className={`flex shrink-0 items-center justify-center text-text-tertiary hover:text-text-secondary disabled:opacity-30 transition-colors ${presentation === "drawer" ? "h-11 w-11" : ""}`}
                     >
                       <PlusIcon className="w-3.5 h-3.5" />
                     </button>
@@ -547,7 +518,9 @@ export default function NoteInspectorPanel({
 
         {/* Tasks Tab */}
         {activeTab === "tasks" && (
-          <TodoTab surface={presentation === "drawer" ? "full" : "compact"} />
+          <div id="panel-tasks" role="tabpanel" aria-labelledby="tab-tasks" className="flex min-h-0 flex-1 flex-col">
+            <TodoTab surface={presentation === "drawer" ? "full" : "compact"} />
+          </div>
         )}
       </div>
     </div>

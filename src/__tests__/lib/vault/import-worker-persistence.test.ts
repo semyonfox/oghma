@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import winston from "winston";
+import { PassThrough } from "node:stream";
+import logger from "@/lib/logger";
 import type { StoreProvider } from "@/lib/storage/base";
 
 const mocks = vi.hoisted(() => {
@@ -16,7 +19,7 @@ vi.mock("@/lib/notes/tree-cache", () => ({
   invalidateTreeAfterPublish: mocks.invalidateTreeAfterPublish,
 }));
 
-import { persistVaultSourceFile } from "@/lib/vault/import-worker";
+import { persistVaultSourceFile, processVaultImport } from "@/lib/vault/import-worker";
 
 function queryText(call: unknown[]): string {
   return (call[0] as TemplateStringsArray).join(" ");
@@ -122,4 +125,18 @@ describe("persistVaultSourceFile", () => {
     );
     expect(mocks.invalidateTreeAfterPublish).not.toHaveBeenCalled();
   });
+  it("does not expose private job or exception text when an import fails", async () => {
+    const stream = new PassThrough(); let output = "";
+    stream.on("data", (data: Buffer) => { output += data.toString(); });
+    const transport = new winston.transports.Stream({ stream, format: winston.format.json() });
+    logger.add(transport);
+    const error = new Error("private note email@example.test");
+    mocks.sql.mockRejectedValueOnce(error).mockResolvedValueOnce([]);
+    await expect(processVaultImport({ jobId: "private-job", userId: "private-user", s3Key: "vault/private-note.pdf" })).rejects.toBe(error);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    logger.remove(transport); stream.end();
+    expect(output).toContain("operation_failed");
+    expect(output).not.toMatch(/private|email|timestamp|stack|traceId/);
+  });
+
 });

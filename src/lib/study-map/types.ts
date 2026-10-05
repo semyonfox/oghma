@@ -1,22 +1,35 @@
 import { z } from "zod";
-import type { Assignment } from "@/lib/notes/state/assignments.zustand";
+import type { Assignment } from "@/lib/notes/state/assignments";
 
-export const documentKinds = ["notes", "slides", "syllabus", "past_paper", "worked_example", "reading", "other"] as const;
+export const documentKinds = [
+  "notes",
+  "slides",
+  "syllabus",
+  "past_paper",
+  "worked_example",
+  "reading",
+  "other",
+] as const;
 export const documentKindSchema = z.enum(documentKinds);
 export type DocumentKind = z.infer<typeof documentKindSchema>;
-export const relevanceSchema = z.enum(["core", "supporting"]);
+const relevanceSchema = z.enum(["core", "supporting"]);
 export type Relevance = z.infer<typeof relevanceSchema>;
 
-export const sourceAnchorSchema = z.object({
-  noteId: z.uuid(),
-  field: z.enum(["content", "extracted_text"]),
-  hash: z.string().regex(/^[a-f0-9]{64}$/),
-  start: z.number().int().nonnegative(),
-  end: z.number().int().positive(),
-  quote: z.string().min(1).max(8_000),
-  line: z.number().int().positive(),
-  page: z.number().int().positive().nullable(),
-}).refine((value) => value.end > value.start, "Source end must follow its start");
+export const sourceAnchorSchema = z
+  .object({
+    noteId: z.uuid(),
+    field: z.enum(["content", "extracted_text"]),
+    hash: z.string().regex(/^[a-f0-9]{64}$/),
+    start: z.number().int().nonnegative(),
+    end: z.number().int().positive(),
+    quote: z.string().min(1).max(8_000),
+    line: z.number().int().positive(),
+    page: z.number().int().positive().nullable(),
+  })
+  .refine(
+    (value) => value.end > value.start,
+    "Source end must follow its start",
+  );
 export type SourceAnchor = z.infer<typeof sourceAnchorSchema>;
 
 export interface SourceDocument {
@@ -46,7 +59,7 @@ export const topicSchema = z.object({
 });
 export type StudyTopic = z.infer<typeof topicSchema>;
 
-export const topicEvidenceSchema = z.object({
+const topicEvidenceSchema = z.object({
   anchor: sourceAnchorSchema,
   relevance: relevanceSchema,
   probability: z.number().min(0).max(1).nullable(),
@@ -65,7 +78,9 @@ export type TopicAssociation = z.infer<typeof topicAssociationSchema>;
 export const materialOverridesSchema = z.object({
   kind: documentKindSchema.optional(),
   labels: z.array(z.string().trim().min(1).max(60)).max(20).optional(),
-  topics: z.record(z.uuid(), z.enum(["core", "supporting", "excluded"])).default({}),
+  topics: z
+    .record(z.uuid(), z.enum(["core", "supporting", "excluded"]))
+    .default({}),
   sourceHash: z.string().default(""),
   taxonomyVersion: z.number().int().nonnegative().default(0),
 });
@@ -122,36 +137,48 @@ export interface StudyAssignment extends Assignment {
   noteIds: string[];
 }
 
-const cardReference = z.string().regex(/^(note|topic|assignment):[a-f0-9-]{36}$/);
+const cardReference = z
+  .string()
+  .regex(/^(note|topic|assignment):[a-f0-9-]{36}$/);
 const noteReference = z.string().regex(/^note:[a-f0-9-]{36}$/);
-export const boardPlacementSchema = z.object({
+const boardPlacementSchema = z.object({
   id: cardReference,
   x: z.number().finite().min(-100_000).max(100_000),
   y: z.number().finite().min(-100_000).max(100_000),
   pinned: z.boolean(),
   topicId: z.uuid().nullable().default(null),
 });
-export const boardLinkSchema = z.object({
-  id: z.uuid(),
-  source: cardReference,
-  target: cardReference,
-  label: z.string().trim().min(1).max(80),
-}).refine((value) => value.source !== value.target, "Choose two different cards");
+const boardLinkSchema = z
+  .object({
+    id: z.uuid(),
+    source: cardReference,
+    target: cardReference,
+    label: z.string().trim().min(1).max(80),
+  })
+  .refine(
+    (value) => value.source !== value.target,
+    "Choose two different cards",
+  );
 // layout 2 is the course flow: placements are manual offsets inside the module frame and weeks override inferred weeks
 export const boardSchema = z.object({
   layout: z.literal(2).optional(),
   placements: z.array(boardPlacementSchema).max(1_000),
-  weeks: z.record(z.string().regex(/^(note|assignment):[a-f0-9-]{36}$/), z.number().int().min(0).max(60)).default({}),
+  weeks: z
+    .record(
+      z.string().regex(/^(note|assignment):[a-f0-9-]{36}$/),
+      z.number().int().min(0).max(60),
+    )
+    .default({}),
   links: z.array(boardLinkSchema).max(1_000),
-  viewport: z.object({
-    x: z.number().finite().min(-1_000_000).max(1_000_000),
-    y: z.number().finite().min(-1_000_000).max(1_000_000),
-    zoom: z.number().min(0.1).max(3),
-  }).nullable(),
+  viewport: z
+    .object({
+      x: z.number().finite().min(-1_000_000).max(1_000_000),
+      y: z.number().finite().min(-1_000_000).max(1_000_000),
+      zoom: z.number().min(0.1).max(3),
+    })
+    .nullable(),
 });
 export type StudyBoard = z.infer<typeof boardSchema>;
-export type BoardPlacement = z.infer<typeof boardPlacementSchema>;
-export type BoardLink = z.infer<typeof boardLinkSchema>;
 
 export const examQuestionSchema = z.object({
   id: z.string().min(1).max(80),
@@ -194,8 +221,8 @@ export interface StudyPaper {
   structure: ExamStructure;
 }
 
-export const studyJobKinds = ["taxonomy", "classify", "paper"] as const;
-export type StudyJobKind = typeof studyJobKinds[number];
+const studyJobKinds = ["taxonomy", "classify", "paper"] as const;
+export type StudyJobKind = (typeof studyJobKinds)[number];
 export interface StudyJob {
   id: string;
   kind: StudyJobKind;
@@ -232,7 +259,11 @@ export interface StudyMapSnapshot {
   assignments: StudyAssignment[];
   papers: StudyPaper[];
   jobs: StudyJob[];
-  provider: { classifier: "jev" | "generative" | "mock"; ready: boolean; generationReady: boolean };
+  provider: {
+    classifier: "jev" | "generative" | "mock";
+    ready: boolean;
+    generationReady: boolean;
+  };
 }
 
 export const mapCreateSchema = z.object({
@@ -254,7 +285,9 @@ export const boardUpdateSchema = z.object({
   version: z.number().int().nonnegative(),
   board: boardSchema,
 });
-export const materialsAddSchema = z.object({ noteIds: z.array(z.uuid()).min(1).max(100) });
+export const materialsAddSchema = z.object({
+  noteIds: z.array(z.uuid()).min(1).max(100),
+});
 export const materialUpdateSchema = z.object({
   noteId: z.uuid(),
   sourceHash: z.string().regex(/^[a-f0-9]{64}$/),
@@ -275,28 +308,55 @@ export const paperUpdateSchema = z.object({
   structure: examStructureSchema,
 });
 
-export const emptyBoard = (): StudyBoard => ({ layout: 2, placements: [], weeks: {}, links: [], viewport: null });
+export const emptyBoard = (): StudyBoard => ({
+  layout: 2,
+  placements: [],
+  weeks: {},
+  links: [],
+  viewport: null,
+});
 
 /** earlier boards stored positions for other layouts; keep their note links and start the flow layout fresh */
 export function currentBoard(board: StudyBoard): StudyBoard {
   if (board.layout === 2) return board;
   return {
     ...emptyBoard(),
-    links: board.links.filter((link) => noteReference.safeParse(link.source).success && noteReference.safeParse(link.target).success),
+    links: board.links.filter(
+      (link) =>
+        noteReference.safeParse(link.source).success &&
+        noteReference.safeParse(link.target).success,
+    ),
   };
 }
 
-export function effectiveAssociations(material: StudyMaterial, taxonomyVersion: number): TopicAssociation[] {
-  const correctionsCurrent = material.overrides.sourceHash === material.currentHash
-    && material.overrides.taxonomyVersion === taxonomyVersion && !material.taxonomyEvidenceStale;
+export function effectiveAssociations(
+  material: StudyMaterial,
+  taxonomyVersion: number,
+): TopicAssociation[] {
+  const correctionsCurrent =
+    material.overrides.sourceHash === material.currentHash &&
+    material.overrides.taxonomyVersion === taxonomyVersion &&
+    !material.taxonomyEvidenceStale;
   const corrections = correctionsCurrent ? material.overrides.topics : {};
-  const associations = new Map(material.associations.map((association) => [association.topicId, association]));
+  const associations = new Map(
+    material.associations.map((association) => [
+      association.topicId,
+      association,
+    ]),
+  );
   for (const [topicId, relevance] of Object.entries(corrections)) {
     if (relevance === "excluded") associations.delete(topicId);
-    else associations.set(topicId, {
-      topicId, relevance, probability: null,
-      evidence: associations.get(topicId)?.evidence ?? [], status: "accepted", origin: "manual",
-    });
+    else
+      associations.set(topicId, {
+        topicId,
+        relevance,
+        probability: null,
+        evidence: associations.get(topicId)?.evidence ?? [],
+        status: "accepted",
+        origin: "manual",
+      });
   }
-  return [...associations.values()].filter((association) => association.status !== "rejected");
+  return [...associations.values()].filter(
+    (association) => association.status !== "rejected",
+  );
 }

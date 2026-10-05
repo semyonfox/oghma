@@ -60,6 +60,35 @@ const createCacheInterface = (dbName: 'ui' | 'note') => ({
         const db = await getDb(dbName);
         await db.delete('data', key);
     },
+    removeItemIf: async <T = unknown>(
+        key: string,
+        matches: (current: T | undefined) => boolean,
+    ): Promise<void> => {
+        const db = await getDb(dbName);
+        const tx = db.transaction('data', 'readwrite');
+        const current = await tx.store.get(key) as T | undefined;
+        if (matches(current)) await tx.store.delete(key);
+        await tx.done;
+    },
+    getOrMoveItem: async <T = unknown>(
+        key: string,
+        fallbackKey: string,
+        canMove: () => boolean,
+    ): Promise<T | undefined> => {
+        const db = await getDb(dbName);
+        const tx = db.transaction('data', 'readwrite');
+        let value = await tx.store.get(key) as T | undefined;
+        if (value === undefined) {
+            const fallback = await tx.store.get(fallbackKey) as T | undefined;
+            if (fallback !== undefined && canMove()) {
+                await tx.store.put(fallback, key);
+                await tx.store.delete(fallbackKey);
+                value = fallback;
+            }
+        }
+        await tx.done;
+        return value;
+    },
     clear: async (): Promise<void> => {
         const db = await getDb(dbName);
         await db.clear('data');

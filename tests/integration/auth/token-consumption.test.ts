@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
   recordActivationMilestone: vi.fn(async () => true),
 }));
 
-vi.mock("@/lib/auth", () => {
+vi.mock("@/lib/auth/session", () => {
   const createErrorResponse = (
     message: string,
     status = 400,
@@ -55,7 +55,7 @@ vi.mock("@/lib/auth", () => {
   };
 });
 vi.mock("@/lib/api-error", () => ({ assertTrustedOrigin: vi.fn() }));
-vi.mock("@/lib/rateLimiter", () => ({
+vi.mock("@/lib/rate-limiter", () => ({
   checkRateLimit: vi.fn(async () => null),
   getClientIp: vi.fn(() => "127.0.0.1"),
 }));
@@ -69,7 +69,7 @@ vi.mock("@/lib/marketing/events", () => ({
 import appSql from "@/database/pgsql";
 import { POST as verifyEmail } from "@/app/api/auth/verify-email/route";
 import { POST as resetPassword } from "@/app/api/auth/password-reset/verify/route";
-import { hashToken } from "@/lib/tokens";
+import { hashToken } from "@/lib/auth/tokens";
 
 const fixtureSql = postgres(requireE2EDatabaseUrl(), { max: 4 });
 let userId: string;
@@ -101,6 +101,9 @@ afterAll(async () => {
   await Promise.all([fixtureSql.end(), appSql.end()]);
 });
 
+// verification makes the mailbox owner choose the password, so every request carries one
+const chosenPassword = "Fixture-Passw0rd";
+
 describe("single-use authentication tokens", () => {
   it("lets exactly one concurrent email-verification request consume a token", async () => {
     const email = `verify-${userId}@example.test`;
@@ -123,13 +126,13 @@ describe("single-use authentication tokens", () => {
     `;
 
     const responses = await Promise.all([
-      verifyEmail(jsonRequest("/api/auth/verify-email", { token })),
-      verifyEmail(jsonRequest("/api/auth/verify-email", { token })),
+      verifyEmail(jsonRequest("/api/auth/verify-email", { token, password: chosenPassword })),
+      verifyEmail(jsonRequest("/api/auth/verify-email", { token, password: chosenPassword })),
     ]);
 
     expect(responses.map(({ status }) => status).sort()).toEqual([200, 400]);
     expect(mocks.createAuthSession).toHaveBeenCalledOnce();
-    expect(mocks.recordActivationMilestone).toHaveBeenCalledOnce();
+    expect(mocks.recordActivationMilestone).not.toHaveBeenCalled();
 
     const [account] = await fixtureSql`
       SELECT email_verified, verification_token
@@ -183,7 +186,7 @@ describe("single-use authentication tokens", () => {
 
     try {
       const failed = await verifyEmail(
-        jsonRequest("/api/auth/verify-email", { token }),
+        jsonRequest("/api/auth/verify-email", { token, password: chosenPassword }),
       );
       expect(failed.status).toBe(500);
       expect(mocks.createAuthSession).not.toHaveBeenCalled();
@@ -204,7 +207,7 @@ describe("single-use authentication tokens", () => {
     }
 
     const retry = await verifyEmail(
-      jsonRequest("/api/auth/verify-email", { token }),
+      jsonRequest("/api/auth/verify-email", { token, password: chosenPassword }),
     );
     expect(retry.status).toBe(200);
   });

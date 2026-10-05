@@ -1,3 +1,4 @@
+import logger from "@/lib/logger";
 import { enqueueExtractRetryJob } from "@/lib/queue";
 import sql from "@/database/pgsql";
 import { CanvasClaimLostError, currentCanvasExecution, withCanvasPublication } from "./execution";
@@ -53,7 +54,7 @@ export async function stageCanvasExtractionRetry(msg: ExtractionRetryMessage, er
   if (!staged || staged.status === "error") return;
   await enqueueExtractRetryJob({ ...msg, attempt: staged.retry_attempts + 1, retrySeq: staged.retry_seq },
     Math.max(0, Math.ceil((new Date(staged.next_attempt_at).getTime() - Date.now()) / 1000)))
-    .catch(() => console.warn("Canvas retry publication deferred to database recovery", { jobId: msg.jobId }));
+    .catch(() => logger.warn("worker_event"));
 }
 
 function getExtractionRetryDelaySeconds(attempt: number): number {

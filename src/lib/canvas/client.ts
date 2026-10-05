@@ -27,7 +27,7 @@ const CANVAS_JSON_ACCEPT = "application/json+canvas-string-ids";
 const RETRYABLE_HTTP_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
 
 export type CanvasId = string | number;
-export type CanvasJsonValue =
+type CanvasJsonValue =
   | null
   | boolean
   | number
@@ -58,7 +58,7 @@ export interface CanvasFile extends CanvasRecord {
   lock_explanation?: string;
 }
 
-export interface CanvasSubmission extends CanvasRecord {
+interface CanvasSubmission extends CanvasRecord {
   workflow_state?: string;
   submitted_at?: string | null;
   score?: number | null;
@@ -79,7 +79,7 @@ export interface CanvasAssignment extends CanvasRecord {
   submission?: CanvasSubmission | null;
 }
 
-export interface CanvasModule extends CanvasRecord {
+interface CanvasModule extends CanvasRecord {
   id: CanvasId;
   name: string;
 }

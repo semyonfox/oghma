@@ -56,7 +56,7 @@ describe("checkRateLimit fail-closed categories", () => {
   });
 
   it("returns 503 instead of in-memory fallback for auth-sensitive categories", async () => {
-    const { checkRateLimit } = await import("@/lib/rateLimiter");
+    const { checkRateLimit } = await import("@/lib/rate-limiter");
 
     const response = await checkRateLimit("password-reset", "user@example.com");
 
@@ -83,7 +83,7 @@ describe("checkRateLimit fail-closed categories", () => {
   it("returns 503 for fail-closed categories when redis is not ready", async () => {
     redisState.ready = false;
     redisState.ensureReady.mockResolvedValue(false);
-    const { checkRateLimit } = await import("@/lib/rateLimiter");
+    const { checkRateLimit } = await import("@/lib/rate-limiter");
 
     const verifyResponse = await checkRateLimit("verify-email", "127.0.0.1");
     const resendResponse = await checkRateLimit(
@@ -126,7 +126,7 @@ describe("checkRateLimit fail-closed categories", () => {
       ]),
     };
     redisState.pipeline.mockReturnValue(pipeline as never);
-    const { checkRateLimit } = await import("@/lib/rateLimiter");
+    const { checkRateLimit } = await import("@/lib/rate-limiter");
 
     const response = await checkRateLimit("password-reset", "user@example.com");
 
@@ -161,7 +161,7 @@ describe("checkRateLimit fail-closed categories", () => {
     };
     redisState.pipeline.mockReturnValue(pipeline as never);
 
-    const { checkRateLimit } = await import("@/lib/rateLimiter");
+    const { checkRateLimit } = await import("@/lib/rate-limiter");
 
     const response = await checkRateLimit("verify-email", "127.0.0.1");
 

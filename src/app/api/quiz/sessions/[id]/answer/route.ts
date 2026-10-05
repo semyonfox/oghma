@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateSession } from "@/lib/auth";
-import { withErrorHandler, tracedError } from "@/lib/api-error";
+import {
+  parseJsonObject,
+  requireAuth,
+  type RouteParamsContext,
+  withErrorHandler,
+  tracedError,
+} from "@/lib/api-error";
 import {
   cardFromDB,
   reviewCard,
@@ -62,16 +67,21 @@ function checkAnswerCorrect(
 export const POST = withErrorHandler(
   async (
     request: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
+    { params }: RouteParamsContext<{ id: string }>,
   ) => {
-    const user = await validateSession();
-    if (!user) return tracedError("Unauthorized", 401);
+    const user = await requireAuth();
 
     const { id: sessionId } = await params;
     const userId = user.user_id;
-    const body = await request.json();
+    const body = await parseJsonObject(request);
     // wasCorrect is ignored — computed server-side below
-    const { cardId, userAnswer, responseTimeMs, nextCardId } = body;
+    const cardId = typeof body.cardId === "string" ? body.cardId : "";
+    const userAnswer =
+      typeof body.userAnswer === "string" ? body.userAnswer : "";
+    const responseTimeMs =
+      typeof body.responseTimeMs === "number" ? body.responseTimeMs : null;
+    const nextCardId =
+      typeof body.nextCardId === "string" ? body.nextCardId : null;
 
     if (!cardId) return tracedError("cardId is required", 400);
 
@@ -135,7 +145,7 @@ export const POST = withErrorHandler(
 
       const wasCorrect = checkAnswerCorrect(
         card.question_type,
-        String(userAnswer ?? ""),
+        userAnswer,
         String(card.correct_answer ?? ""),
       );
       const ms = responseTimeMs ?? 0;
@@ -174,7 +184,7 @@ export const POST = withErrorHandler(
           ${cardId}::uuid,
           ${card.question_id}::uuid,
           ${rating},
-          ${userAnswer || ""},
+          ${userAnswer},
           ${wasCorrect},
           ${responseTimeMs || null},
           ${sessionId}::uuid

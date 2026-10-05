@@ -17,7 +17,7 @@ vi.mock("next-auth/react", () => ({
   getProviders: vi.fn().mockResolvedValue({}),
   signIn: vi.fn(),
 }));
-vi.mock("@/lib/apiClient", () => ({
+vi.mock("@/lib/api-client", () => ({
   register: mocks.register,
   getErrorMessage: (error: Error) => error.message,
 }));
@@ -30,8 +30,7 @@ vi.mock("@/lib/notes/hooks/use-i18n", () => ({
   }),
 }));
 vi.mock("@/lib/marketing/client", () => ({
-  getMarketingContext: () => ({}),
-  trackMarketingEvent: vi.fn(),
+  reportTelemetry: vi.fn(),
 }));
 vi.mock("@/lib/native-app", () => ({
   useNativeAppBridge: () => null,

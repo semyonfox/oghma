@@ -2,9 +2,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 vi.mock("@/lib/api-error", () => ({
+  parseJsonObject: async (request: Request) => request.json(),
   requireAuth: vi.fn(),
   withErrorHandler: (handler: (request: NextRequest) => Promise<Response>) => handler,
   ApiError: class extends Error { constructor(public statusCode: number, message: string) { super(message); } },
+}));
+vi.mock("@/lib/rate-limiter", () => ({ checkRateLimit: vi.fn().mockResolvedValue(null) }));
+vi.mock("@/lib/vault/artifacts", () => ({
+  reserveVaultUpload: vi.fn(async (_user: string, key: string) => key),
+  VAULT_UPLOAD_MAX_BYTES: 10 * 1024 ** 3,
 }));
 vi.mock("@aws-sdk/client-s3", () => ({
   S3Client: class {},
@@ -49,7 +55,7 @@ describe("POST /api/vault/import", () => {
     expect(command.input.Key).toMatch(/\/import\.ZIP$/);
     expect(vi.mocked(getSignedUrl).mock.calls[0][2]).toMatchObject({
       expiresIn: 900,
-      signableHeaders: new Set(["content-type", "x-amz-meta-expected-size"]),
+      signableHeaders: new Set(["content-length", "content-type", "x-amz-meta-expected-size"]),
       unhoistableHeaders: new Set(["x-amz-meta-expected-size"]),
     });
   });

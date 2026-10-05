@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const oauthReturnUrl = "ie.oghmanotes.alpha://auth";
+export const oauthReturnUrl = "https://oghmanotes.ie/auth/mobile/callback";
 export const oauthProvidersSchema = z.record(
   z.string(),
   z.object({

@@ -24,7 +24,7 @@ vi.mock("@/lib/storage/init", () => ({
     getPutSignUrl: mocks.getPutSignUrl,
   }),
 }));
-vi.mock("@/lib/vast-serverless", () => ({
+vi.mock("@/lib/marker/vast", () => ({
   requestVastEndpoint: mocks.requestVastEndpoint,
   vastWorkloadCost: vi.fn(() => 100),
 }));
@@ -32,7 +32,7 @@ vi.mock("@/lib/vast-serverless", () => ({
 import {
   dispatchMarkerJob,
   recoverMarkerDispatchJobs,
-} from "@/lib/marker-serverless";
+} from "@/lib/marker/serverless";
 
 const exhaustedJob = {
   callback_id: "11111111-1111-4111-8111-111111111111",
