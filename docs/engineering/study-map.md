@@ -1,24 +1,27 @@
 # Study maps
 
 > **Status:** Implemented on the feature branch; release verification tracked below
-> **Last reviewed:** 2026-10-04
+> **Last reviewed:** 2026-10-05
 > **Source of truth for:** Study Map persistence, classification, evidence, and exam-history contracts
 
 Study maps organise existing notes and files around reviewed module topics. The canvas is a view of those records. Topic membership, card placement, and labelled links are separate. Exam history describes reviewed uploaded papers; it does not measure student mastery or predict the next exam.
 
 ## Using a map
 
-1. Open `/study-map` and create a module with an academic year. Optionally select a root folder, Canvas course ID, and syllabus note. Add materials explicitly or use **Sync sources** to discover descendants and matching course materials.
-2. Choose **Propose syllabus topics**, then review each definition, inclusion criteria, exclusions, aliases, hierarchy, and supporting quotations. Topics can also be added manually. Classification requires at least one approved topic.
-3. Choose **Classify materials**, or classify one material in its inspector. Review independent core/supporting suggestions and save corrections. Document kind and labels remain editable.
-4. Open **Map** to see the module as a course flow: weeks run left to right, topics top to bottom, and each note sits in its week between the topics it covers. Hover a card to preview it, open it in the reader, follow a topic through the course, or switch to **All modules** to see every module and the links between them. Moving or pinning a card changes its layout only. Its topic assignments remain in the inspector.
-5. In **Exam history**, analyse a past paper, check its year, sitting, syllabus version, questions, marks, topic assignments, and section rules, then approve the review. Resolve source or taxonomy changes before using its statistics again.
+1. Open `/study-map`. Each imported Canvas course with no map gets one automatically ([setup.ts](../../src/lib/study-map/setup.ts)): named after the course folder, using its academic year, folder and Canvas course ID. Courses marked inactive in course settings are skipped. Deleting a course map records the course in `study_map_dismissed_courses` so it is not recreated. **Add module** creates a map from a name and folder for material outside Canvas.
+2. For a Canvas course, setup writes a `CT230 course outline` note into the course folder from free sources and makes it the syllabus ([descriptor.ts](../../src/lib/study-map/descriptor.ts)): the public [Galway module descriptor](https://www.universityofgalway.ie/course-information/module/CT230) for Galway accounts (description, content, learning outcomes, assessment split; module code from the folder title), the Canvas `syllabus_body` and home page fetched with the student's own token, and the imported Canvas module folder names. Galway's empty-course template home page is ignored. Without an outline, a syllabus is picked by title (`syllabus`, `module outline`, `course descriptor` and similar; see [syllabus.ts](../../src/lib/study-map/syllabus.ts)). A syllabus is optional.
 
-Provider calls require an explicit proposal, classification, or paper-analysis action. Automatic classification defaults off and requires the **Classify changed materials automatically** checkbox in module settings. With a live provider, these actions can incur charges. Automatic suggestions still require review; saved corrections survive reruns.
+   On one student's 18 Galway courses (2026-10-05), 10 had a `syllabus_body`, 16 a non-empty home page, and most named their Canvas modules after teaching units ("Normalisation", "Topic 4. Probability"). Canvas outcomes and pages were unused. About three quarters of public descriptors list learning outcomes.
+3. Topics are proposed once per map, after any Canvas import finishes, aiming for 5–12 topics that match the teaching units. A syllabus of at least 1,500 characters is used alone; a shorter one is joined by the opening of every other material (up to 60, within an 80,000-character budget), and without a syllabus the materials alone are used. On five real courses an outline alone gave 7–11 topics matching their Canvas modules, and on CT230 Jev then placed 12 of 12 real lectures and problem sheets correctly. New proposed topics are approved straight away, since each definition must quote its sources exactly; a misquoted citation is dropped, and a topic left with none is dropped. A changed definition of an existing topic still needs review. Topics can be edited, unapproved or added by hand under **Topics**, and **Find topics again** reruns the proposal.
+4. Once topics exist, materials are classified in the background. Review core/supporting suggestions in the inspector and save corrections. Document kind and labels remain editable.
+5. Open **Map** to see the module as a course flow: weeks run left to right, topics top to bottom, and each note sits in its week between the topics it covers. Hover a card to preview it, open it in the reader, follow a topic through the course, or switch to **All modules** to see every module and the links between them. Moving or pinning a card changes its layout only. Its topic assignments remain in the inspector.
+6. In **Exam history**, analyse a past paper, check its year, sitting, syllabus version, questions, marks, topic assignments, and section rules, then approve the review. Resolve source or taxonomy changes before using its statistics again.
+
+New maps have `auto_classify` on, shown as **Keep this module organised automatically** in module settings. For those maps, `autoConfigureStudyMap` in [jobs.ts](../../src/lib/study-map/jobs.ts) syncs sources, picks a syllabus, queues one topic proposal and classifies new or changed materials. It runs when a map is created or its settings change, when `/study-map` creates course maps, and every 60 seconds in the worker. After a topic proposal is published, classification is queued straight away. With a live provider these calls can cost money: one topic proposal per map, plus one classification per new or changed material. A failed or empty proposal is not retried automatically. Paper analysis still has to be started by hand. Maps with the setting off keep the manual **Sync sources** and **Classify materials** buttons. Saved corrections survive reruns.
 
 ## Persistence and ownership
 
-[Migration 071](../../database/migrations/071_study_maps.sql) adds four tables. Its presence does not prove it has run in a particular environment.
+[Migration 071](../../database/migrations/071_study_maps.sql) adds four tables. [Migration 076](../../database/migrations/076_study_map_dismissed_courses.sql) adds `study_map_dismissed_courses`, the Canvas courses whose automatic map was deleted. [Migration 077](../../database/migrations/077_study_analysis_cache.sql) adds the shared caches described under [Cost and caching](#cost-and-caching). Its presence does not prove it has run in a particular environment.
 
 | Table             | Owns                                                                                                                                                                                         |
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -66,7 +69,21 @@ Markdown and text use `notes.content`. Binary files use `extracted_text`, unless
 
 Original-file and extraction views select the same canonical text for source hashes, evidence, and search. Editing the linked Markdown makes prior results stale in either view. Access checks apply to both records; a missing or inaccessible extraction falls back to the original's extracted text. Attachments and embedded references remain owned library records.
 
-Sources above 320,000 characters or 250 passages fail with a split-material message. Classification splits at headings and paragraph boundaries, then bounds requests to 24 questions, three passages, and 20,000 encoded bytes. Generation has a separate 100,000-character context limit and does not silently truncate text. Maps support 80 topics and 500 materials; one user can have 100 maps. These are implementation limits, not provider guarantees.
+Sources above 320,000 characters or 250 passages fail with a split-material message. Classification splits at headings and paragraph boundaries, merges short neighbours, then bounds requests to 24 questions, three passages, and 20,000 encoded bytes. Generation has a separate 100,000-character context limit; topic proposals deliberately show later materials as openings, and every quote is still checked against the full text. Maps support 80 topics and 500 materials; one user can have 100 maps. These are implementation limits, not provider guarantees.
+
+## Cost and caching
+
+Like the [imported file cache](../../src/lib/canvas/import-cache.ts), study results are content-addressed and shared across users ([cache.ts](../../src/lib/study-map/cache.ts)):
+
+- `study_decision_cache` holds one Jev answer per SHA-256 of model, prompt version, question criteria, topic meaning and exact passage text. Topic IDs are left out, so a classmate's copy of the same file with the same topic definitions costs nothing, and editing one topic re-asks only that topic's questions. Mock answers are never stored.
+- `study_generation_cache` holds one topic proposal per SHA-256 of model and prompt, so identical course material with no existing topics is proposed once.
+- `module_descriptors` holds each public descriptor for 30 days, including modules without a usable page. Canvas syllabus and home pages are fetched once per map, when its outline is written.
+
+Bump `PROMPT_VERSION` in [classification.ts](../../src/lib/study-map/classification.ts) when questions, criteria or passage splitting change, so old answers stop matching.
+
+Jev bills each request's passages once plus roughly 50 tokens per question, so cost follows the number of questions. Extracted slide text splits at every blank line into ~200-character fragments; classification merges neighbouring fragments into passages of at least 1,200 characters (`splitSourcePassages(source, 1_600, 1_200)`) and asks the document kind on the opening passage only. On 12 real CT230 lectures and problem sheets this cut a cold run from $0.057 to $0.013 with the same 12/12 placements, and a repeat over identical files cost nothing (2026-10-05, `typesafe/jev-1.13`).
+
+Topic proposals and paper extraction run with low reasoning even when chat runs with it off. With reasoning off, `openai/gpt-6-luna` drafted inside its JSON answer and restarted it, failing about half of proposals; scope fields returned as lists are joined into text, and quoted sources are referred to as `S1`, `S2` because the model garbled note UUIDs once there were many sources.
 
 ## Providers and worker
 
@@ -74,7 +91,7 @@ Sources above 320,000 characters or 250 passages fail with a split-material mess
 
 `classification.ts` asks an independent `CORE`, `SUPPORTING`, or `UNRELATED` Choice for each passage/topic pair, plus document-kind Choice and label Nouls. Several topics can apply. Jev responses preserve model IDs, raw decisions, probabilities, optional confidence, token usage, and nullable cost. Generative classification returns categorical decisions with no invented probability or confidence. Results remain suggestions. The current relevance and label thresholds, 0.6 and 0.65, are provisional and have not established course-specific accuracy.
 
-`jobs.ts` runs provider calls outside publish transactions. The existing import worker polls study jobs every five seconds and reconciles opted-in maps every 60 seconds, catching imported or changed materials without making source saves wait for classification. Claims use `FOR UPDATE SKIP LOCKED`, a five-minute lease, and a 30-second heartbeat. Expired claims return to pending until three attempts, then fail for manual retry. One enqueue is capped at 50 jobs, with 100 active jobs per user. Automatic reconciliation skips a material whose latest job failed.
+`jobs.ts` runs provider calls outside publish transactions. The existing import worker polls study jobs every five seconds and reconciles opted-in maps every 60 seconds, catching imported or changed materials, a newly matching syllabus and a missing first topic proposal without making source saves wait for classification. Claims use `FOR UPDATE SKIP LOCKED`, a five-minute lease, and a 30-second heartbeat. Expired claims return to pending until three attempts, then fail for manual retry. One enqueue is capped at 50 jobs, with 100 active jobs per user. Automatic reconciliation skips a material whose latest job failed.
 
 See [the worker runbook](../operations/import-worker.md) for worker operation. Study jobs use Postgres persistence alongside the existing BullMQ worker; they do not introduce another service.
 

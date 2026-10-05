@@ -94,11 +94,13 @@ interface Proposal {
   id: string;
   name: string;
   definition: string;
-  includes: string;
-  excludes: string;
+  // providers return scope as text or as a list of points
+  includes: string | string[];
+  excludes: string | string[];
   aliases: string[];
   parentId: string | null;
-  sources: Array<Quote & { noteId: string }>;
+  // sources cite the prompt's short document refs, not note IDs
+  sources: Array<Quote & { source: string }>;
 }
 
 type PaperResponse = Omit<ExamStructure, "sections" | "questions"> & {
@@ -117,7 +119,7 @@ function proposal(overrides: Partial<Proposal> = {}): Proposal {
     parentId: null,
     sources: [
       {
-        noteId: NOTE_ID,
+        source: "S1",
         quote: "Trees are connected acyclic graphs.",
         occurrence: 0,
       },
@@ -187,7 +189,7 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("study generation mock fixtures", () => {
-  it("proposes course definitions with exact evidence and a stable hierarchy without calling a provider", async () => {
+  it("proposes approved course definitions with exact evidence and a stable hierarchy without calling a provider", async () => {
     const topics = await proposeStudyTopics([syllabus], []);
     expect(topics.map((topic) => topic.name)).toEqual([
       "Trees",
@@ -197,7 +199,7 @@ describe("study generation mock fixtures", () => {
     expect(topics[1].parentId).toBe(topics[0].id);
     expect(topics[2].parentId).toBeNull();
     for (const topic of topics) {
-      expect(topic.reviewed).toBe(false);
+      expect(topic.reviewed).toBe(true);
       expect(topic.includes).not.toBe("");
       expect(topic.sources).toHaveLength(1);
       expect(isCurrentAnchor(topic.sources[0], syllabus)).toBe(true);
@@ -396,6 +398,82 @@ describe("study generation provider validation", () => {
     });
   });
 
+  it("accepts topic scope written as a list, as gpt-6-luna returns it", async () => {
+    respond({
+      topics: [
+        proposal({
+          includes: ["binary trees", "traversal"],
+          excludes: ["graphs with cycles"],
+        }),
+      ],
+    });
+    const [topic] = await proposeStudyTopics([syllabus], []);
+    expect(topic).toMatchObject({
+      includes: "binary trees; traversal",
+      excludes: "graphs with cycles",
+      reviewed: true,
+    });
+  });
+
+  it("shows later sources as previews but resolves quotes against their full text", async () => {
+    const lecture = document(
+      `${"Opening line about trees. ".repeat(4)}\nDeep in the lecture: Trees are connected acyclic graphs.`,
+    );
+    const second = {
+      ...lecture,
+      noteId: "99999999-9999-4999-8999-999999999999",
+    };
+    respond({
+      topics: [
+        proposal({
+          sources: [
+            {
+              source: "S2",
+              quote: "Trees are connected acyclic graphs.",
+              occurrence: 0,
+            },
+          ],
+        }),
+      ],
+    });
+    const [topic] = await proposeStudyTopics(
+      [syllabus, second],
+      [],
+      undefined,
+      {
+        previewChars: 40,
+      },
+    );
+    const prompt = String(provider.generateText.mock.calls[0][0].prompt);
+    expect(prompt).not.toContain("Deep in the lecture");
+    expect(prompt).toContain("Trees are connected acyclic graphs.");
+    expect(topic.sources[0].noteId).toBe(second.noteId);
+  });
+
+  it("reuses a cached proposal for identical material instead of generating again", async () => {
+    const stored = new Map<string, unknown>();
+    const cache = {
+      get: async (key: string) => stored.get(key),
+      set: async (key: string, value: unknown) => {
+        stored.set(key, value);
+      },
+    };
+    respond({ topics: [proposal()] });
+    const first = await proposeStudyTopics([syllabus], [], undefined, {
+      cache,
+    });
+    const copy = {
+      ...syllabus,
+      noteId: "99999999-9999-4999-8999-999999999999",
+    };
+    const second = await proposeStudyTopics([copy], [], undefined, { cache });
+    expect(provider.generateText).toHaveBeenCalledTimes(1);
+    expect(second.map((topic) => topic.name)).toEqual(
+      first.map((topic) => topic.name),
+    );
+    expect(second[0].sources[0].noteId).toBe(copy.noteId);
+  });
+
   it("resolves new parent references to actual IDs and preserves omitted existing topics", async () => {
     const existing: StudyTopic = topicSchema.parse({
       id: TOPIC_ID,
@@ -413,7 +491,7 @@ describe("study generation provider validation", () => {
           definition: "Binary trees have at most two children per node.",
           sources: [
             {
-              noteId: NOTE_ID,
+              source: "S1",
               quote: "Binary trees have at most two children per node.",
               occurrence: 0,
             },
@@ -427,22 +505,31 @@ describe("study generation provider validation", () => {
     expect(result[1].id).not.toBe("new-trees");
   });
 
+  it("drops a topic whose only quote is invented and keeps the supported ones", async () => {
+    respond({
+      topics: [
+        proposal(),
+        proposal({
+          id: "new-heaps",
+          name: "Heaps",
+          parentId: "new-trees",
+          sources: [
+            { source: "S1", quote: "Invented definition", occurrence: 0 },
+          ],
+        }),
+      ],
+    });
+    const result = await proposeStudyTopics([syllabus], []);
+    expect(result.map((topic) => topic.name)).toEqual(["Trees"]);
+  });
+
   it.each([
-    [
-      "invented quotation",
-      proposal({
-        sources: [
-          { noteId: NOTE_ID, quote: "Invented definition", occurrence: 0 },
-        ],
-      }),
-      /does not occur/,
-    ],
     [
       "unknown document",
       proposal({
         sources: [
           {
-            noteId: UNKNOWN_ID,
+            source: "S9",
             quote: "Trees are connected acyclic graphs.",
             occurrence: 0,
           },

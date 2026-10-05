@@ -11,6 +11,7 @@
  */
 
 import { safeCanvasFetch } from "./safe-fetch";
+import { stripHtmlToText } from "./content-formatting";
 
 // transient errors worth retrying (network blips, server hiccups)
 const RETRYABLE_CODES = new Set([
@@ -568,6 +569,23 @@ export class CanvasClient {
       `/courses/${courseId}?include[]=term&include[]=concluded`,
       isCanvasCourse,
     );
+  }
+
+  /**
+   * Returns the course syllabus and home page as plain text, for study map outlines.
+   * Either is null when the course does not use it or the lecturer restricts it.
+   */
+  async getCourseOutline(courseId: string) {
+    const [course, front] = await Promise.all([
+      this.#get(`/courses/${courseId}?include[]=syllabus_body`, isRecord),
+      this.#get(`/courses/${courseId}/front_page`, isRecord),
+    ]);
+    const text = (value: unknown) =>
+      typeof value === "string" && value.trim() ? stripHtmlToText(value) : null;
+    return {
+      syllabus: text(course.data?.syllabus_body),
+      frontPage: text(front.data?.body),
+    };
   }
 
   /**

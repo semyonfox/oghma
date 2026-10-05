@@ -116,6 +116,8 @@ function anchorAt(
 export function splitSourcePassages(
   source: SourceDocument,
   maxChars = 1_600,
+  /** merge neighbouring short blocks up to maxChars; slide text otherwise yields ~200-character passages */
+  minChars = 0,
 ): SourcePassage[] {
   assertSourceSize(source);
   if (
@@ -150,6 +152,20 @@ export function splitSourcePassages(
     }
   }
   finishBlock(source.text.length);
+  if (minChars > 0) {
+    const merged: typeof ranges = [];
+    for (const range of ranges) {
+      const previous = merged.at(-1);
+      if (
+        previous &&
+        previous.end - previous.start < minChars &&
+        range.end - previous.start <= maxChars
+      )
+        previous.end = range.end;
+      else merged.push({ ...range });
+    }
+    ranges.splice(0, ranges.length, ...merged);
+  }
 
   const passages: SourcePassage[] = [];
   for (const range of ranges) {

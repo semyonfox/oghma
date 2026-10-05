@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import postgres from "postgres";
 import {
   afterAll,
@@ -23,6 +23,7 @@ import {
 import {
   addStudyMaterials,
   createStudyMap,
+  deleteStudyMap,
   removeStudyMaterial,
   reviewStudyMaterial,
   saveStudyBoard,
@@ -38,6 +39,8 @@ import {
   loadStudySource,
 } from "@/lib/study-map/repository";
 import { searchStudyMaterials } from "@/lib/study-map/search";
+import { setupStudyMaps } from "@/lib/study-map/setup";
+import { decisionCache } from "@/lib/study-map/cache";
 import {
   effectiveAssociations,
   emptyBoard,
@@ -1366,5 +1369,148 @@ describe("study map storage and durable jobs", () => {
       { count: number }[]
     >`SELECT count(*)::int AS count FROM app.study_jobs WHERE user_id = ${userId}::uuid AND state IN ('pending', 'running')`;
     expect(count).toBe(100);
+  });
+});
+
+describe("automatic study map setup", () => {
+  it("turns an imported Canvas course into a sorted map without asking anything", async () => {
+    const course = await makeNote(
+      userId,
+      "CT216 Software engineering",
+      "",
+      true,
+    );
+    await fixture`UPDATE app.notes SET canvas_course_id = 9216, canvas_academic_year = '2025/26' WHERE note_id = ${course}::uuid`;
+    const outline = await makeNote(
+      userId,
+      "Module outline",
+      "# Testing\n\nTesting checks that software behaves as specified.",
+      false,
+      course,
+    );
+    const lecture = await makeNote(
+      userId,
+      "Week 2 lecture",
+      "# Testing\n\nTesting checks that software behaves as specified. Unit tests cover one function.",
+      false,
+      course,
+    );
+
+    expect(await setupStudyMaps(userId)).toBe(1);
+    expect(await setupStudyMaps(userId)).toBe(0);
+    const [{ id }] = await fixture<{ id: string }[]>`
+      SELECT id FROM app.study_maps WHERE user_id = ${userId}::uuid AND canvas_course_id = '9216'
+    `;
+    expect(await getStudyMap(userId, id)).toMatchObject({
+      name: "CT216 Software engineering",
+      academicYear: "2025/26",
+      rootNoteId: course,
+      syllabusNoteId: outline,
+      autoClassify: true,
+    });
+
+    while (await processNextStudyJob()) {
+      /* taxonomy, then the classification it enqueues */
+    }
+    const snapshot = await getStudyMapSnapshot(userId, id);
+    expect(
+      snapshot.map.topics.map((entry) => [entry.name, entry.reviewed]),
+    ).toEqual([["Testing", true]]);
+    const sorted = snapshot.materials.find((entry) => entry.noteId === lecture);
+    expect(sorted?.status).toBe("classified");
+    expect(sorted?.associations.length).toBeGreaterThan(0);
+
+    await deleteStudyMap(userId, id);
+    expect(await setupStudyMaps(userId)).toBe(0);
+  });
+
+  it("finds topics in the module's own notes when it has no syllabus", async () => {
+    const course = await makeNote(userId, "CT217 Networks", "", true);
+    await fixture`UPDATE app.notes SET canvas_course_id = 9217 WHERE note_id = ${course}::uuid`;
+    const lecture = await makeNote(
+      userId,
+      "Week 1 lecture",
+      "# Routing\n\nRouting chooses paths for packets across networks.",
+      false,
+      course,
+    );
+    expect(await setupStudyMaps(userId)).toBe(1);
+    const [{ id }] = await fixture<{ id: string }[]>`
+      SELECT id FROM app.study_maps WHERE user_id = ${userId}::uuid AND canvas_course_id = '9217'
+    `;
+    expect((await getStudyMap(userId, id)).syllabusNoteId).toBeNull();
+    while (await processNextStudyJob()) {
+      /* proposal from the notes, then classification */
+    }
+    const snapshot = await getStudyMapSnapshot(userId, id);
+    expect(
+      snapshot.map.topics.map((entry) => [entry.name, entry.reviewed]),
+    ).toEqual([["Routing", true]]);
+    expect(
+      snapshot.materials.find((entry) => entry.noteId === lecture)?.status,
+    ).toBe("classified");
+  });
+
+  it("stores and returns shared decisions by content key", async () => {
+    const key = createHash("sha256").update(randomUUID()).digest("hex");
+    const value = {
+      answer: { type: "noul", noul: 0.9 },
+      raw: { type: "noul", noul: 0.9 },
+      model: "typesafe/jev-1.13",
+    } as const;
+    await decisionCache.set([{ key, value }]);
+    // a second writer with the same key keeps the first answer
+    await decisionCache.set([{ key, value: { ...value, model: "other" } }]);
+    expect((await decisionCache.get([key])).get(key)).toEqual(value);
+    await fixture`DELETE FROM app.study_decision_cache WHERE key = ${key}`;
+  });
+
+  it("adds a course outline from the public descriptor once and uses it as the syllabus", async () => {
+    await fixture`UPDATE app.login SET canvas_domain = 'universityofgalway.instructure.com' WHERE user_id = ${userId}::uuid`;
+    await fixture`DELETE FROM app.module_descriptors WHERE code = 'ZZ998'`;
+    const course = await makeNote(userId, "ZZ998-Synthetic-Systems", "", true);
+    await fixture`UPDATE app.notes SET canvas_course_id = 9998 WHERE note_id = ${course}::uuid`;
+    await makeNote(
+      userId,
+      "Week 1 lecture",
+      "# Queues\n\nQueues hold work in order.",
+      false,
+      course,
+    );
+    const page = vi.fn(
+      async () =>
+        new Response(
+          `<h2>Course Modules</h2><h3>ZZ998: Synthetic Systems</h3><p>Semester 1 | Credits: 5</p>
+<p>Queues and schedulers.</p><h4>Learning Outcomes</h4><ul><li>Explain queues</li></ul>
+<h4>Teachers &amp; Administrators</h4>`,
+          { status: 404 },
+        ),
+    );
+    vi.stubGlobal("fetch", page);
+    try {
+      expect(await setupStudyMaps(userId)).toBe(1);
+      const [{ id }] = await fixture<{ id: string }[]>`
+        SELECT id FROM app.study_maps WHERE user_id = ${userId}::uuid AND canvas_course_id = '9998'
+      `;
+      const notes = await fixture<{ note_id: string; content: string }[]>`
+        SELECT n.note_id, n.content FROM app.notes n JOIN app.tree_items t ON t.note_id = n.note_id
+        WHERE t.parent_id = ${course}::uuid AND n.title = 'ZZ998 course outline'
+      `;
+      expect(notes).toHaveLength(1);
+      expect(notes[0].content).toContain("- Explain queues");
+      expect((await getStudyMap(userId, id)).syllabusNoteId).toBe(
+        notes[0].note_id,
+      );
+      // a second pass reuses the cached descriptor and does not add another note
+      await reconcileStudyMaps();
+      expect(page).toHaveBeenCalledTimes(1);
+      const [{ count }] = await fixture<{ count: number }[]>`
+        SELECT count(*)::int AS count FROM app.notes WHERE user_id = ${userId}::uuid AND title = 'ZZ998 course outline'
+      `;
+      expect(count).toBe(1);
+    } finally {
+      vi.unstubAllGlobals();
+      await fixture`DELETE FROM app.module_descriptors WHERE code = 'ZZ998'`;
+    }
   });
 });

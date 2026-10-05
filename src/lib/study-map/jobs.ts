@@ -7,6 +7,17 @@ import { classifyStudySource } from "./classification";
 import { studyProviderStatus } from "./config";
 import { isCurrentAnchor } from "./evidence";
 import { extractStudyPaper, proposeStudyTopics } from "./generation";
+import { chooseSyllabus } from "./syllabus";
+import { decisionCache, generationCache } from "./cache";
+import {
+  buildCourseOutline,
+  fetchModuleDescriptor,
+  moduleCode,
+} from "./descriptor";
+import { CanvasClient } from "@/lib/canvas/client";
+import { loadCanvasCredentials } from "@/lib/canvas/credentials";
+import { insertNoteWithTree } from "@/lib/notes/storage/create-note";
+import { invalidateTreeAfterPublish } from "@/lib/notes/tree-cache";
 import {
   lockStudyMap,
   lockStudySource,
@@ -41,6 +52,9 @@ interface ClaimedJob {
 
 interface JobInput {
   source: SourceDocument;
+  /** topic proposals read the syllabus in full plus the opening of each other material */
+  sources: SourceDocument[];
+  syllabusNoteId: string | null;
   topics: StudyTopic[];
   version: number;
   taxonomyVersion: number;
@@ -159,10 +173,25 @@ export async function enqueueStudyJobs(
         "Topic proposals use the map's selected syllabus note.",
       );
     }
-    if (request.kind === "taxonomy" && !map.syllabus_note_id) {
+    // without a syllabus, topics come from the materials themselves
+    const [firstMaterial] =
+      request.kind === "taxonomy" && !map.syllabus_note_id
+        ? await tx<{ note_id: string }[]>`
+          SELECT material.note_id FROM app.study_materials material
+          JOIN app.notes n ON n.note_id = material.note_id AND n.user_id = material.user_id
+          WHERE material.user_id = ${userId}::uuid AND material.map_id = ${mapId}::uuid AND NOT material.excluded
+            AND n.deleted_at IS NULL AND NOT n.is_folder AND NOT n.is_import_cache_source
+          ORDER BY n.created_at, n.note_id LIMIT 1
+        `
+        : [];
+    if (
+      request.kind === "taxonomy" &&
+      !map.syllabus_note_id &&
+      !firstMaterial
+    ) {
       throw new ApiError(
         400,
-        "Select a syllabus note before proposing topics.",
+        "Add notes to this module before finding topics.",
       );
     }
     const [active] = await tx<{ count: number }[]>`
@@ -177,7 +206,9 @@ export async function enqueueStudyJobs(
       );
     }
     const explicitNote =
-      request.kind === "taxonomy" ? map.syllabus_note_id : request.noteId;
+      request.kind === "taxonomy"
+        ? (map.syllabus_note_id ?? firstMaterial?.note_id ?? null)
+        : request.noteId;
     const candidates = explicitNote
       ? [{ note_id: explicitNote, needed: true }]
       : await tx<Array<{ note_id: string; needed: boolean }>>`
@@ -295,7 +326,40 @@ async function readJobInput(job: ClaimedJob): Promise<JobInput> {
     requireProvider(job.kind);
     requireTopics(topics, job.kind);
     await requireCurrentTopicSources(tx, job.user_id, topics, job.kind);
-    const noteId = job.kind === "taxonomy" ? map.syllabus_note_id : job.note_id;
+    if (job.kind === "taxonomy") {
+      const rows = await tx<{ note_id: string }[]>`
+        SELECT material.note_id FROM app.study_materials material
+        JOIN app.notes n ON n.note_id = material.note_id AND n.user_id = material.user_id
+        WHERE material.user_id = ${job.user_id}::uuid AND material.map_id = ${job.map_id}::uuid AND NOT material.excluded
+          AND n.deleted_at IS NULL AND NOT n.is_folder AND NOT n.is_import_cache_source
+          AND COALESCE(material.overrides->>'kind', material.kind) <> 'past_paper'
+          AND EXISTS (SELECT 1 FROM app.tree_items t WHERE t.note_id = n.note_id AND t.user_id = n.user_id)
+        ORDER BY (n.note_id = ${map.syllabus_note_id}::uuid) DESC NULLS LAST, n.created_at, n.note_id
+        LIMIT ${MAX_TAXONOMY_SOURCES}
+      `;
+      const sources: SourceDocument[] = [];
+      for (const row of rows) {
+        try {
+          const source = await readSource(tx, job.user_id, row.note_id);
+          if (source.text.trim()) sources.push(source);
+        } catch (error) {
+          // an unreadable or oversized material is left out of the proposal, not fatal
+          if (!(error instanceof StudyJobError)) throw error;
+        }
+      }
+      if (!sources.length) throw new StudyJobError(messages.text);
+      return {
+        source: sources[0],
+        sources,
+        syllabusNoteId: map.syllabus_note_id,
+        topics,
+        noteId: sources[0].noteId,
+        version: map.version,
+        taxonomyVersion: map.taxonomy_version,
+        academicYear: map.academic_year,
+      };
+    }
+    const noteId = job.note_id;
     if (!noteId) throw new StudyJobError(messages.source);
     try {
       await requireStudyMaterial(tx, job.user_id, job.map_id, noteId);
@@ -308,6 +372,8 @@ async function readJobInput(job: ClaimedJob): Promise<JobInput> {
     if (!source.text.trim()) throw new StudyJobError(messages.text);
     return {
       source,
+      sources: [source],
+      syllabusNoteId: map.syllabus_note_id,
       topics,
       noteId,
       version: map.version,
@@ -403,6 +469,28 @@ function taxonomyMeaning(topics: StudyTopic[]): string {
   );
 }
 
+async function currentSource(
+  tx: Transaction,
+  job: ClaimedJob,
+  input: JobInput,
+): Promise<SourceDocument> {
+  try {
+    await requireStudyMaterial(tx, job.user_id, job.map_id, input.noteId);
+  } catch (error) {
+    if (error instanceof ApiError && error.statusCode === 404)
+      throw new StudyJobError(messages.material);
+    throw error;
+  }
+  const source = await readSource(tx, job.user_id, input.noteId);
+  if (
+    source.hash !== input.source.hash ||
+    source.noteId !== input.source.noteId ||
+    source.field !== input.source.field
+  )
+    throw new StudyJobError(messages.changed);
+  return source;
+}
+
 async function publishJob(
   job: ClaimedJob,
   input: JobInput,
@@ -415,7 +503,7 @@ async function publishJob(
     if (
       map.version !== input.version ||
       map.taxonomy_version !== input.taxonomyVersion ||
-      (job.kind === "taxonomy" && map.syllabus_note_id !== input.noteId)
+      (job.kind === "taxonomy" && map.syllabus_note_id !== input.syllabusNoteId)
     )
       throw new StudyJobError(messages.mapChanged);
     await requireCurrentTopicSources(
@@ -424,20 +512,11 @@ async function publishJob(
       topicSchema.array().parse(map.topics),
       job.kind,
     );
-    try {
-      await requireStudyMaterial(tx, job.user_id, job.map_id, input.noteId);
-    } catch (error) {
-      if (error instanceof ApiError && error.statusCode === 404)
-        throw new StudyJobError(messages.material);
-      throw error;
-    }
-    const source = await readSource(tx, job.user_id, input.noteId);
-    if (
-      source.hash !== input.source.hash ||
-      source.noteId !== input.source.noteId ||
-      source.field !== input.source.field
-    )
-      throw new StudyJobError(messages.changed);
+    // a proposal reads many sources; its quotes are rechecked against current text below instead
+    const source =
+      job.kind === "taxonomy"
+        ? input.source
+        : await currentSource(tx, job, input);
     const [lease] = await tx<{ id: string }[]>`
       SELECT id FROM app.study_jobs WHERE id = ${job.id}::uuid AND state = 'running'
         AND lease_token = ${job.lease_token}::uuid AND lease_until > clock_timestamp() FOR UPDATE
@@ -496,6 +575,41 @@ async function publishJob(
   });
 }
 
+const MAX_TAXONOMY_SOURCES = 60;
+const TAXONOMY_BUDGET_CHARS = 80_000;
+const MIN_PREVIEW_CHARS = 600;
+const RICH_SYLLABUS_CHARS = 1_500;
+
+/** fits every material's opening into one generation call; the syllabus, when chosen, stays whole */
+function taxonomyPreview(input: JobInput): {
+  sources: SourceDocument[];
+  previewChars: number;
+  fullSources: number;
+} {
+  const fullSources = input.syllabusNoteId ? 1 : 0;
+  const whole = fullSources ? input.sources[0].text.length : 0;
+  // a substantial outline already names the teaching units, so lectures would only add cost
+  if (whole >= RICH_SYLLABUS_CHARS)
+    return { sources: input.sources.slice(0, 1), fullSources, previewChars: 0 };
+  const room = Math.max(0, TAXONOMY_BUDGET_CHARS - whole);
+  // past the budget, later materials are left out rather than shrinking every preview to nothing
+  const previews = Math.min(
+    input.sources.length - fullSources,
+    Math.floor(room / MIN_PREVIEW_CHARS),
+  );
+  return {
+    sources: input.sources.slice(
+      0,
+      fullSources + Math.max(previews, fullSources ? 0 : 1),
+    ),
+    fullSources,
+    previewChars: Math.min(
+      3_000,
+      Math.max(MIN_PREVIEW_CHARS, Math.floor(room / Math.max(previews, 1))),
+    ),
+  };
+}
+
 let processing = false;
 
 export async function processNextStudyJob(): Promise<boolean> {
@@ -530,16 +644,24 @@ export async function processNextStudyJob(): Promise<boolean> {
       controller.signal.throwIfAborted();
       const result =
         job.kind === "taxonomy"
-          ? await proposeStudyTopics(
-              [input.source],
-              input.topics,
-              controller.signal,
-            )
+          ? await (async () => {
+              const { sources, ...preview } = taxonomyPreview(input);
+              return proposeStudyTopics(
+                sources,
+                input.topics,
+                controller.signal,
+                {
+                  ...preview,
+                  cache: generationCache,
+                },
+              );
+            })()
           : job.kind === "classify"
             ? await classifyStudySource(
                 input.source,
                 input.topics,
                 controller.signal,
+                decisionCache,
               )
             : await extractStudyPaper(
                 input.source,
@@ -548,6 +670,8 @@ export async function processNextStudyJob(): Promise<boolean> {
                 controller.signal,
               );
       await publishJob(job, input, result, controller.signal);
+      if (job.kind === "taxonomy")
+        await classifyAutomatically(job.user_id, job.map_id);
     } catch (error) {
       const safeMessage = controller.signal.aborted
         ? messages.lease
@@ -577,6 +701,165 @@ export async function processNextStudyJob(): Promise<boolean> {
   }
 }
 
+async function classifyAutomatically(userId: string, mapId: string) {
+  try {
+    await enqueueStudyJobs(
+      userId,
+      mapId,
+      { kind: "classify", noteId: null },
+      { automatic: true },
+    );
+  } catch (error) {
+    // an unconfigured provider or stale topic source leaves the map for manual review
+    if (!(error instanceof ApiError)) throw error;
+  }
+}
+
+/**
+ * a course outline from free sources, gathered before any lock is held: the public module
+ * descriptor for Galway courses, the Canvas syllabus and home page, and the imported module folders
+ */
+async function outlineFor(
+  userId: string,
+  mapId: string,
+): Promise<{ title: string; body: string } | null> {
+  const [row] = await sql<
+    Array<{
+      root: string;
+      title: string;
+      course: string;
+      domain: string | null;
+    }>
+  >`
+    SELECT folder.note_id AS root, folder.title, map.canvas_course_id AS course, login.canvas_domain AS domain
+    FROM app.study_maps map
+    JOIN app.login login ON login.user_id = map.user_id
+    JOIN app.notes folder ON folder.note_id = map.root_note_id AND folder.user_id = map.user_id
+    WHERE map.id = ${mapId}::uuid AND map.user_id = ${userId}::uuid
+      AND map.auto_classify AND map.syllabus_note_id IS NULL AND map.canvas_course_id IS NOT NULL
+  `;
+  if (!row) return null;
+  const code = moduleCode(row.title);
+  const modules = await sql<{ title: string }[]>`
+    SELECT n.title FROM app.notes n JOIN app.tree_items t ON t.note_id = n.note_id AND t.user_id = n.user_id
+    WHERE n.user_id = ${userId}::uuid AND t.parent_id = ${row.root}::uuid AND n.is_folder
+      AND n.deleted_at IS NULL AND n.canvas_module_id IS NOT NULL
+    ORDER BY n.created_at, n.note_id
+  `;
+  const [descriptor, canvas] = await Promise.all([
+    // module codes are only meaningful against the university that issued them
+    code && /galway/i.test(row.domain ?? "")
+      ? fetchModuleDescriptor(code)
+      : null,
+    (async () => {
+      const credentials = await loadCanvasCredentials(userId).catch(() => null);
+      if (!credentials) return null;
+      return new CanvasClient(credentials.domain, credentials.token)
+        .getCourseOutline(row.course)
+        .catch(() => null);
+    })(),
+  ]);
+  const title = code ?? row.title;
+  const body = buildCourseOutline({
+    title,
+    descriptor,
+    syllabus: canvas?.syllabus ?? null,
+    frontPage: canvas?.frontPage ?? null,
+    modules: modules.map((module) => module.title),
+  });
+  return body ? { title: `${title} course outline`, body } : null;
+}
+
+/**
+ * brings an opted-in map up to date without user input: pulls in its sources, adds the
+ * public module descriptor or picks a syllabus, proposes topics once from all of its
+ * material, then classifies new or changed material
+ */
+export async function autoConfigureStudyMap(
+  userId: string,
+  mapId: string,
+): Promise<void> {
+  await syncStudyMaterials(userId, mapId);
+  const outline = await outlineFor(userId, mapId);
+  let createdIn: string | null = null;
+  const map = await sql.begin(async (tx) => {
+    const map = await lockStudyMap(tx, userId, mapId);
+    if (!map.auto_classify || map.syllabus_note_id) return map;
+    let syllabusId: string | null = null;
+    if (outline && map.root_note_id) {
+      const title = outline.title;
+      const [existing] = await tx<{ note_id: string }[]>`
+        SELECT n.note_id FROM app.notes n
+        JOIN app.tree_items t ON t.note_id = n.note_id AND t.user_id = n.user_id
+        WHERE n.user_id = ${userId}::uuid AND t.parent_id = ${map.root_note_id}::uuid
+          AND n.title = ${title} AND n.deleted_at IS NULL AND NOT n.is_folder
+        LIMIT 1
+      `;
+      syllabusId =
+        existing?.note_id ??
+        (
+          await insertNoteWithTree(tx, {
+            noteId: randomUUID(),
+            userId,
+            title,
+            content: outline.body,
+            isFolder: false,
+            parentId: map.root_note_id,
+          })
+        ).noteId;
+      if (!existing) createdIn = map.root_note_id;
+      // an outline the student removed from the map stays removed
+      await tx`
+        INSERT INTO app.study_materials (map_id, user_id, note_id)
+        VALUES (${mapId}::uuid, ${userId}::uuid, ${syllabusId}::uuid) ON CONFLICT (map_id, note_id) DO NOTHING
+      `;
+    } else {
+      const candidates = await tx<Array<{ noteId: string; title: string }>>`
+        SELECT n.note_id AS "noteId", n.title FROM app.study_materials material
+        JOIN app.notes n ON n.note_id = material.note_id AND n.user_id = material.user_id
+        WHERE material.user_id = ${userId}::uuid AND material.map_id = ${mapId}::uuid AND NOT material.excluded
+          AND n.deleted_at IS NULL AND NOT n.is_folder AND NOT n.is_import_cache_source
+        ORDER BY n.created_at, n.note_id
+      `;
+      syllabusId = chooseSyllabus(candidates)?.noteId ?? null;
+    }
+    if (!syllabusId) return map;
+    await tx`
+      UPDATE app.study_maps SET syllabus_note_id = ${syllabusId}::uuid, version = version + 1, updated_at = NOW()
+      WHERE id = ${mapId}::uuid AND user_id = ${userId}::uuid
+    `;
+    return { ...map, syllabus_note_id: syllabusId };
+  });
+  if (createdIn) await invalidateTreeAfterPublish(userId, createdIn);
+  if (!map.auto_classify) return;
+  if (topicSchema.array().parse(map.topics).length > 0) {
+    await classifyAutomatically(userId, mapId);
+    return;
+  }
+  // propose once per map, after imports settle, so the topics see the whole course;
+  // an empty or rejected proposal must not rerun a paid call every minute
+  const [blocked] = await sql<{ reason: string }[]>`
+    SELECT 'proposed' AS reason FROM app.study_jobs
+    WHERE user_id = ${userId}::uuid AND map_id = ${mapId}::uuid AND kind = 'taxonomy'
+    UNION ALL
+    SELECT 'importing' FROM app.canvas_import_jobs
+    WHERE user_id = ${userId}::uuid AND status IN ('queued', 'discovering', 'processing')
+    LIMIT 1
+  `;
+  if (blocked) return;
+  try {
+    await enqueueStudyJobs(
+      userId,
+      mapId,
+      { kind: "taxonomy", noteId: null },
+      { automatic: true },
+    );
+  } catch (error) {
+    // no generation provider or no readable material yet: the map still shows its weeks
+    if (!(error instanceof ApiError)) throw error;
+  }
+}
+
 let reconciliationCursor = "00000000-0000-0000-0000-000000000000";
 let reconciling = false;
 
@@ -594,15 +877,9 @@ export async function reconcileStudyMaps(): Promise<void> {
         : "00000000-0000-0000-0000-000000000000";
     for (const map of maps) {
       try {
-        await syncStudyMaterials(map.user_id, map.id);
-        await enqueueStudyJobs(
-          map.user_id,
-          map.id,
-          { kind: "classify", noteId: null },
-          { automatic: true },
-        );
+        await autoConfigureStudyMap(map.user_id, map.id);
       } catch (error) {
-        // unavailable providers, deleted maps and oversized roots do not stop other maps
+        // deleted maps and oversized roots do not stop other maps
         if (!(error instanceof ApiError)) throw error;
       }
     }

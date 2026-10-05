@@ -266,6 +266,12 @@ export interface StudyMapSnapshot {
   };
 }
 
+/** academic years start in September, written as 2025/26 */
+export function currentAcademicYear(now = new Date()): string {
+  const year = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1;
+  return `${year}/${String(year + 1).slice(-2)}`;
+}
+
 export const mapCreateSchema = z.object({
   name: z.string().trim().min(1).max(160),
   academicYear: z.string().trim().min(1).max(40),
