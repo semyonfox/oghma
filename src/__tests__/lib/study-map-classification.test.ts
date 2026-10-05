@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { classifyStudySource } from "@/lib/study-map/classification";
+import {
+  classifyStudySource,
+  type StudyDecisionCache,
+} from "@/lib/study-map/classification";
 import { sourceDocument } from "@/lib/study-map/evidence";
 import { topicSchema, type StudyTopic } from "@/lib/study-map/types";
 
@@ -503,6 +506,86 @@ describe("study classifier Decisions boundary", () => {
       );
     },
   );
+});
+
+describe("study classifier cost controls", () => {
+  const slides = sourceDocument({
+    noteId: "55555555-5555-4555-8555-555555555555",
+    title: "Lecture 3 slides",
+    content: Array.from(
+      { length: 12 },
+      (_, index) =>
+        `Slide ${index + 1}: a transaction groups statements so they commit or roll back together.`,
+    ).join("\n\n"),
+    extractedText: null,
+  });
+  const questionsSent = () =>
+    fetchMock.mock.calls.flatMap(([, init]) =>
+      Object.values(requestFrom(init).questions),
+    );
+
+  function memoryCache(): StudyDecisionCache & { size: () => number } {
+    const entries = new Map<string, unknown>();
+    return {
+      size: () => entries.size,
+      async get(keys) {
+        return new Map(
+          keys.flatMap((key) =>
+            entries.has(key) ? [[key, entries.get(key)] as const] : [],
+          ),
+        );
+      },
+      async set(values) {
+        for (const { key, value } of values) entries.set(key, value);
+      },
+    };
+  }
+
+  it("merges slide fragments and asks the document kind once", async () => {
+    await classifyStudySource(slides, topics);
+    const sent = questionsSent();
+    const kinds = sent.filter((question) => "syllabus" in question.criteria);
+    expect(kinds).toHaveLength(1);
+    // 12 fragments of ~90 characters fit in one merged passage: 2 topics + 6 labels + kind
+    expect(sent).toHaveLength(9);
+  });
+
+  it("answers repeated material from the shared cache without a provider call", async () => {
+    const cache = memoryCache();
+    const first = await classifyStudySource(slides, topics, undefined, cache);
+    expect(cache.size()).toBe(9);
+    fetchMock.mockClear();
+    // another student's copy: same text, different note and topic IDs
+    const copy = sourceDocument({
+      noteId: "66666666-6666-4666-8666-666666666666",
+      title: slides.title,
+      content: slides.text,
+      extractedText: null,
+    });
+    const renamed = topics.map((topic, index) => ({
+      ...topic,
+      id: [
+        "77777777-7777-4777-8777-777777777777",
+        "88888888-8888-4888-8888-888888888888",
+      ][index],
+    }));
+    const second = await classifyStudySource(copy, renamed, undefined, cache);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(second.kind).toBe(first.kind);
+    expect(second.cost).toBe(0);
+  });
+
+  it("asks only the questions whose topic meaning changed", async () => {
+    const cache = memoryCache();
+    await classifyStudySource(slides, topics, undefined, cache);
+    fetchMock.mockClear();
+    const edited = [
+      topics[0],
+      { ...topics[1], definition: "Foreign keys and referential constraints" },
+    ];
+    await classifyStudySource(slides, edited, undefined, cache);
+    expect(questionsSent()).toHaveLength(1);
+  });
 });
 
 describe("study classifier request retries", () => {

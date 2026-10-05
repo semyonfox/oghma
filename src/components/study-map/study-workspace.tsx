@@ -29,6 +29,7 @@ import {
   summarySchema,
 } from "./study-client";
 import {
+  currentAcademicYear,
   documentKinds,
   documentKindSchema,
   effectiveAssociations,
@@ -95,11 +96,9 @@ const errorClass =
   "break-words rounded-radius-md bg-error-500/10 p-3 text-sm text-error-700 dark:text-error-300";
 
 function defaultFields(): MapFields {
-  const now = new Date();
-  const year = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1;
   return {
     name: "",
-    academicYear: `${year}/${String(year + 1).slice(-2)}`,
+    academicYear: currentAcademicYear(),
     rootNoteId: null,
     canvasCourseId: null,
     syllabusNoteId: null,
@@ -295,10 +294,17 @@ function MapForm({
       className="space-y-4 rounded-radius-xl border border-border-subtle bg-surface p-4 sm:p-5"
     >
       <h2 className="text-lg font-semibold">
-        {creating ? "Create a module map" : "Module settings"}
+        {creating ? "Add a module" : "Module settings"}
       </h2>
+      {creating && (
+        <p className="text-sm text-text-secondary">
+          Imported Canvas courses get a module automatically. For anything else,
+          name it and pick the folder its notes live in. The syllabus and topics
+          are found for you.
+        </p>
+      )}
       <fieldset disabled={busy} className="min-w-0 space-y-4">
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className={creating ? "" : "grid gap-4 sm:grid-cols-2"}>
           <label className="block space-y-1 text-sm font-medium">
             Module name
             <input
@@ -312,38 +318,43 @@ function MapForm({
               }
             />
           </label>
-          <label className="block space-y-1 text-sm font-medium">
-            Academic year
-            <input
-              className={fieldClass}
-              required
-              maxLength={40}
-              value={fields.academicYear}
-              onChange={(event) =>
-                setFields({ ...fields, academicYear: event.target.value })
-              }
-            />
-          </label>
+          {!creating && (
+            <label className="block space-y-1 text-sm font-medium">
+              Academic year
+              <input
+                className={fieldClass}
+                required
+                maxLength={40}
+                value={fields.academicYear}
+                onChange={(event) =>
+                  setFields({ ...fields, academicYear: event.target.value })
+                }
+              />
+            </label>
+          )}
         </div>
         <SourcePicker
-          label="Source folder, optional"
+          label="Notes folder"
           folder
           value={fields.rootNoteId}
           onChange={(rootNoteId) => setFields({ ...fields, rootNoteId })}
           disabled={busy}
         />
         <p className="text-xs text-text-tertiary">
-          Notes and files in this folder can be added with Sync sources.
+          Everything in this folder joins the module, including notes added
+          later.
         </p>
-        <SourcePicker
-          label="Syllabus note, optional"
-          folder={false}
-          value={fields.syllabusNoteId}
-          onChange={(syllabusNoteId) =>
-            setFields({ ...fields, syllabusNoteId })
-          }
-          disabled={busy}
-        />
+        {!creating && (
+          <SourcePicker
+            label="Syllabus"
+            folder={false}
+            value={fields.syllabusNoteId}
+            onChange={(syllabusNoteId) =>
+              setFields({ ...fields, syllabusNoteId })
+            }
+            disabled={busy}
+          />
+        )}
         {!creating && (
           <label className="flex min-h-11 items-start gap-3 py-2 text-sm">
             <input
@@ -356,23 +367,18 @@ function MapForm({
             />
             <span>
               <span className="block font-medium">
-                Classify changed materials automatically
+                Keep this module organised automatically
               </span>
               <span className="text-text-secondary">
-                Opt in to background classification when sources change.
-                Suggestions still need your review, and your saved corrections
-                are kept.
+                New and changed notes are sorted into topics in the background.
+                Your own corrections are always kept.
               </span>
             </span>
           </label>
         )}
         <div className="flex flex-wrap gap-2">
           <button type="submit" className={primaryClass}>
-            {busy
-              ? "Saving..."
-              : creating
-                ? "Create module map"
-                : "Save settings"}
+            {busy ? "Saving..." : creating ? "Add module" : "Save settings"}
           </button>
           <button type="button" className={secondaryClass} onClick={onCancel}>
             Cancel
@@ -876,6 +882,52 @@ function MaterialList({
   );
 }
 
+type ActiveJob = StudyMapSnapshot["jobs"][number];
+
+/** one line saying what the automatic setup is doing, or offering the one action it could use */
+function describeSetup(
+  snapshot: StudyMapSnapshot,
+  activeJobs: ActiveJob[],
+): { text: string; action?: "find" | "find-now" } | null {
+  const { map, provider } = snapshot;
+  if (activeJobs.some((job) => job.kind === "taxonomy"))
+    return { text: "Reading this module's material to find its topics..." };
+  const sorting = activeJobs.filter((job) => job.kind === "classify").length;
+  if (sorting > 0)
+    return {
+      text: `Sorting ${sorting} ${sorting === 1 ? "note" : "notes"} into topics. The map fills in as they finish.`,
+    };
+  if (map.topics.length > 0) return null;
+  if (snapshot.materials.length === 0)
+    return {
+      text:
+        map.rootNoteId || map.canvasCourseId
+          ? "Waiting for this module's notes to arrive."
+          : "This module has no notes yet. Add materials or choose its notes folder in Module settings.",
+    };
+  if (!provider.generationReady)
+    return {
+      text: "Topic suggestions are unavailable right now. Notes are laid out by week, and you can add topics yourself under Topics.",
+    };
+  const proposal = snapshot.jobs.find((job) => job.kind === "taxonomy");
+  if (proposal?.state === "failed")
+    return {
+      text: `Topics could not be found. ${proposal.error ?? ""}`,
+      action: "find",
+    };
+  if (proposal)
+    return {
+      text: "No topics were found in this module's material. Add one yourself under Topics, or try again.",
+      action: "find",
+    };
+  return {
+    text: map.autoClassify
+      ? "Notes are laid out by week. Topics are found automatically once the course finishes importing."
+      : "Notes are laid out by week. Find topics to group them.",
+    action: map.autoClassify ? "find-now" : "find",
+  };
+}
+
 function ModuleWorkspace({
   mapId,
   initialNoteId,
@@ -1184,9 +1236,7 @@ function ModuleWorkspace({
     (job) => job.state === "pending" || job.state === "running",
   );
   const reviewedTopics = map.topics.filter((topic) => topic.reviewed).length;
-  const reviewedMaterials = snapshot.materials.filter(
-    (material) => reviewState(material, map.taxonomyVersion) === "reviewed",
-  ).length;
+  const setupStatus = describeSetup(snapshot, activeJobs);
   const inspector = selection && (
     <StudyInspector
       snapshot={snapshot}
@@ -1357,56 +1407,63 @@ function ModuleWorkspace({
             </button>
           </div>
         )}
+      {setupStatus?.action && (
+        <div
+          role="status"
+          className="flex flex-wrap items-center gap-3 rounded-radius-lg border border-border-subtle bg-surface p-3 text-sm text-text-secondary"
+        >
+          <p className="min-w-0 flex-1 break-words">{setupStatus.text}</p>
+          <button
+            type="button"
+            className={secondaryClass}
+            disabled={busy !== null}
+            onClick={() => launch(queue("taxonomy"))}
+          >
+            {setupStatus.action === "find-now"
+              ? "Find topics now"
+              : "Find topics"}
+          </button>
+        </div>
+      )}
       <details
-        open={topicsOpen ?? map.topics.length === 0}
+        open={topicsOpen ?? false}
         onToggle={(event) => setTopicsOpen(event.currentTarget.open)}
         className="rounded-radius-lg border border-border-subtle bg-surface"
       >
         <summary className="cursor-pointer px-3 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-primary-500">
-          Topics and classification
+          Topics
           <span className="ml-2 text-xs font-normal text-text-tertiary">
-            {reviewedTopics}/{map.topics.length} topics approved
-            {activeJobs.length > 0 ? ` · ${activeJobs.length} processing` : ""}
+            {map.topics.length} topics
+            {reviewedTopics < map.topics.length
+              ? ` · ${map.topics.length - reviewedTopics} to check`
+              : ""}
+            {map.autoClassify ? " · organised automatically" : ""}
           </span>
+          {/* progress lives in this always-present row so the map below never shifts while jobs run */}
+          {setupStatus && !setupStatus.action && (
+            <span
+              role="status"
+              className="ml-2 text-xs font-normal text-text-secondary"
+            >
+              · {setupStatus.text}
+            </span>
+          )}
         </summary>
         <div className="space-y-3 border-t border-border-subtle p-3">
-          <p className="text-xs text-text-secondary">
-            {reviewedMaterials}/{snapshot.materials.length} materials reviewed
-            {map.autoClassify ? " · Automatic classification on" : ""}
-          </p>
           <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              className={secondaryClass}
-              disabled={
-                busy !== null || (!map.rootNoteId && !map.canvasCourseId)
-              }
-              onClick={() =>
-                launch(
-                  mutation(
-                    "/refresh",
-                    "POST",
-                    {},
-                    "Source folder and course materials synced.",
-                  ),
-                )
-              }
-            >
-              Sync sources
-            </button>
-            <button
-              type="button"
-              className={secondaryClass}
-              disabled={
-                busy !== null ||
-                !map.syllabusNoteId ||
-                !snapshot.provider.generationReady ||
-                activeJobs.some((job) => job.kind === "taxonomy")
-              }
-              onClick={() => launch(queue("taxonomy"))}
-            >
-              Propose syllabus topics
-            </button>
+            {map.topics.length > 0 && snapshot.provider.generationReady && (
+              <button
+                type="button"
+                className={secondaryClass}
+                disabled={
+                  busy !== null ||
+                  activeJobs.some((job) => job.kind === "taxonomy")
+                }
+                onClick={() => launch(queue("taxonomy"))}
+              >
+                Find topics again
+              </button>
+            )}
             <button
               type="button"
               className={secondaryClass}
@@ -1416,39 +1473,43 @@ function ModuleWorkspace({
             >
               Add a topic
             </button>
-            <button
-              type="button"
-              className={secondaryClass}
-              disabled={
-                busy !== null ||
-                !snapshot.provider.ready ||
-                reviewedTopics === 0 ||
-                snapshot.materials.length === 0 ||
-                activeJobs.some((job) => job.kind === "classify")
-              }
-              onClick={() => launch(queue("classify"))}
-            >
-              Classify materials
-            </button>
-            <button
-              type="button"
-              className={secondaryClass}
-              disabled={busy !== null}
-              onClick={() =>
-                launch(
-                  operate(
-                    "refresh",
-                    async () => {
-                      await refresh();
-                    },
-                    "Results refreshed.",
-                    false,
-                  ),
-                )
-              }
-            >
-              Refresh results
-            </button>
+            {!map.autoClassify && (
+              <>
+                <button
+                  type="button"
+                  className={secondaryClass}
+                  disabled={
+                    busy !== null || (!map.rootNoteId && !map.canvasCourseId)
+                  }
+                  onClick={() =>
+                    launch(
+                      mutation(
+                        "/refresh",
+                        "POST",
+                        {},
+                        "Source folder and course materials synced.",
+                      ),
+                    )
+                  }
+                >
+                  Sync sources
+                </button>
+                <button
+                  type="button"
+                  className={secondaryClass}
+                  disabled={
+                    busy !== null ||
+                    !snapshot.provider.ready ||
+                    reviewedTopics === 0 ||
+                    snapshot.materials.length === 0 ||
+                    activeJobs.some((job) => job.kind === "classify")
+                  }
+                  onClick={() => launch(queue("classify"))}
+                >
+                  Classify materials
+                </button>
+              </>
+            )}
           </div>
           {topicForm && (
             <ManualTopic
@@ -1461,64 +1522,34 @@ function ModuleWorkspace({
             />
           )}
           {map.topics.length > 0 && (
-            <details className="rounded-radius-lg border border-border-subtle p-3">
-              <summary className="cursor-pointer text-sm font-medium">
-                Review topic definitions · {map.topics.length - reviewedTopics}{" "}
-                pending
-              </summary>
-              <ul className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {map.topics.map((topic) => (
-                  <li key={topic.id}>
-                    <button
-                      type="button"
-                      className={`${secondaryClass} w-full justify-start text-left`}
-                      onClick={() =>
-                        selectInspector({ kind: "topic", id: topic.id })
-                      }
-                    >
-                      <span className="min-w-0">
-                        <span className="block break-words">{topic.name}</span>
-                        <span className="block text-xs text-text-tertiary">
-                          {topic.reviewed
-                            ? "Approved by you"
-                            : "Pending review"}
-                          {topic.sources.length === 0
-                            ? " · Your definition"
-                            : " · Source definition"}
-                        </span>
+            <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {map.topics.map((topic) => (
+                <li key={topic.id}>
+                  <button
+                    type="button"
+                    className={`${secondaryClass} w-full justify-start text-left`}
+                    onClick={() =>
+                      selectInspector({ kind: "topic", id: topic.id })
+                    }
+                  >
+                    <span className="min-w-0">
+                      <span className="block break-words">{topic.name}</span>
+                      <span className="block text-xs text-text-tertiary">
+                        {topic.reviewed ? "In use" : "Check and approve"}
+                        {topic.sources.length === 0
+                          ? " · Your definition"
+                          : " · From the syllabus"}
                       </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </details>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
           )}
-          {map.topics.length === 0 ? (
-            <p className="text-sm text-text-secondary">
-              Start with a syllabus note to propose topics, or add your own
-              definition.
-            </p>
-          ) : reviewedTopics === 0 ? (
-            <p className="text-sm text-text-secondary">
-              Open a topic and approve its definition before classifying
-              materials or analysing papers.
-            </p>
-          ) : null}
           {!snapshot.provider.ready && (
             <p className="text-sm text-text-secondary">
-              Automatic classification is unavailable. You can organise
-              materials and review topics yourself.
-            </p>
-          )}
-          {!snapshot.provider.generationReady && (
-            <p className="text-xs text-text-tertiary">
-              Syllabus topic proposals and paper analysis are unavailable.
-            </p>
-          )}
-          {activeJobs.length > 0 && (
-            <p role="status" className="text-sm text-text-secondary">
-              {activeJobs.length} {activeJobs.length === 1 ? "job" : "jobs"}{" "}
-              queued or running. Results refresh automatically.
+              Automatic sorting is unavailable. You can organise materials and
+              topics yourself.
             </p>
           )}
           {snapshot.jobs.some((job) => job.state === "failed") && (
@@ -1707,9 +1738,9 @@ export default function StudyWorkspace({
 }: StudyWorkspaceProps) {
   const [maps, setMaps] = useState(initialMaps);
   const [mapId, setMapId] = useState(initialMapId ?? initialMaps[0]?.id ?? "");
-  const [creating, setCreating] = useState(
-    initialMaps.length === 0 && !initialMapId,
-  );
+  const [creating, setCreating] = useState(false);
+  // imported courses become modules on open; only an empty result shows the manual form
+  const [settingUp, setSettingUp] = useState(true);
   const [searching, setSearching] = useState(false);
   const [noteId, setNoteId] = useState(initialNoteId);
   const [noteRequest, setNoteRequest] = useState(0);
@@ -1733,6 +1764,39 @@ export default function StudyWorkspace({
       .array()
       .parse(await requestJson("/api/study-maps"));
     setMaps(incoming);
+  }, []);
+
+  // a ref rather than a cancel flag: strict mode reruns the effect, and the
+  // first request may already have created the modules the second one would miss
+  const setupStarted = useRef(false);
+  useEffect(() => {
+    if (setupStarted.current) return;
+    setupStarted.current = true;
+    void (async () => {
+      try {
+        const { created } = z
+          .object({ created: z.number().int().nonnegative() })
+          .parse(
+            await requestJson("/api/study-maps/setup", {
+              method: "POST",
+              body: "{}",
+            }),
+          );
+        if (created === 0) return;
+        const incoming = summarySchema
+          .array()
+          .parse(await requestJson("/api/study-maps"));
+        setMaps(incoming);
+        setMapId((current) => current || incoming[0]?.id || "");
+        setMessage(
+          `Added ${created} ${created === 1 ? "module" : "modules"} from your Canvas courses.`,
+        );
+      } catch (error) {
+        setError(messageFor(error));
+      } finally {
+        setSettingUp(false);
+      }
+    })();
   }, []);
 
   async function create(fields: MapFields) {
@@ -1777,7 +1841,6 @@ export default function StudyWorkspace({
     });
     setNoteId(null);
     setMapId(incoming[0]?.id ?? "");
-    if (incoming.length === 0) setCreating(true);
   }
 
   return (
@@ -1787,7 +1850,7 @@ export default function StudyWorkspace({
           Study maps
         </h1>
         {maps.length > 0 && (
-          <label className="block min-w-0 flex-1 text-sm font-medium sm:max-w-sm">
+          <label className="block min-w-[12rem] flex-1 text-sm font-medium sm:max-w-sm">
             <span className="sr-only">Module</span>
             <select
               className={`${fieldClass} lg:min-h-8 lg:py-1`}
@@ -1841,7 +1904,7 @@ export default function StudyWorkspace({
             }}
             aria-expanded={creating}
           >
-            New module
+            Add module
           </button>
         </div>
       </header>
@@ -1905,23 +1968,33 @@ export default function StudyWorkspace({
             onDeleted={deleted}
             onBusyChange={setBusy}
           />
+        ) : settingUp ? (
+          <p
+            role="status"
+            className="rounded-radius-xl border border-border-subtle bg-surface p-6 text-sm text-text-secondary"
+          >
+            Setting up your modules...
+          </p>
         ) : (
           !creating && (
             <section className="rounded-radius-xl border border-border-subtle bg-surface p-6">
-              <h2 className="text-lg font-semibold">
-                Create your first module map
-              </h2>
+              <h2 className="text-lg font-semibold">No modules yet</h2>
               <p className="mt-2 text-sm text-text-secondary">
-                Choose a module and academic year. Add its notes, syllabus, and
-                past papers as you go.
+                Import a course from Canvas and its module map appears here on
+                its own, laid out by week and sorted into topics.
               </p>
-              <button
-                type="button"
-                className={`${primaryClass} mt-4`}
-                onClick={() => setCreating(true)}
-              >
-                Create a module
-              </button>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Link href="/settings#canvas" className={primaryClass}>
+                  Connect Canvas
+                </Link>
+                <button
+                  type="button"
+                  className={secondaryClass}
+                  onClick={() => setCreating(true)}
+                >
+                  Add a module from a folder
+                </button>
+              </div>
             </section>
           )
         )}

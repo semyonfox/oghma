@@ -123,6 +123,20 @@ describe("study map source evidence", () => {
     }
   });
 
+  it("merges short neighbouring blocks into exact, longer passages when asked", () => {
+    const slides = source("Slide one.\n\nSlide two.\n\nSlide three.");
+    expect(splitSourcePassages(slides)).toHaveLength(3);
+    const merged = splitSourcePassages(slides, 1_600, 1_200);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].text).toBe(slides.text);
+    expect(isCurrentAnchor(merged[0].anchor, slides)).toBe(true);
+    // merging never grows a passage past the maximum
+    expect(splitSourcePassages(slides, 24, 1_200).map((p) => p.text)).toEqual([
+      "Slide one.\n\nSlide two.",
+      "Slide three.",
+    ]);
+  });
+
   it("splits long blocks without losing whitespace or changing offsets", () => {
     const text = "one two three four five six seven eight nine ten ".repeat(8);
     const document = source(text);

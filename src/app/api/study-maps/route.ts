@@ -6,7 +6,8 @@ import {
   withErrorHandler,
 } from "@/lib/api-error";
 import { listStudyMaps, getNoteStudyMaps } from "@/lib/study-map/repository";
-import { createStudyMap, syncStudyMaterials } from "@/lib/study-map/mutations";
+import { createStudyMap } from "@/lib/study-map/mutations";
+import { autoConfigureStudyMap } from "@/lib/study-map/jobs";
 import { mapCreateSchema } from "@/lib/study-map/types";
 import { readStudyBody } from "@/lib/study-map/api";
 
@@ -26,7 +27,7 @@ export const POST = withErrorHandler(async (request) => {
   const mapId = await createStudyMap(user.user_id, input);
   let warning: string | null = null;
   try {
-    await syncStudyMaterials(user.user_id, mapId);
+    await autoConfigureStudyMap(user.user_id, mapId);
   } catch (error) {
     if (!(error instanceof ApiError)) throw error;
     warning = error.userMessage;

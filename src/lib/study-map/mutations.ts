@@ -284,9 +284,17 @@ export async function createStudyMap(
     >`SELECT count(*)::int AS count FROM app.study_maps WHERE user_id = ${userId}::uuid`;
     if (count.count >= 100)
       throw new ApiError(400, "You can create up to 100 study maps");
+    if (input.canvasCourseId) {
+      const [existing] = await tx<{ id: string }[]>`
+        SELECT id FROM app.study_maps WHERE user_id = ${userId}::uuid AND canvas_course_id = ${input.canvasCourseId}
+      `;
+      if (existing)
+        throw new ApiError(409, "This course already has a study map");
+    }
+    // new maps classify in the background; the setting can be turned off per module
     const [map] = await tx<{ id: string }[]>`
-      INSERT INTO app.study_maps (user_id, name, academic_year, root_note_id, canvas_course_id, syllabus_note_id)
-      VALUES (${userId}::uuid, ${input.name}, ${input.academicYear}, ${input.rootNoteId}::uuid, ${input.canvasCourseId}, ${input.syllabusNoteId}::uuid)
+      INSERT INTO app.study_maps (user_id, name, academic_year, root_note_id, canvas_course_id, syllabus_note_id, auto_classify)
+      VALUES (${userId}::uuid, ${input.name}, ${input.academicYear}, ${input.rootNoteId}::uuid, ${input.canvasCourseId}, ${input.syllabusNoteId}::uuid, TRUE)
       RETURNING id
     `;
     if (input.syllabusNoteId)
@@ -320,7 +328,12 @@ export async function updateStudyMap(
 
 export async function deleteStudyMap(userId: string, mapId: string) {
   await sql.begin(async (tx) => {
-    await lockStudyMap(tx, userId, mapId);
+    const map = await lockStudyMap(tx, userId, mapId);
+    if (map.canvas_course_id)
+      await tx`
+        INSERT INTO app.study_map_dismissed_courses (user_id, canvas_course_id)
+        VALUES (${userId}::uuid, ${map.canvas_course_id}) ON CONFLICT DO NOTHING
+      `;
     await tx`DELETE FROM app.study_maps WHERE user_id = ${userId}::uuid AND id = ${mapId}::uuid`;
   });
 }

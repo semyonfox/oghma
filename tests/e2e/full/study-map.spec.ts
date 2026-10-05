@@ -20,6 +20,7 @@ const snapshotSchema = z.object({
     version: z.number(),
     taxonomyVersion: z.number(),
     boardVersion: z.number(),
+    syllabusNoteId: z.uuid().nullable(),
     topics: topicSchema.array(),
     board: boardSchema,
   }),
@@ -118,6 +119,21 @@ async function createMap(page: Page, owned: OwnedRecords, name: string) {
   const body: unknown = await response.json();
   const { mapId } = mapResponseSchema.parse(body);
   owned.maps.push(mapId);
+  // layout tests drive the map by hand; background sorting would refresh it underneath them
+  const { map } = await readSnapshot(page, mapId);
+  const manual = await page.request.patch(`/api/study-maps/${mapId}`, {
+    headers: origin(page),
+    data: {
+      name,
+      academicYear: "2025/26",
+      rootNoteId: null,
+      canvasCourseId: null,
+      syllabusNoteId: null,
+      autoClassify: false,
+      version: map.version,
+    },
+  });
+  expect(manual.ok()).toBe(true);
   return mapId;
 }
 
@@ -280,7 +296,7 @@ async function closePreview(page: Page) {
   ).toHaveCount(0);
 }
 
-test("a student creates a map, chooses a syllabus, approves topics and classifies a library note", async ({
+test("a student adds a module and its notes, and topics and classification follow on their own", async ({
   loggedInPage: page,
   owned,
   browserErrors,
@@ -290,7 +306,7 @@ test("a student creates a map, chooses a syllabus, approves topics and classifie
   const syllabus = await createNote(
     page,
     owned,
-    `Workflow syllabus ${suffix}`,
+    `Workflow course outline ${suffix}`,
     "## Graphs\n\nGraphs represent vertices and edges. Graph traversal visits reachable vertices with a frontier.\n\n## Complexity\n\nComplexity describes the time and space used by algorithms as the input grows.",
   );
   const lecture = await createNote(
@@ -301,21 +317,16 @@ test("a student creates a map, chooses a syllabus, approves topics and classifie
   );
 
   await page.goto("/study-map");
-  await page.getByRole("button", { name: "New module", exact: true }).click();
+  await page.getByRole("button", { name: "Add module", exact: true }).click();
   await page.getByLabel("Module name", { exact: true }).fill(name);
-  await page.getByLabel("Academic year", { exact: true }).fill("2025/26");
-  await page.getByRole("button", { name: "Choose note", exact: true }).click();
-  await page
-    .getByLabel("Search notes by title", { exact: true })
-    .fill(syllabus.title);
-  await page.getByRole("button", { name: syllabus.title, exact: true }).click();
   const created = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname === "/api/study-maps" &&
       response.request().method() === "POST",
   );
   await page
-    .getByRole("button", { name: "Create module map", exact: true })
+    .getByRole("button", { name: "Add module", exact: true })
+    .last()
     .click();
   const createResponse = await created;
   expect(createResponse.status()).toBe(201);
@@ -329,74 +340,29 @@ test("a student creates a map, chooses a syllabus, approves topics and classifie
   await page
     .getByRole("button", { name: "Add materials", exact: true })
     .click();
+  for (const note of [syllabus, lecture]) {
+    await page
+      .getByLabel("Search library by title", { exact: true })
+      .fill(note.title);
+    await page.getByRole("checkbox", { name: note.title, exact: true }).check();
+  }
   await page
-    .getByLabel("Search library by title", { exact: true })
-    .fill(lecture.title);
-  await page
-    .getByRole("checkbox", { name: lecture.title, exact: true })
-    .check();
-  await page
-    .getByRole("button", { name: "Add 1 material", exact: true })
+    .getByRole("button", { name: "Add 2 materials", exact: true })
     .click();
+  // nothing else to choose: the outline is recognised and topics come from the notes
   await expect
-    .poll(async () =>
-      (await readSnapshot(page, mapId)).materials.map((entry) => entry.noteId),
-    )
-    .toContain(lecture.id);
-  await expect(
-    page.getByRole("button", { name: "Classify materials", exact: true }),
-  ).toBeDisabled();
-  await page
-    .getByRole("button", { name: "Propose syllabus topics", exact: true })
-    .click();
+    .poll(async () => (await readSnapshot(page, mapId)).map.syllabusNoteId)
+    .toBe(syllabus.id);
+
   await expect
     .poll(
       async () =>
         (await readSnapshot(page, mapId)).map.topics
-          .map((entry) => entry.name)
+          .map((entry) => `${entry.name}:${entry.reviewed}`)
           .sort(),
       { timeout: 45_000 },
     )
-    .toEqual(["Complexity", "Graphs"]);
-  const definitionsSummary = page
-    .locator("summary")
-    .filter({ hasText: /^Review topic definitions/ });
-  await expect(definitionsSummary).toBeAttached();
-  if (!(await definitionsSummary.isVisible())) {
-    await page
-      .locator("summary")
-      .filter({ hasText: /^Topics and classification/ })
-      .click();
-  }
-  const definitions = definitionsSummary.locator("..");
-  await definitionsSummary.click();
-  for (const topicName of ["Graphs", "Complexity"]) {
-    await definitions
-      .getByRole("button", { name: new RegExp(`^${topicName}`) })
-      .click();
-    await expect(
-      page.getByRole("heading", { name: "Definition sources", exact: true }),
-    ).toBeVisible();
-    await page.getByRole("checkbox", { name: /^Approve topic/ }).check();
-    await page.getByRole("button", { name: "Save topic", exact: true }).click();
-    await expect
-      .poll(
-        async () =>
-          (await readSnapshot(page, mapId)).map.topics.find(
-            (entry) => entry.name === topicName,
-          )?.reviewed,
-      )
-      .toBe(true);
-    await page
-      .getByRole("button", { name: "Close inspector", exact: true })
-      .click();
-  }
-  await expect(
-    page.getByRole("button", { name: "Classify materials", exact: true }),
-  ).toBeEnabled();
-  await page
-    .getByRole("button", { name: "Classify materials", exact: true })
-    .click();
+    .toEqual(["Complexity:true", "Graphs:true"]);
   await expect
     .poll(
       async () =>
