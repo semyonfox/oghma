@@ -1,6 +1,5 @@
 "use client";
 
-import NoteStudyLabels from "@/components/study-map/note-study-labels";
 
 import { FC, memo, useCallback, useRef, useState } from "react";
 import dynamic from "next/dynamic";
@@ -491,7 +490,6 @@ const EditorPane: FC<EditorPaneProps> = ({
       </div>
 
       {/* File Renderer */}
-      <NoteStudyLabels key={file.fileId} noteId={file.fileId} compact />
       <div className="min-h-0 flex-1 overflow-auto overscroll-contain bg-background">
         <FileRenderer key={file.fileId} pane={pane} file={file} />
       </div>
