@@ -14,6 +14,7 @@ import {
   SparklesIcon,
   ExclamationTriangleIcon,
   ArrowRightStartOnRectangleIcon,
+  ShieldCheckIcon,
 } from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { Locale, normalizeLocale } from "@/locales";
@@ -72,6 +73,7 @@ const SECTION_IDS = [
   "canvas",
   "ai",
   "course-visibility",
+  "privacy",
   "data",
   "danger",
 ];
@@ -87,6 +89,7 @@ const NAVIGATION_ITEMS = [
     id: "course-visibility",
     icon: ArchiveBoxIcon,
   },
+  { label: "Privacy", id: "privacy", icon: ShieldCheckIcon },
   { label: "Data & Export", id: "data", icon: ArrowDownTrayIcon },
   { label: "Danger Zone", id: "danger", icon: ExclamationTriangleIcon },
 ];
@@ -583,9 +586,19 @@ export default function SettingsPage() {
               )}
             </div>
           </section>
-          <section aria-labelledby="privacy-heading" className="rounded-radius-lg border border-border-subtle bg-surface p-5">
-            <h2 id="privacy-heading" className="mb-3 text-lg font-semibold">Privacy</h2>
-            <TelemetryPreference />
+          <section
+            className="grid grid-cols-1 gap-x-8 gap-y-10 py-12 md:grid-cols-3"
+            id="privacy"
+          >
+            <div>
+              <h2 className="text-base/7 font-semibold text-text">
+                {t("Privacy")}
+              </h2>
+            </div>
+
+            <div className="md:col-span-2">
+              <TelemetryPreference />
+            </div>
           </section>
           <DataExportSection />
           <DangerSection />
