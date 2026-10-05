@@ -54,6 +54,13 @@ const buttonClass =
   "inline-flex min-h-11 items-center justify-center rounded-radius-md px-3 py-2 text-sm font-medium text-text hover:bg-primary-500/5 focus-visible:outline-2 focus-visible:outline-primary-500 disabled:cursor-not-allowed disabled:opacity-50";
 const linkClass =
   "inline-flex min-h-11 items-center break-words text-sm font-medium text-primary-700 underline decoration-primary-500/30 underline-offset-4 hover:decoration-primary-500 focus-visible:outline-2 focus-visible:outline-primary-500 dark:text-primary-300";
+// compact mode sits in the note inspector, so it borrows the tag pill and meta text styles
+const compactLinkClass =
+  "break-words text-sm text-text-secondary hover:text-text focus-visible:outline-2 focus-visible:outline-primary-500";
+const compactButtonClass =
+  "text-xs text-text-tertiary transition-colors hover:text-text-secondary focus-visible:outline-2 focus-visible:outline-primary-500 disabled:opacity-50";
+const compactPillClass =
+  "inline-flex items-center gap-1 rounded-full border border-border-subtle bg-subtle px-2 py-0.5 text-xs text-text-tertiary";
 
 async function readLinkedMaps(
   noteId: string,
@@ -71,7 +78,15 @@ async function readLinkedMaps(
   return linkedMapsSchema.parse(body);
 }
 
-function LinkedLabels({ entry, noteId }: { entry: LinkedMap; noteId: string }) {
+function LinkedLabels({
+  entry,
+  noteId,
+  compact,
+}: {
+  entry: LinkedMap;
+  noteId: string;
+  compact: boolean;
+}) {
   const { material, taxonomyVersion, topics } = entry;
   const correctionsCurrent =
     material.overrides.sourceHash === material.currentHash &&
@@ -128,7 +143,7 @@ function LinkedLabels({ entry, noteId }: { entry: LinkedMap; noteId: string }) {
   return (
     <li className="min-w-0 space-y-1">
       <div className="flex flex-wrap items-center gap-x-3">
-        <Link href={href} className={linkClass}>
+        <Link href={href} className={compact ? compactLinkClass : linkClass}>
           {entry.mapName}
         </Link>
         {material.noteId !== noteId && (
@@ -148,7 +163,9 @@ function LinkedLabels({ entry, noteId }: { entry: LinkedMap; noteId: string }) {
                 ? "Not classified"
                 : material.status === "failed"
                   ? "Classification unavailable"
-                  : "Study labels"}
+                  : compact
+                    ? null
+                    : "Study labels"}
         </span>
       </div>
       {(assignments.length > 0 || labels.length > 0) && (
@@ -171,12 +188,22 @@ function LinkedLabels({ entry, noteId }: { entry: LinkedMap; noteId: string }) {
                 key={association.topicId}
                 href={href}
                 aria-label={`${topic?.name}, ${association.relevance}, ${status.toLowerCase()}`}
-                className="inline-flex min-h-11 items-center gap-1.5 rounded-radius-md bg-primary-500/5 px-2.5 py-2 text-xs text-text-secondary hover:bg-primary-500/10 focus-visible:outline-2 focus-visible:outline-primary-500"
+                className={
+                  compact
+                    ? `${compactPillClass} hover:text-text-secondary focus-visible:outline-2 focus-visible:outline-primary-500`
+                    : "inline-flex min-h-11 items-center gap-1.5 rounded-radius-md bg-primary-500/5 px-2.5 py-2 text-xs text-text-secondary hover:bg-primary-500/10 focus-visible:outline-2 focus-visible:outline-primary-500"
+                }
               >
-                <span className="break-words font-medium text-text">
+                <span
+                  className={
+                    compact
+                      ? "break-words text-text-secondary"
+                      : "break-words font-medium text-text"
+                  }
+                >
                   {topic?.name}
                 </span>
-                <span>
+                <span className={compact ? "text-text-tertiary/70" : undefined}>
                   {association.relevance} · {status.toLowerCase()}
                 </span>
               </Link>
@@ -185,7 +212,11 @@ function LinkedLabels({ entry, noteId }: { entry: LinkedMap; noteId: string }) {
           {labels.map((label, index) => (
             <span
               key={`${label}-${index}`}
-              className="inline-flex min-h-11 items-center rounded-radius-md border border-border-subtle px-2.5 py-2 text-xs text-text-secondary"
+              className={
+                compact
+                  ? compactPillClass
+                  : "inline-flex min-h-11 items-center rounded-radius-md border border-border-subtle px-2.5 py-2 text-xs text-text-secondary"
+              }
             >
               {label}
               {labelsStale
@@ -343,7 +374,7 @@ function LabelsForNote({ noteId, compact = false }: NoteStudyLabelsProps) {
   return (
     <section
       aria-label="Note study labels"
-      className={`${compact ? "py-1" : "rounded-radius-lg border border-border-subtle px-3 py-2"} min-w-0 text-text`}
+      className={`${compact ? "" : "rounded-radius-lg border border-border-subtle px-3 py-2"} min-w-0 text-text`}
       aria-busy={loading || adding}
     >
       {loading ? (
@@ -375,13 +406,16 @@ function LabelsForNote({ noteId, compact = false }: NoteStudyLabelsProps) {
                   key={`${entry.mapId}:${entry.material.noteId}`}
                   entry={entry}
                   noteId={noteId}
+                  compact={compact}
                 />
               ))}
             </ul>
           )}
           <button
             type="button"
-            className={`${buttonClass} ${compact ? "px-0" : "-ml-1"}`}
+            className={
+              compact ? `${compactButtonClass} mt-2` : `${buttonClass} -ml-1`
+            }
             aria-expanded={pickerOpen}
             aria-controls={pickerId}
             disabled={adding}
