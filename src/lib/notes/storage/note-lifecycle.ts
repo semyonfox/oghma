@@ -599,12 +599,6 @@ async function removeNoteRowsPermanently(
       AND (note_id IS NULL OR NOT note_id = ANY(${ownedIds}::uuid[]))
   `;
   await tx`
-    UPDATE app.canvas_import_jobs
-    SET parent_folder_id = NULL, updated_at = NOW()
-    WHERE user_id = ${userId}::uuid
-      AND parent_folder_id = ANY(${ownedIds}::uuid[])
-  `;
-  await tx`
     DELETE FROM app.canvas_imports
     WHERE user_id = ${userId}::uuid
       AND note_id = ANY(${ownedIds}::uuid[])
