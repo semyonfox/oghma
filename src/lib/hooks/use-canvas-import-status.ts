@@ -23,6 +23,7 @@ export type CanvasImportProgress = {
   jobType: string;
   forbidden: number;
   error: number;
+  restrictedCourses: number;
   failed?: boolean;
   [key: string]: unknown;
 };
@@ -40,6 +41,7 @@ export type CanvasImportLog = {
   status?: string;
   treePath?: string[];
   courseId?: string | number | null;
+  courseSection?: boolean;
   filename?: string;
   errorMessage?: string | null;
   updatedAt?: string;
@@ -54,7 +56,12 @@ export type CanvasStatusData = {
   publishedTreePaths?: string[][];
   pollIntervalMs?: number;
   progress?: Partial<CanvasImportProgress>;
-  issues?: { forbidden?: number; error?: number; stopped?: number };
+  issues?: {
+    forbidden?: number;
+    error?: number;
+    stopped?: number;
+    restrictedCourses?: number;
+  };
   discovery?: {
     completedCourses: number;
     totalCourses: number;
@@ -91,6 +98,7 @@ function normalizedProgress(
     jobType,
     forbidden: data.issues?.forbidden ?? 0,
     error: data.issues?.error ?? 0,
+    restrictedCourses: data.issues?.restrictedCourses ?? 0,
     ...(failed ? { failed: true } : {}),
   };
 }
@@ -635,6 +643,7 @@ export function useCanvasImportStatus(
       jobType,
       forbidden: 0,
       error: 0,
+      restrictedCourses: 0,
     });
     setImportSummary(null);
     setRecentLogs([]);

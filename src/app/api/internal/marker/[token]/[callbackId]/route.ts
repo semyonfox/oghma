@@ -80,7 +80,7 @@ export async function POST(
     await sql`
       UPDATE app.marker_jobs
       SET provider_metrics = COALESCE(provider_metrics, '{}'::jsonb)
-          || ${JSON.stringify(summary.metrics)}::jsonb
+          || ${JSON.stringify(summary.metrics)}::text::jsonb
       WHERE callback_id = ${callbackId}::uuid
         AND status NOT IN ('completed', 'failed', 'invalid_result', 'cancelled')
     `;
@@ -100,7 +100,7 @@ export async function POST(
         provider_job_id = COALESCE(${summary.id ?? null}, provider_job_id),
         runpod_job_id = COALESCE(${summary.id ?? null}, runpod_job_id),
         provider_metrics = COALESCE(provider_metrics, '{}'::jsonb)
-            || ${JSON.stringify(summary.metrics)}::jsonb,
+            || ${JSON.stringify(summary.metrics)}::text::jsonb,
         error = ${error},
         updated_at = NOW()
     WHERE callback_id = ${callbackId}::uuid

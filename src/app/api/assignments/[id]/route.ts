@@ -27,13 +27,14 @@ export const GET = withErrorHandler(async (
            canvas_course_id::text AS canvas_course_id,
            canvas_assignment_id::text AS canvas_assignment_id,
            title, description, course_name, course_color,
-           due_at, estimated_hours, logged_hours, source, assignment_type,
+           -- older databases kept these as NUMERIC, which postgres.js returns as strings
+           due_at, estimated_hours::float8 AS estimated_hours, logged_hours::float8 AS logged_hours, source, assignment_type,
            CASE
              WHEN status <> 'done' AND due_at IS NOT NULL AND due_at < NOW() THEN 'late'
              WHEN status = 'late' AND (due_at IS NULL OR due_at >= NOW()) THEN 'upcoming'
              ELSE status
            END AS status,
-           submitted_at, score, points_possible,
+           submitted_at, score::float8 AS score, points_possible::float8 AS points_possible,
            created_at, updated_at
     FROM app.assignments
     WHERE id = ${id}::uuid AND user_id = ${user.user_id}::uuid
@@ -73,13 +74,13 @@ export const PATCH = withErrorHandler(async (
            canvas_course_id::text AS canvas_course_id,
            canvas_assignment_id::text AS canvas_assignment_id,
            title, description, course_name, course_color,
-           due_at, estimated_hours, logged_hours, source, assignment_type,
+           due_at, estimated_hours::float8 AS estimated_hours, logged_hours::float8 AS logged_hours, source, assignment_type,
            CASE
              WHEN status <> 'done' AND due_at IS NOT NULL AND due_at < NOW() THEN 'late'
              WHEN status = 'late' AND (due_at IS NULL OR due_at >= NOW()) THEN 'upcoming'
              ELSE status
            END AS status,
-           submitted_at, score, points_possible,
+           submitted_at, score::float8 AS score, points_possible::float8 AS points_possible,
            created_at, updated_at
     FROM updated
   `;

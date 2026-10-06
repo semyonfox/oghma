@@ -43,6 +43,9 @@ export const GET = withErrorHandler(async () => {
       FROM app.canvas_imports
       WHERE user_id = ${user.user_id}::uuid
         AND status = 'forbidden'
+        -- a hidden course section (non-positive canvas_file_id) is not a
+        -- restricted course: everything else in it was still imported
+        AND (canvas_file_id IS NULL OR canvas_file_id > 0)
         AND canvas_course_id IS NOT NULL
     `,
   ]);

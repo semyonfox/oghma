@@ -55,6 +55,42 @@ describe("CanvasProgressPanel", () => {
     expect(screen.queryByText("Import stopped")).toBeNull();
   });
 
+  it("lists hidden course sections as a note, not as failed files", () => {
+    render(
+      <CanvasProgressPanel
+        isImporting
+        isDiscovering={false}
+        isSyncing
+        progress={{ percent: 0, completed: 0, total: 1, restrictedCourses: 17 }}
+        importSummary={null}
+        recentLogs={[
+          {
+            status: "pending_marker",
+            filename: "Week 5 Streams.pdf",
+            updatedAt: new Date().toISOString(),
+          },
+          {
+            status: "forbidden",
+            filename: "CT326-Programming-III (files)",
+            errorMessage: "Course files restricted by lecturer",
+            courseSection: true,
+          },
+        ]}
+        markerColdStarting={false}
+        estimatedSecsRemaining={null}
+      />,
+    );
+
+    expect(screen.getByText("Checking for updates... (0/1)")).toBeTruthy();
+    expect(screen.getByText(/in 17 of your courses/)).toBeTruthy();
+    expect(screen.getByText("Waiting for the document processor")).toBeTruthy();
+    expect(screen.queryByText(/Failed \/ Restricted/)).toBeNull();
+    expect(screen.queryByText("CT326-Programming-III (files)")).toBeNull();
+    expect(
+      screen.queryByText("One failed or restricted file does not stop the other files."),
+    ).toBeNull();
+  });
+
   it("reports a terminal run with failures as failed", () => {
     const { container } = render(
       <CanvasProgressPanel

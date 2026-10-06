@@ -171,7 +171,7 @@ export default function useCanvasImport({
     const nextForbidden = { ...latestStateRef.current.forbiddenCourses };
     let forbiddenChanged = false;
     for (const log of snapshot.recentLogs ?? []) {
-      if (log.status !== "forbidden" || log.courseId == null) continue;
+      if (log.status !== "forbidden" || log.courseSection || log.courseId == null) continue;
       const courseId = String(log.courseId);
       if (nextForbidden[courseId]) continue;
       nextForbidden[courseId] = true;
