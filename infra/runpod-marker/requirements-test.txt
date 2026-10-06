@@ -1,4 +1,4 @@
 # Direct unit tests use fake Marker and RunPod modules. These are the only
 # third-party imports shared by the adapter and handler test files.
-pillow==10.4.0
+pillow==12.3.0
 pydantic==2.13.3
