@@ -925,6 +925,67 @@ describe("study map storage and durable jobs", () => {
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 
+  it("returns assignment hours and points as numbers when the live columns are numeric", async () => {
+    // older databases kept these as numeric, which postgres.js returns as strings
+    const columns = [
+      "estimated_hours",
+      "logged_hours",
+      "score",
+      "points_possible",
+    ];
+    // other files share this database, so wait out their locks instead of
+    // hitting the fixture's statement timeout and leaving the columns altered
+    const setColumnType = (type: "numeric" | "double precision") =>
+      fixture.begin(async (tx) => {
+        await tx`SET LOCAL statement_timeout = 0`;
+        for (const column of columns) {
+          await tx`ALTER TABLE app.assignments ALTER COLUMN ${tx(column)} TYPE ${tx.unsafe(type)}`;
+        }
+      });
+
+    await setColumnType("numeric");
+    try {
+      const map = await getStudyMap(userId, mapId);
+      await updateStudyMap(userId, mapId, {
+        ...map,
+        canvasCourseId: "4401",
+        version: map.version,
+        autoClassify: false,
+      });
+      const assignmentId = await canvasAssignment(
+        userId,
+        "4401",
+        "5501",
+        "Graded lab",
+      );
+      await fixture`
+        UPDATE app.assignments
+        SET estimated_hours = 2.5, logged_hours = 1.25, score = 8, points_possible = 10
+        WHERE id = ${assignmentId}::uuid
+      `;
+
+      const snapshot = await getStudyMapSnapshot(userId, mapId);
+      expect(snapshot.assignments).toEqual([
+        expect.objectContaining({
+          estimated_hours: 2.5,
+          logged_hours: 1.25,
+          score: 8,
+          points_possible: 10,
+        }),
+      ]);
+    } finally {
+      await setColumnType("double precision");
+    }
+    const restored = await fixture<{ data_type: string }[]>`
+      SELECT data_type FROM information_schema.columns
+      WHERE table_schema = 'app' AND table_name = 'assignments'
+        AND column_name = ANY(${columns})
+    `;
+    expect(restored.map((row) => row.data_type)).toEqual(
+      columns.map(() => "double precision"),
+    );
+  });
+
   it("rejects a source edited during processing and requires a manual retry", async () => {
     const map = await getStudyMap(userId, mapId);
     await updateStudyMap(userId, mapId, {
