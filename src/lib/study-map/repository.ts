@@ -440,8 +440,11 @@ async function readAssignments(
   if (!canvasCourseId) return [];
   const rows = await sql<AssignmentRow[]>`
     SELECT a.id, a.canvas_course_id::text AS canvas_course_id, a.canvas_assignment_id::text AS canvas_assignment_id,
-      a.title, a.description, a.course_name, a.course_color, a.due_at, a.estimated_hours, a.logged_hours,
-      a.source, a.assignment_type, a.submitted_at, a.score, a.points_possible, a.created_at, a.updated_at,
+      a.title, a.description, a.course_name, a.course_color, a.due_at,
+      -- older databases kept these as NUMERIC, which postgres.js returns as strings
+      a.estimated_hours::float8 AS estimated_hours, a.logged_hours::float8 AS logged_hours,
+      a.source, a.assignment_type, a.submitted_at, a.score::float8 AS score,
+      a.points_possible::float8 AS points_possible, a.created_at, a.updated_at,
       CASE
         WHEN a.status <> 'done' AND a.due_at IS NOT NULL AND a.due_at < NOW() THEN 'late'
         WHEN a.status = 'late' AND (a.due_at IS NULL OR a.due_at >= NOW()) THEN 'upcoming'
