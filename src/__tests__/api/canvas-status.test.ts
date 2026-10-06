@@ -144,6 +144,75 @@ describe("GET /api/canvas/status", () => {
     expect(body.estimatedSecsRemaining).toBeNull();
   });
 
+  it("keeps hidden course sections out of file progress and ETA", async () => {
+    // discovery counted 17 hidden Files tabs plus one real file into
+    // expected_total; only the file is still waiting on Marker
+    vi.mocked(sql)
+      .mockResolvedValueOnce([
+        {
+          id: JOB_ID,
+          status: "processing",
+          job_type: "sync",
+          created_at: "2026-10-06T10:05:40.000Z",
+          started_at: "2026-10-06T10:05:40.000Z",
+          completed_at: null,
+          expected_total: 18,
+          discovery_progress: {
+            stage: "files",
+            totalCourses: 18,
+            completedCourses: 18,
+            processingStartedAt: "2026-10-06T10:20:54.000Z",
+          },
+        },
+      ] as never)
+      .mockResolvedValueOnce([
+        {
+          total: 1,
+          indexed: 0,
+          indexing: 0,
+          downloading: 0,
+          processing: 0,
+          pending_retry: 0,
+          pending_marker: 1,
+          forbidden: 0,
+          error: 0,
+          course_sections: 17,
+          restricted_courses: 17,
+        },
+      ] as never)
+      .mockResolvedValueOnce([
+        {
+          filename: "CT326-Programming-III (files)",
+          status: "forbidden",
+          error_message: "Course files restricted by lecturer",
+          updated_at: "2026-10-06T10:20:41.000Z",
+          canvas_course_id: 42,
+          note_id: null,
+          course_section: true,
+        },
+      ] as never);
+
+    const response = await GET(
+      new NextRequest("http://localhost/api/canvas/status"),
+    );
+    const body = await response.json();
+
+    expect(body.progress).toMatchObject({
+      total: 1,
+      completed: 0,
+      pendingMarker: 1,
+      percent: 0,
+    });
+    expect(body.issues).toMatchObject({ forbidden: 0, restrictedCourses: 17 });
+    expect(body.estimatedSecsRemaining).toBeNull();
+    expect(body.discovery.filesFound).toBe(1);
+    expect(body.recentLogs[0]).toMatchObject({
+      status: "forbidden",
+      courseSection: true,
+      courseId: "42",
+    });
+  });
+
   it.each([2, 9])(
     "withholds ETA when a processing job has found %i files but has no fixed total",
     async (total) => {
