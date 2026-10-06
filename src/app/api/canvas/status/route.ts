@@ -30,6 +30,8 @@ interface CanvasFileStatsRow {
   retryable?: string;
   stopped?: string;
   pending_cache?: string;
+  course_sections?: string;
+  restricted_courses?: string;
 }
 
 interface CanvasLogRow {
@@ -39,6 +41,7 @@ interface CanvasLogRow {
   updated_at: Date | string;
   canvas_course_id: string | number | null;
   note_id: string | null;
+  course_section: boolean;
 }
 
 interface TreePathRow {
@@ -123,21 +126,26 @@ export const GET = withErrorHandler(async (request) => {
   const jobId = job?.id ?? null;
   const since = job?.created_at ?? null;
 
+  // a hidden course section (Canvas Files tab etc.) is stored as a synthetic
+  // row with a non-positive canvas_file_id. It is not a file, so keep it out
+  // of file counts, progress and ETA and report it per course instead
   const [fileStats, recentLogs] = await Promise.all([
     sql<CanvasFileStatsRow[]>`
       SELECT
-        COUNT(*) as total,
+        COUNT(CASE WHEN canvas_file_id IS NULL OR canvas_file_id > 0 THEN 1 END) as total,
         COUNT(CASE WHEN status = 'complete'    THEN 1 END) as indexed,
         COUNT(CASE WHEN status = 'indexing'    THEN 1 END) as indexing,
         COUNT(CASE WHEN status = 'downloading' THEN 1 END) as downloading,
         COUNT(CASE WHEN status IN ('processing', 'pending_extract') THEN 1 END) as processing,
         COUNT(CASE WHEN status = 'pending_retry' THEN 1 END) as pending_retry,
         COUNT(CASE WHEN status = 'pending_marker' THEN 1 END) as pending_marker,
-        COUNT(CASE WHEN status = 'forbidden'   THEN 1 END) as forbidden,
+        COUNT(CASE WHEN status = 'forbidden' AND (canvas_file_id IS NULL OR canvas_file_id > 0) THEN 1 END) as forbidden,
         COUNT(CASE WHEN status = 'error'       THEN 1 END) as error,
         COUNT(CASE WHEN status = 'error' AND retryable THEN 1 END) as retryable,
         COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as stopped,
-        COUNT(CASE WHEN status = 'pending_cache' THEN 1 END) as pending_cache
+        COUNT(CASE WHEN status = 'pending_cache' THEN 1 END) as pending_cache,
+        COUNT(CASE WHEN canvas_file_id <= 0 THEN 1 END) as course_sections,
+        COUNT(DISTINCT CASE WHEN canvas_file_id <= 0 THEN canvas_course_id END) as restricted_courses
       FROM app.canvas_imports
       WHERE user_id = ${user.user_id}
         AND CASE
@@ -146,7 +154,8 @@ export const GET = withErrorHandler(async (request) => {
         END
     `,
     sql<CanvasLogRow[]>`
-      SELECT filename, status, error_message, updated_at, canvas_course_id, note_id
+      SELECT filename, status, error_message, updated_at, canvas_course_id, note_id,
+        COALESCE(canvas_file_id <= 0, FALSE) AS course_section
       FROM app.canvas_imports
       WHERE user_id = ${user.user_id}
         AND CASE
@@ -191,10 +200,15 @@ export const GET = withErrorHandler(async (request) => {
     stats.error,
   ].map((value) => parseInt(String(value), 10));
   const completed = indexed;
+  const courseSections = Number(stats.course_sections ?? 0);
 
   // use expected_total from the discovery phase as denominator when available —
-  // this prevents the progress bar from jumping backwards as new files are found
-  const denominator = job?.expected_total ?? total;
+  // this prevents the progress bar from jumping backwards as new files are found.
+  // discovery counts hidden course sections into expected_total, so drop them
+  const denominator =
+    job?.expected_total != null
+      ? Math.max(total, job.expected_total - courseSections)
+      : total;
   // GPU handoff is visible as pendingMarker but is not settled: the document
   // has not reached the note/chunk/vector stores until completion succeeds.
   const settled = completed + forbidden + errorCount;
@@ -342,6 +356,7 @@ export const GET = withErrorHandler(async (request) => {
       forbidden,
       error: errorCount,
       stopped: Number(stats.stopped ?? 0),
+      restrictedCourses: Number(stats.restricted_courses ?? 0),
     },
     // `pending_marker` means the file was handed off to the asynchronous
     // Marker pipeline; it is not evidence that a cold start is happening.
@@ -362,6 +377,7 @@ export const GET = withErrorHandler(async (request) => {
       updatedAt: r.updated_at,
       courseId:
         r.canvas_course_id == null ? null : String(r.canvas_course_id),
+      courseSection: r.course_section,
       noteId: r.note_id,
       treePath: r.note_id ? treePathByNoteId.get(r.note_id) ?? [] : [],
     })),

@@ -10,13 +10,14 @@ import {
 } from "./canvas-helpers";
 import { toFriendlyCanvasLogMessage } from "@/lib/friendly-errors";
 
-type Progress = { percent: number; completed: number; total: number };
+type Progress = { percent: number; completed: number; total: number; restrictedCourses?: number };
 type ImportSummary = { imported: number; forbidden: number; failed: number; skipped: number };
 type Log = {
   status?: string;
   filename?: string;
   errorMessage?: string | null;
   updatedAt?: string;
+  courseSection?: boolean;
 };
 
 export default function CanvasProgressPanel({
@@ -77,12 +78,16 @@ export default function CanvasProgressPanel({
       >
         {log.filename}
       </span>
-      {log.errorMessage && (
+      {log.errorMessage ? (
         <span
           className="text-red-400/80 shrink-0 max-w-[10rem] truncate"
           title={log.errorMessage}
         >
           {toFriendlyCanvasLogMessage(log.errorMessage)}
+        </span>
+      ) : log.status === "pending_marker" && (
+        <span className="shrink-0 text-text-tertiary">
+          {t("Waiting for the document processor")}
         </span>
       )}
       <span className="shrink-0 text-text-tertiary/50">
@@ -93,8 +98,9 @@ export default function CanvasProgressPanel({
 
   const successLogs = recentLogs.filter((l) => l.status === "complete");
   const failedLogs = recentLogs.filter(
-    (l) => l.status === "error" || l.status === "forbidden",
+    (l) => !l.courseSection && (l.status === "error" || l.status === "forbidden"),
   );
+  const restrictedCourses = progress.restrictedCourses ?? 0;
   const activeLogs = recentLogs.filter(
     (l) =>
       l.status === "downloading" ||
@@ -168,6 +174,12 @@ export default function CanvasProgressPanel({
       {isImporting && failedLogs.length > 0 && !isDiscovering && (
         <p className="px-4 pb-3 text-xs text-orange-400" role="status">
           {t("One failed or restricted file does not stop the other files.")}
+        </p>
+      )}
+
+      {restrictedCourses > 0 && !isDiscovering && (
+        <p className="px-4 pb-3 text-xs text-text-tertiary">
+          {t("Canvas hides some sections, like Files, in {count} of your courses. Everything else in those courses was still checked.", { count: restrictedCourses })}
         </p>
       )}
 
