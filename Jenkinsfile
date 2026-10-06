@@ -1,6 +1,13 @@
 pipeline {
     agent { label 'docker' }
 
+    // queue rather than abort, so a later push never kills a deploy midway.
+    // the timeout stops a hung build blocking that queue; cold builds take ~70m
+    options {
+        disableConcurrentBuilds()
+        timeout(time: 120, unit: 'MINUTES')
+    }
+
     environment {
         REGISTRY     = 'oghma'
         ENV_DIR      = '/home/semyon/server-stacks/jenkins/env'
