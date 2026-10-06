@@ -50,9 +50,10 @@ export const GET = withErrorHandler(async (request) => {
            a.canvas_course_id::text AS canvas_course_id,
            a.canvas_assignment_id::text AS canvas_assignment_id,
            a.title, a.description, a.course_name, a.course_color,
-           a.due_at, a.estimated_hours, a.logged_hours, a.source, a.assignment_type,
+           -- older databases kept these as NUMERIC, which postgres.js returns as strings
+           a.due_at, a.estimated_hours::float8 AS estimated_hours, a.logged_hours::float8 AS logged_hours, a.source, a.assignment_type,
            ${effectiveStatus} AS status,
-           a.submitted_at, a.score, a.points_possible,
+           a.submitted_at, a.score::float8 AS score, a.points_possible::float8 AS points_possible,
            a.created_at, a.updated_at
     FROM app.assignments a
     LEFT JOIN app.user_course_settings ucs
@@ -95,8 +96,8 @@ export const POST = withErrorHandler(async (request) => {
               canvas_course_id::text AS canvas_course_id,
               canvas_assignment_id::text AS canvas_assignment_id,
               title, description, course_name, course_color,
-              due_at, estimated_hours, logged_hours, source, assignment_type, status,
-              submitted_at, score, points_possible,
+              due_at, estimated_hours::float8 AS estimated_hours, logged_hours::float8 AS logged_hours, source, assignment_type, status,
+              submitted_at, score::float8 AS score, points_possible::float8 AS points_possible,
               created_at, updated_at
   `;
 
