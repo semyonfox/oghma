@@ -301,7 +301,6 @@ describe("vault cleanup scope", () => {
       [NEW_JOB_ID, { note_id: NEW_JOB_ID, s3_key: null, content: "later" }],
     ]);
     const imported = { note_id: NEW_JOB_ID, parent_folder_id: OLD_JOB_ID as string | null };
-    const job = { id: NEW_JOB_ID, parent_folder_id: OLD_JOB_ID as string | null };
     let importedExists = true;
     let childParent: string | null = OLD_JOB_ID;
     mocks.sql.begin.mockImplementation(async (callback: (tx: typeof mocks.sql) => Promise<unknown>) =>
@@ -315,8 +314,9 @@ describe("vault cleanup scope", () => {
       if (query.startsWith("UPDATE app.canvas_imports") && query.includes("SET parent_folder_id = NULL")) {
         imported.parent_folder_id = null;
       }
-      if (query.startsWith("UPDATE app.canvas_import_jobs") && query.includes("SET parent_folder_id = NULL")) {
-        job.parent_folder_id = null;
+      // canvas_import_jobs has no parent_folder_id column, so any statement against it would fail in postgres
+      if (query.includes("app.canvas_import_jobs") && query.includes("parent_folder_id")) {
+        throw new Error('column "parent_folder_id" does not exist');
       }
       if (query.startsWith("DELETE FROM app.canvas_imports")) {
         const ids = stringArray(values[1]);
@@ -340,7 +340,6 @@ describe("vault cleanup scope", () => {
     expect([...notes.keys()]).toEqual([NEW_JOB_ID]);
     expect(importedExists).toBe(true);
     expect(imported.parent_folder_id).toBeNull();
-    expect(job.parent_folder_id).toBeNull();
     expect(childParent).toBeNull();
   });
 
