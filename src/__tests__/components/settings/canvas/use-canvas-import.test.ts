@@ -39,7 +39,7 @@ const owner = vi.hoisted(() => ({
       errorMessage?: string | null;
     } | null;
     progress?: { completed?: number };
-    recentLogs?: Array<{ status?: string; courseId?: string }>;
+    recentLogs?: Array<{ status?: string; courseId?: string; courseSection?: boolean }>;
   } | null,
   checkStatus: vi.fn().mockResolvedValue(undefined),
   trackJob: vi.fn(),
@@ -244,7 +244,11 @@ describe("useCanvasImport shared status owner", () => {
     owner.statusSnapshot = {
       activeJob: { jobId: "job-1" },
       latestJob: { jobId: "job-1", status: "processing" },
-      recentLogs: [{ status: "forbidden", courseId: "course-2" }],
+      recentLogs: [
+        { status: "forbidden", courseId: "course-2" },
+        // a hidden Files tab is not a restricted course
+        { status: "forbidden", courseId: "course-3", courseSection: true },
+      ],
     };
     rerender();
     await waitFor(() => {

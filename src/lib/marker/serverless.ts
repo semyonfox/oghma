@@ -411,7 +411,7 @@ async function markResultReady(
     SET status = 'completion_queued',
         provider_job_id = COALESCE(${providerJobId}, provider_job_id),
         provider_metrics = COALESCE(
-          ${metrics ? JSON.stringify(metrics) : null}::jsonb,
+          ${metrics ? JSON.stringify(metrics) : null}::text::jsonb,
           provider_metrics
         ),
         completion_enqueued_at = NOW(),
@@ -610,7 +610,7 @@ async function markAwaitingResult(
           ELSE runpod_job_id
         END,
         provider_metrics = COALESCE(
-          ${JSON.stringify(metrics)}::jsonb,
+          ${JSON.stringify(metrics)}::text::jsonb,
           provider_metrics
         ),
         error = NULL,
@@ -640,7 +640,7 @@ async function observeRunPodStatus(job: MarkerJobRow): Promise<string | null> {
       await sql`
         UPDATE app.marker_jobs
         SET provider_metrics = COALESCE(provider_metrics, '{}'::jsonb)
-            || ${JSON.stringify(status.metrics)}::jsonb
+            || ${JSON.stringify(status.metrics)}::text::jsonb
         WHERE callback_id = ${job.callback_id}::uuid
           AND status = 'awaiting_result'
       `;
