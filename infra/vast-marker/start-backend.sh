@@ -24,6 +24,13 @@ fatal() {
   printf 'MARKER_BACKEND_FATAL %s\n' "$*" | tee -a "$BACKEND_LOG" >&2
 }
 
+# fresh serverless workers should avoid compilation and graph-capture delays
+VLLM_STARTUP_ARGS=()
+if [[ "${VLLM_ENFORCE_EAGER:-true}" == "true" ]]; then
+  VLLM_STARTUP_ARGS+=(--enforce-eager)
+fi
+printf 'MARKER_VLLM_STARTING eager=%s\n' "${VLLM_ENFORCE_EAGER:-true}"
+
 vllm serve datalab-to/surya-ocr-2 \
   --host 127.0.0.1 \
   --port "$VLLM_PORT" \
@@ -36,11 +43,12 @@ vllm serve datalab-to/surya-ocr-2 \
   --enable-prefix-caching \
   --mm-processor-kwargs '{"min_pixels":3136,"max_pixels":6291456}' \
   --speculative-config '{"method":"mtp","num_speculative_tokens":2}' \
-  >"$LOG_DIR/vllm.log" 2>&1 &
+  "${VLLM_STARTUP_ARGS[@]}" \
+  > >(tee "$LOG_DIR/vllm.log") 2>&1 &
 VLLM_PID=$!
 
 deadline=$((SECONDS + ${MARKER_VLLM_START_TIMEOUT_SECONDS:-600}))
-until curl -fsS "http://127.0.0.1:${VLLM_PORT}/health" >/dev/null; do
+until curl -fsS "http://127.0.0.1:${VLLM_PORT}/health" >/dev/null 2>&1; do
   if ! kill -0 "$VLLM_PID" 2>/dev/null; then
     fatal "vLLM exited before readiness"
     exit 1
@@ -51,6 +59,7 @@ until curl -fsS "http://127.0.0.1:${VLLM_PORT}/health" >/dev/null; do
   fi
   sleep 2
 done
+printf 'MARKER_VLLM_READY\n'
 
 /opt/marker-venv/bin/python -m uvicorn backend:app \
   --host 127.0.0.1 \
@@ -58,7 +67,7 @@ done
   --workers 1 \
   --timeout-keep-alive 30 \
   --log-level info \
-  >>"$BACKEND_LOG" 2>&1 &
+  > >(tee -a "$BACKEND_LOG") 2>&1 &
 BACKEND_PID=$!
 
 EXITED_PID=

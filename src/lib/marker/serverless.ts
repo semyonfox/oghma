@@ -228,6 +228,17 @@ export async function submitMarkerJob({
   const marker = await sql.begin(async (tx: postgres.TransactionSql) => {
     const owner = currentCanvasExecution();
     if (owner) await assertCanvasExecution(tx, owner);
+    if (!importJobId && !importedFileCacheId) {
+      // direct uploads and vault files have no Canvas parent to fence deletion
+      await tx`SELECT pg_advisory_xact_lock(hashtextextended(${userId}::text, 0))`;
+      const [source] = await tx`
+        SELECT note_id FROM app.notes
+        WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
+          AND deleted_at IS NULL
+        FOR SHARE
+      `;
+      if (!source) throw new MarkerSubmissionCancelledError();
+    }
     // Match the cancellation lock order: Canvas job -> Marker row -> Canvas
     // import. If cancellation commits first, this transaction observes it and
     // exits without creating paid work; if this commits first, cancellation

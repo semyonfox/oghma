@@ -37,6 +37,14 @@ clone `PYWORKER_REPO` or install dependencies. The PyWorker venv is separate
 from `/opt/marker-venv` because `vastai` pins Pillow 12 while `surya-ocr` needs
 Pillow below 11; `worker.py` reaches the backend over HTTP only.
 
+The entrypoint links `/workspace/vast-pyworker` to `/app` because the pinned
+bootstrap derives its server directory from `WORKSPACE_DIR`. Both vLLM and
+backend startup logs reach container stdout as well as `/var/log/marker`.
+vLLM defaults to `--enforce-eager` to skip compilation and CUDA graph capture
+on fresh workers. Set `VLLM_ENFORCE_EAGER=false` to restore compiled serving
+after measuring startup and throughput on the target GPU. The image includes
+`g++` for PyTorch compilation paths.
+
 ## Source and image variants
 
 `scripts/build-vast-marker-image.sh` creates the Marker++ archive from an exact
