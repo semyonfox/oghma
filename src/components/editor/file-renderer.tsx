@@ -6,6 +6,7 @@ import { FileSpec } from "@/lib/notes/state/layout";
 import MarkdownEditor from "./markdown-editor";
 import ImageViewer from "./image-viewer";
 import VideoViewer from "./video-viewer";
+import AttachmentViewer from "./attachment-viewer";
 import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
@@ -74,6 +75,15 @@ const FileRenderer: FC<FileRendererProps> = ({ pane, file }) => {
         <Suspense fallback={<LoadingFallback />}>
           <VideoViewer file={file} />
         </Suspense>
+      );
+
+    case "text":
+    case "attachment":
+      return (
+        <AttachmentViewer
+          key={`${file.fileId}:${file.sourcePath}:${file.fileType}`}
+          file={file}
+        />
       );
 
     default:
