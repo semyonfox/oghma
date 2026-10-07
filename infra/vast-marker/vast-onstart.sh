@@ -6,7 +6,7 @@ set -euo pipefail
 # contains worker.py, its venv, and requirements, so no mutable Git clone or
 # cold-start package installation is needed.
 export SERVER_DIR=/app
-export ENV_PATH=/opt/marker-venv
+export ENV_PATH=/opt/pyworker-venv
 export MODEL_LOG=/var/log/marker/backend.log
 export ROTATE_MODEL_LOG=false
 export SDK_VERSION=1.5.0
