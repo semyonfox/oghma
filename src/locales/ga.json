@@ -1274,5 +1274,12 @@
   "Paste your Canvas URL or enter its address, for example": "Greamaigh URL Canvas do scoile nó cuir isteach a sheoladh, mar shampla",
   "Use a Canvas address ending in .instructure.com": "Úsáid seoladh Canvas a chríochnaíonn le .instructure.com",
   "Search results: {count}": "Torthaí cuardaigh: {count}",
-  "Retry save": "Bain triail as sábháil arís"
+  "Retry save": "Bain triail as sábháil arís",
+  "attachment_viewer.original": "Bunchomhad · inléite amháin",
+  "attachment_viewer.download": "Íoslódáil an comhad",
+  "attachment_viewer.content": "Ábhar an chomhaid",
+  "attachment_viewer.unavailable": "Níorbh fhéidir an comhad seo a lódáil. Bain triail as é a oscailt arís.",
+  "attachment_viewer.no_preview": "Níl réamhamharc ar fáil don chomhad seo. Íoslódáil é chun é a oscailt.",
+  "attachment_viewer.too_large": "Tá an comhad seo rómhór le réamhamharc a thaispeáint. Íoslódáil é chun é a léamh.",
+  "attachment_viewer.empty": "Tá an comhad seo folamh."
 }

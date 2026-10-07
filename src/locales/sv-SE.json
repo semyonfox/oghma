@@ -1274,5 +1274,12 @@
   "Paste your Canvas URL or enter its address, for example": "Klistra in din Canvas-adress eller skriv in den, till exempel",
   "Use a Canvas address ending in .instructure.com": "Använd en Canvas-adress som slutar på .instructure.com",
   "Search results: {count}": "Sökresultat: {count}",
-  "Retry save": "Försök spara igen"
+  "Retry save": "Försök spara igen",
+  "attachment_viewer.original": "Originalfil · skrivskyddad",
+  "attachment_viewer.download": "Ladda ner fil",
+  "attachment_viewer.content": "Filinnehåll",
+  "attachment_viewer.unavailable": "Det gick inte att läsa in filen. Försök öppna den igen.",
+  "attachment_viewer.no_preview": "Ingen förhandsvisning är tillgänglig för filen. Ladda ner den för att öppna den.",
+  "attachment_viewer.too_large": "Filen är för stor för förhandsvisning. Ladda ner den för att läsa den.",
+  "attachment_viewer.empty": "Filen är tom."
 }

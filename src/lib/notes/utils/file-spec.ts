@@ -15,6 +15,20 @@ interface FileSource {
   mimeType?: string | null;
 }
 
+const TEXT_EXTENSIONS = new Set([
+  'txt', 'java', 'py', 'js', 'jsx', 'ts', 'tsx', 'c', 'h', 'cpp', 'hpp',
+  'cc', 'cs', 'go', 'rs', 'rb', 'php', 'swift', 'kt', 'kts', 'scala',
+  'sh', 'bash', 'zsh', 'sql', 'json', 'jsonl', 'yaml', 'yml', 'toml',
+  'xml', 'html', 'htm', 'css', 'scss', 'sass', 'less', 'csv', 'tsv',
+  'log', 'ini', 'cfg', 'conf', 'r', 'tex', 'm', 'asm', 's',
+]);
+const TEXT_MIME_TYPES = new Set([
+  'application/json', 'application/ld+json', 'application/xml',
+  'application/javascript', 'application/x-javascript', 'application/typescript',
+  'application/x-sh', 'application/x-httpd-php', 'application/yaml',
+]);
+const MARKDOWN_EXTENSIONS = new Set(['md', 'markdown']);
+
 const PDF_EXTENSIONS = new Set(['pdf']);
 const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'avif']);
 const VIDEO_EXTENSIONS = new Set(['mp4', 'webm', 'ogg', 'mov', 'm4v']);
@@ -27,24 +41,38 @@ function getExtension(title?: string | null) {
   return parts.length > 1 ? parts.at(-1) || '' : '';
 }
 
-export function inferFileType(title?: string | null, mimeType?: string | null): FileType {
-  const normalizedMimeType = mimeType?.trim().toLowerCase();
+export function inferFileType(
+  title?: string | null,
+  mimeType?: string | null,
+  s3Key?: string | null,
+): FileType {
+  const normalizedMimeType = mimeType?.split(';')[0].trim().toLowerCase();
   if (normalizedMimeType === 'application/pdf') return 'pdf';
   if (normalizedMimeType?.startsWith('image/')) return 'image';
   if (normalizedMimeType?.startsWith('video/')) return 'video';
 
-  const extension = getExtension(title);
+  // stored filenames survive title edits and older imports may lack MIME metadata
+  const extension = getExtension(s3Key?.split('/').at(-1)) || getExtension(title);
 
   if (PDF_EXTENSIONS.has(extension)) return 'pdf';
   if (IMAGE_EXTENSIONS.has(extension)) return 'image';
   if (VIDEO_EXTENSIONS.has(extension)) return 'video';
 
+  if (s3Key) {
+    if (normalizedMimeType === 'text/markdown' || normalizedMimeType === 'text/x-markdown'
+      || MARKDOWN_EXTENSIONS.has(extension)) return 'note';
+    if (normalizedMimeType?.startsWith('text/')
+      || TEXT_MIME_TYPES.has(normalizedMimeType || '')
+      || TEXT_EXTENSIONS.has(extension)) return 'text';
+    return 'attachment';
+  }
+
   return 'note';
 }
 
 export function buildFileSpec(source: FileSource): FileSpec {
-  const fileType = inferFileType(source.title, source.mimeType);
-  // for PDFs/media, prefer s3Key over content (Canvas imports store path in s3Key, not content)
+  const fileType = inferFileType(source.title, source.mimeType, source.s3Key);
+  // original files live in object storage; note content may be empty or extracted text
   const sourcePath = fileType !== 'note'
     ? (source.s3Key || source.content || undefined)
     : (source.content || undefined);
@@ -74,7 +102,9 @@ export function parseFileDragPayload(raw: string): FileDragPayload | null {
       (candidate.fileType !== 'note' &&
         candidate.fileType !== 'pdf' &&
         candidate.fileType !== 'image' &&
-        candidate.fileType !== 'video') ||
+        candidate.fileType !== 'video' &&
+        candidate.fileType !== 'text' &&
+        candidate.fileType !== 'attachment') ||
       (candidate.title !== undefined && typeof candidate.title !== 'string') ||
       (candidate.sourcePath !== undefined && typeof candidate.sourcePath !== 'string') ||
       (candidate.editMode !== undefined && typeof candidate.editMode !== 'boolean') ||

@@ -1274,5 +1274,12 @@
   "Paste your Canvas URL or enter its address, for example": "Plak je Canvas-URL of voer het adres in, bijvoorbeeld",
   "Use a Canvas address ending in .instructure.com": "Gebruik een Canvas-adres dat eindigt op .instructure.com",
   "Search results: {count}": "Zoekresultaten: {count}",
-  "Retry save": "Opslaan opnieuw proberen"
+  "Retry save": "Opslaan opnieuw proberen",
+  "attachment_viewer.original": "Oorspronkelijk bestand · alleen-lezen",
+  "attachment_viewer.download": "Bestand downloaden",
+  "attachment_viewer.content": "Bestandsinhoud",
+  "attachment_viewer.unavailable": "Dit bestand kon niet worden geladen. Probeer het opnieuw te openen.",
+  "attachment_viewer.no_preview": "Er is geen voorbeeld beschikbaar voor dit bestand. Download het om het te openen.",
+  "attachment_viewer.too_large": "Dit bestand is te groot voor een voorbeeld. Download het om het te lezen.",
+  "attachment_viewer.empty": "Dit bestand is leeg."
 }

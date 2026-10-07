@@ -1274,5 +1274,12 @@
   "Paste your Canvas URL or enter its address, for example": "Вставьте адрес Canvas или введите его вручную, например",
   "Use a Canvas address ending in .instructure.com": "Используйте адрес Canvas, заканчивающийся на .instructure.com",
   "Search results: {count}": "Результаты поиска: {count}",
-  "Retry save": "Повторить сохранение"
+  "Retry save": "Повторить сохранение",
+  "attachment_viewer.original": "Исходный файл · только чтение",
+  "attachment_viewer.download": "Скачать файл",
+  "attachment_viewer.content": "Содержимое файла",
+  "attachment_viewer.unavailable": "Не удалось загрузить файл. Попробуйте открыть его снова.",
+  "attachment_viewer.no_preview": "Предпросмотр этого файла недоступен. Скачайте его, чтобы открыть.",
+  "attachment_viewer.too_large": "Файл слишком большой для предпросмотра. Скачайте его для чтения.",
+  "attachment_viewer.empty": "Этот файл пуст."
 }

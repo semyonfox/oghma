@@ -39,6 +39,35 @@ describe("file type inference", () => {
 });
 
 describe("file specs", () => {
+  it.each([
+    ["BinaryNode.java", "text/plain", "text"],
+    ["BinaryNode.java", "application/octet-stream", "text"],
+    ["source", "text/x-java-source; charset=utf-8", "text"],
+    ["data.json", "application/json", "text"],
+    ["archive.zip", "application/zip", "attachment"],
+    ["slides.pptx", undefined, "attachment"],
+    ["notes.md", "text/markdown", "note"],
+  ])("routes the original %s by its attachment metadata", (title, mimeType, type) => {
+    const spec = buildFileSpec({
+      id: "attachment", title, mimeType, s3Key: `canvas/${title}`, content: "",
+    });
+    expect(spec.fileType).toBe(type);
+    if (type !== "note") expect(spec.sourcePath).toBe(`canvas/${title}`);
+  });
+
+  it("keeps a renamed original as source code and its extracted companion as a note", () => {
+    expect(buildFileSpec({
+      id: "original", title: "Binary node", s3Key: "canvas/BinaryNode.java",
+    }).fileType).toBe("text");
+    expect(buildFileSpec({
+      id: "companion", title: "BinaryNode.md", content: "class BinaryNode {}",
+    }).fileType).toBe("note");
+  });
+
+  it("does not treat a note with a code filename as an attachment without stored bytes", () => {
+    expect(buildFileSpec({ title: "Example.java", content: "my explanation" }).fileType).toBe("note");
+  });
+
   it("keeps note content as the editor source", () => {
     expect(
       buildFileSpec({ id: "note-1", title: "My Note", content: "# Hello" }),
@@ -78,6 +107,11 @@ describe("file specs", () => {
 });
 
 describe("file drag payload parsing", () => {
+  it.each(["text", "attachment"])("accepts dragging a %s preview between panes", (fileType) => {
+    const payload = { file: { fileId: "file-1", fileType, sourcePath: "canvas/source" }, sourcePane: "B" };
+    expect(parseFileDragPayload(JSON.stringify(payload))).toEqual(payload);
+  });
+
   it("accepts a complete payload produced by the notes sidebar", () => {
     const payload = {
       file: {
