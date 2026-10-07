@@ -1274,5 +1274,12 @@
   "Paste your Canvas URL or enter its address, for example": "Paste your Canvas URL or enter its address, for example",
   "Use a Canvas address ending in .instructure.com": "Use a Canvas address ending in .instructure.com",
   "Search results: {count}": "Search results: {count}",
-  "Retry save": "Retry save"
+  "Retry save": "Retry save",
+  "attachment_viewer.original": "Original file · read-only",
+  "attachment_viewer.download": "Download file",
+  "attachment_viewer.content": "File contents",
+  "attachment_viewer.unavailable": "Could not load this file. Try reopening it.",
+  "attachment_viewer.no_preview": "Preview is not available for this file. Download it to open it.",
+  "attachment_viewer.too_large": "This file is too large to preview. Download it to read it.",
+  "attachment_viewer.empty": "This file is empty."
 }

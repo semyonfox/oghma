@@ -1274,5 +1274,12 @@
   "Paste your Canvas URL or enter its address, for example": "अपना Canvas URL पेस्ट करें या उसका पता लिखें, उदाहरण के लिए",
   "Use a Canvas address ending in .instructure.com": ".instructure.com पर समाप्त होने वाला Canvas पता इस्तेमाल करें",
   "Search results: {count}": "खोज परिणाम: {count}",
-  "Retry save": "सहेजने का फिर प्रयास करें"
+  "Retry save": "सहेजने का फिर प्रयास करें",
+  "attachment_viewer.original": "मूल फ़ाइल · केवल पढ़ने के लिए",
+  "attachment_viewer.download": "फ़ाइल डाउनलोड करें",
+  "attachment_viewer.content": "फ़ाइल की सामग्री",
+  "attachment_viewer.unavailable": "यह फ़ाइल लोड नहीं हो सकी। इसे फिर से खोलने की कोशिश करें।",
+  "attachment_viewer.no_preview": "इस फ़ाइल का पूर्वावलोकन उपलब्ध नहीं है। इसे खोलने के लिए डाउनलोड करें।",
+  "attachment_viewer.too_large": "यह फ़ाइल पूर्वावलोकन के लिए बहुत बड़ी है। इसे पढ़ने के लिए डाउनलोड करें।",
+  "attachment_viewer.empty": "यह फ़ाइल खाली है।"
 }

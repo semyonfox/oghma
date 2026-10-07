@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-export type FileType = "note" | "pdf" | "image" | "video";
+export type FileType = "note" | "pdf" | "image" | "video" | "text" | "attachment";
 type NavSection =
   "notes" | "search" | "calendar" | "chat" | "quiz" | "study-map" | "settings";
 export type RightPanelTab = "meta" | "ai" | "tasks";
@@ -22,7 +22,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isFileType(value: unknown): value is FileType {
-  return value === "note" || value === "pdf" || value === "image" || value === "video";
+  return value === "note" || value === "pdf" || value === "image" || value === "video"
+    || value === "text" || value === "attachment";
 }
 
 function isPaneState(value: unknown): value is PaneState {
