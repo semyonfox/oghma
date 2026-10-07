@@ -376,10 +376,73 @@ async function findOrCreateNote(
 
 // ── Import record helpers ───────────────────────────────────────────────────
 
+interface CanvasResourceFile {
+  id: CanvasId;
+  moduleId?: CanvasId;
+  filename: string;
+  parentFolderId: string | null;
+  s3Prefix: string;
+}
+
+function canvasSectionFileId(courseId: string, kind: string) {
+  const digest = createHash("sha256").update(`canvas-restriction:${courseId}:${kind}`).digest();
+  const magnitude = digest.readBigUInt64BE(0) & ((BigInt(1) << BigInt(63)) - BigInt(1));
+  return `-${magnitude || BigInt(1)}`;
+}
+
+export async function recordCanvasResourceIssue(
+  courseId: string,
+  userId: string,
+  courseTitle: string,
+  kind: string,
+  jobId: string,
+  message: string,
+  forbidden = false,
+  file?: CanvasResourceFile,
+) {
+  const fileId = file
+    ? canvasIdForBigintColumn(file.id, "Canvas file ID")
+    : canvasSectionFileId(courseId, kind);
+  await withCanvasPublication(() => sql`
+    INSERT INTO app.canvas_imports (
+      id, user_id, canvas_course_id, canvas_module_id, canvas_file_id,
+      filename, mime_type, status, error_message, job_id, retryable, parent_folder_id, s3_prefix
+    )
+    SELECT
+      ${uuidv4()}::uuid, ${userId}::uuid, ${canvasIdForBigintColumn(courseId, "Canvas course ID")}::bigint,
+      ${canvasModuleIdForBigintColumn(file?.moduleId ?? 0)}::bigint, ${fileId}::bigint,
+      ${file?.filename ?? `${courseTitle} / ${kind} (course ${courseId})`},
+      ${file ? resolveMimeType(file.filename) ?? "application/octet-stream" : "text/plain"},
+      ${forbidden ? "forbidden" : "error"}, ${message}, ${jobId}::uuid,
+      ${Boolean(file && !forbidden)}, ${file?.parentFolderId ?? null}::uuid, ${file?.s3Prefix ?? null}
+    WHERE EXISTS (
+      SELECT 1 FROM app.canvas_import_jobs job
+      WHERE job.id = ${jobId}::uuid AND job.user_id = ${userId}::uuid
+        AND job.type = 'canvas' AND job.status IN ('discovering', 'processing')
+    )
+      AND (${file?.parentFolderId ?? null}::uuid IS NULL OR EXISTS (
+        SELECT 1 FROM app.notes parent WHERE parent.note_id = ${file?.parentFolderId ?? null}::uuid
+          AND parent.user_id = ${userId}::uuid AND parent.deleted_at IS NULL
+      ))
+    ON CONFLICT (user_id, canvas_file_id) DO UPDATE SET
+      status = EXCLUDED.status, error_message = EXCLUDED.error_message,
+      job_id = EXCLUDED.job_id, retryable = EXCLUDED.retryable,
+      canvas_course_id = EXCLUDED.canvas_course_id, canvas_module_id = EXCLUDED.canvas_module_id,
+      mime_type = EXCLUDED.mime_type,
+      filename = EXCLUDED.filename, parent_folder_id = EXCLUDED.parent_folder_id,
+      s3_prefix = EXCLUDED.s3_prefix, claim_token = NULL, claim_expires_at = NULL,
+      dispatched_at = NULL, updated_at = NOW()
+    WHERE app.canvas_imports.canvas_file_id <= 0
+      OR app.canvas_imports.status IN ('error', 'forbidden', 'cancelled')
+  `);
+  logger.warn("canvas-import-resource-unavailable", { jobId, courseId, kind, fileId, forbidden });
+}
+
 export async function fetchResource<T>(
   fetchFn: (courseId: string) => Promise<{
     data: T | null;
     forbidden: boolean;
+    unauthorized?: boolean;
     error?: string;
   }>,
   courseId: string,
@@ -387,41 +450,27 @@ export async function fetchResource<T>(
   courseTitle: string,
   kind: string,
   jobId: string,
+  file?: CanvasResourceFile,
 ) {
-  const { data, forbidden, error } = await fetchFn(courseId);
-  if (forbidden) {
-    const canvasCourseId = canvasIdForBigintColumn(
-      courseId,
-      "Canvas course ID",
-    );
-    logger.info(`Course ${kind} restricted: ${courseTitle}`);
-    // A Canvas resource restriction is represented as a synthetic per-course
-    // file row so it participates in job progress. Do not use a constant 0:
-    // canvas_imports is unique per user/file and a second restriction would
-    // otherwise abort discovery.
-    const digest = createHash("sha256")
-      .update(`canvas-restriction:${courseId}:${kind}`)
-      .digest();
-    const one = BigInt(1);
-    const magnitude = digest.readBigUInt64BE(0) & ((one << BigInt(63)) - one);
-    const syntheticFileId = `-${magnitude === BigInt(0) ? one : magnitude}`;
+  const { data, forbidden, unauthorized, error } = await fetchFn(courseId);
+  if (unauthorized) throw new Error("Invalid or expired Canvas token");
+  const issue = error ?? (!data && !forbidden ? "Canvas returned an empty response" : null);
+  if (forbidden || issue) {
+    await recordCanvasResourceIssue(courseId, userId, courseTitle, kind, jobId,
+      forbidden ? `Canvas ${kind} access restricted for your account`
+        : `Canvas ${kind} request failed: ${issue}`, forbidden, file);
+  } else if (!file) {
+    // a reclaimed discovery can succeed where its previous attempt failed
+    // clear only that section's issue from the same generation
     await withCanvasPublication(() => sql`
-      INSERT INTO app.canvas_imports (id, user_id, canvas_course_id, canvas_module_id, canvas_file_id, filename, mime_type, status, error_message, job_id)
-      VALUES (${uuidv4()}::uuid, ${userId}::uuid, ${canvasCourseId}::bigint, 0, ${syntheticFileId}::bigint, ${courseTitle + " (" + kind + ")"}, 'text/plain', 'forbidden', ${"Course " + kind + " restricted by lecturer"}, ${jobId}::uuid)
-      ON CONFLICT (user_id, canvas_file_id)
-      DO UPDATE SET
-        status = 'forbidden',
-        error_message = EXCLUDED.error_message,
-        job_id = EXCLUDED.job_id,
-        dispatched_at = NULL,
-        updated_at = NOW()
+      DELETE FROM app.canvas_imports
+      WHERE user_id = ${userId}::uuid AND job_id = ${jobId}::uuid
+        AND canvas_file_id = ${canvasSectionFileId(courseId, kind)}::bigint
+        AND status IN ('error', 'forbidden')
     `);
   }
-  // Canvas expresses a real 403 as both `forbidden` and a human-readable
-  // error. It is a terminal access result, not a failed discovery request.
-  if (error && !forbidden) {
-    throw new Error(`Canvas ${kind} request failed: ${error}`);
-  }
+  // a paginated request can return valid earlier pages alongside a later error
+  // keep those results and report the failed section for a future discovery run
   return { data, forbidden };
 }
 

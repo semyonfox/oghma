@@ -38,3 +38,10 @@ describe("friendly error helpers", () => {
     );
   });
 });
+
+it("explains inaccessible files and sections without a raw HTTP error", () => {
+  expect(toFriendlyCanvasLogMessage("Canvas API error: 404")).toContain("Other files will continue");
+  expect(toFriendlyCanvasLogMessage("Canvas API error: 410", true)).toContain("this section");
+  expect(toFriendlyCanvasLogMessage("Canvas API rate limited")).toContain("Try this item again later");
+  expect(toFriendlyCanvasLogMessage("Discovery did not finish")).toContain("stopped before this file");
+});

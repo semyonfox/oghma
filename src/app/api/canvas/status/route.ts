@@ -32,6 +32,8 @@ interface CanvasFileStatsRow {
   pending_cache?: string;
   course_sections?: string;
   restricted_courses?: string;
+  discovery_errors?: string;
+  failed_courses?: string[] | null;
 }
 
 interface CanvasLogRow {
@@ -140,12 +142,14 @@ export const GET = withErrorHandler(async (request) => {
         COUNT(CASE WHEN status = 'pending_retry' THEN 1 END) as pending_retry,
         COUNT(CASE WHEN status = 'pending_marker' THEN 1 END) as pending_marker,
         COUNT(CASE WHEN status = 'forbidden' AND (canvas_file_id IS NULL OR canvas_file_id > 0) THEN 1 END) as forbidden,
-        COUNT(CASE WHEN status = 'error'       THEN 1 END) as error,
+        COUNT(CASE WHEN status = 'error' AND (canvas_file_id IS NULL OR canvas_file_id > 0) THEN 1 END) as error,
         COUNT(CASE WHEN status = 'error' AND retryable THEN 1 END) as retryable,
         COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as stopped,
         COUNT(CASE WHEN status = 'pending_cache' THEN 1 END) as pending_cache,
         COUNT(CASE WHEN canvas_file_id <= 0 THEN 1 END) as course_sections,
-        COUNT(DISTINCT CASE WHEN canvas_file_id <= 0 THEN canvas_course_id END) as restricted_courses
+        COUNT(DISTINCT CASE WHEN canvas_file_id <= 0 AND status = 'forbidden' THEN canvas_course_id END) as restricted_courses,
+        COUNT(CASE WHEN canvas_file_id <= 0 AND status = 'error' THEN 1 END) as discovery_errors,
+        ARRAY_AGG(DISTINCT canvas_course_id::text) FILTER (WHERE status = 'error') as failed_courses
       FROM app.canvas_imports
       WHERE user_id = ${user.user_id}
         AND CASE
@@ -158,6 +162,7 @@ export const GET = withErrorHandler(async (request) => {
         COALESCE(canvas_file_id <= 0, FALSE) AS course_section
       FROM app.canvas_imports
       WHERE user_id = ${user.user_id}
+        AND (canvas_file_id IS NULL OR canvas_file_id > 0 OR status <> 'error')
         AND CASE
           WHEN ${jobId}::uuid IS NOT NULL THEN job_id = ${jobId}::uuid
           ELSE ${since}::timestamptz IS NULL OR created_at >= ${since}
@@ -201,6 +206,15 @@ export const GET = withErrorHandler(async (request) => {
   ].map((value) => parseInt(String(value), 10));
   const completed = indexed;
   const courseSections = Number(stats.course_sections ?? 0);
+  const discoveryErrors = Number(stats.discovery_errors ?? 0);
+  const discoveryLogs = discoveryErrors > 0 ? await sql<CanvasLogRow[]>`
+    SELECT filename, status, error_message, updated_at, canvas_course_id, note_id,
+      TRUE AS course_section
+    FROM app.canvas_imports
+    WHERE user_id = ${user.user_id} AND job_id = ${jobId}::uuid
+      AND canvas_file_id <= 0 AND status = 'error'
+    ORDER BY updated_at DESC
+  ` : [];
 
   // use expected_total from the discovery phase as denominator when available —
   // this prevents the progress bar from jumping backwards as new files are found.
@@ -216,12 +230,8 @@ export const GET = withErrorHandler(async (request) => {
   // Only an explicitly completed parent owns 100%. A failed/cancelled parent
   // may have terminal file rows too, but reporting it as complete hides the
   // operational distinction the user needs to resolve it.
-  const progressPercent =
-    denominator > 0
-      ? job?.status === "complete"
-        ? 100
-        : Math.min(99, Math.round((settled / denominator) * 100))
-      : null;
+  const progressPercent = job?.status === "complete" ? 100
+    : denominator > 0 ? Math.min(99, Math.round((settled / denominator) * 100)) : null;
   // An ETA is only meaningful once at least one file has settled. Use the
   // observed job rate rather than inventing a fixed processing duration.
   const processingStartedAt =
@@ -354,9 +364,11 @@ export const GET = withErrorHandler(async (request) => {
     },
     issues: {
       forbidden,
-      error: errorCount,
+      error: errorCount + discoveryErrors,
       stopped: Number(stats.stopped ?? 0),
       restrictedCourses: Number(stats.restricted_courses ?? 0),
+      discoveryErrors,
+      failedCourses: stats.failed_courses ?? [],
     },
     // `pending_marker` means the file was handed off to the asynchronous
     // Marker pipeline; it is not evidence that a cold start is happening.
@@ -370,7 +382,7 @@ export const GET = withErrorHandler(async (request) => {
       const path = treePathByNoteId.get(row.note_id);
       return path?.length ? [path] : [];
     }),
-    recentLogs: (recentLogs ?? []).map((r) => ({
+    recentLogs: [...(discoveryLogs ?? []), ...(recentLogs ?? [])].map((r) => ({
       filename: r.filename,
       status: r.status,
       errorMessage: r.error_message,

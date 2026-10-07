@@ -190,20 +190,23 @@ export default function useCanvasImport({
 
     if (latestJob.status === "complete" && snapshot.progress) {
       const nextSynced = { ...latestStateRef.current.syncedCourses };
+      const failedCourseIds = new Set(snapshot.issues?.failedCourses ?? (snapshot.recentLogs ?? [])
+        .filter((log) => log.status === "error" && log.courseId != null)
+        .map((log) => String(log.courseId)));
       for (const course of latestStateRef.current.courses) {
         if (
           course.canvasStatus !== "inaccessible" &&
           course.canvasStatus !== "unavailable" &&
           latestStateRef.current.selectedCourseIds.includes(String(course.id))
         ) {
-          nextSynced[String(course.id)] = true;
+          nextSynced[String(course.id)] = !failedCourseIds.has(String(course.id));
         }
       }
       latestStateRef.current.syncedCourses = nextSynced;
       setSyncedCourses(nextSynced);
       localStorage.setItem(LS_SYNCED, JSON.stringify(nextSynced));
     } else if (latestJob.status === "failed") {
-      setConnectionError(latestJob.errorMessage ?? t("Import failed"));
+      setConnectionError(toFriendlyCanvasError(latestJob.errorMessage));
     } else if (latestJob.status === "cancelled") {
       setConnectionError(t("Import stopped"));
     }

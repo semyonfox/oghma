@@ -11,8 +11,20 @@ vi.mock("@/database/pgsql", () => {
   return { default: db };
 });
 
+const canvas = vi.hoisted(() => ({
+  getModules: vi.fn(), getModuleItems: vi.fn(), getFile: vi.fn(),
+  getAssignments: vi.fn(), getCourseFiles: vi.fn(), getAssignment: vi.fn(),
+}));
 vi.mock("@/lib/canvas/client", () => ({
-  CanvasClient: vi.fn(),
+  CanvasClient: class {
+    baseUrl = "https://canvas.example.test/api/v1";
+    getModules = canvas.getModules;
+    getModuleItems = canvas.getModuleItems;
+    getFile = canvas.getFile;
+    getAssignments = canvas.getAssignments;
+    getCourseFiles = canvas.getCourseFiles;
+    getAssignment = canvas.getAssignment;
+  },
 }));
 
 vi.mock("@/lib/canvas/import-scheduler.ts", () => ({
@@ -24,6 +36,7 @@ vi.mock("@/lib/canvas/import-extraction", () => ({
   FILE_CONCURRENCY: 1,
   resolveMimeType: vi.fn().mockReturnValue("application/pdf"),
   fetchResource: vi.fn(),
+  recordCanvasResourceIssue: vi.fn(),
   isJobCancelled: vi.fn().mockResolvedValue(false),
   downloadAndStoreFile: vi.fn(),
   checkAndCompleteJob: vi.fn().mockResolvedValue(true),
@@ -37,6 +50,7 @@ vi.mock("@/lib/logger.ts", () => ({
   default: {
     info: vi.fn(),
     error: vi.fn(),
+    warn: vi.fn(),
   },
 }));
 
@@ -174,5 +188,98 @@ describe("Trash during nested module discovery", () => {
     );
     expect(inserts.every((call) => !call.slice(1).includes("42"))).toBe(true);
     expect(vi.mocked(sql).mock.calls.some(([parts]) => Array.from(parts).join("").includes("'{skippedFolders}'"))).toBe(true);
+  });
+});
+
+describe("partial Canvas discovery", () => {
+  const jobId = "11111111-1111-4111-8111-111111111111";
+  const userId = "22222222-2222-4222-8222-222222222222";
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    const actual = await vi.importActual<typeof import("@/lib/canvas/import-extraction")>("@/lib/canvas/import-extraction");
+    vi.mocked(fetchResource).mockImplementation(actual.fetchResource);
+    vi.mocked(findOrCreateFolder).mockResolvedValue("33333333-3333-4333-8333-333333333333");
+    canvas.getAssignments.mockResolvedValue({ data: [], forbidden: false });
+    canvas.getCourseFiles.mockResolvedValue({ data: [], forbidden: false });
+    vi.mocked(sql).mockReset().mockImplementation(async (parts) => {
+      const query = Array.from(parts).join("");
+      if (query.includes("RETURNING *")) return [{ user_id: userId, course_ids: ["42", "43"], started_at: new Date(), execution_attempts: 3 }] as never;
+      if (query.includes("canvas_token")) return [{ canvas_token: "encrypted", canvas_domain: "example.test" }] as never;
+      if (query.includes("COUNT(*)")) return [{ count: "4" }] as never;
+      if (query.includes("INSERT INTO app.canvas_imports")) return [{ id: "file", status: "pending" }] as never;
+      if (query.includes("RETURNING id")) return [{ id: jobId }] as never;
+      if (query.includes("SELECT user_id FROM app.canvas_import_jobs")) return [{ user_id: userId }] as never;
+      if (query.includes("RETURNING status")) return [{ status: "failed" }] as never;
+      return [] as never;
+    });
+  });
+
+  it("processes valid files despite an inaccessible course, broken module, and missing sibling file", async () => {
+    canvas.getModules.mockImplementation(async (courseId: string) => courseId === "42"
+      ? { data: null, forbidden: false, error: "Canvas API error: 404" }
+      : { data: [{ id: "10", name: "Unavailable week" }, { id: "11", name: "Working week" }], forbidden: false });
+    canvas.getModuleItems.mockImplementation(async (_courseId: string, moduleId: string) => moduleId === "10"
+      ? { data: null, forbidden: false, error: "Canvas API error: 503" }
+      : { data: [{ type: "File", content_id: "9", title: "Missing.pdf" },
+        { type: "File", content_id: "10", title: "Keep.pdf" }], forbidden: false });
+    canvas.getFile.mockImplementation(async (_courseId: string, fileId: string) => fileId === "9"
+      ? { data: null, forbidden: false, error: "Canvas API error: 404" }
+      : { data: { id: "10", display_name: "Keep.pdf", content_type: "application/pdf" }, forbidden: false });
+
+    await expect(processDiscoverJob(jobId)).resolves.toBe(true);
+
+    const inserts = vi.mocked(sql).mock.calls.filter(([parts]) => Array.from(parts).join("").includes("INSERT INTO app.canvas_imports"));
+    expect(inserts.filter((call) => call.includes("error"))).toHaveLength(3);
+    expect(inserts.some((call) => call.includes("Missing.pdf") && call.includes("9"))).toBe(true);
+    expect(inserts.some((call) => call.includes("Keep.pdf") && call.includes("pending"))).toBe(true);
+    expect(canvas.getAssignments).toHaveBeenCalledWith("42");
+    expect(canvas.getCourseFiles).toHaveBeenCalledWith("43");
+    expect(dispatchFairCanvasFiles).toHaveBeenCalled();
+    expect(checkAndCompleteJob).toHaveBeenCalledWith(jobId, userId);
+    expect(vi.mocked(sql).mock.calls.some(([parts]) => Array.from(parts).join("").includes("Parent discovery failed"))).toBe(false);
+  });
+
+  it("settles an entirely inaccessible selection with per-section issues", async () => {
+    canvas.getModules.mockResolvedValue({ data: null, forbidden: false, error: "Canvas API error: 404" });
+    canvas.getAssignments.mockResolvedValue({ data: [], forbidden: true, error: "Access restricted" });
+    canvas.getCourseFiles.mockResolvedValue({ data: [], forbidden: false, error: "Canvas API error: 410" });
+
+    await expect(processDiscoverJob(jobId)).resolves.toBe(true);
+    expect(checkAndCompleteJob).toHaveBeenCalledWith(jobId, userId);
+    expect(canvas.getCourseFiles).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(sql).mock.calls.filter(([parts]) => Array.from(parts).join("").includes("INSERT INTO app.canvas_imports"))).toHaveLength(6);
+  });
+
+  it("retains files from earlier pages when a later inventory page is restricted", async () => {
+    canvas.getModules.mockResolvedValue({ data: [], forbidden: false });
+    canvas.getCourseFiles.mockResolvedValue({ data: [{ id: "10", display_name: "Keep.pdf", content_type: "application/pdf" }],
+      forbidden: true, error: "Access restricted by lecturer" });
+    await expect(processDiscoverJob(jobId)).resolves.toBe(true);
+    const inserts = vi.mocked(sql).mock.calls.filter(([parts]) => Array.from(parts).join("").includes("INSERT INTO app.canvas_imports"));
+    expect(inserts.some((call) => call.includes("Keep.pdf") && call.includes("pending"))).toBe(true);
+    expect(inserts.some((call) => call.includes("forbidden"))).toBe(true);
+  });
+
+  it("imports an assignment's valid attachment even when another description link is missing", async () => {
+    vi.mocked(sql).mockResolvedValueOnce([{ user_id: userId, course_ids: [{ id: "42", assignmentId: "7" }],
+      started_at: new Date(), execution_attempts: 1 }] as never);
+    canvas.getAssignment.mockResolvedValue({ data: { id: "7", name: "Streams assignment",
+      description: '<a href="/files/9">Missing</a><a href="/files/10">Working</a>' }, forbidden: false });
+    canvas.getFile.mockImplementation(async (_courseId: string, fileId: string) => fileId === "9"
+      ? { data: null, forbidden: false, error: "Canvas API error: 404" }
+      : { data: { id: "10", display_name: "Keep.pdf", content_type: "application/pdf" }, forbidden: false });
+    await expect(processDiscoverJob(jobId)).resolves.toBe(true);
+    const inserts = vi.mocked(sql).mock.calls.filter(([parts]) => Array.from(parts).join("").includes("INSERT INTO app.canvas_imports"));
+    expect(inserts.some((call) => call.includes("File 9") && call.includes("error"))).toBe(true);
+    expect(inserts.some((call) => call.includes("Keep.pdf") && call.includes("pending"))).toBe(true);
+    expect(canvas.getModules).not.toHaveBeenCalled();
+  });
+
+  it("keeps an expired connection as a parent failure instead of reporting successful discovery", async () => {
+    canvas.getModules.mockResolvedValue({ data: null, forbidden: false, unauthorized: true, error: "Invalid or expired Canvas token" });
+    await expect(processDiscoverJob(jobId)).resolves.toBe(false);
+    expect(checkAndCompleteJob).not.toHaveBeenCalled();
+    expect(vi.mocked(sql).mock.calls.some((call) => call.includes("Canvas course discovery failed: Invalid or expired Canvas token"))).toBe(true);
   });
 });
