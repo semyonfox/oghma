@@ -1,5 +1,5 @@
 import { CanvasClaimLostError, withCanvasExecution, withCanvasPublication, CANVAS_CLAIM_SECONDS } from "./execution";
-import { discoverAssignmentMaterials } from "./assignment-materials";
+import { assignmentFileIds } from "./assignment-materials";
 import { randomUUID } from "node:crypto";
 /**
  * Canvas Import — Discovery Phase
@@ -41,6 +41,7 @@ import {
   FILE_CONCURRENCY,
   resolveMimeType,
   fetchResource,
+  recordCanvasResourceIssue,
   isJobCancelled,
   downloadAndStoreFile,
   checkAndCompleteJob,
@@ -306,7 +307,7 @@ async function discoverModuleFiles(
 
   const moduleResults = await pooled(
     modules.map((module) => async () => {
-      const { data: items, forbidden } = await fetchResource(
+      const { data: items } = await fetchResource(
         () => client.getModuleItems(courseId, module.id),
         courseId,
         userId,
@@ -314,12 +315,7 @@ async function discoverModuleFiles(
         `module ${module.id} files`,
         jobId,
       );
-      if (forbidden) return;
-      if (!items) {
-        throw new Error(
-          `module ${module.id} items unavailable: empty response`,
-        );
-      }
+      if (!items) return;
 
       const fileItems = items.filter(
         (item): item is CanvasModuleItem & { content_id: NonNullable<CanvasModuleItem["content_id"]> } =>
@@ -348,6 +344,8 @@ async function discoverModuleFiles(
 
       const fileResults = await pooled(
         fileItems.map((item) => async () => {
+          const target = { id: item.content_id, moduleId: module.id,
+            filename: item.title || `File ${item.content_id}`, parentFolderId: folderId, s3Prefix };
           const { data: file, forbidden: fileForbidden } = await fetchResource(
             () => client.getFile(courseId, item.content_id),
             courseId,
@@ -355,12 +353,13 @@ async function discoverModuleFiles(
             courseTitle,
             `module file ${item.content_id}`,
             jobId,
+            target,
           );
-          if (fileForbidden) return;
-          if (!file || typeof file.display_name !== "string") {
-            throw new Error(
-              `file ${item.content_id} metadata unavailable: empty response`,
-            );
+          if (fileForbidden || !file) return;
+          if (typeof file.display_name !== "string") {
+            await recordCanvasResourceIssue(courseId, userId, courseTitle, `module file ${item.content_id}`,
+              jobId, "Canvas file metadata is missing a display name", false, target);
+            return;
           }
           await insertPendingFile(
             userId,
@@ -396,13 +395,11 @@ async function eachAssignmentWithFiles(
   handleAttachments: AttachmentHandler,
 ) {
   const { client, jobId } = ctx;
-  const { data: assignments, forbidden } = await fetchResource(
+  const { data: assignments } = await fetchResource(
     async (id) => {
       if (!ctx.assignmentId) return client.getAssignments(id);
       const result = await client.getAssignment(id, ctx.assignmentId);
-      if (!result.data || result.error) throw new Error(result.error ?? "Assignment unavailable");
-      const materials = await discoverAssignmentMaterials(client, id, result.data);
-      return { ...result, data: [{ ...result.data, attachments: materials.flatMap(material => material.file && !material.unavailable ? [material.file] : []) }] };
+      return { ...result, data: result.data ? [result.data] : null };
     },
     courseId,
     userId,
@@ -410,13 +407,14 @@ async function eachAssignmentWithFiles(
     "assignments",
     jobId,
   );
-  if (forbidden || !assignments || assignments.length === 0) return assignments;
+  if (!assignments || assignments.length === 0) return assignments;
 
   const hasProcessableFile = (att: CanvasFile): att is DiscoveredCanvasFile => {
     const mimeType = resolveMimeType(att.display_name, att.content_type);
     return typeof att.display_name === "string" && Boolean(mimeType && PROCESSABLE_TYPES.has(mimeType));
   };
   const assignmentsWithFiles = assignments.filter((a) =>
+    (ctx.assignmentId && assignmentFileIds(a, client.baseUrl, courseId).length > 0) ||
     (a.attachments ?? []).some(hasProcessableFile),
   );
   if (assignmentsWithFiles.length === 0) return assignments;
@@ -442,7 +440,7 @@ async function eachAssignmentWithFiles(
 
   const assignmentResults = await pooled(
     assignmentsWithFiles.map((assignment) => async () => {
-      const attachments = (assignment.attachments ?? []).filter(
+      let attachments = (assignment.attachments ?? []).filter(
         hasProcessableFile,
       );
       let assignmentFolderId: string | null;
@@ -463,6 +461,25 @@ async function eachAssignmentWithFiles(
         if (!(error instanceof CanvasFolderTrashedError)) throw error;
         await recordSkippedFolder(ctx, `${courseTitle} / ${assignment.name}`, attachments.map((file) => file.id));
         return;
+      }
+      if (ctx.assignmentId) {
+        const materials = await pooled(assignmentFileIds(assignment, client.baseUrl, courseId).map((id) => async () => {
+          const known = (assignment.attachments ?? []).find((file) => String(file.id) === id);
+          const target = { id, filename: known?.display_name ?? `File ${id}`,
+            parentFolderId: assignmentFolderId, s3Prefix: `canvas/${userId}/${courseId}/assignments/${assignment.id}` };
+          const result = await fetchResource(() => client.getFile(courseId, id), courseId, userId,
+            courseTitle, `assignment ${assignment.id} file ${id}`, jobId, target);
+          if (!result.data || result.forbidden) return null;
+          if (typeof result.data.display_name !== "string") {
+            await recordCanvasResourceIssue(courseId, userId, courseTitle, `assignment ${assignment.id} file ${id}`,
+              jobId, "Canvas file metadata is missing a display name", false, target);
+            return null;
+          }
+          return result.data;
+        }), CANVAS_DISCOVERY_CONCURRENCY);
+        throwFirstRejected(materials, `assignment ${assignment.id} file metadata`);
+        attachments = materials.flatMap((result) => result.status === "fulfilled" && result.value && hasProcessableFile(result.value)
+          ? [result.value] : []);
       }
       await handleAttachments(assignment, attachments, assignmentFolderId);
     }),
@@ -515,7 +532,7 @@ async function discoverStandaloneCourseFiles(
   ctx: ImportContext,
 ) {
   const { client, jobId } = ctx;
-  const { data: files, forbidden } = await fetchResource(
+  const { data: files } = await fetchResource(
     (id) => client.getCourseFiles(id),
     courseId,
     userId,
@@ -523,13 +540,17 @@ async function discoverStandaloneCourseFiles(
     "files",
     jobId,
   );
-  if (forbidden || !files?.length) return;
+  if (!files?.length) return;
 
   const results = await pooled(
     files.map((file) => async () => {
       if (ctx.skippedFileIds?.has(String(file.id))) return;
       if (typeof file.display_name !== "string") {
-        throw new Error(`Canvas file ${file.id} is missing a display name`);
+        await recordCanvasResourceIssue(courseId, userId, courseTitle, `file ${file.id}`, jobId,
+          "Canvas file metadata is missing a display name", false,
+          { id: file.id, filename: file.filename ?? `File ${file.id}`, parentFolderId: courseFolderId,
+            s3Prefix: `canvas/${userId}/${courseId}/files` });
+        return;
       }
       await insertPendingFile(
         userId,

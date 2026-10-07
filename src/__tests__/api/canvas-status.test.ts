@@ -657,3 +657,42 @@ describe("GET /api/canvas/status", () => {
     expect(sql).not.toHaveBeenCalled();
   });
 });
+
+it("reports failed discovery sections separately while a valid file remains active", async () => {
+  vi.mocked(requireAuth).mockResolvedValue({ user_id: "user-123" } as never);
+  vi.mocked(sql).mockReset()
+    .mockResolvedValueOnce([{ id: JOB_ID, status: "processing", expected_total: 3 }] as never)
+    .mockResolvedValueOnce([{ total: 1, indexed: 0, indexing: 0, downloading: 0, processing: 0,
+      pending_retry: 0, pending_marker: 1, forbidden: 0, error: 0, course_sections: 2,
+      discovery_errors: 2, restricted_courses: 0, failed_courses: ["42"] }] as never)
+    .mockResolvedValueOnce([] as never)
+    .mockResolvedValueOnce([{ filename: "Old course / modules", status: "error", error_message: "Canvas API error: 404",
+      canvas_course_id: "42", course_section: true, note_id: null }] as never);
+  const response = await GET(new NextRequest("http://localhost/api/canvas/status"));
+  const body = await response.json();
+  expect(body.progress).toMatchObject({ total: 1, pendingMarker: 1, completed: 0, percent: 0 });
+  expect(body.issues).toMatchObject({ error: 2, discoveryErrors: 2, restrictedCourses: 0, failedCourses: ["42"] });
+  expect(body.recentLogs).toHaveLength(1);
+  expect(body.recentLogs[0]).toMatchObject({ courseSection: true, filename: "Old course / modules", courseId: "42" });
+  const queries = vi.mocked(sql).mock.calls.map(([parts]) => Array.from(parts).join(""));
+  expect(queries[1]).not.toContain("OR status <> 'error'");
+  expect(queries[2]).toContain("OR status <> 'error'");
+  expect(queries[3]).toContain("job_id = ");
+  expect(queries[3]).toContain("canvas_file_id <= 0 AND status = 'error'");
+});
+
+it("finishes a run with no accessible files without leaving it at 99 percent", async () => {
+  vi.mocked(requireAuth).mockResolvedValue({ user_id: "user-123" } as never);
+  vi.mocked(sql).mockReset()
+    .mockResolvedValueOnce([{ id: JOB_ID, status: "complete", expected_total: 1 }] as never)
+    .mockResolvedValueOnce([{ total: 0, indexed: 0, indexing: 0, downloading: 0, processing: 0,
+      pending_retry: 0, pending_marker: 0, forbidden: 0, error: 0, course_sections: 1,
+      discovery_errors: 1, failed_courses: ["42"] }] as never)
+    .mockResolvedValueOnce([] as never)
+    .mockResolvedValueOnce([{ filename: "Old course / modules", status: "error", error_message: "Canvas API error: 404",
+      canvas_course_id: "42", course_section: true, note_id: null }] as never);
+  const body = await (await GET(new NextRequest("http://localhost/api/canvas/status"))).json();
+  expect(body.activeJob).toBeNull();
+  expect(body.progress).toMatchObject({ total: 0, completed: 0, percent: 100 });
+  expect(body.issues.error).toBe(1);
+});

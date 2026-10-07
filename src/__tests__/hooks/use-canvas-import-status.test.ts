@@ -902,3 +902,19 @@ describe("useCanvasImportStatus", () => {
     unmount();
   });
 });
+
+it("retains the terminal summary when discovery finished with only inaccessible sections", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => canvasStatus({
+    activeJob: null, latestJob: { jobId: "job-1", status: "complete", jobType: "import" },
+    progress: { total: 0, completed: 0, percent: 100 }, issues: { error: 1, forbidden: 0 },
+  }) }));
+  const { result, unmount } = renderHook(() => useCanvasImportStatus({ autoCheckOnMount: false }));
+  await act(async () => { await result.current.checkStatus(); });
+  expect(result.current.isImporting).toBe(false);
+  expect(result.current.progress).toMatchObject({ percent: 100, total: 0, error: 1 });
+  expect(result.current.importSummary).toMatchObject({ imported: 0, failed: 1 });
+  expect(result.current.showToast).toBe(true);
+  unmount();
+  vi.unstubAllGlobals();
+  localStorage.clear();
+});

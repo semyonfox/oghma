@@ -39,6 +39,7 @@ const owner = vi.hoisted(() => ({
       errorMessage?: string | null;
     } | null;
     progress?: { completed?: number };
+    issues?: { failedCourses?: string[] };
     recentLogs?: Array<{ status?: string; courseId?: string; courseSection?: boolean }>;
   } | null,
   checkStatus: vi.fn().mockResolvedValue(undefined),
@@ -231,6 +232,15 @@ describe("useCanvasImport shared status owner", () => {
     expect(owner.checkStatus).toHaveBeenCalledOnce();
     expect(owner.resetStatus).not.toHaveBeenCalled();
     expect(localStorage.getItem("canvas_active_job")).not.toBeNull();
+  });
+
+  it("keeps a partially checked course out of Synced even when its error is outside recent file logs", async () => {
+    owner.statusSnapshot = { activeJob: null, latestJob: { jobId: "partial-job", status: "complete" },
+      progress: { completed: 1 }, issues: { failedCourses: ["course-2"] }, recentLogs: [] };
+    const { result } = renderImporter({ selectedCourseIds: ["course-1", "course-2"],
+      courses: [{ id: "course-1", name: "Working course", course_code: "CS101" },
+        { id: "course-2", name: "Partial course", course_code: "CS102" }] });
+    await waitFor(() => expect(result.current.syncedCourses).toEqual({ "course-1": true, "course-2": false }));
   });
 
   it("applies course status from the owner's snapshots", async () => {

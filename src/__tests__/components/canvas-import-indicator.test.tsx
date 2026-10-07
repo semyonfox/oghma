@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
       forbidden: 0,
       error: 0,
       failed: false,
+      restrictedCourses: 0,
     },
     isImporting: true,
     showToast: true,
@@ -33,6 +34,7 @@ describe("Canvas import sidebar indicator", () => {
     mocks.status.showToast = true;
     mocks.status.progress.failed = false;
     mocks.status.progress.percent = 42;
+    mocks.status.progress.restrictedCourses = 0;
     vi.clearAllMocks();
   });
   afterEach(cleanup);
@@ -67,5 +69,12 @@ describe("Canvas import sidebar indicator", () => {
     fireEvent.click(screen.getByRole("button", { name: "Import failed" }));
     fireEvent.click(await screen.findByRole("button", { name: "Dismiss" }));
     expect(mocks.status.onToastClose).toHaveBeenCalledOnce();
+  });
+
+  it("reports an inaccessible-only run as completed with issues", () => {
+    mocks.status.isImporting = false;
+    mocks.status.progress.restrictedCourses = 2;
+    render(<CanvasImportIndicator />);
+    expect(screen.getByRole("button", { name: "Completed with issues" }).className).toContain("text-orange-400");
   });
 });
