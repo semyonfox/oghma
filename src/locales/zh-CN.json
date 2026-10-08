@@ -1274,5 +1274,12 @@
   "Paste your Canvas URL or enter its address, for example": "粘贴你的 Canvas 网址或输入其地址，例如",
   "Use a Canvas address ending in .instructure.com": "请使用以 .instructure.com 结尾的 Canvas 地址",
   "Search results: {count}": "搜索结果：{count}",
-  "Retry save": "重试保存"
+  "Retry save": "重试保存",
+  "attachment_viewer.original": "原始文件 · 只读",
+  "attachment_viewer.download": "下载文件",
+  "attachment_viewer.content": "文件内容",
+  "attachment_viewer.unavailable": "无法加载此文件。请尝试重新打开。",
+  "attachment_viewer.no_preview": "此文件无法预览。请下载后打开。",
+  "attachment_viewer.too_large": "此文件过大，无法预览。请下载后阅读。",
+  "attachment_viewer.empty": "此文件为空。"
 }

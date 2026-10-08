@@ -41,7 +41,8 @@ describe("Marker submission cancellation fence", () => {
     mocks.sql.mockReset();
     mocks.sql.begin.mockClear();
     mocks.sql.begin.mockImplementation(
-      async (callback: (tx: typeof mocks.sql) => unknown) => callback(mocks.sql),
+      async (callback: (tx: typeof mocks.sql) => unknown) =>
+        callback(mocks.sql),
     );
     mocks.enqueueMarkerDispatchJob.mockReset();
     process.env.MARKER_OCR_ENABLED = "true";
@@ -75,6 +76,15 @@ describe("Marker submission cancellation fence", () => {
 
     expect(mocks.enqueueMarkerDispatchJob).not.toHaveBeenCalled();
     expect(mocks.sql).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not dispatch a standalone note deleted before submission", async () => {
+    mocks.sql.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    await expect(
+      submitMarkerJob({ ...input, jobId: null }),
+    ).rejects.toBeInstanceOf(MarkerSubmissionCancelledError);
+    expect(mocks.enqueueMarkerDispatchJob).not.toHaveBeenCalled();
+    expect(mocks.sql).toHaveBeenCalledTimes(2);
   });
 
   it("reuses an already-active Marker row instead of creating a second GPU job", async () => {

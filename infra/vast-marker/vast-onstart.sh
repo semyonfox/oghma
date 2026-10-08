@@ -5,8 +5,13 @@ set -euo pipefail
 # registration, metrics, and PyWorker startup. The immutable image already
 # contains worker.py, its venv, and requirements, so no mutable Git clone or
 # cold-start package installation is needed.
-export SERVER_DIR=/app
-export ENV_PATH=/opt/marker-venv
+export WORKSPACE_DIR=${WORKSPACE_DIR:-/workspace}
+# the pinned bootstrap derives SERVER_DIR from WORKSPACE_DIR
+mkdir -p "$WORKSPACE_DIR"
+if [[ ! -e "$WORKSPACE_DIR/vast-pyworker" ]]; then
+  ln -s /app "$WORKSPACE_DIR/vast-pyworker"
+fi
+export ENV_PATH=/opt/pyworker-venv
 export MODEL_LOG=/var/log/marker/backend.log
 export ROTATE_MODEL_LOG=false
 export SDK_VERSION=1.5.0

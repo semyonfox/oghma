@@ -232,7 +232,7 @@ requireEqual(plan.endpoint, "min_load", 0);
 requireEqual(plan.endpoint, "min_cold_load", 0);
 requireEqual(plan.endpoint, "min_workers", 0);
 requireEqual(plan.endpoint, "cold_workers", 0);
-requireEqual(plan.endpoint, "cold_mult", 0);
+requireEqual(plan.endpoint, "cold_mult", 1);
 requireEqual(plan.endpoint, "max_workers", 1);
 requireEqual(plan.workergroup, "test_workers", 1);
 requireEqual(plan.workergroup, "cold_workers", 0);

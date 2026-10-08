@@ -1274,5 +1274,12 @@
   "Paste your Canvas URL or enter its address, for example": "الصق عنوان Canvas أو اكتب عنوانه، على سبيل المثال",
   "Use a Canvas address ending in .instructure.com": "استخدم عنوان Canvas ينتهي بـ .instructure.com",
   "Search results: {count}": "نتائج البحث: {count}",
-  "Retry save": "إعادة محاولة الحفظ"
+  "Retry save": "إعادة محاولة الحفظ",
+  "attachment_viewer.original": "الملف الأصلي · للقراءة فقط",
+  "attachment_viewer.download": "تنزيل الملف",
+  "attachment_viewer.content": "محتوى الملف",
+  "attachment_viewer.unavailable": "تعذر تحميل هذا الملف. حاول فتحه مجددًا.",
+  "attachment_viewer.no_preview": "لا تتوفر معاينة لهذا الملف. نزّله لفتحه.",
+  "attachment_viewer.too_large": "هذا الملف كبير جدًا للمعاينة. نزّله لقراءته.",
+  "attachment_viewer.empty": "هذا الملف فارغ."
 }

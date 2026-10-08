@@ -1,6 +1,7 @@
 *
 !Dockerfile
 !requirements.txt
+!requirements-pyworker.txt
 !constraints-vllm.txt
 !marker-plus-plus.tar.gz
 !marker-plus-plus.tar.gz.sha256

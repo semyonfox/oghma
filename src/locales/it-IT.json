@@ -1274,5 +1274,12 @@
   "Paste your Canvas URL or enter its address, for example": "Incolla l’URL di Canvas o inserisci il suo indirizzo, per esempio",
   "Use a Canvas address ending in .instructure.com": "Usa un indirizzo Canvas che termini con .instructure.com",
   "Search results: {count}": "Risultati di ricerca: {count}",
-  "Retry save": "Riprova a salvare"
+  "Retry save": "Riprova a salvare",
+  "attachment_viewer.original": "File originale · sola lettura",
+  "attachment_viewer.download": "Scarica file",
+  "attachment_viewer.content": "Contenuto del file",
+  "attachment_viewer.unavailable": "Impossibile caricare questo file. Prova a riaprirlo.",
+  "attachment_viewer.no_preview": "Anteprima non disponibile per questo file. Scaricalo per aprirlo.",
+  "attachment_viewer.too_large": "Questo file è troppo grande per l’anteprima. Scaricalo per leggerlo.",
+  "attachment_viewer.empty": "Questo file è vuoto."
 }

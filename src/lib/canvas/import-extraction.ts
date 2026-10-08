@@ -2168,17 +2168,31 @@ export async function processMarkerComplete(msg: MarkerContinuationMessage) {
       : await sql`
           SELECT marker.callback_id
           FROM app.marker_jobs marker
-          JOIN app.canvas_imports imported
+          JOIN app.notes source
+            ON source.note_id = marker.note_id AND source.user_id = marker.user_id
+          LEFT JOIN app.canvas_imports imported
             ON imported.note_id = marker.note_id
+            AND imported.user_id = marker.user_id
+            AND (marker.canvas_job_id IS NULL OR imported.job_id = marker.canvas_job_id)
           LEFT JOIN app.canvas_import_jobs canvas_job
             ON canvas_job.id = marker.canvas_job_id
           WHERE marker.callback_id = ${markerJob.callback_id}::uuid
             AND marker.status = 'completing'
             AND marker.completion_attempts = ${markerJob.completion_attempts}
-            AND imported.status = 'pending_marker'
+            AND source.deleted_at IS NULL
             AND (
-              marker.canvas_job_id IS NULL
-              OR (canvas_job.type = 'canvas' AND canvas_job.status IN ('discovering', 'processing'))
+              (imported.status = 'pending_marker' AND (
+                marker.canvas_job_id IS NULL
+                OR (canvas_job.type = 'canvas' AND canvas_job.status IN ('discovering', 'processing'))
+              ))
+              OR (
+                marker.canvas_job_id IS NULL AND imported.id IS NULL
+                AND EXISTS (
+                  SELECT 1 FROM app.ingestion_jobs ingestion
+                  WHERE ingestion.note_id = marker.note_id AND ingestion.user_id = marker.user_id
+                    AND ingestion.status IN ('pending', 'processing')
+                )
+              )
             )
         `;
     if (!stillActive) return;

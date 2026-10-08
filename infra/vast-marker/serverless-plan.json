@@ -23,7 +23,7 @@
     "min_cold_load": 0,
     "min_workers": 0,
     "target_util": 0.85,
-    "cold_mult": 0,
+    "cold_mult": 1,
     "cold_workers": 0,
     "max_workers": 1,
     "max_queue_time": 120,

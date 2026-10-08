@@ -33,6 +33,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       ca-certificates \
       curl \
       gcc \
+      g++ \
       libc6-dev \
       libgomp1 \
       openssl && \
@@ -60,6 +61,14 @@ COPY requirements.txt /app/requirements.txt
 RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     python3 -m venv --system-site-packages /opt/marker-venv && \
     /opt/marker-venv/bin/python -m pip install -r /app/requirements.txt
+
+# the Vast PyWorker gets its own venv: vastai pins pillow 12 while surya-ocr
+# needs pillow<11. worker.py only talks to the backend over HTTP
+COPY requirements-pyworker.txt /app/requirements-pyworker.txt
+RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
+    python3 -m venv /opt/pyworker-venv && \
+    /opt/pyworker-venv/bin/python -m pip install -r /app/requirements-pyworker.txt && \
+    /opt/pyworker-venv/bin/python -c 'import vastai'
 
 COPY prefetch_models.py /app/prefetch_models.py
 RUN TORCH_DEVICE=cpu /opt/marker-venv/bin/python /app/prefetch_models.py && \

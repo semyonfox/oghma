@@ -173,7 +173,7 @@ The checked plan is `infra/vast-marker/serverless-plan.json`:
 | `min_cold_load` | 0 | no cold capacity floor |
 | `min_workers` | 0 | avoid Vast's default inactive-worker floor |
 | `cold_workers` | 0 | required for true scale-to-zero |
-| `cold_mult` | 0 | do not retain speculative stopped capacity |
+| `cold_mult` | 1 | match total capacity to active load without retaining extra idle capacity |
 | `inactivity_timeout` | 300 s | release an idle worker after a short warm window |
 | `max_workers` | 1 | cost and correctness gate for first launch |
 | `target_util` | 0.85 | leave headroom while admission is calibrated |
