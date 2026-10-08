@@ -26,6 +26,7 @@ import { insertNoteWithTree } from "../notes/storage/create-note";
 import { moveNoteToExtractionBundle } from "../notes/extraction-bundle";
 import { invalidateTreeAfterPublish } from "../notes/tree-cache";
 import { extractWithMarker } from "../marker/ocr.ts";
+import { markerQueueEnabled, submitMarkerJob } from "../marker/serverless.ts";
 import {
   markerAssetPrefix,
   persistMarkerAssetsForNote,
@@ -237,15 +238,57 @@ async function findOrCreateNote(
   return { noteId, created: true };
 }
 
-async function processRagPipeline(
+export async function processRagPipeline(
   noteId: string,
   userId: string,
   parentFolderId: string | null,
   buffer: Buffer,
-  opts: { filename: string; mimeType: string | null; jobId?: string },
+  opts: { filename: string; mimeType: string | null; jobId?: string; s3Key?: string },
 ): Promise<void> {
   const { filename, mimeType } = opts;
   const isText = mimeType?.startsWith("text/");
+
+  if (!isText && markerQueueEnabled()) {
+    const sourceKey = opts.s3Key;
+    if (!sourceKey) throw new Error("Vault extraction requires a stored source file");
+    await sql.begin(async (tx: postgres.TransactionSql) => {
+      await tx`SELECT pg_advisory_xact_lock(hashtextextended(${userId}::text, 0))`;
+      await assertVaultImportJobActive(tx, userId, opts.jobId);
+      const [source] = await tx`
+        SELECT note_id FROM app.notes
+        WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
+          AND deleted_at IS NULL
+        FOR SHARE
+      `;
+      if (!source) throw new VaultImportCancelledError();
+      await tx`
+        INSERT INTO app.ingestion_jobs (note_id, user_id, s3_key, mime_type, status)
+        VALUES (${noteId}::uuid, ${userId}::uuid, ${sourceKey}, ${mimeType}, 'pending')
+        ON CONFLICT DO NOTHING
+      `;
+    });
+    try {
+      // the ZIP job owns file creation; extraction continues as a durable note job
+      await submitMarkerJob({
+        sourceKey,
+        sourceBytes: buffer.length,
+        noteId,
+        userId,
+        filename,
+        mimeType,
+        parentFolderId,
+      });
+    } catch (error) {
+      await sql`
+        UPDATE app.ingestion_jobs
+        SET status = 'failed', error = 'Could not queue document extraction', updated_at = NOW()
+        WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
+          AND status = 'pending'
+      `;
+      throw error;
+    }
+    return;
+  }
 
   let rawText;
   let chunks;
@@ -659,6 +702,7 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
                 filename,
                 mimeType,
                 jobId,
+                s3Key: s3FileKey,
               });
             } catch (ragErr) {
               logger.error(

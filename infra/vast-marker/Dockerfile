@@ -33,6 +33,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       ca-certificates \
       curl \
       gcc \
+      g++ \
       libc6-dev \
       libgomp1 \
       openssl && \
