@@ -138,7 +138,7 @@ describe("fetchResource", () => {
     ).resolves.toEqual({ data: null, forbidden: true });
   });
 
-  it("fails a partial Canvas listing instead of silently importing its prefix", async () => {
+  it("keeps a partial listing and records the part Canvas could not provide", async () => {
     await expect(
       fetchResource(
         async () => ({
@@ -152,7 +152,44 @@ describe("fetchResource", () => {
         "files",
         "22222222-2222-4222-8222-222222222222",
       ),
-    ).rejects.toThrow("Canvas files request failed");
+    ).resolves.toEqual({ data: [{ id: "1" }], forbidden: false });
+    expect(vi.mocked(sql).mock.calls.some((call) => call.includes("error") &&
+      call.includes("Canvas files request failed: Canvas API rate limited — try again later"))).toBe(true);
+  });
+
+  it.each(["404", "410", "503"])("records an unavailable section after HTTP %s without aborting discovery", async (status) => {
+    await expect(fetchResource(async () => ({ data: null, forbidden: false, error: `Canvas API error: ${status}` }),
+      "42", "11111111-1111-4111-8111-111111111111", "Databases", "modules", "22222222-2222-4222-8222-222222222222"))
+      .resolves.toEqual({ data: null, forbidden: false });
+    const call = vi.mocked(sql).mock.calls.at(-1);
+    expect(call).toContain("Databases / modules (course 42)");
+    expect(call).toContain("error");
+    expect(queryText(call ?? [])).toContain("ON CONFLICT (user_id, canvas_file_id)");
+  });
+
+  it("records a missing file by its real ID and name so only that file can be retried", async () => {
+    await fetchResource(async () => ({ data: null, forbidden: false, error: "Canvas API error: 404" }),
+      "42", "11111111-1111-4111-8111-111111111111", "Databases", "module file 7", "22222222-2222-4222-8222-222222222222",
+      { id: "7", moduleId: "8", filename: "BTrees.pdf", parentFolderId: "33333333-3333-4333-8333-333333333333", s3Prefix: "canvas/course/module" });
+    const call = vi.mocked(sql).mock.calls.at(-1);
+    expect(call).toContain("7");
+    expect(call).toContain("BTrees.pdf");
+    expect(call).toContain(true);
+    expect(queryText(call ?? [])).toContain("OR app.canvas_imports.status IN ('error', 'forbidden', 'cancelled')");
+  });
+
+  it("preserves an authentication failure as a job-level stop", async () => {
+    await expect(fetchResource(async () => ({ data: null, forbidden: false, unauthorized: true,
+      error: "Invalid or expired Canvas token" }), "42", "user", "Databases", "modules", "job"))
+      .rejects.toThrow("Invalid or expired Canvas token");
+    expect(sql).not.toHaveBeenCalled();
+  });
+
+  it("does not turn a database outage into a successful partial import", async () => {
+    vi.mocked(sql).mockRejectedValueOnce(new Error("database unavailable"));
+    await expect(fetchResource(async () => ({ data: null, forbidden: false, error: "Canvas API error: 404" }),
+      "42", "11111111-1111-4111-8111-111111111111", "Databases", "modules", "22222222-2222-4222-8222-222222222222"))
+      .rejects.toThrow("database unavailable");
   });
 });
 

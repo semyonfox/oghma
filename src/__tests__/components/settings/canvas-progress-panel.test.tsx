@@ -148,3 +148,34 @@ it("explains skipped Trash courses after the run completes", () => {
   expect(screen.getByText(/Restore them to include/).textContent).toContain("CS101");
   expect(screen.getByText("Completed with issues")).toBeTruthy();
 });
+
+it("shows an inaccessible-only run as finished with readable section errors", () => {
+  render(<CanvasProgressPanel isImporting={false} isDiscovering={false} isSyncing={false}
+    terminalStatus="complete" progress={{ percent: 100, completed: 0, total: 0 }}
+    importSummary={{ imported: 0, forbidden: 0, failed: 1, skipped: 0 }}
+    recentLogs={[{ status: "error", filename: "Old course / modules", errorMessage: "Canvas modules request failed: Canvas API error: 404", courseSection: true }]}
+    markerColdStarting={false} estimatedSecsRemaining={null} />);
+  expect(screen.getByText("Completed with issues")).toBeTruthy();
+  expect(screen.getByText("100%")).toBeTruthy();
+  expect(screen.getByText("Old course / modules")).toBeTruthy();
+  expect(screen.getByText(/Canvas did not make this section available/)).toBeTruthy();
+  expect(screen.queryByText("Import failed")).toBeNull();
+});
+
+it("does not present a stopped parent as a download stuck at 99 percent", () => {
+  render(<CanvasProgressPanel isImporting={false} isDiscovering={false} isSyncing={false}
+    terminalStatus="failed" progress={{ percent: 99, completed: 4, total: 5 }}
+    importSummary={{ imported: 4, forbidden: 0, failed: 1, skipped: 0 }}
+    recentLogs={[]} markerColdStarting={false} estimatedSecsRemaining={null} />);
+  expect(screen.getByText("Import failed")).toBeTruthy();
+  expect(screen.queryByText("99%")).toBeNull();
+});
+
+it("reports a finished run containing only hidden sections as completed with issues", () => {
+  render(<CanvasProgressPanel isImporting={false} isDiscovering={false} isSyncing={false}
+    terminalStatus="complete" progress={{ percent: 100, completed: 0, total: 0, restrictedCourses: 2 }}
+    importSummary={{ imported: 0, forbidden: 0, failed: 0, skipped: 0 }}
+    recentLogs={[]} markerColdStarting={false} estimatedSecsRemaining={null} />);
+  expect(screen.getByText("Completed with issues")).toBeTruthy();
+  expect(screen.getByText(/in 2 of your courses/)).toBeTruthy();
+});
