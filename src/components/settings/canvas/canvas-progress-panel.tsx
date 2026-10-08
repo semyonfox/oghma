@@ -72,24 +72,16 @@ export default function CanvasProgressPanel({
       }`}
     >
       <LogStatusIcon status={log.status ?? "unknown"} t={t} />
-      <span
-        className="flex-1 min-w-0 truncate text-text-tertiary"
-        title={log.filename ?? ""}
-      >
-        {log.filename}
-      </span>
-      {log.errorMessage ? (
-        <span
-          className="text-red-400/80 shrink-0 max-w-[10rem] truncate"
-          title={log.errorMessage}
-        >
-          {toFriendlyCanvasLogMessage(log.errorMessage)}
-        </span>
-      ) : log.status === "pending_marker" && (
-        <span className="shrink-0 text-text-tertiary">
-          {t("Waiting for the document processor")}
-        </span>
-      )}
+      <div className="flex-1 min-w-0 text-text-tertiary">
+        <span className="block truncate" title={log.filename ?? ""}>{log.filename}</span>
+        {log.errorMessage ? (
+          <span className="block text-red-400/80 font-sans" title={log.errorMessage}>
+            {toFriendlyCanvasLogMessage(log.errorMessage, log.courseSection)}
+          </span>
+        ) : log.status === "pending_marker" && (
+          <span className="block font-sans">{t("Waiting for the document processor")}</span>
+        )}
+      </div>
       <span className="shrink-0 text-text-tertiary/50">
         {relativeTime(log.updatedAt ?? new Date(), t)}
       </span>
@@ -98,7 +90,7 @@ export default function CanvasProgressPanel({
 
   const successLogs = recentLogs.filter((l) => l.status === "complete");
   const failedLogs = recentLogs.filter(
-    (l) => !l.courseSection && (l.status === "error" || l.status === "forbidden"),
+    (l) => l.status === "error" || (!l.courseSection && l.status === "forbidden"),
   );
   const restrictedCourses = progress.restrictedCourses ?? 0;
   const activeLogs = recentLogs.filter(
@@ -125,8 +117,8 @@ export default function CanvasProgressPanel({
                 ? t("Finding files...")
                 : `${isSyncing ? t("Checking for updates...") : t("Importing...")} (${progress.completed}/${progress.total || "?"})`
               : terminalStatus === "cancelled" ? t("Import stopped")
-                : terminalStatus === "failed" || isTerminalFailure ? t("Import failed")
-                : (skippedFolders.length || (importSummary && (importSummary.failed > 0 || importSummary.forbidden > 0)))
+                : terminalStatus === "failed" || (isTerminalFailure && terminalStatus !== "complete") ? t("Import failed")
+                : (skippedFolders.length || restrictedCourses > 0 || (importSummary && (importSummary.failed > 0 || importSummary.forbidden > 0)))
                   ? t("Completed with issues") : t("Import complete")}
           </span>
         </div>
@@ -160,7 +152,7 @@ export default function CanvasProgressPanel({
             </div>
           )}
           <span className="text-sm tabular-nums font-semibold text-text-secondary">
-            {!isDiscovering && `${progress.percent ?? 0}%`}
+            {!isDiscovering && (isImporting || terminalStatus === "complete" || !terminalStatus) && `${progress.percent ?? 0}%`}
           </span>
         </div>
       </div>

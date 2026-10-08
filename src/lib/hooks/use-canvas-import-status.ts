@@ -61,6 +61,7 @@ export type CanvasStatusData = {
     error?: number;
     stopped?: number;
     restrictedCourses?: number;
+    failedCourses?: string[];
   };
   discovery?: {
     completedCourses: number;
@@ -574,7 +575,6 @@ export function useCanvasImportStatus(
           setShowToast(!dismissedRef.current);
         } else if (
           data.latestJob?.status === "complete" &&
-          (data.progress?.total ?? 0) > 0 &&
           data.progress?.percent === 100
         ) {
           const completedProgress = normalizedProgress(data, jobType);

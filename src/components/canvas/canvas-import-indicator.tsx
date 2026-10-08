@@ -28,6 +28,7 @@ export default function CanvasImportIndicator({
     visible &&
     ((progress?.forbidden ?? 0) > 0 ||
       (progress?.error ?? 0) > 0 ||
+      (progress?.restrictedCourses ?? 0) > 0 ||
       progress?.failed);
   const complete = visible && !isImporting && !hasIssues;
   const rawPercent = progress?.percent ?? 0;
@@ -53,7 +54,9 @@ export default function CanvasImportIndicator({
       ? progress?.failed
         ? t("Import failed")
         : hasIssues
-          ? t("canvas.import.done", { summary })
+          ? progress?.restrictedCourses && !progress.forbidden && !progress.error
+            ? t("Completed with issues")
+            : t("canvas.import.done", { summary })
           : t("canvas.import.complete", { count: completed })
       : t("Canvas course import");
   const Icon = hasIssues

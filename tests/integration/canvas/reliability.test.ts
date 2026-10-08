@@ -7,7 +7,7 @@ import { startCanvasRun, canonicalCanvasCourses } from "@/lib/canvas/import-runs
 import { cancelActiveCanvasImportJobs } from "@/lib/canvas/cancel-import-jobs";
 import { withCanvasExecution, withCanvasPublication, CanvasClaimLostError } from "@/lib/canvas/execution";
 import { recoverCanvasExecutions } from "@/lib/canvas/execution-recovery";
-import { processCanvasExtract, processCanvasFile, processExtractionRetry, recoverPendingCanvasExtracts } from "@/lib/canvas/import-extraction";
+import { processCanvasExtract, processCanvasFile, processExtractionRetry, recoverPendingCanvasExtracts, fetchResource, recordCanvasResourceIssue, checkAndCompleteJob } from "@/lib/canvas/import-extraction";
 import { stageCanvasExtractionRetry } from "@/lib/canvas/extraction-retry";
 import { dispatchFairCanvasFiles } from "@/lib/canvas/import-scheduler";
 import { findCanvasTrashConflicts, CanvasTrashConflictError } from "@/lib/canvas/trash-conflicts";
@@ -98,6 +98,61 @@ describe("Canvas durable lifecycle with PostgreSQL", () => {
     await sql`DELETE FROM app.canvas_import_jobs WHERE user_id = ANY(${users}::uuid[])`;
     await sql`DELETE FROM app.login WHERE user_id = ANY(${users}::uuid[])`;
     await sql.end();
+  });
+
+  it("settles unavailable sections and files without preventing a valid file from completing", async () => {
+    const f = await fixture("pending");
+    await sql`UPDATE app.canvas_import_jobs SET status = 'discovering', claim_token = ${f.token}::uuid WHERE id = ${f.jobId}::uuid`;
+    await withCanvasExecution({ jobId: f.jobId, userId: f.userId, token: f.token }, async () => {
+      const partial = await fetchResource(async () => ({ data: [{ id: "42" }], forbidden: false,
+        error: "Canvas API error: 503" }), "42", f.userId, "Databases", "files", f.jobId);
+      expect(partial.data).toEqual([{ id: "42" }]);
+      await recordCanvasResourceIssue("42", f.userId, "Databases", "module file 7", f.jobId,
+        "Canvas API error: 404", false, { id: "7", filename: "Missing.pdf", parentFolderId: null, s3Prefix: "test" });
+    });
+    const rows = await sql`SELECT canvas_file_id::text AS file_id, status, retryable FROM app.canvas_imports WHERE job_id = ${f.jobId}::uuid`;
+    expect(rows.find((r) => r.file_id === "42")?.status).toBe("pending");
+    expect(rows.find((r) => r.file_id === "7")).toMatchObject({ status: "error", retryable: true });
+    expect(rows.find((r) => r.file_id.startsWith("-"))).toMatchObject({ status: "error", retryable: false });
+    await sql`UPDATE app.canvas_import_jobs SET status = 'processing' WHERE id = ${f.jobId}::uuid`;
+    expect(await checkAndCompleteJob(f.jobId, f.userId)).toBe(false);
+    await sql`UPDATE app.canvas_imports SET status = 'complete' WHERE id = ${f.importId}::uuid`;
+    expect(await checkAndCompleteJob(f.jobId, f.userId)).toBe(true);
+    const [job] = await sql`SELECT status FROM app.canvas_import_jobs WHERE id = ${f.jobId}::uuid`;
+    expect(job.status).toBe("complete");
+  });
+
+  it("preserves a valid file when another discovery path fails and rejects late issues after Stop", async () => {
+    const f = await fixture("pending");
+    await sql`UPDATE app.canvas_import_jobs SET status = 'discovering', claim_token = ${f.token}::uuid WHERE id = ${f.jobId}::uuid`;
+    const target = { id: "42", filename: "Unavailable duplicate.pdf", parentFolderId: null, s3Prefix: "test" };
+    await withCanvasExecution({ jobId: f.jobId, userId: f.userId, token: f.token }, () =>
+      recordCanvasResourceIssue("42", f.userId, "Databases", "module file 42", f.jobId, "Canvas API error: 404", false, target));
+    const [file] = await sql`SELECT status, filename FROM app.canvas_imports WHERE id = ${f.importId}::uuid`;
+    expect(file).toMatchObject({ status: "pending", filename: "Lecture.pdf" });
+    await sql.begin((tx) => cancelActiveCanvasImportJobs(tx, f.userId, "Stopped by user"));
+    await expect(withCanvasExecution({ jobId: f.jobId, userId: f.userId, token: f.token }, () =>
+      recordCanvasResourceIssue("42", f.userId, "Databases", "modules", f.jobId, "Canvas API error: 404")))
+      .rejects.toBeInstanceOf(CanvasClaimLostError);
+    const issues = await sql`SELECT id FROM app.canvas_imports WHERE job_id = ${f.jobId}::uuid AND canvas_file_id < 0`;
+    expect(issues).toHaveLength(0);
+  });
+
+  it("clears a recovered section issue and does not publish a failed file into a trashed folder", async () => {
+    const f = await fixture("pending");
+    const folderId = randomUUID();
+    await sql`INSERT INTO app.notes (note_id, user_id, title, is_folder, deleted_at)
+      VALUES (${folderId}::uuid, ${f.userId}::uuid, 'Removed module', TRUE, NOW())`;
+    await sql`UPDATE app.canvas_import_jobs SET status = 'discovering', claim_token = ${f.token}::uuid WHERE id = ${f.jobId}::uuid`;
+    await withCanvasExecution({ jobId: f.jobId, userId: f.userId, token: f.token }, async () => {
+      await fetchResource(async () => ({ data: null, forbidden: false, error: "Canvas API error: 503" }),
+        "42", f.userId, "Databases", "modules", f.jobId);
+      await fetchResource(async () => ({ data: [], forbidden: false }), "42", f.userId, "Databases", "modules", f.jobId);
+      await recordCanvasResourceIssue("42", f.userId, "Databases", "module file 7", f.jobId, "Canvas API error: 404", false,
+        { id: "7", filename: "Missing.pdf", parentFolderId: folderId, s3Prefix: "test" });
+    });
+    const rows = await sql`SELECT canvas_file_id::text AS file_id FROM app.canvas_imports WHERE job_id = ${f.jobId}::uuid`;
+    expect(rows.map((r) => r.file_id)).toEqual(["42"]);
   });
 
   it("offers the owned Trash bundle and restores the same edited notes without recreating them", async () => {
