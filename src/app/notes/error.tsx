@@ -1,5 +1,8 @@
 "use client";
 
+import { captureException } from "@sentry/nextjs";
+import { useEffect } from "react";
+
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
 export default function NotesError({
@@ -10,6 +13,9 @@ export default function NotesError({
   reset: () => void;
 }) {
   const { t } = useI18n();
+  useEffect(() => {
+    captureException(error);
+  }, [error]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[50vh] p-8 bg-app-page">

@@ -134,3 +134,6 @@ apps/mobile/ios/
 *.aab
 *.keystore
 *.jks
+
+# local source-map upload credential
+.env.sentry-build-plugin

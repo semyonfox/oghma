@@ -1,4 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as Sentry from "@sentry/node";
+import type { StreamedSpanJSON } from "@sentry/core";
+import { monitorOperation } from "@/lib/monitoring/operations";
+import { monitoringOptions } from "@/lib/monitoring/options";
 import { simulateReadableStream, stepCountIs, tool } from "ai";
 import { MockLanguageModelV3 } from "ai/test";
 import type { LanguageModelV3StreamPart } from "@ai-sdk/provider";
@@ -54,8 +58,37 @@ vi.mock("@/lib/marketing/events", () => ({
 import { processChatGeneration } from "@/lib/chat/generate-background";
 
 describe("background chat durability", () => {
+  const spans: StreamedSpanJSON[] = [];
+  const errors: unknown[] = [];
+  afterEach(async () => {
+    await Sentry.close(1000);
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
+    spans.length = 0;
+    errors.length = 0;
+    const options = monitoringOptions("worker");
+    Sentry.init({
+      ...options,
+      dsn: "https://public@example.invalid/1",
+      defaultIntegrations: false,
+      tracesSampleRate: 1,
+      beforeSendSpan: (span) => {
+        const sanitized = options.beforeSendSpan(span);
+        spans.push(sanitized);
+        return sanitized;
+      },
+      transport: () => ({
+        send: async (envelope) => {
+          for (const [header, payload] of envelope[1]) {
+            if (header.type === "event") errors.push(payload);
+          }
+          return { statusCode: 200 };
+        },
+        flush: async () => true,
+      }),
+    });
     mocks.claim.mockResolvedValue({
       leaseToken: "44444444-4444-4444-4444-444444444444",
       generation: {
@@ -102,7 +135,8 @@ describe("background chat durability", () => {
   });
 
   it("does not retry a model after durable finalization if event delivery fails", async () => {
-    mocks.appendEvent.mockRejectedValue(new Error("Redis unavailable"));
+    const failure = new Error("Redis unavailable");
+    mocks.appendEvent.mockRejectedValue(failure);
 
     await expect(
       processChatGeneration("11111111-1111-1111-1111-111111111111", 1, 2),
@@ -118,7 +152,7 @@ describe("background chat durability", () => {
     expect(mocks.fail).not.toHaveBeenCalled();
     expect(mocks.loggerError).toHaveBeenCalledWith(
       "Durable chat answer completed but event delivery failed",
-      expect.objectContaining({ error: "Redis unavailable" }),
+      expect.objectContaining({ error: failure }),
     );
   });
 
@@ -174,6 +208,13 @@ describe("background chat durability", () => {
   });
 
   it("saves reasoning, tool results, and partial prose without rerunning executed tools", async () => {
+    const { default: realLogger } =
+      await vi.importActual<typeof import("@/lib/logger")>("@/lib/logger");
+    mocks.loggerError.mockImplementationOnce(
+      (message: string, metadata: Record<string, unknown>) =>
+        realLogger.error(message, metadata),
+    );
+    const failure = new TypeError("Provider connection terminated");
     const execute = vi.fn(async () => ({
       title: "Synthetic note",
       content: "Test",
@@ -242,7 +283,7 @@ describe("background chat durability", () => {
                     },
                     {
                       type: "error",
-                      error: new Error("Provider connection terminated"),
+                      error: failure,
                     },
                   ],
           }),
@@ -263,7 +304,39 @@ describe("background chat durability", () => {
     mocks.finalize.mockResolvedValue(true);
     mocks.appendEvent.mockResolvedValue(undefined);
     mocks.requeue.mockClear();
-    await processChatGeneration("11111111-1111-1111-1111-111111111111", 1, 3);
+    await expect(
+      monitorOperation("worker.chat", () =>
+        processChatGeneration("11111111-1111-1111-1111-111111111111", 1, 3),
+      ),
+    ).resolves.toBeUndefined();
+    await Sentry.flush(1000);
+    expect(spans).toContainEqual(
+      expect.objectContaining({ name: "worker.chat", status: "error" }),
+    );
+    expect(mocks.loggerError).toHaveBeenCalledWith(
+      "Background chat generation failed",
+      expect.objectContaining({ error: failure }),
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatchObject({
+      exception: {
+        values: [
+          expect.objectContaining({
+            type: "TypeError",
+            stacktrace: {
+              frames: expect.arrayContaining([
+                expect.objectContaining({
+                  filename: expect.stringContaining(
+                    "generate-background.test.ts",
+                  ),
+                }),
+              ]),
+            },
+          }),
+        ],
+      },
+    });
+    expect(JSON.stringify(errors)).not.toContain(failure.message);
     expect(execute).toHaveBeenCalledTimes(1);
     expect(mocks.requeue).not.toHaveBeenCalled();
     expect(mocks.finalize).toHaveBeenLastCalledWith(
@@ -292,6 +365,52 @@ describe("background chat durability", () => {
       .join("");
     expect(delivery.indexOf("Partial answer")).toBeLessThan(
       delivery.indexOf("event: error"),
+    );
+  });
+
+  it("keeps explicit cancellation out of error reporting", async () => {
+    mocks.isCancelRequested.mockResolvedValue(true);
+    await expect(
+      monitorOperation("worker.chat", () =>
+        processChatGeneration("11111111-1111-1111-1111-111111111111", 1, 3),
+      ),
+    ).resolves.toBeUndefined();
+    await Sentry.flush(1000);
+    expect(spans).toContainEqual(
+      expect.objectContaining({ name: "worker.chat", status: "ok" }),
+    );
+    expect(mocks.finalize).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(String),
+      "cancelled",
+      null,
+    );
+    expect(mocks.loggerError).not.toHaveBeenCalled();
+    expect(errors).toEqual([]);
+    expect(mocks.requeue).not.toHaveBeenCalled();
+    expect(mocks.fail).not.toHaveBeenCalled();
+    expect(mocks.buildLlmCall).not.toHaveBeenCalled();
+  });
+
+  it("preserves the exception and retry when a generation fails before output", async () => {
+    const failure = new TypeError("Preparation failed");
+    mocks.prepare.mockRejectedValue(failure);
+    mocks.requeue.mockResolvedValue(true);
+    await expect(
+      monitorOperation("worker.chat", () =>
+        processChatGeneration("11111111-1111-1111-1111-111111111111", 1, 3),
+      ),
+    ).rejects.toBe(failure);
+    await Sentry.flush(1000);
+    expect(spans).toContainEqual(
+      expect.objectContaining({ name: "worker.chat", status: "error" }),
+    );
+    expect(mocks.requeue).toHaveBeenCalledOnce();
+    expect(mocks.fail).not.toHaveBeenCalled();
+    expect(mocks.finalize).not.toHaveBeenCalled();
+    expect(mocks.loggerError).toHaveBeenCalledWith(
+      "Background chat generation failed",
+      expect.objectContaining({ error: failure }),
     );
   });
 });

@@ -1,7 +1,21 @@
 import winston from "winston";
 import "winston-daily-rotate-file";
+import { captureException } from "@sentry/core";
 // operational logs are separate from optional anonymous counters and security audit tables
 const LEVELS = ["error", "warn", "info", "debug"] as const;
+
+// capture the stack before the operational log boundary removes error metadata
+const reportError = winston.format((info) => {
+  if (info.level === "error") {
+    const error = info.error instanceof Error
+      ? info.error
+      : info.err instanceof Error
+        ? info.err
+        : new Error("Application operation failed");
+    captureException(error);
+  }
+  return info;
+})();
 
 export const redactSensitive = winston.format((info) => {
   const level = LEVELS.find((value) => value === info.level) ?? "info";
@@ -41,6 +55,7 @@ const logger = winston.createLogger({
   level: isProduction ? "info" : "debug",
   defaultMeta: { service: "oghmanotes" },
   format: winston.format.combine(
+    reportError,
     redactSensitive,
   ),
   transports,

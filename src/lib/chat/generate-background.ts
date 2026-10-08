@@ -1,4 +1,5 @@
 import { streamText, type ModelMessage } from "ai";
+import { getActiveSpan, SPAN_STATUS_ERROR } from "@sentry/core";
 import { createParagraphSseWriter } from "@/lib/chat/paragraph-stream";
 import { interruptRunningTools } from "@/lib/chat/types";
 import logger from "@/lib/logger";
@@ -160,7 +161,7 @@ export async function processChatGeneration(
       logger.error("Durable chat answer completed but event delivery failed", {
         generationId,
         sessionId,
-        error: error instanceof Error ? error.message : String(error),
+        error,
       });
     }
   };
@@ -413,7 +414,7 @@ export async function processChatGeneration(
       logger.error("Post-finalization chat delivery failed", {
         generationId,
         sessionId,
-        error: error instanceof Error ? error.message : String(error),
+        error,
       });
       return;
     }
@@ -433,20 +434,22 @@ export async function processChatGeneration(
         logger.error("Failed to finalize cancelled chat generation", {
           generationId,
           sessionId,
-          error:
-            cancelError instanceof Error
-              ? cancelError.message
-              : String(cancelError),
+          error: cancelError,
         });
       }
       return;
     }
     void Metrics.llmError();
+    // partial failures return normally so the queue does not rerun completed tools
+    getActiveSpan()?.setStatus({
+      code: SPAN_STATUS_ERROR,
+      message: "internal_error",
+    });
     const detail = error instanceof Error ? error.message : String(error);
     logger.error("Background chat generation failed", {
       generationId,
       sessionId,
-      error: detail,
+      error,
       elapsedMs: Date.now() - startedAt,
       stepCount: generation.stepCount,
       toolCallCount: generation.toolCallCount,
