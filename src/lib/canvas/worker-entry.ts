@@ -1,3 +1,5 @@
+import { flush } from "@sentry/core";
+import { monitorOperation } from "../monitoring/operations";
 import logger from "../logger";
 import { checkAndCompleteJob } from "./import-extraction";
 import { recoverCanvasExecutions } from "./execution-recovery";
@@ -114,8 +116,8 @@ async function runMarketingCleanup(): Promise<void> {
     await pruneChatGenerationPayloads();
     await cleanupMarketingData();
     logger.info("worker_event");
-  } catch {
-    logger.error("worker_event");
+  } catch (error) {
+    logger.error("worker_event", { error });
   }
 }
 
@@ -123,8 +125,8 @@ async function runImportCacheRetention(): Promise<void> {
   try {
     await runImportedFileCacheRetention();
     logger.info("worker_event");
-  } catch {
-    logger.error("worker_event");
+  } catch (error) {
+    logger.error("worker_event", { error });
   }
 }
 
@@ -138,8 +140,8 @@ async function runNoteLifecycleRetention(): Promise<void> {
     await sql`DELETE FROM app.chat_tool_actions WHERE expires_at <= NOW()`;
     await reconcileTrashedVectorVisibility();
     logger.info("worker_event");
-  } catch {
-    logger.error("worker_event");
+  } catch (error) {
+    logger.error("worker_event", { error });
   }
 }
 
@@ -166,8 +168,8 @@ async function claimOrphanedJobs(): Promise<boolean> {
         jobId: row.id,
         userId: row.user_id,
       });
-    } catch {
-      logger.error("worker_event");
+    } catch (error) {
+      logger.error("worker_event", { error });
     }
   }
   return true;
@@ -177,19 +179,21 @@ export async function processCanvasJob(job: CanvasJob): Promise<void> {
   logger.info("worker_event");
 
   try {
-    const handled = await dispatchCanvasJob(job, {
-      processDiscoverJob,
-      processCanvasFile,
-      processCanvasExtract,
-      processImportJob: (jobId) => processDiscoverJob(jobId),
-      processDirectExtraction,
-      processExtractionRetry,
-      processMarkerComplete,
-      processMarkerFailed,
-      dispatchMarkerJob,
-      processVaultExport,
-      processVaultImport,
-    });
+    const handled = await monitorOperation("worker.canvas", () =>
+      dispatchCanvasJob(job, {
+        processDiscoverJob,
+        processCanvasFile,
+        processCanvasExtract,
+        processImportJob: (jobId) => processDiscoverJob(jobId),
+        processDirectExtraction,
+        processExtractionRetry,
+        processMarkerComplete,
+        processMarkerFailed,
+        dispatchMarkerJob,
+        processVaultExport,
+        processVaultImport,
+      }),
+    );
     if (!handled) {
       logger.warn("worker_event");
     }
@@ -219,8 +223,11 @@ await runImportCacheRetention();
 await runNoteLifecycleRetention();
 await recoverChatGenerations();
 async function runVaultArtifactCleanup() {
-  try { await cleanupVaultArtifacts(); }
-  catch (error) { console.error("Vault artifact cleanup will retry", error); }
+  try {
+    await cleanupVaultArtifacts();
+  } catch (error) {
+    logger.error("Vault artifact cleanup will retry", { error });
+  }
 }
 void runVaultArtifactCleanup();
 setInterval(runVaultArtifactCleanup, 5 * 60 * 1000);
@@ -247,8 +254,8 @@ setInterval(async () => {
       }
     }
     await dispatchFairCanvasFiles(MAX_CONCURRENT_JOBS);
-  } catch {
-    logger.error("worker_event");
+  } catch (error) {
+    logger.error("worker_event", { error });
   }
 }, DB_POLL_INTERVAL_MS);
 
@@ -293,8 +300,8 @@ async function processCloudflareQueueBatch(
       try {
         await processCanvasJob(cloudflareJobFromMessage(message));
         acks.push(message.lease_id);
-      } catch {
-        logger.error("worker_event");
+      } catch (error) {
+        logger.error("worker_event", { error });
         retries.push({
           lease_id: message.lease_id,
           delay_seconds: CF_QUEUE_RETRY_DELAY_SECONDS,
@@ -322,8 +329,8 @@ async function startCloudflarePullLoop(
       if (!hadMessages) {
         await sleep(CF_QUEUE_EMPTY_POLL_INTERVAL_MS);
       }
-    } catch {
-      logger.error("worker_event");
+    } catch (error) {
+      logger.error("worker_event", { error });
       await sleep(CF_QUEUE_EMPTY_POLL_INTERVAL_MS);
     }
   }
@@ -352,10 +359,12 @@ async function startBullMqWorkers(): Promise<void> {
     CHAT_GENERATION_QUEUE,
     async (job) => {
       const generationId = requireJobString(job.data ?? {}, "generationId");
-      await processChatGeneration(
-        generationId,
-        job.attemptsStarted,
-        job.opts.attempts ?? 1,
+      await monitorOperation("worker.chat", () =>
+        processChatGeneration(
+          generationId,
+          job.attemptsStarted,
+          job.opts.attempts ?? 1,
+        ),
       );
     },
     {
@@ -380,11 +389,11 @@ async function startBullMqWorkers(): Promise<void> {
   }
 
   for (const w of activeWorkers) {
-    w.on("failed", () => {
-      logger.error("worker_event");
+    w.on("failed", (_job, error) => {
+      logger.error("worker_event", { error });
     });
-    w.on("error", () => {
-      logger.error("worker_event");
+    w.on("error", (error) => {
+      logger.error("worker_event", { error });
     });
   }
 
@@ -412,8 +421,8 @@ function pollStudyJobs(): void {
   studyJobTask = (async () => {
     try {
       await processNextStudyJob();
-    } catch {
-      logger.error("study job poll failed");
+    } catch (error) {
+      logger.error("study job poll failed", { error });
     }
   })().finally(() => { studyJobTask = undefined; });
 }
@@ -423,8 +432,8 @@ function reconcileStudyMapMaterials(): void {
   studyMapTask = (async () => {
     try {
       await reconcileStudyMaps();
-    } catch {
-      logger.error("study map reconciliation failed");
+    } catch (error) {
+      logger.error("study map reconciliation failed", { error });
     }
   })().finally(() => { studyMapTask = undefined; });
 }
@@ -448,6 +457,7 @@ const shutdown = async (): Promise<void> => {
     studyMapTask,
   ]);
   await sql.end({ timeout: 5 });
+  await flush(2000);
   process.exit(0);
 };
 process.on("SIGTERM", () => shutdown());

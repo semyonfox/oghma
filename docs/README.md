@@ -63,6 +63,7 @@ Use this page to find the owner of a fact. Link to that owner instead of copying
 | [Security rollout](operations/security-rollout.md) | Session revocation, vault retention and verified Android association release gates |
 | [Chat](operations/chat.md) | Chat queue, delivery, readiness, diagnosis, and release verification |
 | [Import worker](operations/import-worker.md) | Worker deployment, verification, tuning, and recovery |
+| [Error and performance monitoring](operations/monitoring.md) | Sentry configuration, privacy filters, verification and rollout requirements |
 | [Vast Serverless Marker](operations/vast-marker.md) | Ready-to-provision GPU queue boundary, image, scaling, monitoring, launch gates, and rollback |
 | [RunPod Serverless Marker](operations/runpod-marker.md) | Ready-to-provision async GPU endpoint, baked image, telemetry, launch gates, and rollback |
 | Marker++ [benchmark index](https://github.com/semyonfox/marker-plus-plus/blob/main/docs/benchmarks/README.md) (separate repository) | Canonical Marker/Marker++ GPU measurements, analysis, evidence boundaries, dashboard, and serving decision |
