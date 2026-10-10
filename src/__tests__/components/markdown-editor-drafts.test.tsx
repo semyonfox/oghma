@@ -112,6 +112,7 @@ import useSaveIndicatorStore, {
   saveIndicatorKey,
 } from "@/lib/notes/state/save-indicator";
 import { readDraft, waitForDraftWrites } from "@/lib/notes/draft-cache";
+import { NoteConflictError } from "@/lib/notes/api/note";
 
 const file = { fileId: "same-note", fileType: "note" as const };
 
@@ -168,6 +169,7 @@ describe("markdown editor recovery ownership", () => {
     await waitFor(() =>
       expect(mocks.mutateNote).toHaveBeenCalledWith(file.fileId, {
         content: "last words before leaving",
+        expectedUpdatedAt: "2026-01-01T00:00:00Z",
       }),
     );
   });
@@ -183,6 +185,7 @@ describe("markdown editor recovery ownership", () => {
     await waitFor(() =>
       expect(mocks.mutateNote).toHaveBeenCalledWith(file.fileId, {
         content: "cloud copy",
+        expectedUpdatedAt: "2026-01-01T00:00:00Z",
       }),
     );
     await waitFor(() =>
@@ -190,6 +193,38 @@ describe("markdown editor recovery ownership", () => {
         "saved",
       ),
     );
+  });
+
+  it("a refused save stays dirty until the next deliberate save overwrites with the fresh stamp", async () => {
+    mocks.mutateNote
+      .mockRejectedValueOnce(new NoteConflictError("2026-02-02T00:00:00Z"))
+      .mockResolvedValueOnce(undefined);
+    const view = render(<MarkdownEditor pane="A" file={file} />);
+    await waitFor(() => expect(view.getByRole("textbox")).toBeTruthy());
+    fireEvent.change(view.getByRole("textbox"), {
+      target: { value: "my edit" },
+    });
+
+    await savePane("A");
+    await waitFor(() =>
+      expect(mocks.mutateNote).toHaveBeenCalledWith(file.fileId, {
+        content: "my edit",
+        expectedUpdatedAt: "2026-01-01T00:00:00Z",
+      }),
+    );
+    const indicator = () =>
+      useSaveIndicatorStore.getState().files[saveIndicatorKey(file.fileId, "A")];
+    await waitFor(() => expect(indicator()?.state).toBe("dirty"));
+    expect(mocks.mutateNote).toHaveBeenCalledTimes(1);
+
+    await savePane("A");
+    await waitFor(() =>
+      expect(mocks.mutateNote).toHaveBeenLastCalledWith(file.fileId, {
+        content: "my edit",
+        expectedUpdatedAt: "2026-02-02T00:00:00Z",
+      }),
+    );
+    await waitFor(() => expect(indicator()?.state).toBe("saved"));
   });
 
   it("keeps a focused save action available instead of starting a blur save", async () => {
@@ -343,6 +378,7 @@ describe("markdown editor recovery ownership", () => {
     });
     expect(mocks.mutateNote).toHaveBeenCalledExactlyOnceWith(file.fileId, {
       content: "draft B",
+      expectedUpdatedAt: "2026-01-01T00:00:00Z",
     });
     expect(
       Object.entries(useSaveIndicatorStore.getState().files).find(
@@ -384,6 +420,7 @@ describe("markdown editor recovery ownership", () => {
 
     expect(mocks.mutateNote).toHaveBeenCalledExactlyOnceWith(file.fileId, {
       content: "draft B",
+      expectedUpdatedAt: "2026-01-01T00:00:00Z",
     });
     expect(
       Object.entries(useSaveIndicatorStore.getState().files).find(

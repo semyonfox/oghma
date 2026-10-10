@@ -325,6 +325,36 @@ export async function enqueueExtractRetryJob(
   );
 }
 
+// a note save must not wait for the embedding provider. The job only names the
+// note; the worker reads whatever content is current when it runs, so a burst
+// of saves collapses into one delayed job plus at most one follow-up queued
+// behind an active run.
+export const NOTE_REINDEX_DELAY_MS = 15_000;
+
+export async function enqueueNoteReindexJob(
+  noteId: string,
+  userId: string,
+): Promise<void> {
+  if (getQueueProvider() === "cloudflare") {
+    await sendCloudflareQueueMessage(CANVAS_IMPORT_QUEUE, {
+      body: { type: "note-reindex", noteId, userId },
+      content_type: "json",
+      delay_seconds: delayMillisToSeconds(NOTE_REINDEX_DELAY_MS),
+    });
+    return;
+  }
+
+  await getCanvasImportQueue().add(
+    "note-reindex",
+    { type: "note-reindex", noteId, userId },
+    {
+      ...defaultCanvasJobOptions(),
+      delay: NOTE_REINDEX_DELAY_MS,
+      deduplication: { id: `note-reindex:${noteId}`, keepLastIfActive: true },
+    },
+  );
+}
+
 export async function enqueueMarkerDispatchJob(
   callbackId: string,
 ): Promise<void> {

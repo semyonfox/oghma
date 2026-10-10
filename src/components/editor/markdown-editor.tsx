@@ -15,6 +15,7 @@ import useLayoutStore, {
   FileSpec,
 } from "@/lib/notes/state/layout";
 import useNoteStore from "@/lib/notes/state/note";
+import { NoteConflictError } from "@/lib/notes/api/note";
 import useSyncStatusStore from "@/lib/notes/state/sync-status";
 import useSaveIndicatorStore, {
   SaveState,
@@ -37,6 +38,9 @@ interface MarkdownEditorProps {
 }
 
 const DRAFT_DEBOUNCE_MS = 1000;
+// idle time after the last keystroke before the note is pushed to the server;
+// drafts already cover the gap locally, this closes it across devices
+const AUTOSAVE_DEBOUNCE_MS = 3000;
 
 /**
  * Markdown editor with one Notion-ish writing surface.
@@ -65,13 +69,15 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
   const [resolvedEditorSize, setResolvedEditorSize] = useState<unknown>();
   const currentFileId = useRef(file.fileId);
   const { t } = useI18n();
-  // stable identity for this editor instance (cross-pane sync)
-  const editorId = useRef(Symbol("editor"));
   const isDirtyRef = useRef(false);
-  // updatedAt from the last server response — used for conflict detection
+  // updatedAt from the last server response — sent with every save so the
+  // server can refuse to overwrite a version this editor never saw
   const serverUpdatedAt = useRef<string | undefined>(undefined);
+  // set after a 409: autosave pauses until the user saves on purpose
+  const conflictRef = useRef(false);
   // debounce timer for draft writes
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editRevision = useRef(0);
   const saveInFlight = useRef(false);
   const saveQueued = useRef(false);
@@ -134,6 +140,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
     editRevision.current = 0;
     saveQueued.current = false;
     serverUpdatedAt.current = undefined;
+    conflictRef.current = false;
 
     let cancelled = false;
     const stale = currentFileId.current;
@@ -252,6 +259,10 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
         clearTimeout(draftTimer.current);
         draftTimer.current = null;
       }
+      if (autosaveTimer.current) {
+        clearTimeout(autosaveTimer.current);
+        autosaveTimer.current = null;
+      }
       if (isDirtyRef.current) {
         writeDraft(currentFileId.current, localContentRef.current, draftOwner).catch(
           () => {},
@@ -264,15 +275,15 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
   // fetchNote in pane B would push new state into pane A and cause a flash.
   // now fetchNote's return value (in the effect above) is the sole content source.
 
-  // cross-pane sync: when another editor saves this file, pick up the new content
+  // the note store announces every successful save of this file (content
+  // saves from another pane, renames from the sidebar). Always adopt the new
+  // stamp; adopt the body only when there is nothing unsaved here.
   useEffect(() => {
     const handler = (e: Event) => {
-      const { fileId, content, sourceId } = (e as CustomEvent).detail;
-      if (
-        fileId === file.fileId &&
-        sourceId !== editorId.current &&
-        !isDirtyRef.current
-      ) {
+      const { fileId, content, updatedAt } = (e as CustomEvent).detail;
+      if (fileId !== file.fileId) return;
+      if (typeof updatedAt === "string") serverUpdatedAt.current = updatedAt;
+      if (typeof content === "string" && !isDirtyRef.current) {
         setLocalContent(content);
       }
     };
@@ -304,7 +315,16 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
     [draftOwner, file.fileId],
   );
 
-  // save via API
+  const scheduleAutosave = useCallback(() => {
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    autosaveTimer.current = setTimeout(() => {
+      autosaveTimer.current = null;
+      if (!conflictRef.current) saveLatest.current();
+    }, AUTOSAVE_DEBOUNCE_MS);
+  }, []);
+
+  // save via API. Every caller except the autosave timer is a deliberate user
+  // action, which is what lifts a conflict and overwrites the other version.
   const handleSave = useCallback(async () => {
     if (!isDirtyRef.current || !file.fileId) return;
     if (saveInFlight.current) {
@@ -316,17 +336,28 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
     const revisionToSave = editRevision.current;
     saveInFlight.current = true;
     saveQueued.current = false;
+    conflictRef.current = false;
     if (draftTimer.current) {
       clearTimeout(draftTimer.current);
       draftTimer.current = null;
+    }
+    if (autosaveTimer.current) {
+      clearTimeout(autosaveTimer.current);
+      autosaveTimer.current = null;
     }
 
     setIsSaving(true);
     setSaveError(false);
     try {
       const savedDraft = await writeDraft(file.fileId, contentToSave, draftOwner).catch(() => undefined);
-      await mutateNote(file.fileId, { content: contentToSave });
+      const saved = await mutateNote(file.fileId, {
+        content: contentToSave,
+        ...(serverUpdatedAt.current
+          ? { expectedUpdatedAt: serverUpdatedAt.current }
+          : {}),
+      });
       if (currentFileId.current !== file.fileId) return;
+      if (saved?.updatedAt) serverUpdatedAt.current = saved.updatedAt;
       const savedCurrentRevision =
         revisionToSave === editRevision.current &&
         contentToSave === localContentRef.current;
@@ -340,24 +371,29 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
         setIsDirty(true);
         markModified(file.fileId);
       }
-      // broadcast to other panes showing this file
-      window.dispatchEvent(
-        new CustomEvent("note-content-sync", {
-          detail: {
-            fileId: file.fileId,
-            content: contentToSave,
-            sourceId: editorId.current,
-          },
-        }),
-      );
-    } catch (_error) {
+    } catch (error) {
+      if (error instanceof NoteConflictError) {
+        // the stamp belongs to the note that was open when the save started
+        if (currentFileId.current !== file.fileId) return;
+        // keep the local text dirty and recoverable; the next deliberate save
+        // carries the fresh stamp and wins
+        if (error.updatedAt) serverUpdatedAt.current = error.updatedAt;
+        conflictRef.current = true;
+        toast.warning(
+          t(
+            "This note was saved elsewhere. Your draft is older — save to overwrite, or discard.",
+          ),
+          { id: `draft-conflict:${file.fileId}`, duration: 6000 },
+        );
+        return;
+      }
       console.error("note_save_failed");
       setSaveError(true);
       toast.error(t("Failed to save note"));
     } finally {
       saveInFlight.current = false;
       setIsSaving(false);
-      if (saveQueued.current && isDirtyRef.current) {
+      if (saveQueued.current && isDirtyRef.current && !conflictRef.current) {
         saveQueued.current = false;
         queueMicrotask(() => saveLatest.current());
       }
@@ -442,6 +478,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
                   isDirtyRef.current = true;
                   setIsDirty(true);
                   scheduleDraftWrite(val);
+                  scheduleAutosave();
                 }
               }}
               onSave={handleSave}

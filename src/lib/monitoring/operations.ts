@@ -5,7 +5,8 @@ export type MonitoredOperation =
   | "study.taxonomy"
   | "study.paper"
   | "worker.canvas"
-  | "worker.chat";
+  | "worker.chat"
+  | "worker.note-reindex";
 
 export function monitorOperation<T>(
   name: MonitoredOperation,

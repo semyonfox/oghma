@@ -20,6 +20,7 @@ vi.mock("@/lib/chat/hooks/use-chat-persistence", () => ({
     thinkingMode: "off",
     useRag: true,
     backgroundLoading: false,
+    claimBackgroundGeneration: vi.fn(),
     updateRefs: vi.fn(),
   }),
 }));
