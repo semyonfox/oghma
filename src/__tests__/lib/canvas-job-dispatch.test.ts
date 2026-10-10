@@ -17,10 +17,30 @@ function handlers(): CanvasJobHandlers {
     dispatchMarkerJob: vi.fn().mockResolvedValue(undefined),
     processVaultExport: vi.fn().mockResolvedValue(undefined),
     processVaultImport: vi.fn().mockResolvedValue(undefined),
+    processNoteReindex: vi.fn().mockResolvedValue(undefined),
   };
 }
 
 describe("Canvas job dispatch", () => {
+  it("routes a note reindex to its handler", async () => {
+    const target = handlers();
+
+    await expect(
+      dispatchCanvasJob(
+        {
+          name: "note-reindex",
+          data: { type: "note-reindex", noteId: "note-1", userId: "user-1" },
+        },
+        target,
+      ),
+    ).resolves.toBe(true);
+
+    expect(target.processNoteReindex).toHaveBeenCalledWith({
+      noteId: "note-1",
+      userId: "user-1",
+    });
+  });
+
   it("maps a canvas file message and normalizes its attempt count", async () => {
     const target = handlers();
 

@@ -100,7 +100,10 @@ it("saves genuine edits and keeps a newer edit dirty while an earlier save compl
   await act(async () => useSaveIndicatorStore.getState().files.note.save());
   fireEvent.change(screen.getByRole("textbox"), { target: { value: "Second edit" } });
   await act(async () => finishSave());
-  expect(mocks.mutateNote).toHaveBeenCalledWith("note", { content: "First edit" });
+  expect(mocks.mutateNote).toHaveBeenCalledWith("note", {
+    content: "First edit",
+    expectedUpdatedAt: "2026-09-15T12:00:00Z",
+  });
   expect(state()).toBe("dirty");
   expect(screen.getByRole("textbox")).toHaveProperty("value", "Second edit");
 });

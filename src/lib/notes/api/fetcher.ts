@@ -7,6 +7,19 @@ export interface FetchParams {
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   headers?: Record<string, string>;
   deduplicate?: boolean;
+  // surface the failure to the caller as well as recording it in `error`;
+  // callers that need the status code (409 conflicts) opt in
+  rethrow?: boolean;
+}
+
+export class FetchError extends Error {
+  constructor(
+    readonly status: number,
+    readonly body: string,
+  ) {
+    super(body || `HTTP ${status}`);
+    this.name = "FetchError";
+  }
 }
 
 export default function useFetcher() {
@@ -49,13 +62,20 @@ export default function useFetcher() {
         }
 
         const response = await fetch(params.url, init);
-        if (!response.ok) throw await response.text();
+        if (!response.ok) {
+          throw new FetchError(response.status, await response.text());
+        }
         if (response.status === 204) return;
 
         return (await response.json()) as ResponseData;
       } catch (requestError) {
         if (!controller.signal.aborted) {
-          setError(String(requestError));
+          setError(
+            requestError instanceof Error
+              ? requestError.message
+              : String(requestError),
+          );
+          if (params.rethrow) throw requestError;
         }
       } finally {
         pendingRequests.current -= 1;

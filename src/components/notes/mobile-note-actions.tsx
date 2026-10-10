@@ -143,11 +143,11 @@ export default function MobileNoteActions({
           onSubmit={(event) => {
             event.preventDefault();
             if (noteId && name.trim())
-              void run(() =>
-                useNoteStore
+              void run(async () => {
+                await useNoteStore
                   .getState()
-                  .mutateNote(noteId, { title: name.trim() }),
-              );
+                  .mutateNote(noteId, { title: name.trim() });
+              });
           }}
         >
           <label className="block text-sm font-medium">
