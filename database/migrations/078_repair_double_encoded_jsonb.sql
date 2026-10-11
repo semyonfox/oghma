@@ -13,7 +13,7 @@ BEGIN
     WHILE jsonb_typeof(current) = 'string' LOOP
         BEGIN
             current := (current #>> '{}')::jsonb;
-        EXCEPTION WHEN invalid_text_representation THEN
+        EXCEPTION WHEN invalid_text_representation OR numeric_value_out_of_range THEN
             RETURN current;
         END;
     END LOOP;

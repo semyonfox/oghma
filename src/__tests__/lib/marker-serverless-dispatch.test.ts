@@ -134,6 +134,7 @@ describe("Marker durable dispatch limits", () => {
       dispatch_attempts: 1,
       error: "Vast request timed out after 1200000ms",
       started_at: twoHoursAgo,
+      result_url_expires_at: null,
       updated_at: new Date().toISOString(),
     };
     mocks.sql
@@ -155,6 +156,7 @@ describe("Marker durable dispatch limits", () => {
       dispatch_attempts: 1,
       error: "Vast request timed out after 1200000ms",
       started_at: new Date(Date.now() - 30 * 60 * 1_000).toISOString(),
+      result_url_expires_at: null,
       updated_at: new Date().toISOString(),
     };
     mocks.sql.mockResolvedValueOnce([awaitingResult]);
@@ -163,6 +165,24 @@ describe("Marker durable dispatch limits", () => {
 
     expect(mocks.enqueueMarkerFailureJob).not.toHaveBeenCalled();
     expect(mocks.sql).toHaveBeenCalledTimes(1);
+  });
+
+  it("honours the stored URL expiry over the currently configured TTL", async () => {
+    const awaitingResult = {
+      ...exhaustedJob,
+      status: "awaiting_result",
+      dispatch_attempts: 1,
+      error: "Vast request timed out after 1200000ms",
+      // signed with a longer TTL than the default, so started_at + TTL has passed
+      started_at: new Date(Date.now() - 2 * 60 * 60 * 1_000).toISOString(),
+      result_url_expires_at: new Date(Date.now() + 60 * 60 * 1_000).toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    mocks.sql.mockResolvedValueOnce([awaitingResult]);
+
+    await dispatchMarkerJob(awaitingResult.callback_id);
+
+    expect(mocks.enqueueMarkerFailureJob).not.toHaveBeenCalled();
   });
 
   it("continues recovery of already-paid outcomes while the dispatch kill switch is off", async () => {

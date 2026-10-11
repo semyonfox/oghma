@@ -66,15 +66,20 @@ function resultUrlTtlSeconds(): number {
   return positiveInt("MARKER_SERVERLESS_URL_TTL_SECONDS", 3_600);
 }
 
-// the signed result PUT URL is issued just after started_at, so once it has
-// expired no worker can still deliver a result and waiting longer only keeps
-// the owning import open. the margin covers clock skew and an upload that
-// began just before expiry
+// once the signed result PUT URL has expired no worker can still deliver a
+// result, and waiting longer only keeps the owning import open. the margin
+// covers clock skew and an upload that began just before expiry. rows signed
+// before result_url_expires_at existed fall back to started_at plus the TTL
 function resultUploadDeadlineMs(job: MarkerJobRow): number | null {
+  const marginMs = 5 * 60 * 1_000;
+  if (job.result_url_expires_at !== null) {
+    const expiresAt = new Date(job.result_url_expires_at).getTime();
+    if (Number.isFinite(expiresAt)) return expiresAt + marginMs;
+  }
   if (job.started_at === null) return null;
   const startedAt = new Date(job.started_at).getTime();
   if (!Number.isFinite(startedAt)) return null;
-  return startedAt + (resultUrlTtlSeconds() + 5 * 60) * 1_000;
+  return startedAt + resultUrlTtlSeconds() * 1_000 + marginMs;
 }
 
 function maxCompletionAttempts(): number {
@@ -425,6 +430,7 @@ interface MarkerJobRow {
   dispatch_attempts: number;
   completion_attempts: number;
   started_at: string | Date | null;
+  result_url_expires_at: string | Date | null;
   updated_at: string | Date;
 }
 
@@ -497,8 +503,8 @@ interface ProviderResult {
 async function dispatchVast(
   storage: StoreS3,
   job: MarkerJobRow,
+  ttlSeconds: number,
 ): Promise<ProviderResult> {
-  const ttlSeconds = resultUrlTtlSeconds();
   const [sourceUrl, resultUrl] = await Promise.all([
     storage.getExternalSignUrl(job.source_key, ttlSeconds),
     // Immutable result writes prevent a late/duplicate worker from replacing
@@ -577,8 +583,8 @@ async function dispatchVast(
 async function dispatchRunPod(
   storage: StoreS3,
   job: MarkerJobRow,
+  ttlSeconds: number,
 ): Promise<ProviderResult> {
-  const ttlSeconds = resultUrlTtlSeconds();
   const [sourceUrl, resultUrl] = await Promise.all([
     storage.getExternalSignUrl(job.source_key, ttlSeconds),
     storage.getPutSignUrl(job.result_key, ttlSeconds, "application/json", true),
@@ -611,14 +617,15 @@ async function dispatchRunPod(
 async function dispatchToProvider(
   storage: StoreS3,
   job: MarkerJobRow,
+  ttlSeconds: number,
 ): Promise<ProviderResult> {
   if (job.provider === "vast") {
     if (!vastConfigured()) throw new Error("Vast Marker is not configured");
-    return await dispatchVast(storage, job);
+    return await dispatchVast(storage, job, ttlSeconds);
   }
   if (job.provider === "runpod") {
     if (!runpodConfigured()) throw new Error("RunPod Marker is not configured");
-    return await dispatchRunPod(storage, job);
+    return await dispatchRunPod(storage, job, ttlSeconds);
   }
   throw new Error(`Unsupported Marker provider: ${job.provider}`);
 }
@@ -869,15 +876,19 @@ export async function dispatchMarkerJob(callbackId: string): Promise<void> {
 
   let dispatched: ProviderResult;
   try {
+    // record the expiry of the URLs about to be signed so observation stops
+    // when they do, even if the configured TTL changes in the meantime
+    const ttlSeconds = resultUrlTtlSeconds();
     const [stillOwned] = await sql`
-      SELECT callback_id
-      FROM app.marker_jobs
+      UPDATE app.marker_jobs
+      SET result_url_expires_at = NOW() + make_interval(secs => ${ttlSeconds})
       WHERE callback_id = ${job.callback_id}::uuid
         AND status = 'dispatching'
         AND dispatch_attempts = ${job.dispatch_attempts}
+      RETURNING callback_id
     `;
     if (!stillOwned) return;
-    dispatched = await dispatchToProvider(storage, job);
+    dispatched = await dispatchToProvider(storage, job, ttlSeconds);
   } catch (error) {
     await recordAmbiguousDispatchOutcome(job, error);
     return;
