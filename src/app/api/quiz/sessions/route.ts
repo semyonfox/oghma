@@ -129,7 +129,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
             ${sessionId}::uuid,
             ${userId}::uuid,
             ${filterType},
-            ${filterValue ? JSON.stringify(filterValue) : null}::jsonb,
+            ${filterValue ? JSON.stringify(filterValue) : null}::text::jsonb,
             ${allCardIds.length},
             to_jsonb(${allCardIds}::uuid[])
         )

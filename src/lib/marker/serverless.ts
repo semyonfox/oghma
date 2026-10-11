@@ -62,6 +62,21 @@ function resultGraceSeconds(): number {
   return positiveInt("MARKER_RESULT_GRACE_SECONDS", 12 * 60 * 60);
 }
 
+function resultUrlTtlSeconds(): number {
+  return positiveInt("MARKER_SERVERLESS_URL_TTL_SECONDS", 3_600);
+}
+
+// the signed result PUT URL is issued just after started_at, so once it has
+// expired no worker can still deliver a result and waiting longer only keeps
+// the owning import open. the margin covers clock skew and an upload that
+// began just before expiry
+function resultUploadDeadlineMs(job: MarkerJobRow): number | null {
+  if (job.started_at === null) return null;
+  const startedAt = new Date(job.started_at).getTime();
+  if (!Number.isFinite(startedAt)) return null;
+  return startedAt + (resultUrlTtlSeconds() + 5 * 60) * 1_000;
+}
+
 function maxCompletionAttempts(): number {
   return positiveInt("MARKER_COMPLETION_MAX_ATTEMPTS", 3);
 }
@@ -409,6 +424,7 @@ interface MarkerJobRow {
   error: string | null;
   dispatch_attempts: number;
   completion_attempts: number;
+  started_at: string | Date | null;
   updated_at: string | Date;
 }
 
@@ -482,7 +498,7 @@ async function dispatchVast(
   storage: StoreS3,
   job: MarkerJobRow,
 ): Promise<ProviderResult> {
-  const ttlSeconds = positiveInt("MARKER_SERVERLESS_URL_TTL_SECONDS", 3_600);
+  const ttlSeconds = resultUrlTtlSeconds();
   const [sourceUrl, resultUrl] = await Promise.all([
     storage.getExternalSignUrl(job.source_key, ttlSeconds),
     // Immutable result writes prevent a late/duplicate worker from replacing
@@ -562,7 +578,7 @@ async function dispatchRunPod(
   storage: StoreS3,
   job: MarkerJobRow,
 ): Promise<ProviderResult> {
-  const ttlSeconds = positiveInt("MARKER_SERVERLESS_URL_TTL_SECONDS", 3_600);
+  const ttlSeconds = resultUrlTtlSeconds();
   const [sourceUrl, resultUrl] = await Promise.all([
     storage.getExternalSignUrl(job.source_key, ttlSeconds),
     storage.getPutSignUrl(job.result_key, ttlSeconds, "application/json", true),
@@ -767,6 +783,15 @@ export async function dispatchMarkerJob(callbackId: string): Promise<void> {
         existing,
         existing.error ??
           `Marker result was not observed within ${resultGraceSeconds()} seconds`,
+      );
+      return;
+    }
+    const uploadDeadline = resultUploadDeadlineMs(existing);
+    if (uploadDeadline !== null && Date.now() >= uploadDeadline) {
+      await recordTerminalDispatchFailure(
+        existing,
+        existing.error ??
+          "Marker result was not delivered before its upload URL expired",
       );
     }
     return;

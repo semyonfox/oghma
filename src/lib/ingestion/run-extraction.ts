@@ -128,7 +128,7 @@ export async function runExtraction(
         UPDATE app.notes
         SET content = ${finalMarkdown},
             extracted_text = ${cleanedText},
-            extraction_coverage = ${extractionCoverage}::jsonb,
+            extraction_coverage = ${extractionCoverage}::text::jsonb,
             updated_at = NOW()
         WHERE note_id = ${documentId}::uuid
           AND user_id = ${userId}::uuid

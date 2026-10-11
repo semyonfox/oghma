@@ -126,6 +126,45 @@ describe("Marker durable dispatch limits", () => {
     expect(mocks.requestVastEndpoint).not.toHaveBeenCalled();
   });
 
+  it("fails an unanswered job once its signed result upload URL has expired", async () => {
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1_000).toISOString();
+    const awaitingResult = {
+      ...exhaustedJob,
+      status: "awaiting_result",
+      dispatch_attempts: 1,
+      error: "Vast request timed out after 1200000ms",
+      started_at: twoHoursAgo,
+      updated_at: new Date().toISOString(),
+    };
+    mocks.sql
+      .mockResolvedValueOnce([awaitingResult])
+      .mockResolvedValueOnce([{ callback_id: awaitingResult.callback_id }]);
+
+    await dispatchMarkerJob(awaitingResult.callback_id);
+
+    expect(mocks.enqueueMarkerFailureJob).toHaveBeenCalledWith(
+      awaitingResult.callback_id,
+    );
+    expect(mocks.requestVastEndpoint).not.toHaveBeenCalled();
+  });
+
+  it("keeps waiting while the signed result upload URL is still valid", async () => {
+    const awaitingResult = {
+      ...exhaustedJob,
+      status: "awaiting_result",
+      dispatch_attempts: 1,
+      error: "Vast request timed out after 1200000ms",
+      started_at: new Date(Date.now() - 30 * 60 * 1_000).toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    mocks.sql.mockResolvedValueOnce([awaitingResult]);
+
+    await dispatchMarkerJob(awaitingResult.callback_id);
+
+    expect(mocks.enqueueMarkerFailureJob).not.toHaveBeenCalled();
+    expect(mocks.sql).toHaveBeenCalledTimes(1);
+  });
+
   it("continues recovery of already-paid outcomes while the dispatch kill switch is off", async () => {
     process.env.MARKER_SERVERLESS_DISPATCH_ENABLED = "false";
     // With fresh dispatch recovery skipped, the remaining three reads are

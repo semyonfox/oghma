@@ -114,7 +114,7 @@ export async function advanceQuizStreak(
           longest_streak = ${Math.max(newStreak, existing.longest_streak)},
           last_review_date = ${today}::date,
           total_review_days = ${existing.total_review_days + 1},
-          streak_milestones = ${JSON.stringify(milestones)}::jsonb,
+          streak_milestones = ${JSON.stringify(milestones)}::text::jsonb,
           updated_at = now()
       WHERE user_id = ${userId}::uuid
     `;

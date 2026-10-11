@@ -272,7 +272,7 @@ async function seedUser(sql: postgres.Sql): Promise<void> {
       'mcq',
       1,
       'What does an E2E smoke test verify?',
-      ${JSON.stringify(["A real user path", "Only a pure function", "Only CSS tokens", "Only billing"])}::jsonb,
+      ${JSON.stringify(["A real user path", "Only a pure function", "Only CSS tokens", "Only billing"])}::text::jsonb,
       'A real user path',
       'Smoke tests cover the most important integrated path with minimal breadth.'
     )
@@ -365,7 +365,7 @@ async function seedUser(sql: postgres.Sql): Promise<void> {
       'assistant',
       'E2E seeded chat message.',
       '[]'::jsonb,
-      ${JSON.stringify([{ type: "text", text: "E2E seeded chat message." }])}::jsonb,
+      ${JSON.stringify([{ type: "text", text: "E2E seeded chat message." }])}::text::jsonb,
       NOW()
     )
     ON CONFLICT (id) DO UPDATE

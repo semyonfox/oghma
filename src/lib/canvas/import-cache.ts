@@ -379,7 +379,7 @@ export async function captureImportedPdfCache(params: {
         SET status = 'ready', replayable = ${replayable},
           extracted_markdown = ${markdown},
           extracted_text = ${note.extracted_text ?? null},
-          extraction_coverage = ${JSON.stringify(note.extraction_coverage ?? null)}::jsonb,
+          extraction_coverage = ${note.extraction_coverage == null ? null : JSON.stringify(note.extraction_coverage)}::text::jsonb,
           error_message = NULL, orphaned_at = NULL, purge_after = NULL,
           updated_at = NOW()
         WHERE id = ${params.cacheId}::uuid
@@ -487,7 +487,7 @@ export async function cloneImportedPdfCacheToNote(params: {
     await tx`
       UPDATE app.notes SET content = ${replayMarkdown},
         extracted_text = ${cache.extracted_text ?? null},
-        extraction_coverage = ${JSON.stringify(cache.extraction_coverage ?? null)}::jsonb,
+        extraction_coverage = ${cache.extraction_coverage == null ? null : JSON.stringify(cache.extraction_coverage)}::text::jsonb,
         imported_file_cache_id = ${params.cacheId}::uuid, updated_at = NOW()
       WHERE note_id = ${params.noteId}::uuid
         AND user_id = ${params.userId}::uuid

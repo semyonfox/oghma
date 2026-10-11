@@ -107,7 +107,7 @@ There are three distinct values to discuss:
 | `MARKER_DISPATCH_CONSUMER_ENABLED`       |                                 `true` |              `true` |
 | `MARKER_DISPATCH_CONCURRENCY`            |                                    `1` |                 `1` |
 | `MARKER_COMPLETION_MAX_ATTEMPTS`         |                                    `3` |                 `3` |
-| `MARKER_RESULT_GRACE_SECONDS`            |                                 `1800` |              `1800` |
+| `MARKER_RESULT_GRACE_SECONDS`            |                                `43200` |             `43200` |
 | `MARKER_SERVERLESS_URL_TTL_SECONDS`      |                                 `3600` |              `3600` |
 | `QUEUE_PROVIDER`                         |                               `bullmq` |            `bullmq` |
 | `REDIS_HOST`                             |                            `localhost` |       `oghma-redis` |
@@ -130,8 +130,10 @@ dispatch consumer signs short-lived source/result URLs only when work starts;
 full output returns to object storage, and only small completion metadata
 re-enters the Canvas queue. The database poller recovers lost dispatch and
 completion enqueues. An ambiguous provider response is observed through its
-immutable result object for `MARKER_RESULT_GRACE_SECONDS`; it is never
-automatically resubmitted as a second paid conversion. Keep
+immutable result object until its signed upload URL expires
+(`MARKER_SERVERLESS_URL_TTL_SECONDS` plus five minutes), capped by
+`MARKER_RESULT_GRACE_SECONDS`; it is never automatically resubmitted as a
+second paid conversion. Keep
 `MARKER_PROCESS_ALL_PDFS=false` to retain the
 text-layer-first path; enable it only for a controlled quality run. Vast
 configuration and launch gates belong in the
