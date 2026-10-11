@@ -79,6 +79,15 @@ export default [
       "no-unused-vars": "off",
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_", destructuredArrayIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" }],
       "@typescript-eslint/no-explicit-any": "error",
+      "no-restricted-syntax": [
+        "error",
+        {
+          // postgres.js binds a string cast straight to jsonb as a JSON string,
+          // which double-encodes JSON.stringify output
+          selector: "TaggedTemplateExpression TemplateElement[value.raw=/^\\s*::jsonb/]",
+          message: "Bind JSON as ${JSON.stringify(value)}::text::jsonb so it is stored as an object, not a string.",
+        },
+      ],
       "no-console": "off",
       ...reactHooks.configs.recommended.rules,
       "react-hooks/immutability": "off",

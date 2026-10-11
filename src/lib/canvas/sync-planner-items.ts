@@ -46,7 +46,7 @@ async function upsertPlannerItem(userId: string, item: NormalizedPlannerItem) {
       ${item.plannable_type}, ${item.plannable_id}, ${item.canvas_planner_item_id},
       ${item.title}, ${item.body}, ${item.html_url}, ${item.source}, ${item.item_state},
       ${item.display_at}, ${item.due_at}, ${item.available_at}, ${item.end_at}, ${item.date_source}, ${item.all_day},
-      ${JSON.stringify(item.raw_planner_item)}::jsonb, ${item.raw_plannable ? JSON.stringify(item.raw_plannable) : null}::jsonb,
+      ${JSON.stringify(item.raw_planner_item)}::text::jsonb, ${item.raw_plannable ? JSON.stringify(item.raw_plannable) : null}::text::jsonb,
       NOW(), NULL
     )
     ON CONFLICT (user_id, canvas_domain, plannable_type, plannable_id)

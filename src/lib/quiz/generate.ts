@@ -352,7 +352,7 @@ export async function generateQuestion(
         ${id}::uuid, ${userId}::uuid, ${noteId}::uuid, ${chunkId}::uuid,
         ${questionType}, ${bloomLevel},
         ${parsed.question_text},
-        ${parsed.options ? JSON.stringify(parsed.options) : null}::jsonb,
+        ${parsed.options ? JSON.stringify(parsed.options) : null}::text::jsonb,
         ${parsed.correct_answer},
         ${parsed.explanation}
       )

@@ -320,7 +320,7 @@ export async function processRagPipeline(
     const searchText = stripMarkdown(rawText);
     await sql`
       UPDATE app.notes
-      SET content = ${rawText}, extracted_text = ${searchText}, extraction_coverage = ${extractionCoverage}::jsonb, updated_at = NOW()
+      SET content = ${rawText}, extracted_text = ${searchText}, extraction_coverage = ${extractionCoverage}::text::jsonb, updated_at = NOW()
       WHERE note_id = ${noteId}::uuid
         AND user_id = ${userId}::uuid
         AND deleted_at IS NULL
@@ -373,7 +373,7 @@ export async function processRagPipeline(
   const searchText = stripMarkdown(finalMarkdown);
   await sql`
     UPDATE app.notes
-    SET content = ${finalMarkdown}, extracted_text = ${searchText}, extraction_coverage = ${extractionCoverage}::jsonb, updated_at = NOW()
+    SET content = ${finalMarkdown}, extracted_text = ${searchText}, extraction_coverage = ${extractionCoverage}::text::jsonb, updated_at = NOW()
     WHERE note_id = ${mdNoteId}::uuid
       AND user_id = ${userId}::uuid
       AND deleted_at IS NULL

@@ -39,7 +39,12 @@ vi.mock("@aws-sdk/client-s3", () => {
   };
 });
 
-import { GetObjectCommand } from "@aws-sdk/client-s3";
+import { randomBytes } from "node:crypto";
+import {
+  CreateMultipartUploadCommand,
+  GetObjectCommand,
+  UploadPartCommand,
+} from "@aws-sdk/client-s3";
 import { processVaultExport } from "@/lib/vault/export-worker";
 
 describe("processVaultExport", () => {
@@ -115,5 +120,36 @@ describe("processVaultExport", () => {
     expect(mocks.getSignedUrl).not.toHaveBeenCalled();
     expect(mocks.sendVaultExportCompleteEmail).not.toHaveBeenCalled();
     expect(mocks.s3Send).toHaveBeenCalledTimes(3);
+  });
+  it("uploads equal-sized parts with only the last one shorter, as R2 requires", async () => {
+    // base64 of random bytes barely compresses, so the archive spans several parts
+    const content = randomBytes(15 * 1024 * 1024).toString("base64");
+    mocks.buildExportPathMap.mockResolvedValueOnce(
+      new Map([["note-1", { path: "big.bin", s3Key: null, content }]]),
+    );
+    mocks.sql.mockReset();
+    mocks.sql.mockImplementation(async (strings: TemplateStringsArray) => {
+      const query = strings.join("?");
+      return query.includes("SET status = 'processing'") ||
+        query.includes("JOIN app.vault_artifacts")
+        ? [{ id: "job-1" }]
+        : [];
+    });
+    mocks.s3Send.mockReset();
+    mocks.s3Send.mockImplementation(async (command: unknown) => {
+      if (command instanceof CreateMultipartUploadCommand) return { UploadId: "upload-1" };
+      if (command instanceof UploadPartCommand) return { ETag: "etag" };
+      return {};
+    });
+
+    await processVaultExport({ jobId: "job-1", userId: "user-1" });
+
+    const sizes = mocks.s3Send.mock.calls
+      .map(([command]) => command)
+      .filter((command) => command instanceof UploadPartCommand)
+      .map((command) => (command.input.Body as Buffer).length);
+    expect(sizes.length).toBeGreaterThanOrEqual(2);
+    expect(new Set(sizes.slice(0, -1))).toEqual(new Set([8 * 1024 * 1024]));
+    expect(sizes.at(-1)).toBeLessThanOrEqual(8 * 1024 * 1024);
   });
 });

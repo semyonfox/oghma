@@ -283,7 +283,7 @@ export async function processRagPipeline(
               ELSE content
             END,
             extracted_text = ${searchText},
-            extraction_coverage = ${extractionCoverage}::jsonb,
+            extraction_coverage = ${extractionCoverage}::text::jsonb,
             updated_at = NOW()
         WHERE note_id = ${noteId}::uuid
           AND user_id = ${userId}::uuid
@@ -331,7 +331,7 @@ export async function processRagPipeline(
       const updated = await sql`
         UPDATE app.notes
         SET content = ${finalMarkdown}, extracted_text = ${searchText},
-            extraction_coverage = ${extractionCoverage}::jsonb, updated_at = NOW()
+            extraction_coverage = ${extractionCoverage}::text::jsonb, updated_at = NOW()
         WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
           AND deleted_at IS NULL
         RETURNING note_id
@@ -371,7 +371,7 @@ export async function processRagPipeline(
       UPDATE app.notes
       SET content = ${finalMarkdown}, extracted_text = ${searchText},
           extracted_from_note_id = ${noteId}::uuid,
-          extraction_coverage = ${extractionCoverage}::jsonb, updated_at = NOW()
+          extraction_coverage = ${extractionCoverage}::text::jsonb, updated_at = NOW()
       WHERE note_id = ${mdNoteId}::uuid
         AND user_id = ${userId}::uuid
         AND deleted_at IS NULL

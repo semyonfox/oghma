@@ -23,18 +23,20 @@ import { buildExportPathMap } from "./tree-builder";
 import { lockVaultExport } from "./artifacts";
 import { sendVaultExportCompleteEmail } from "../email";
 
-const MIN_PART_SIZE = 5 * 1024 * 1024; // 5MB minimum for S3 multipart
+// R2 rejects a multipart upload unless every part but the last has the same
+// size, so parts are cut at exactly this length rather than "at least" it
+const PART_SIZE = 8 * 1024 * 1024;
 
 /**
  * Stream zip data into S3 via multipart upload.
- * Collects chunks until they reach MIN_PART_SIZE, then uploads each part.
+ * Collects chunks and uploads them as fixed PART_SIZE parts plus one final remainder.
  */
 class S3MultipartZipUploader {
   private uploadId: string | undefined;
   private readonly parts: CompletedPart[] = [];
   private partNumber = 1;
   private buffer: Buffer[] = [];
-  public bufferSize = 0;
+  private bufferSize = 0;
 
   constructor(
     private readonly s3: S3Client,
@@ -60,12 +62,21 @@ class S3MultipartZipUploader {
     this.bufferSize += data.length;
   }
 
-  async flushPart(): Promise<void> {
-    if (this.bufferSize === 0) return;
-    const body = Buffer.concat(this.buffer);
-    this.buffer = [];
-    this.bufferSize = 0;
+  async flushFullParts(): Promise<void> {
+    if (this.bufferSize < PART_SIZE) return;
+    const data = Buffer.concat(this.buffer);
+    let offset = 0;
+    while (data.length - offset >= PART_SIZE) {
+      await this.uploadPart(data.subarray(offset, offset + PART_SIZE));
+      offset += PART_SIZE;
+    }
+    // copy the remainder so the large concatenated buffer can be released
+    const rest = Buffer.from(data.subarray(offset));
+    this.buffer = rest.length > 0 ? [rest] : [];
+    this.bufferSize = rest.length;
+  }
 
+  private async uploadPart(body: Buffer): Promise<void> {
     const res = await this.s3.send(
       new UploadPartCommand({
         Bucket: this.bucket,
@@ -81,8 +92,14 @@ class S3MultipartZipUploader {
   }
 
   async complete(): Promise<void> {
-    // flush remaining buffered data
-    await this.flushPart();
+    await this.flushFullParts();
+    // the trailing part may be any size, and a tiny archive is a single part
+    if (this.bufferSize > 0 || this.parts.length === 0) {
+      const body = Buffer.concat(this.buffer);
+      this.buffer = [];
+      this.bufferSize = 0;
+      await this.uploadPart(body);
+    }
 
     await this.s3.send(
       new CompleteMultipartUploadCommand({
@@ -104,8 +121,8 @@ class S3MultipartZipUploader {
             UploadId: this.uploadId,
           }),
         );
-      } catch {
-        logger.error("worker_event");
+      } catch (error) {
+        logger.error("worker_event", { error });
       }
     }
   }
@@ -211,9 +228,7 @@ export async function processVaultExport(
         zipEntry.push(new Uint8Array(fileData), true);
 
         // flush buffered zip data to S3 (async — safe here in the for loop)
-        if (uploader.bufferSize >= MIN_PART_SIZE) {
-          await uploader.flushPart();
-        }
+        await uploader.flushFullParts();
 
         processed++;
         // poll cancel signal every iteration so small jobs are still cancellable;
@@ -242,8 +257,8 @@ export async function processVaultExport(
           `;
           logger.info("worker_event");
         }
-      } catch {
-        logger.error("worker_event");
+      } catch (error) {
+        logger.error("worker_event", { error });
         failedPaths.push(entry.path);
       }
     }
@@ -304,13 +319,13 @@ export async function processVaultExport(
       if (user?.email) {
         await sendVaultExportCompleteEmail(user.email, { downloadUrl });
       }
-    } catch {
-      logger.error("worker_event");
+    } catch (error) {
+      logger.error("worker_event", { error });
     }
 
     logger.info("worker_event");
   } catch (error) {
-    logger.error("worker_event");
+    logger.error("worker_event", { error });
     await uploader.abort();
     await sql`
       UPDATE app.canvas_import_jobs
