@@ -134,3 +134,6 @@ apps/mobile/ios/
 *.aab
 *.keystore
 *.jks
+
+# local exam archive and generated imports
+/exam-library/

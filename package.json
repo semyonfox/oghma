@@ -21,11 +21,11 @@
     "start:next": "next start",
     "lint": "eslint",
     "lint:all": "eslint . && npm run i18n:audit && npm run typecheck && npm run test:ci",
-    "typecheck": "node node_modules/typescript-7/bin/tsc --noEmit && npm run typecheck:canvas-mcp",
+    "typecheck": "node node_modules/typescript-7/bin/tsc --noEmit && npm run typecheck:canvas-mcp && npm run typecheck:papers",
     "typecheck:canvas-mcp": "node node_modules/typescript-7/bin/tsc --noEmit -p src/lib/canvas-mcp/tsconfig.json",
     "test": "vitest",
     "test:canvas-mcp": "npm --prefix src/lib/canvas-mcp run test",
-    "test:ci": "vitest run && npm run test:canvas-mcp",
+    "test:ci": "vitest run && npm run test:canvas-mcp && npm run test:papers",
     "test:coverage": "vitest run --coverage",
     "test:integration": "node --experimental-strip-types scripts/e2e/run-with-env.ts vitest run -c vitest.integration.config.ts",
     "worker:healthcheck": "tsx scripts/worker-healthcheck.ts",
@@ -63,7 +63,10 @@
     "mobile:start": "npm --prefix apps/mobile run start",
     "mobile:check": "npm --prefix apps/mobile run typecheck && npm --prefix apps/mobile run test",
     "mobile:apk": "npm --prefix apps/mobile run build:apk",
-    "mobile:stage": "node scripts/stage-mobile-apk.mjs"
+    "mobile:stage": "node scripts/stage-mobile-apk.mjs",
+    "papers": "node --experimental-strip-types scripts/exam-papers/cli.ts",
+    "test:papers": "node --experimental-strip-types --test scripts/exam-papers/*.test.ts",
+    "typecheck:papers": "node node_modules/typescript-7/bin/tsc --noEmit -p scripts/exam-papers/tsconfig.json"
   },
   "dependencies": {
     "@ai-sdk/mcp": "2.0.66",

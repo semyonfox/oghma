@@ -1,0 +1,23 @@
+{
+  "collections": {
+    "ct3": ["CT3*"],
+    "year-2": ["CT2106", "CT2110", "CT213", "CT216", "CT230", "MA284", "ST2001"]
+  },
+  "topics": {
+    "databases": [
+      "SQL",
+      "normalisation",
+      "normalization",
+      "transaction",
+      "relational algebra"
+    ],
+    "networks": ["TCP", "UDP", "subnet", "routing", "IP address"],
+    "hci": ["usability", "heuristic evaluation", "user interface", "Fitts"],
+    "object-oriented-programming": [
+      "inheritance",
+      "polymorphism",
+      "interface",
+      "encapsulation"
+    ]
+  }
+}

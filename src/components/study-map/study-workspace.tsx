@@ -21,6 +21,7 @@ import useSwipeDismiss from "@/components/navigation/use-swipe-dismiss";
 import StudyCanvas, { type FlowScope } from "./study-canvas";
 import StudyInspector from "./study-inspector";
 import StudyExams from "./study-exams";
+import ExamPaperImportControl from "./exam-paper-import";
 import StudySearch from "./study-search";
 import {
   messageFor,
@@ -1690,6 +1691,12 @@ function ModuleWorkspace({
             aria-labelledby={`${tabId}-exams-tab`}
             hidden={tab !== "exams"}
           >
+            <ExamPaperImportControl
+              key={snapshot.map.id}
+              mapId={snapshot.map.id}
+              moduleName={snapshot.map.name}
+              onImported={() => refresh()}
+            />
             <StudyExams
               snapshot={snapshot}
               onAnalyse={(noteId) => queue("paper", noteId)}
