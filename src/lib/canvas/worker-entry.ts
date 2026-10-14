@@ -46,6 +46,7 @@ import {
   processMarkerFailed,
 } from "./import-worker";
 import { processVaultImport } from "../vault/import-worker";
+import { reindexNote } from "../rag/note-reindex";
 import { cleanupVaultArtifacts } from "../vault/artifacts";
 import { processVaultExport } from "../vault/export-worker";
 import { pruneChatGenerationPayloads } from "../chat/generation-store";
@@ -189,6 +190,7 @@ export async function processCanvasJob(job: CanvasJob): Promise<void> {
       dispatchMarkerJob,
       processVaultExport,
       processVaultImport,
+      processNoteReindex: ({ noteId, userId }) => reindexNote(noteId, userId),
     });
     if (!handled) {
       logger.warn("worker_event");

@@ -95,6 +95,10 @@ Topic proposals and paper extraction run with low reasoning even when chat runs 
 
 See [the worker runbook](../operations/import-worker.md) for worker operation. Study jobs use Postgres persistence alongside the existing BullMQ worker; they do not introduce another service.
 
+## Importing archive papers
+
+The [exam-paper workflow](exam-papers.md) imports original PDFs and linked page text into a chosen module folder. The PDF is a `past_paper` material, and the text uses the existing embedding queue. Imported paper structures remain unreviewed until the analysis and review steps below.
+
 ## Exam accounting
 
 `generation.ts` proposes a source-quoted question tree and section instructions; `exam-stats.ts` calculates its statistics in code. Parent and child marks reconcile without counting both. Missing marks remain unknown. Supported choices select whole root questions independently within sections. Nested or conditional choices require manual resolution and remain unavailable when the represented rules cannot be validated.

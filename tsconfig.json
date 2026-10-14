@@ -40,6 +40,7 @@
   "exclude": [
     "node_modules",
     "src/lib/canvas-mcp",
-    "apps/mobile"
+    "apps/mobile",
+    "scripts/exam-papers"
   ]
 }

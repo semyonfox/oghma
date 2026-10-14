@@ -56,6 +56,7 @@ export interface CanvasJobHandlers {
   dispatchMarkerJob: (callbackId: string) => Promise<unknown>;
   processVaultExport: (data: CanvasJobData) => Promise<unknown>;
   processVaultImport: (data: CanvasJobData) => Promise<unknown>;
+  processNoteReindex: (data: { noteId: string; userId: string }) => Promise<unknown>;
 }
 
 function requireJobData(job: CanvasJob): CanvasJobData {
@@ -213,6 +214,14 @@ export async function dispatchCanvasJob(
     case "vault-import":
       await handlers.processVaultImport(data());
       return true;
+    case "note-reindex": {
+      const payload = data();
+      await handlers.processNoteReindex({
+        noteId: requireJobString(payload, "noteId"),
+        userId: requireJobString(payload, "userId"),
+      });
+      return true;
+    }
     default:
       return false;
   }

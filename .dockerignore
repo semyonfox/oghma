@@ -31,3 +31,6 @@ playwright-report
 
 # Native app is built separately from the website
 apps/mobile
+
+# local exam archive and generated imports
+/exam-library/
