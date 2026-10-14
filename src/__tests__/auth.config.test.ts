@@ -5,6 +5,9 @@ const mocks = vi.hoisted(() => ({
   sql: vi.fn(),
   reserveLoginAttempt: vi.fn(),
   clearFailedAttempts: vi.fn(),
+  findOrCreateOAuthUser: vi.fn(),
+  resolveVerifiedOAuthEmail: vi.fn(),
+  OAuthAccountUnavailableError: class OAuthAccountUnavailableError extends Error {},
 }));
 
 vi.mock("next-auth/providers/google", () => ({
@@ -25,8 +28,9 @@ vi.mock("@/lib/logger", () => ({
 }));
 
 vi.mock("@/lib/auth/oauth", () => ({
-  findOrCreateOAuthUser: vi.fn(),
-  resolveVerifiedOAuthEmail: vi.fn(),
+  findOrCreateOAuthUser: mocks.findOrCreateOAuthUser,
+  resolveVerifiedOAuthEmail: mocks.resolveVerifiedOAuthEmail,
+  OAuthAccountUnavailableError: mocks.OAuthAccountUnavailableError,
 }));
 vi.mock("@/lib/i18n/server", () => ({
   getRequestLocale: vi.fn().mockResolvedValue("en"),
@@ -71,6 +75,25 @@ async function authorizeCredentials(email: string, submittedPassword: string) {
     { email, password: submittedPassword },
     new Request("http://localhost/api/auth/callback/credentials"),
   );
+}
+
+async function oauthSignIn() {
+  vi.resetModules();
+  const { authConfig } = await import("@/auth.config");
+  const signIn = authConfig.callbacks?.signIn;
+  if (!signIn) throw new Error("signIn callback is required");
+  const user = { id: "google-sub", email: "person@example.com", name: "Person" };
+  const result = await signIn({
+    user,
+    account: {
+      provider: "google",
+      providerAccountId: "google-sub",
+      type: "oidc",
+      access_token: "provider-token",
+    },
+    profile: { email: "person@example.com", email_verified: true },
+  });
+  return { result, user };
 }
 
 beforeEach(() => {
@@ -139,6 +162,49 @@ describe("Auth.js credentials authorize", () => {
   it("clears failed attempts after valid credentials", async () => {
     await authorizeCredentials(account.email, password);
     expect(mocks.clearFailedAttempts).toHaveBeenCalledWith(account.email);
+  });
+});
+
+describe("Auth.js oauth signIn callback", () => {
+  beforeEach(() => {
+    mocks.resolveVerifiedOAuthEmail.mockResolvedValue("person@example.com");
+    mocks.findOrCreateOAuthUser.mockResolvedValue("user-1");
+  });
+
+  it("links the verified provider account and adopts its user id", async () => {
+    const { result, user } = await oauthSignIn();
+    expect(result).toBe(true);
+    expect(user.id).toBe("user-1");
+    expect(mocks.findOrCreateOAuthUser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: "google",
+        providerAccountId: "google-sub",
+        email: "person@example.com",
+      }),
+      expect.objectContaining({ email_verified: true }),
+      "en",
+    );
+  });
+
+  it("sends a provider without a verified email to a page that says so", async () => {
+    mocks.resolveVerifiedOAuthEmail.mockResolvedValue(null);
+    const { result } = await oauthSignIn();
+    expect(result).toBe("/auth/error?error=NoVerifiedEmail");
+    expect(mocks.findOrCreateOAuthUser).not.toHaveBeenCalled();
+  });
+
+  it("tells a deleted account what happened instead of a generic denial", async () => {
+    mocks.findOrCreateOAuthUser.mockRejectedValue(
+      new mocks.OAuthAccountUnavailableError("unavailable"),
+    );
+    const { result } = await oauthSignIn();
+    expect(result).toBe("/auth/error?error=AccountDeleted");
+  });
+
+  it("still denies access for any other linking failure", async () => {
+    mocks.findOrCreateOAuthUser.mockRejectedValue(new Error("db down"));
+    const { result } = await oauthSignIn();
+    expect(result).toBe(false);
   });
 });
 

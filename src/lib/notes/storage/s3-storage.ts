@@ -19,6 +19,10 @@ function parseStoredSettings(settingsJson: string): StoredSettings {
     : settings;
 }
 
+export function settingsObjectKey(userId: string): string {
+  return `settings/${userId}/settings.json`;
+}
+
 /**
  * Get user settings from S3 (cached in Redis for 5 minutes)
  */
@@ -31,7 +35,7 @@ export async function getSettingsFromS3(
     if (cached) return cached;
 
     const storage = getStorageProvider();
-    const settingsPath = `settings/${userId}/settings.json`;
+    const settingsPath = settingsObjectKey(userId);
     const settingsJson = await storage.getObject(settingsPath);
     if (!settingsJson) {
       return {};
@@ -54,7 +58,7 @@ export async function saveSettingsToS3(
 ): Promise<void> {
   try {
     const storage = getStorageProvider();
-    const settingsPath = `settings/${userId}/settings.json`;
+    const settingsPath = settingsObjectKey(userId);
     const settingsContent = JSON.stringify(settings, null, 2);
     await storage.putObject(settingsPath, settingsContent, {
       contentType: "application/json",

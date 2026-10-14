@@ -62,7 +62,9 @@ async function createSessionCookie(
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     expires: expires,
-    sameSite: "strict",
+    // lax, like the Auth.js cookie: strict dropped the cookie on links opened
+    // from other sites, so password users landed on /login while signed in
+    sameSite: "lax",
     path: "/",
   });
 }
