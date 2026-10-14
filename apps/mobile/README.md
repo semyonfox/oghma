@@ -1,6 +1,6 @@
 # OghmaNotes Android alpha
 
-Status: 0.1.4 is the published Android alpha. A signed 0.1.5 APK with EAS Update support has been built locally but is not released, as of 2026-09-25. The tracked download manifest still identifies the APK served by a website deployment. See [mobile engineering notes](../../docs/engineering/mobile-alpha.md) for supported flows, verification and release boundaries.
+Status: 0.1.6 is the published Android alpha, as of 2026-10-15. It adds EAS Update support and the verified App Link that native Google and GitHub sign-in needs. 0.1.5 was never released. The tracked download manifest identifies the APK served by a website deployment. See [mobile engineering notes](../../docs/engineering/mobile-alpha.md) for supported flows, verification and release boundaries.
 
 This is a separate Expo application using React Native WebView to load the full existing OghmaNotes website, including its rich editor and PDF.js viewer. The existing Next.js website stays at the repository root. It has its own npm lockfile so native dependency versions do not change the web application's React version.
 
@@ -17,6 +17,8 @@ The default API is `https://oghmanotes.ie`. Set `EXPO_PUBLIC_API_URL=https://dev
 ## Build an installable APK
 
 Install JDK 17 and Android command-line tools, accept the SDK licenses, and install the platform/build-tools/NDK versions required by the generated Expo project. Set `JAVA_HOME`, add its `bin` to `PATH`, and set `ANDROID_HOME` to the SDK location.
+
+The generated `android/gradle.properties` caps Gradle Metaspace at 512 MB, which the 0.1.6 release build exceeds. If Gradle reports `OutOfMemoryError: Metaspace`, raise `org.gradle.jvmargs` to `-Xmx4096m -XX:MaxMetaspaceSize=1536m` in that generated file and rerun the Gradle step.
 
 ```sh
 npm run build:apk --prefix apps/mobile
