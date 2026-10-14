@@ -53,6 +53,7 @@ import { cleanupVaultArtifacts } from "../vault/artifacts";
 import { processVaultExport } from "../vault/export-worker";
 import { pruneChatGenerationPayloads } from "../chat/generation-store";
 import { cleanupMarketingData } from "../marketing/retention";
+import { purgeDeletedAccounts } from "../auth/account-purge";
 import { processNextStudyJob, reconcileStudyMaps } from "../study-map/jobs";
 import {
   processPendingNoteDeletionCleanup,
@@ -76,6 +77,7 @@ const ORPHAN_ENQUEUE_RETRY_INTERVAL = "1 minute";
 const MARKETING_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const IMPORT_CACHE_RETENTION_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const NOTE_LIFECYCLE_RETENTION_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const ACCOUNT_PURGE_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const MAX_CONCURRENT_JOBS = 10;
 // On unless explicitly disabled, so an existing worker keeps consuming Marker
 // dispatches after an upgrade. The healthcheck uses the same parser.
@@ -141,6 +143,15 @@ async function runNoteLifecycleRetention(): Promise<void> {
     await sql`DELETE FROM app.chat_tool_actions WHERE expires_at <= NOW()`;
     await reconcileTrashedVectorVisibility();
     logger.info("worker_event");
+  } catch (error) {
+    logger.error("worker_event", { error });
+  }
+}
+
+async function runAccountPurge(): Promise<void> {
+  try {
+    const purged = await purgeDeletedAccounts();
+    logger.info("worker_event", { purgedAccounts: purged });
   } catch (error) {
     logger.error("worker_event", { error });
   }
@@ -226,6 +237,7 @@ await failStuckJobs();
 await runMarketingCleanup();
 await runImportCacheRetention();
 await runNoteLifecycleRetention();
+await runAccountPurge();
 await recoverChatGenerations();
 async function runVaultArtifactCleanup() {
   try {
@@ -240,6 +252,7 @@ setInterval(failStuckJobs, STUCK_JOB_CHECK_INTERVAL_MS);
 setInterval(runMarketingCleanup, MARKETING_CLEANUP_INTERVAL_MS);
 setInterval(runImportCacheRetention, IMPORT_CACHE_RETENTION_INTERVAL_MS);
 setInterval(runNoteLifecycleRetention, NOTE_LIFECYCLE_RETENTION_INTERVAL_MS);
+setInterval(runAccountPurge, ACCOUNT_PURGE_INTERVAL_MS);
 setInterval(async () => {
   try {
     await claimOrphanedJobs();

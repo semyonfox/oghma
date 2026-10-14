@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
 import { withErrorHandler, requireAuth, ApiError } from "@/lib/api-error";
 import sql from "@/database/pgsql";
+import { DELETED_ACCOUNT_GRACE_DAYS } from "@/lib/auth/account-purge";
 
 const CONFIRM_PHRASE = "delete my account";
-
-// how long we keep the data before a background job can hard-delete it
-const GRACE_PERIOD_DAYS = 30;
 
 /**
  * DELETE /api/auth/delete-account
@@ -16,9 +14,9 @@ const GRACE_PERIOD_DAYS = 30;
  *   3. Sets is_active = false and deleted_at = now() on app.login
  *   4. Clears the session cookie — account is immediately inaccessible
  *
- * A background job (or manual process) can hard-delete rows where
- * deleted_at < now() - GRACE_PERIOD_DAYS after the grace period.
- * Until then the account can be recovered by contacting support.
+ * The import worker purges rows once deleted_at is older than
+ * DELETED_ACCOUNT_GRACE_DAYS (see lib/auth/account-purge.ts). Until then the
+ * account can be recovered by contacting support, and its email stays taken.
  */
 export const DELETE = withErrorHandler(async (request) => {
     const user = await requireAuth();
@@ -51,7 +49,7 @@ export const DELETE = withErrorHandler(async (request) => {
     // clear the session cookie — login attempts will now 401 because is_active = false
     const response = NextResponse.json({
       success: true,
-      message: `Account scheduled for deletion. Data will be permanently removed after ${GRACE_PERIOD_DAYS} days.`,
+      message: `Account scheduled for deletion. Data will be permanently removed after ${DELETED_ACCOUNT_GRACE_DAYS} days.`,
     });
 
     response.cookies.set("session", "", {

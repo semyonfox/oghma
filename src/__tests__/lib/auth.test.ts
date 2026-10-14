@@ -14,13 +14,18 @@ import {
   generateJWTToken,
   verifyJWTToken,
   validateSessionLite,
+  createAuthSession,
   createErrorResponse,
   createValidationErrorResponse,
 } from "@/lib/auth/session";
 
 type OAuthSession = { user?: { id?: string; sessionVersion?: number } } | null;
 const authMock = auth as unknown as MockedFunction<() => Promise<OAuthSession>>;
-type CookieStore = { getAll: () => { name: string; value: string }[]; get: (name: string) => { name: string; value: string } | undefined };
+type CookieStore = {
+  getAll: () => { name: string; value: string }[];
+  get: (name: string) => { name: string; value: string } | undefined;
+  set?: (name: string, value: string, options: Record<string, unknown>) => void;
+};
 const cookiesMock = cookies as unknown as MockedFunction<() => Promise<CookieStore>>;
 
 // JWT_SECRET is set in setup.ts
@@ -98,6 +103,24 @@ describe("verifyJWTToken", () => {
     delete process.env.JWT_SECRET;
     expect(() => verifyJWTToken(token)).toThrow();
     process.env.JWT_SECRET = original;
+  });
+});
+
+describe("createAuthSession", () => {
+  it("sets a lax cookie so links opened from other sites keep the signed-in state", async () => {
+    const set = vi.fn();
+    cookiesMock.mockResolvedValue({ get: () => undefined, getAll: () => [], set });
+
+    await createAuthSession(
+      { user_id: "user-123", email: "synthetic@example.test", session_version: 0 },
+      1,
+    );
+
+    expect(set).toHaveBeenCalledWith(
+      "session",
+      expect.any(String),
+      expect.objectContaining({ sameSite: "lax", httpOnly: true, path: "/" }),
+    );
   });
 });
 
