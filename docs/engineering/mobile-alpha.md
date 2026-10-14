@@ -1,8 +1,8 @@
 # Android alpha
 
-> Status: 0.1.4 released; 0.1.5 EAS Update APK built locally, unreleased
+> Status: 0.1.6 released 2026-10-15; 0.1.5 was never released
 >
-> Last reviewed: 2026-10-04 (authentication patch pending release)
+> Last reviewed: 2026-10-15
 
 The Android application lives in [`apps/mobile`](../../apps/mobile/README.md), with its own npm package and lockfile. Version 0.1.3 replaces the limited native notes/chat screens with the existing Next.js website in React Native WebView. The website remains at the repository root. Its responsive navigation, Milkdown rich editor, PDF.js renderer, chat, calendar, quizzes and settings are used directly inside the app.
 
@@ -147,8 +147,19 @@ update channel are outside this preparation.
 
 ## 0.1.6 authentication patch
 
-Status: unreleased source target as of 2026-10-04. The native version is 0.1.6
-and versionCode 7. It adds a verified HTTPS App Link intent filter and a separate
-Expo runtime from 0.1.5. An OTA update cannot add this filter. The
+Status: released 2026-10-15 as GitHub prerelease `android-alpha-v0.1.6`, built
+from main at `a1a7ac37`. The native version is 0.1.6 and versionCode 7. It adds a
+verified HTTPS App Link intent filter and a separate Expo runtime from 0.1.5. An
+OTA update cannot add this filter. The
 [security rollout](../operations/security-rollout.md) owns the certificate,
 association, native build and device-verification gates.
+
+Verification on 2026-10-15: mobile type checking and 33 contract tests passed.
+The signed APK has package `ie.oghmanotes.alpha`, versionCode 7, runtime version
+`0.1.6` and the `production` update channel. Its v2 signing certificate matches
+0.1.4 and the published `assetlinks.json`. The manifest declares an
+auto-verified `https://oghmanotes.ie/auth/mobile/callback` filter. The APK is not
+debuggable and passes 16 KB ZIP alignment. The only permission added since 0.1.4
+is `ACCESS_NETWORK_STATE`. Google's Digital Asset Links API returns the package
+and fingerprint for `oghmanotes.ie`. Installation, provider sign-in return and
+OTA delivery have not been checked on a physical phone.
