@@ -112,15 +112,14 @@ and certificate fingerprint
 Compare that public fingerprint with the trusted release certificate before
 setting the association. No private signing material is needed for the server.
 
-Status 2026-10-14: the fingerprint above was re-derived from the published
+Status 2026-10-15: the fingerprint above was re-derived from the published
 0.1.4 APK's v2 signing block and matches. Both Jenkins env files
 (`oghma-prod.env`, `oghma-dev.env`) now set
 `ANDROID_APP_LINK_SHA256_FINGERPRINTS` to it and `ANDROID_APP_LINKS_VERIFIED=true`;
-each takes effect on that branch's next deploy. The device checks below have not
-been run yet: the published 0.1.4 APK (versionCode 5) predates the intent
-filter, so the 0.1.6 / versionCode 7 build has to ship before a phone can finish
-the flow. Until then the app's provider buttons reach the approval page and the
-callback falls back to the browser page.
+both deploys serve the association. Google's Digital Asset Links API returns
+the package and fingerprint for `oghmanotes.ie`. The 0.1.6 / versionCode 7 APK
+with the intent filter was released on 2026-10-15 and its signing certificate
+matches. The device checks below have not been run on a physical phone.
 
 The native target is 0.1.6 / versionCode 7, with an app-version runtime boundary
 so this handoff cannot ship as an OTA update to old 0.1.5 binaries.
