@@ -32,6 +32,7 @@ import {
   syncProfileToLogin,
   getLinkedProviders,
   findOrCreateOAuthUser,
+  OAuthAccountUnavailableError,
   resolveVerifiedOAuthEmail,
 } from "@/lib/auth/oauth";
 import sql from "@/database/pgsql";
@@ -228,9 +229,11 @@ describe("findOrCreateOAuthUser", () => {
       tx.mock.calls.some(([parts]) => parts.join("").includes("FOR UPDATE")),
     ).toBe(true);
   });
-  it("rejects a deactivated linked account", async () => {
+  it("rejects a deactivated linked account with a typed error the sign-in page can explain", async () => {
     transaction({ linked: true, active: false });
-    await expect(findOrCreateOAuthUser(profile, { email_verified: true })).rejects.toThrow('unavailable');
+    await expect(findOrCreateOAuthUser(profile, { email_verified: true })).rejects.toBeInstanceOf(
+      OAuthAccountUnavailableError,
+    );
   });
   it("seeds the requested locale only for a newly inserted account", async () => {
     transaction({ created: true });

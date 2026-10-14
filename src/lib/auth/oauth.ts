@@ -32,6 +32,14 @@ export interface OAuthAccountRow {
 
 type UserIdRow = { user_id: string };
 
+// a linked or same-email account that was deactivated or soft-deleted
+export class OAuthAccountUnavailableError extends Error {
+  constructor() {
+    super("OAuth account is unavailable");
+    this.name = "OAuthAccountUnavailableError";
+  }
+}
+
 type LinkedProviderRow = { provider: string; email: string | null };
 
 /**
@@ -236,7 +244,7 @@ export async function findOrCreateOAuthUser(
       WHERE user_id = ${userId}::uuid FOR UPDATE
     `;
     if (!account || !account.is_active || account.deleted_at) {
-      throw new Error("OAuth account is unavailable");
+      throw new OAuthAccountUnavailableError();
     }
     if (!account.email_verified) {
       // the verified mailbox owner must not inherit a registrant's password or tokens

@@ -10,12 +10,19 @@ import sql from "@/database/pgsql";
 import logger from "@/lib/logger";
 import {
   findOrCreateOAuthUser,
+  OAuthAccountUnavailableError,
   resolveVerifiedOAuthEmail,
 } from "@/lib/auth/oauth";
 import type { OAuthProfile } from "@/lib/auth/oauth";
 import { getRequestLocale } from "@/lib/i18n/server";
 
 const providers: NextAuthConfig["providers"] = [];
+
+// Auth.js only distinguishes AccessDenied on its own, so the signIn callback
+// returns these pages for the two failures a user can actually act on
+const AUTH_ERROR_PAGE = "/auth/error";
+const NO_VERIFIED_EMAIL_PAGE = `${AUTH_ERROR_PAGE}?error=NoVerifiedEmail`;
+const ACCOUNT_DELETED_PAGE = `${AUTH_ERROR_PAGE}?error=AccountDeleted`;
 
 interface LoginCredentialsUser {
   user_id: string;
@@ -146,7 +153,7 @@ export const authConfig: NextAuthConfig = {
   session: { strategy: "jwt" as const },
   pages: {
     signIn: "/login",
-    error: "/auth/error",
+    error: AUTH_ERROR_PAGE,
   },
   callbacks: {
     async signIn({ user, account, profile }) {
@@ -163,7 +170,7 @@ export const authConfig: NextAuthConfig = {
           logger.warn("oauth provider did not return a verified email", {
             provider: account.provider,
           });
-          return false;
+          return NO_VERIFIED_EMAIL_PAGE;
         }
         rawProfile.email_verified = true;
 
@@ -190,6 +197,9 @@ export const authConfig: NextAuthConfig = {
         user.email = verifiedEmail;
         return true;
       } catch (error) {
+        if (error instanceof OAuthAccountUnavailableError) {
+          return ACCOUNT_DELETED_PAGE;
+        }
         logger.error("oauth sign-in failed", {
           ...authErrorDetails(error),
           provider: account.provider,
