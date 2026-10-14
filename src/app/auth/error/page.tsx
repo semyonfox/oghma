@@ -15,10 +15,16 @@ function AuthErrorContent() {
     OAuthCallback: t("Sign-in did not finish. Try again from the sign-in page."),
     OAuthCreateAccount: t("Could not create your account. Try again."),
     OAuthAccountNotLinked: t(
-      "This email is already registered with another sign-in method. Use that method, then link accounts in settings.",
+      "This email is already registered with another sign-in method. Sign in with that method instead.",
     ),
     Callback: t("Sign-in did not finish. Try again."),
     AccessDenied: t("Access was denied. Try another sign-in method."),
+    NoVerifiedEmail: t(
+      "Your Google or GitHub account has no verified email address. Verify it there, then try again.",
+    ),
+    AccountDeleted: t(
+      "This account was deleted and is waiting for permanent removal. Contact support within 30 days to restore it, or create a new account after that.",
+    ),
     Configuration: t("Sign-in is unavailable. Please contact support."),
     Verification: t("The sign-in link expired or was already used. Try again."),
     Default: t("An unexpected sign-in error occurred. Try again."),
