@@ -1,13 +1,21 @@
 // S3 storage provider (MIT License - Notea)
 // Supports AWS S3, MinIO, and compatible S3 endpoints
 
-import { ObjectOptions, ObjectMetadata, StoreProvider, StoreProviderConfig } from './base';
-import { toBuffer, toStr } from './str';
+import {
+  type ExternalSignOptions,
+  ObjectOptions,
+  ObjectMetadata,
+  ObjectNotFoundError,
+  ObjectStream,
+  StoreProvider,
+  StoreProviderConfig,
+} from './base';
 import {
   CopyObjectCommand,
   DeleteObjectsCommand,
   DeleteObjectCommand,
   GetObjectCommand,
+  type GetObjectCommandOutput,
   HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
@@ -15,31 +23,29 @@ import {
   S3ClientConfig,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { streamToBuffer } from './utils';
 import { Readable } from 'stream';
-import { createLogger, Logger } from './logger';
+
+// an unreachable or wedged RustFS must fail the request instead of holding a
+// route or worker forever. requestTimeout stops once response headers arrive,
+// so long proxied downloads are not cut off; it does cover upload bodies
+const CONNECTION_TIMEOUT_MS = 5_000;
+const REQUEST_TIMEOUT_MS = 60_000;
 
 /**
- * Check if an error indicates a missing object (NoSuchKey)
- * Handles variations from different S3 implementations
+ * True only for a confirmed missing object. A missing bucket is a
+ * misconfiguration and must surface as a failure, not as absence.
  */
-function isNoSuchKeyError(error: unknown): error is Error {
-  if (!(error instanceof Error)) return false;
-
-  const { code, type } = error as Error & {
+function isMissingObjectError(error: unknown): boolean {
+  if (!(error instanceof Error) || error.name === 'NoSuchBucket') return false;
+  const { code, $metadata } = error as Error & {
     code?: unknown;
-    type?: unknown;
+    $metadata?: { httpStatusCode?: unknown };
   };
-  const message = error.message.toLowerCase();
-  const name = error.name.toLowerCase();
-
   return (
+    error.name === 'NoSuchKey' ||
+    error.name === 'NotFound' ||
     code === 'NoSuchKey' ||
-    message.includes('nosuchkey') ||
-    message.includes('not found') ||
-    name.includes('nosuchkey') ||
-    name.includes('notfound') ||
-    type === 'NotFound'
+    $metadata?.httpStatusCode === 404
   );
 }
 
@@ -69,6 +75,11 @@ export interface S3Config extends StoreProviderConfig {
 export function createS3ClientConfig(config: S3Config): S3ClientConfig {
   const clientConfig: S3ClientConfig = {
     region: config.region ?? 'us-east-1',
+    requestHandler: {
+      connectionTimeout: CONNECTION_TIMEOUT_MS,
+      requestTimeout: REQUEST_TIMEOUT_MS,
+      throwOnRequestTimeout: true,
+    },
     ...(config.endPoint && { endpoint: config.endPoint }),
     ...(config.pathStyle !== undefined && { forcePathStyle: config.pathStyle }),
   };
@@ -109,6 +120,12 @@ export function createS3ClientFromEnv(): S3Client {
   return new S3Client(createS3ClientConfig(createS3ConfigFromEnv()));
 }
 
+async function readBody(body: GetObjectCommandOutput['Body']): Promise<Buffer> {
+  if (!body) return Buffer.alloc(0);
+  const bytes = await body.transformToByteArray();
+  return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+}
+
 /**
  * S3-compatible storage provider
  * Supports AWS S3, MinIO, and other S3-compatible endpoints
@@ -117,57 +134,51 @@ export class StoreS3 extends StoreProvider {
   private readonly client: S3Client;
   private readonly publicClient: S3Client;
   private readonly config: Readonly<S3Config>;
-  private readonly logger: Logger;
 
   constructor(config: S3Config) {
     super(config);
     this.config = config;
-    this.logger = createLogger('store.s3');
-    this.client = this.createS3Client(config);
+    this.client = new S3Client(createS3ClientConfig(config));
     this.publicClient = config.publicEndPoint
-      ? this.createS3Client({ ...config, endPoint: config.publicEndPoint })
+      ? new S3Client(createS3ClientConfig({ ...config, endPoint: config.publicEndPoint }))
       : this.client;
-
-    if (!config.accessKey || !config.secretKey) {
-      this.logger.warn(
-        'AWS credentials (STORAGE_ACCESS_KEY/STORAGE_SECRET_KEY) not provided. ' +
-          'Attempting to use IAM role credentials or environment variables instead.'
-      );
-    }
   }
 
-  /**
-   * Create and configure S3Client instance
-   */
-  private createS3Client(config: S3Config): S3Client {
-    return new S3Client(createS3ClientConfig(config));
+  get bucket(): string {
+    return this.config.bucket;
   }
 
   /**
    * Stream an object directly without buffering — used to proxy content through
    * the Next.js server so browsers never receive internal HTTP presigned URLs.
    */
-  async getObjectStream(path: string): Promise<{ body: Readable; contentType?: string; contentLength?: number }> {
-    const result = await this.client.send(
-      new GetObjectCommand({
-        Bucket: this.config.bucket,
-        Key: this.getPath(path),
-      })
-    );
+  async getObjectStream(path: string): Promise<ObjectStream> {
+    let result: GetObjectCommandOutput;
+    try {
+      result = await this.client.send(
+        new GetObjectCommand({
+          Bucket: this.config.bucket,
+          Key: this.getPath(path),
+        })
+      );
+    } catch (error) {
+      if (isMissingObjectError(error)) throw new ObjectNotFoundError();
+      throw error;
+    }
+    // the node runtime always returns an IncomingMessage; anything else means
+    // this module was bundled for a runtime that cannot proxy the stream
+    if (!(result.Body instanceof Readable)) {
+      throw new Error('Storage returned a non-stream object body');
+    }
     return {
-      body: result.Body as Readable,
+      body: result.Body,
       contentType: result.ContentType,
       contentLength: result.ContentLength,
     };
   }
 
-  /**
-   * Generate a signed URL for temporary access
-   * Handles MinIO with custom ports via presigning workaround
-   * @see https://github.com/aws/aws-sdk-js-v3/issues/2121
-   */
+  /** Sign a GET URL with the internal storage hostname. */
   async getSignUrl(path: string, expiresIn = 600): Promise<string> {
-    // Use AWS SDK for S3-compatible endpoints
     return getSignedUrl(
       this.client,
       new GetObjectCommand({
@@ -178,13 +189,23 @@ export class StoreS3 extends StoreProvider {
     );
   }
 
-  /** Sign a GET URL with the public storage hostname for external workers. */
-  async getExternalSignUrl(path: string, expiresIn = 600): Promise<string> {
+  /**
+   * Sign a GET URL with the public storage hostname for consumers outside the
+   * homelab: GPU workers, and browsers following a download link.
+   */
+  async getExternalSignUrl(
+    path: string,
+    expiresIn = 600,
+    options: ExternalSignOptions = {},
+  ): Promise<string> {
     return getSignedUrl(
       this.publicClient,
       new GetObjectCommand({
         Bucket: this.config.bucket,
         Key: this.getPath(path),
+        ...(options.downloadName
+          ? { ResponseContentDisposition: `attachment; filename="${options.downloadName}"` }
+          : {}),
       }),
       { expiresIn }
     );
@@ -208,53 +229,15 @@ export class StoreS3 extends StoreProvider {
     );
   }
 
-  /**
-   * Check if an object exists
-   */
   async hasObject(path: string): Promise<boolean> {
-    try {
-      await this.client.send(
-        new HeadObjectCommand({
-          Bucket: this.config.bucket,
-          Key: this.getPath(path),
-        })
-      );
-      return true;
-    } catch (error) {
-      if (isNoSuchKeyError(error)) {
-        return false;
-      }
-      this.logger.error(error instanceof Error ? error : String(error), `Error checking if object exists: ${path}`);
-      return false;
-    }
+    return (await this.getObjectMeta(path)) !== undefined;
   }
 
-  /**
-   * Retrieve object content as string
-   */
-   async getObject(path: string, isCompressed = false): Promise<string | undefined> {
-     try {
-       const result = await this.client.send(
-         new GetObjectCommand({
-           Bucket: this.config.bucket,
-           Key: this.getPath(path),
-         })
-       );
-
-       const buffer = await streamToBuffer(result.Body as Readable);
-       return await toStr(buffer, isCompressed);
-    } catch (error) {
-      if (isNoSuchKeyError(error)) {
-        return undefined;
-      }
-      this.logger.error(error instanceof Error ? error : String(error), `Error retrieving object: ${path}`);
-      throw error;
-    }
+  async getObject(path: string): Promise<string | undefined> {
+    const { buffer } = await this.getObjectAndMeta(path);
+    return buffer?.toString('utf-8');
   }
 
-  /**
-   * Retrieve object metadata only
-   */
   async getObjectMeta(
     path: string,
   ): Promise<
@@ -279,21 +262,12 @@ export class StoreS3 extends StoreProvider {
           : {}),
       };
     } catch (error) {
-      if (isNoSuchKeyError(error)) {
-        return undefined;
-      }
-      this.logger.error(error instanceof Error ? error : String(error), `Error retrieving object metadata: ${path}`);
+      if (isMissingObjectError(error)) return undefined;
       throw error;
     }
   }
 
-  /**
-   * Retrieve object content and metadata together
-   */
-  async getObjectAndMeta(
-    path: string,
-    isCompressed = false
-  ): Promise<ObjectMetadata> {
+  async getObjectAndMeta(path: string): Promise<ObjectMetadata> {
     try {
       const result = await this.client.send(
         new GetObjectCommand({
@@ -301,76 +275,45 @@ export class StoreS3 extends StoreProvider {
           Key: this.getPath(path),
         })
       );
-
-       const buffer = await streamToBuffer(result.Body as Readable);
-
-       return {
-         content: await toStr(buffer, isCompressed),
-         meta: result.Metadata,
-         contentType: result.ContentType,
-         contentLength: result.ContentLength,
-         buffer,
-       };
+      return {
+        meta: result.Metadata,
+        contentType: result.ContentType,
+        contentLength: result.ContentLength,
+        buffer: await readBody(result.Body),
+      };
     } catch (error) {
-      if (isNoSuchKeyError(error)) {
-        return {};
-      }
-      this.logger.error(error instanceof Error ? error : String(error), `Error retrieving object and metadata: ${path}`);
+      if (isMissingObjectError(error)) return {};
       throw error;
     }
   }
 
-  /**
-   * Store an object with optional metadata and headers
-   */
   async putObject(
     path: string,
     raw: string | Buffer,
     options?: ObjectOptions,
-    isCompressed?: boolean
   ): Promise<void> {
-    const fullPath = this.getPath(path);
-    this.logger.debug(`Uploading object: ${fullPath}`);
-
-     try {
-       const body = Buffer.isBuffer(raw) ? raw : await toBuffer(raw, isCompressed);
-       await this.client.send(
-         new PutObjectCommand({
-           Bucket: this.config.bucket,
-           Key: fullPath,
-           Body: body,
-           Metadata: options?.meta as Record<string, string> | undefined,
-          CacheControl: options?.headers?.cacheControl,
-          ContentDisposition: options?.headers?.contentDisposition,
-          ContentEncoding: options?.headers?.contentEncoding,
-          ContentType: options?.contentType,
-        })
-      );
-    } catch (error) {
-      this.logger.error(error instanceof Error ? error : String(error), `Error uploading object: ${fullPath}`);
-      throw error;
-    }
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.config.bucket,
+        Key: this.getPath(path),
+        Body: raw,
+        Metadata: options?.meta,
+        CacheControl: options?.headers?.cacheControl,
+        ContentDisposition: options?.headers?.contentDisposition,
+        ContentEncoding: options?.headers?.contentEncoding,
+        ContentType: options?.contentType,
+      })
+    );
   }
 
-  /**
-   * Delete an object
-   */
   async deleteObject(path: string, signal?: AbortSignal): Promise<void> {
-    const fullPath = this.getPath(path);
-    this.logger.debug(`Deleting object: ${fullPath}`);
-
-    try {
-      await this.client.send(
-        new DeleteObjectCommand({
-          Bucket: this.config.bucket,
-          Key: fullPath,
-        }),
-        { abortSignal: signal }
-      );
-    } catch (error) {
-      this.logger.error(error instanceof Error ? error : String(error), `Error deleting object: ${fullPath}`);
-      throw error;
-    }
+    await this.client.send(
+      new DeleteObjectCommand({
+        Bucket: this.config.bucket,
+        Key: this.getPath(path),
+      }),
+      { abortSignal: signal }
+    );
   }
 
   /** Delete all objects under one narrow application-owned prefix. */
@@ -382,7 +325,6 @@ export class StoreS3 extends StoreProvider {
     const fullPrefix = this.getPath(
       normalized.endsWith("/") ? normalized : `${normalized}/`,
     );
-    this.logger.debug(`Deleting storage prefix: ${fullPrefix}`);
 
     let continuationToken: string | undefined;
     do {
@@ -426,32 +368,26 @@ export class StoreS3 extends StoreProvider {
     toPath: string,
     options: ObjectOptions
   ): Promise<void> {
-    const from = this.getPath(fromPath);
-    const to = this.getPath(toPath);
-    this.logger.debug(`Copying object from ${from} to ${to}`);
-
     const hasMetadata = options.meta && Object.keys(options.meta).length > 0;
-    // the server parses CopySource as a URL path, so keys with spaces, `+`, `%`, `?`
-    // or `#` (vault and Canvas filenames) must be encoded or they copy the wrong key
-    const source = `${this.config.bucket}/${from}`.split('/').map(encodeURIComponent).join('/');
+    // CopySource is parsed as a URL path by the server, so keys with spaces,
+    // `+`, `%`, `?` or `#` (vault and Canvas filenames) must be encoded
+    const source = `${this.config.bucket}/${this.getPath(fromPath)}`
+      .split('/')
+      .map(encodeURIComponent)
+      .join('/');
 
-    try {
-      await this.client.send(
-        new CopyObjectCommand({
-          Bucket: this.config.bucket,
-          Key: to,
-          CopySource: source,
-          Metadata: options.meta as Record<string, string> | undefined,
-          CacheControl: options.headers?.cacheControl,
-          ContentDisposition: options.headers?.contentDisposition,
-          ContentEncoding: options.headers?.contentEncoding,
-          ContentType: options.contentType,
-          MetadataDirective: hasMetadata ? 'REPLACE' : 'COPY',
-        })
-      );
-    } catch (error) {
-      this.logger.error(error instanceof Error ? error : String(error), `Error copying object from ${from} to ${to}`);
-      throw error;
-    }
+    await this.client.send(
+      new CopyObjectCommand({
+        Bucket: this.config.bucket,
+        Key: this.getPath(toPath),
+        CopySource: source,
+        Metadata: options.meta,
+        CacheControl: options.headers?.cacheControl,
+        ContentDisposition: options.headers?.contentDisposition,
+        ContentEncoding: options.headers?.contentEncoding,
+        ContentType: options.contentType,
+        MetadataDirective: hasMetadata ? 'REPLACE' : 'COPY',
+      })
+    );
   }
 }

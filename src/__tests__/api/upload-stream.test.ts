@@ -11,6 +11,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Readable } from "stream";
+import { ObjectNotFoundError } from "@/lib/storage/base";
 
 vi.mock("@/database/pgsql", () => {
   const sqlMock = vi.fn();
@@ -64,14 +65,6 @@ const MOCK_USER = {
   email: "test@example.com",
 };
 
-// mimics what @aws-sdk/client-s3 throws for a missing object
-function noSuchKeyError() {
-  const err = new Error("NoSuchKey: The specified key does not exist.");
-  err.name = "NoSuchKey";
-  (err as { code?: string } & Error).code = "NoSuchKey";
-  return err;
-}
-
 function makeGet(path: string, stream = true) {
   const url = `http://localhost:3000/api/upload?path=${encodeURIComponent(path)}${stream ? "&stream=1" : ""}`;
   return new NextRequest(url, { method: "GET" });
@@ -88,19 +81,18 @@ beforeEach(() => {
 
 describe("GET /api/upload?stream=1", () => {
   it("returns 404 when the attachment row exists but the storage object is missing", async () => {
-    mockStorage.hasObject.mockResolvedValue(false);
-    mockStorage.getObjectStream.mockRejectedValue(noSuchKeyError());
+    mockStorage.getObjectStream.mockRejectedValue(new ObjectNotFoundError());
 
     const res = await GET(makeGet("notes/some-note/lecture.pdf"));
     const body = await res.json();
 
     expect(res.status).toBe(404);
     expect(body.error).toBe("File not found");
-    expect(mockStorage.getObjectStream).not.toHaveBeenCalled();
+    // one storage round trip, no HEAD-then-GET race
+    expect(mockStorage.hasObject).not.toHaveBeenCalled();
   });
 
-  it("returns 502 when storage fails mid-stream despite the object existing", async () => {
-    mockStorage.hasObject.mockResolvedValue(true);
+  it("returns 502 instead of 404 when storage is unavailable", async () => {
     mockStorage.getObjectStream.mockRejectedValue(
       new Error("connect ECONNREFUSED"),
     );
@@ -113,7 +105,6 @@ describe("GET /api/upload?stream=1", () => {
   });
 
   it("streams the object with its content type when it exists", async () => {
-    mockStorage.hasObject.mockResolvedValue(true);
     mockStorage.getObjectStream.mockResolvedValue({
       body: Readable.from([Buffer.from("%PDF-1.4 fake")]),
       contentType: "application/pdf",
@@ -133,7 +124,6 @@ describe("GET /api/upload?stream=1", () => {
     ["Canvas HTML", "text/html; charset=utf-8"],
     ["untyped", undefined],
   ])("forces %s attachments to download instead of rendering them", async (_label, contentType) => {
-    mockStorage.hasObject.mockResolvedValue(true);
     mockStorage.getObjectStream.mockResolvedValue({
       body: Readable.from([Buffer.from("<script>alert(1)</script>")]),
       contentType,

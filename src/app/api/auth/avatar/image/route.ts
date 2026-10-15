@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Readable } from "stream";
 import { getStorageProvider } from "@/lib/storage/init";
+import { ObjectNotFoundError } from "@/lib/storage/base";
 import {
   INLINE_IMAGE_TYPES,
   storedObjectHeaders,
@@ -17,10 +18,8 @@ export async function GET() {
     const { avatarKey } = await getSettingsFromS3(userId);
     if (!avatarKey) return new NextResponse(null, { status: 404 });
 
-    const storage = getStorageProvider();
-    if (!(await storage.hasObject(avatarKey))) return new NextResponse(null, { status: 404 });
-
-    const { body, contentType } = await storage.getObjectStream(avatarKey);
+    // one round trip: a missing object is a 404, any other storage failure a 500
+    const { body, contentType } = await getStorageProvider().getObjectStream(avatarKey);
     return new NextResponse(Readable.toWeb(body) as ReadableStream, {
       headers: {
         // the stored type came from magic bytes, but never render anything but a raster image
@@ -29,6 +28,7 @@ export async function GET() {
       },
     });
   } catch (error) {
+    if (error instanceof ObjectNotFoundError) return new NextResponse(null, { status: 404 });
     logger.error("error serving avatar", {
       errorType: error instanceof Error ? error.name : "unknown",
     });
