@@ -11,7 +11,6 @@ import noteCache from "@/lib/notes/cache/note";
 vi.mock("@/lib/notes/cache/note", () => ({
   default: {
     getItem: vi.fn(async () => undefined),
-    mutateItem: vi.fn(async () => {}),
     setItem: vi.fn(async () => {}),
   },
 }));
@@ -88,7 +87,10 @@ describe("note save result handling", () => {
     ).rejects.toThrow("offline");
 
     expect(useSyncStatusStore.getState().getStatus(id)).toBe("modified");
-    expect(noteCache.mutateItem).not.toHaveBeenCalled();
+    expect(noteCache.setItem).not.toHaveBeenCalledWith(
+      id,
+      expect.objectContaining({ content: "unsaved" }),
+    );
     expect(mutateItem).not.toHaveBeenCalled();
   });
 
@@ -104,7 +106,10 @@ describe("note save result handling", () => {
     ).rejects.toThrow("Failed to save note");
 
     expect(useSyncStatusStore.getState().getStatus(id)).toBe("modified");
-    expect(noteCache.mutateItem).not.toHaveBeenCalled();
+    expect(noteCache.setItem).not.toHaveBeenCalledWith(
+      id,
+      expect.objectContaining({ content: "unsaved" }),
+    );
     expect(mutateItem).not.toHaveBeenCalled();
   });
 
@@ -113,6 +118,9 @@ describe("note save result handling", () => {
       useNoteStore.getState().mutateNote(id, { content: "unsaved" }),
     ).rejects.toThrow("Note save unavailable");
 
-    expect(noteCache.mutateItem).not.toHaveBeenCalled();
+    expect(noteCache.setItem).not.toHaveBeenCalledWith(
+      id,
+      expect.objectContaining({ content: "unsaved" }),
+    );
   });
 });

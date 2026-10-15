@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { filterNoteFields } from "@/lib/notes/utils/filter-fields";
 import { mapNoteFromDB } from "@/lib/notes/utils/map-note";
-import { cacheGet, cacheSet, cacheInvalidate, cacheKeys } from "@/lib/cache";
 import sql from "@/database/pgsql";
 import logger from "@/lib/logger";
 import { enqueueNoteReindexJob } from "@/lib/queue";
@@ -16,6 +15,7 @@ import {
 } from "@/lib/api-error";
 import { replaceNoteLinks } from "@/lib/notes/storage/note-links";
 import { moveSubtreeToTrash } from "@/lib/notes/storage/note-lifecycle";
+import { assertNoteLengths, MAX_NOTE_BODY_BYTES } from "@/lib/notes/note-limits";
 
 type NoteRouteContext = RouteParamsContext<{ id: string }>;
 
@@ -32,21 +32,12 @@ interface NoteSummaryRow {
   updated_at: string;
 }
 
-interface NoteContentRow {
-  note_id: string;
+interface PreviousNoteRow {
   title: string;
   content: string;
   pinned: number;
   updated_at: string | Date;
-  // text form keeps PostgreSQL's microseconds, so it can fence the UPDATE
-  updated_at_raw: string;
 }
-
-const MAX_TITLE_LENGTH = parseInt(process.env.MAX_TITLE_LENGTH ?? "500", 10);
-const MAX_CONTENT_LENGTH = parseInt(
-  process.env.MAX_CONTENT_LENGTH ?? String(5 * 1024 * 1024),
-  10,
-);
 
 export const GET = withErrorHandler(async (request: NextRequest, { params }: NoteRouteContext) => {
   const user = await requireAuth();
@@ -60,12 +51,9 @@ export const GET = withErrorHandler(async (request: NextRequest, { params }: Not
     ? fieldsParam.split(",").map((f) => f.trim())
     : undefined;
 
-  const key = cacheKeys.note(user.user_id, noteId);
-  const cached = await cacheGet(key);
-  if (cached) {
-    return NextResponse.json(filterNoteFields(cached, fields));
-  }
-
+  // no Redis copy here: workers (extraction, Vault import, Canvas) write note
+  // content directly, and a stale copy opened in the editor gets autosaved
+  // back over the newer row. one primary-key read is cheap enough.
   const rows = (await sql`
      SELECT n.note_id, n.title, n.content, n.is_folder, n.s3_key, n.shared, n.pinned,
             n.created_at, n.updated_at,
@@ -83,10 +71,7 @@ export const GET = withErrorHandler(async (request: NextRequest, { params }: Not
     return tracedError("Note not found", 404);
   }
 
-  const note = mapNoteFromDB(dbNote);
-  await cacheSet(key, note, 600);
-
-  return NextResponse.json(filterNoteFields(note, fields));
+  return NextResponse.json(filterNoteFields(mapNoteFromDB(dbNote), fields));
 });
 
 export const PUT = withErrorHandler(async (request: NextRequest, { params }: NoteRouteContext) => {
@@ -95,103 +80,62 @@ export const PUT = withErrorHandler(async (request: NextRequest, { params }: Not
   const { id } = await params;
   const noteId = requireValidId(id, "note ID");
 
-  const rawBody = await parseJsonObject(request);
+  const rawBody = await parseJsonObject(request, MAX_NOTE_BODY_BYTES);
 
   const bodyValidation = validateBody(noteUpdateSchema, rawBody);
   if (!bodyValidation.success) return bodyValidation.response;
   const body = bodyValidation.data;
-
-  if (body.title !== undefined && body.title.length > MAX_TITLE_LENGTH) {
-    logger.warn("note title exceeds max length", {
-      length: body.title.length,
-      noteId,
-    });
-    return tracedError(
-      `Title must be ${MAX_TITLE_LENGTH} characters or fewer`,
-      400,
-    );
-  }
-  if (body.content !== undefined && body.content.length > MAX_CONTENT_LENGTH) {
-    logger.warn("note content exceeds max length", {
-      length: body.content.length,
-      noteId,
-    });
-    return tracedError(
-      `Content must be ${MAX_CONTENT_LENGTH} bytes or fewer`,
-      400,
-    );
-  }
+  assertNoteLengths(body);
 
   const startedAt = performance.now();
-  const existingRows = (await sql`
-    SELECT note_id, title, content, pinned, updated_at, updated_at::text AS updated_at_raw
-    FROM app.notes
-    WHERE note_id = ${noteId}::uuid
-      AND user_id = ${user.user_id}::uuid
-      AND deleted_at IS NULL
-  `) as NoteContentRow[];
+  const expectedUpdatedAt = body.expectedUpdatedAt;
 
-  const existingNote = existingRows[0];
-  if (!existingNote) {
-    return tracedError("Note not found", 404);
-  }
+  // the row lock makes the fence check and the previous values match what this
+  // update replaced, and omitted fields keep the stored value instead of a
+  // pre-read copy, so a rename racing an autosave cannot write old content back
+  const result = await sql.begin(async (tx) => {
+    const [previous] = await tx<PreviousNoteRow[]>`
+      SELECT title, content, pinned, updated_at
+      FROM app.notes
+      WHERE note_id = ${noteId}::uuid
+        AND user_id = ${user.user_id}::uuid
+        AND deleted_at IS NULL
+      FOR UPDATE
+    `;
+    if (!previous) return { kind: "missing" as const };
 
-  const conflict = (updatedAt: string) =>
-    NextResponse.json(
-      { error: "Note changed elsewhere", updatedAt },
+    // same normalisation as mapNoteFromDB, so the client compares like with like
+    const currentUpdatedAt = new Date(previous.updated_at).toISOString();
+    if (
+      expectedUpdatedAt !== undefined &&
+      new Date(expectedUpdatedAt).toISOString() !== currentUpdatedAt
+    ) {
+      return { kind: "conflict" as const, updatedAt: currentUpdatedAt };
+    }
+
+    const [row] = await tx<NoteSummaryRow[]>`
+      UPDATE app.notes
+      SET title = COALESCE(${body.title ?? null}::text, title),
+          content = COALESCE(${body.content ?? null}::text, content),
+          pinned = COALESCE(${body.pinned ?? null}::int, pinned),
+          updated_at = NOW()
+      WHERE note_id = ${noteId}::uuid
+        AND user_id = ${user.user_id}::uuid
+      RETURNING note_id, title, content, is_folder, s3_key, shared, pinned, created_at, updated_at
+    `;
+    return row ? { kind: "updated" as const, previous, row } : { kind: "missing" as const };
+  });
+
+  if (result.kind === "missing") return tracedError("Note not found", 404);
+  if (result.kind === "conflict") {
+    return NextResponse.json(
+      { error: "Note changed elsewhere", updatedAt: result.updatedAt },
       { status: 409 },
     );
-
-  // same normalisation as mapNoteFromDB, so the client compares like with like
-  const expectedUpdatedAt = body.expectedUpdatedAt;
-  const fenced = expectedUpdatedAt !== undefined;
-  const currentUpdatedAt = new Date(existingNote.updated_at).toISOString();
-  if (
-    expectedUpdatedAt !== undefined &&
-    new Date(expectedUpdatedAt).toISOString() !== currentUpdatedAt
-  ) {
-    return conflict(currentUpdatedAt);
   }
+  const { previous, row: dbNote } = result;
 
-  // a fenced save also refuses to land if the row moved between the read
-  // above and this write
-  const updatedRows = (await sql`
-     UPDATE app.notes
-     SET title = ${body.title ?? existingNote.title},
-         content = ${body.content ?? existingNote.content},
-         pinned = ${body.pinned ?? existingNote.pinned},
-         updated_at = NOW()
-     WHERE note_id = ${noteId}::uuid
-       AND user_id = ${user.user_id}::uuid
-       AND deleted_at IS NULL
-       AND (${!fenced} OR updated_at = ${existingNote.updated_at_raw}::timestamptz)
-     RETURNING note_id, title, content, is_folder, s3_key, shared, pinned, created_at, updated_at
-   `) as NoteSummaryRow[];
-
-  const dbNote = updatedRows[0];
-  if (!dbNote) {
-    if (!fenced) return tracedError("Note not found", 404);
-    const [latest] = (await sql`
-      SELECT updated_at FROM app.notes
-      WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid AND deleted_at IS NULL
-    `) as Pick<NoteContentRow, "updated_at">[];
-    if (!latest) return tracedError("Note not found", 404);
-    return conflict(new Date(latest.updated_at).toISOString());
-  }
-
-  const keysToInvalidate = [cacheKeys.note(user.user_id, noteId)];
-  if (body.title !== undefined && body.title !== existingNote.title) {
-    keysToInvalidate.push(
-      cacheKeys.treeFull(user.user_id),
-      cacheKeys.notesList(user.user_id, 0, undefined),
-    );
-  }
-  if (body.pinned !== undefined && body.pinned !== existingNote.pinned) {
-    keysToInvalidate.push(cacheKeys.treeFull(user.user_id));
-  }
-  await cacheInvalidate(...keysToInvalidate);
-
-  if (body.content !== undefined && body.content !== existingNote.content) {
+  if (body.content !== undefined && body.content !== previous.content) {
     try {
       await replaceNoteLinks(user.user_id, noteId, body.content);
     } catch (linkErr) {

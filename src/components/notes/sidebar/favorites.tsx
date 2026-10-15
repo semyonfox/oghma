@@ -141,7 +141,6 @@ export const Favorites: FC = () => {
                           typeof item.index === "string" &&
                           expandedIds.has(item.index)
                         }
-                        innerRef={() => {}}
                         hasChildren={hasChildren}
                         item={
                           nodeData ??
@@ -153,12 +152,6 @@ export const Favorites: FC = () => {
                             pinned: NOTE_PINNED.PINNED,
                           })
                         }
-                        snapshot={{
-                          isDragging: false,
-                        }}
-                        style={{
-                          paddingLeft: 0,
-                        }}
                       />
                     </div>
                     {children}

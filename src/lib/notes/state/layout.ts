@@ -39,12 +39,6 @@ function isPaneState(value: unknown): value is PaneState {
   );
 }
 
-function stringSet(value: unknown, fallback: string[]): Set<string> {
-  return Array.isArray(value) && value.every((item) => typeof item === "string")
-    ? new Set(value)
-    : new Set(fallback);
-}
-
 export interface FileSpec extends PaneState {}
 
 function withDraftOwner(
@@ -81,13 +75,7 @@ interface LayoutState {
   rightPanelWidth: number; // 250-600px
   splitPosition: number; // 0-100 between panes (%)
 
-  // Tree state
-  expandedNodes: Set<string>;
-  collapsedSections: Set<string>; // Notes, Documents, Media, Tags
   selectedNode: string | null;
-
-  // Drag state
-  draggedFile: FileSpec | null;
 
   // Methods
   setActiveNav: (nav: NavSection) => void;
@@ -100,16 +88,11 @@ interface LayoutState {
   ) => FileSpec | null | undefined;
   setActivePane: (pane: "A" | "B") => void;
   swapPanes: () => void;
-  setPaneEditMode: (pane: "A" | "B", editMode: boolean) => void;
   setRightPanelOpen: (open: boolean) => void;
   toggleRightPanel: () => void;
   setRightPanelTab: (tab: RightPanelTab) => void;
   openRightPanelTab: (tab: RightPanelTab) => void;
   setSizes: (tree: number, right: number, split: number) => void;
-  toggleExpandedNode: (nodeId: string) => void;
-  toggleCollapsedSection: (section: string) => void;
-  setSelectedNode: (nodeId: string | null) => void;
-  setDraggedFile: (file: FileSpec | null) => void;
   resetWorkspace: () => void;
 }
 
@@ -126,10 +109,7 @@ const useLayoutStore = create<LayoutState>()(
       treeWidth: 240,
       rightPanelWidth: 280,
       splitPosition: 50,
-      expandedNodes: new Set(["root"]),
-      collapsedSections: new Set(),
       selectedNode: null,
-      draggedFile: null,
 
       // Navigation
       setActiveNav: (nav) => set({ activeNav: nav }),
@@ -247,21 +227,6 @@ const useLayoutStore = create<LayoutState>()(
         } : state);
       },
 
-      // Edit mode (for notes)
-      setPaneEditMode: (pane, editMode) => {
-        set((state) => {
-          if (pane === "A") {
-            return {
-              paneA: { ...state.paneA, editMode },
-            };
-          } else {
-            return {
-              paneB: state.paneB ? { ...state.paneB, editMode } : null,
-            };
-          }
-        });
-      },
-
       // Right panel
       setRightPanelOpen: (open) => set({ rightPanelOpen: open }),
       toggleRightPanel: () =>
@@ -283,35 +248,6 @@ const useLayoutStore = create<LayoutState>()(
         });
       },
 
-      // Tree state
-      toggleExpandedNode: (nodeId) => {
-        set((state) => {
-          const newExpanded = new Set(state.expandedNodes);
-          if (newExpanded.has(nodeId)) {
-            newExpanded.delete(nodeId);
-          } else {
-            newExpanded.add(nodeId);
-          }
-          return { expandedNodes: newExpanded };
-        });
-      },
-
-      toggleCollapsedSection: (section) => {
-        set((state) => {
-          const newCollapsed = new Set(state.collapsedSections);
-          if (newCollapsed.has(section)) {
-            newCollapsed.delete(section);
-          } else {
-            newCollapsed.add(section);
-          }
-          return { collapsedSections: newCollapsed };
-        });
-      },
-
-      setSelectedNode: (nodeId) => set({ selectedNode: nodeId }),
-
-      setDraggedFile: (file) => set({ draggedFile: file }),
-
       resetWorkspace: () =>
         set({
           activeNav: "notes",
@@ -320,10 +256,7 @@ const useLayoutStore = create<LayoutState>()(
           activePane: "A",
           rightPanelOpen: false,
           rightPanelTab: "meta",
-          expandedNodes: new Set(["root"]),
-          collapsedSections: new Set(),
           selectedNode: null,
-          draggedFile: null,
         }),
     }),
     {
@@ -332,8 +265,6 @@ const useLayoutStore = create<LayoutState>()(
         treeWidth: state.treeWidth,
         rightPanelWidth: state.rightPanelWidth,
         splitPosition: state.splitPosition,
-        collapsedSections: Array.from(state.collapsedSections),
-        expandedNodes: Array.from(state.expandedNodes),
         paneA: state.paneA,
         paneB: state.paneB,
       }),
@@ -354,8 +285,6 @@ const useLayoutStore = create<LayoutState>()(
             typeof persistedState.splitPosition === "number"
               ? persistedState.splitPosition
               : currentState.splitPosition,
-          collapsedSections: stringSet(persistedState.collapsedSections, []),
-          expandedNodes: stringSet(persistedState.expandedNodes, ["root"]),
           paneA: isPaneState(persistedState.paneA)
             ? persistedState.paneA
             : currentState.paneA,

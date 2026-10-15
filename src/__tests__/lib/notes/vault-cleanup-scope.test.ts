@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   sql: Object.assign(vi.fn(), { begin: vi.fn() }),
-  cacheInvalidate: vi.fn(),
   deleteChunkVectors: vi.fn(),
   setChunkVectorsSearchable: vi.fn(),
   isSharedImportedFileKey: vi.fn(),
@@ -13,15 +12,6 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/database/pgsql", () => ({ default: mocks.sql }));
-vi.mock("@/lib/cache", () => ({
-  cacheInvalidate: mocks.cacheInvalidate,
-  cacheKeys: {
-    treeFull: vi.fn(),
-    notesList: vi.fn(),
-    note: vi.fn(),
-    treeChildren: vi.fn(),
-  },
-}));
 vi.mock("@/lib/canvas/import-cache", () => ({
   isSharedImportedFileKey: mocks.isSharedImportedFileKey,
 }));

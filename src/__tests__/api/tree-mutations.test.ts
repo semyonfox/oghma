@@ -26,7 +26,6 @@ const mocks = vi.hoisted(() => {
     TreeParentError,
     TreeItemUnavailableError,
     TreeMoveConflictError,
-    cacheInvalidate: vi.fn(),
     moveNoteInTree: vi.fn(),
     parseJsonObject: vi.fn((request: Request) => request.json()),
     requireAuth: vi.fn(),
@@ -64,14 +63,6 @@ vi.mock("@/lib/notes/storage/pg-tree", () => ({
   TreeParentError: mocks.TreeParentError,
   updateTreeItem: mocks.updateTreeItem,
 }));
-vi.mock("@/lib/cache", () => ({
-  cacheInvalidate: mocks.cacheInvalidate,
-  cacheKeys: {
-    treeChildren: (userId: string, parentId: string | null) =>
-      `children:${userId}:${parentId ?? "root"}`,
-    treeFull: (userId: string) => `tree:${userId}`,
-  },
-}));
 
 import { POST } from "@/app/api/tree/route";
 import { parseTreeMutation } from "@/lib/notes/tree-mutation";
@@ -92,7 +83,6 @@ describe("tree mutation boundary", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.requireAuth.mockResolvedValue({ user_id: USER_ID });
-    mocks.cacheInvalidate.mockResolvedValue(undefined);
   });
 
   it.each([
@@ -113,8 +103,8 @@ describe("tree mutation boundary", () => {
     }
   });
 
-  it("persists expansion state and invalidates the containing child list", async () => {
-    mocks.updateTreeItem.mockResolvedValue(FOLDER_ID);
+  it("persists expansion state", async () => {
+    mocks.updateTreeItem.mockResolvedValue(undefined);
 
     const response = await POST(
       post({ action: "mutate", data: { id: NOTE_ID, isExpanded: true } }),
@@ -124,10 +114,16 @@ describe("tree mutation boundary", () => {
     expect(mocks.updateTreeItem).toHaveBeenCalledWith(USER_ID, NOTE_ID, {
       isExpanded: true,
     });
-    expect(mocks.cacheInvalidate).toHaveBeenCalledWith(
-      `children:${USER_ID}:${FOLDER_ID}`,
-      `tree:${USER_ID}`,
+  });
+
+  it("reports expanding a folder trashed in another tab as not found", async () => {
+    mocks.updateTreeItem.mockRejectedValue(new mocks.TreeItemUnavailableError());
+
+    const response = await POST(
+      post({ action: "mutate", data: { id: NOTE_ID, isExpanded: true } }),
     );
+
+    expect(response.status).toBe(404);
   });
 
   it("moves the named item and returns the parents confirmed by storage", async () => {
@@ -156,11 +152,6 @@ describe("tree mutation boundary", () => {
       FOLDER_ID,
       null,
     );
-    expect(mocks.cacheInvalidate).toHaveBeenCalledWith(
-      `children:${USER_ID}:root`,
-      `children:${USER_ID}:${FOLDER_ID}`,
-      `tree:${USER_ID}`,
-    );
     await expect(response.json()).resolves.toEqual({
       success: true,
       noteId: NOTE_ID,
@@ -184,7 +175,6 @@ describe("tree mutation boundary", () => {
     );
 
     expect(response.status).toBe(409);
-    expect(mocks.cacheInvalidate).not.toHaveBeenCalled();
   });
 
   it("maps a missing named item to not found", async () => {

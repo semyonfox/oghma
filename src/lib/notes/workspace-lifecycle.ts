@@ -6,9 +6,7 @@ import useLayoutStore from "@/lib/notes/state/layout";
 import useNoteStore from "@/lib/notes/state/note";
 import useNoteTreeStore from "@/lib/notes/state/tree";
 import useSaveIndicatorStore from "@/lib/notes/state/save-indicator";
-import useSearchStore from "@/lib/notes/state/search";
 import useSyncStatusStore from "@/lib/notes/state/sync-status";
-import useTrashStore from "@/lib/notes/state/trash";
 import {
   beginDraftCacheReset,
   clearAllDrafts,
@@ -89,8 +87,6 @@ export async function resetWorkspaceClientState(
   useLayoutStore.getState().resetWorkspace();
   useSyncStatusStore.setState({ status: {} });
   useSaveIndicatorStore.setState({ files: {} });
-  useSearchStore.setState({ keyword: "", list: undefined });
-  useTrashStore.setState({ keyword: undefined, list: undefined });
   clearDeduplicationCache();
 
   const clearing = cacheClearQueue

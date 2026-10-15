@@ -1,35 +1,21 @@
 // extracted from Notea (MIT License)
 import { create } from "zustand";
-import { NoteModel } from "@/lib/notes/types/note";
 
-interface ModalInstance {
-  visible: boolean;
-  open: () => void;
-  close: () => void;
-}
-
-interface AnchorInstance<T> {
+interface PreviewState {
   anchor: Element | null;
-  data?: T;
+  data?: { id?: string };
   visible: boolean;
   open: () => void;
   close: () => void;
-  setAnchor: (anchor: Element | null) => void;
-  setData: (data?: T) => void;
-}
-
-interface PreviewAnchorInstance extends AnchorInstance<{ id?: string }> {
   cancelClose: () => void;
   scheduleClose: (delayMs?: number) => void;
+  setAnchor: (anchor: Element | null) => void;
+  setData: (data?: { id?: string }) => void;
 }
 
+// the internal-link hover preview is the only floating portal left
 interface PortalState {
-  search: ModalInstance;
-  trash: ModalInstance;
-  menu: AnchorInstance<NoteModel>;
-  share: AnchorInstance<NoteModel>;
-  preview: PreviewAnchorInstance;
-  linkToolbar: AnchorInstance<{ href: string; view?: unknown }>;
+  preview: PreviewState;
 }
 
 let previewCloseTimer: ReturnType<typeof setTimeout> | null = null;
@@ -40,38 +26,6 @@ function cancelPreviewClose() {
 }
 
 const usePortalStore = create<PortalState>((set) => ({
-  search: {
-    visible: false,
-    open: () =>
-      set((state) => ({ search: { ...state.search, visible: true } })),
-    close: () =>
-      set((state) => ({ search: { ...state.search, visible: false } })),
-  },
-  trash: {
-    visible: false,
-    open: () => set((state) => ({ trash: { ...state.trash, visible: true } })),
-    close: () =>
-      set((state) => ({ trash: { ...state.trash, visible: false } })),
-  },
-  menu: {
-    anchor: null,
-    visible: false,
-    open: () => set((state) => ({ menu: { ...state.menu, visible: true } })),
-    close: () => set((state) => ({ menu: { ...state.menu, visible: false } })),
-    setAnchor: (anchor) =>
-      set((state) => ({ menu: { ...state.menu, anchor } })),
-    setData: (data) => set((state) => ({ menu: { ...state.menu, data } })),
-  },
-  share: {
-    anchor: null,
-    visible: false,
-    open: () => set((state) => ({ share: { ...state.share, visible: true } })),
-    close: () =>
-      set((state) => ({ share: { ...state.share, visible: false } })),
-    setAnchor: (anchor) =>
-      set((state) => ({ share: { ...state.share, anchor } })),
-    setData: (data) => set((state) => ({ share: { ...state.share, data } })),
-  },
   preview: {
     anchor: null,
     visible: false,
@@ -95,22 +49,6 @@ const usePortalStore = create<PortalState>((set) => ({
       set((state) => ({ preview: { ...state.preview, anchor } })),
     setData: (data) =>
       set((state) => ({ preview: { ...state.preview, data } })),
-  },
-  linkToolbar: {
-    anchor: null,
-    visible: false,
-    open: () =>
-      set((state) => ({
-        linkToolbar: { ...state.linkToolbar, visible: true },
-      })),
-    close: () =>
-      set((state) => ({
-        linkToolbar: { ...state.linkToolbar, visible: false },
-      })),
-    setAnchor: (anchor) =>
-      set((state) => ({ linkToolbar: { ...state.linkToolbar, anchor } })),
-    setData: (data) =>
-      set((state) => ({ linkToolbar: { ...state.linkToolbar, data } })),
   },
 }));
 

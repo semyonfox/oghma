@@ -36,9 +36,7 @@ vi.mock("@/lib/notes/storage/pg-tree", () => ({
   removeNoteFromTree: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("@/lib/notes/storage/pdf-annotations", () => ({
-  deleteNoteAnnotations: vi.fn().mockResolvedValue(undefined),
-}));
+// a stale Redis copy must never reach the editor; the route reads PostgreSQL
 
 vi.mock("@/lib/notes/storage/note-lifecycle", () => ({
   moveSubtreeToTrash: vi.fn(),
@@ -222,27 +220,10 @@ describe("PUT /api/notes/[id]", () => {
     });
     expect(res.status).toBe(409);
     expect((await res.json()).updatedAt).toBe("2025-01-01T00:00:00.000Z");
-    // nothing was written and nothing was queued
+    // the stamp is read under the row lock, so nothing can land after the
+    // check; nothing was written and nothing was queued
     expect(sql).toHaveBeenCalledTimes(1);
-    expect(enqueueNoteReindexJob).not.toHaveBeenCalled();
-  });
-
-  it("reports a conflict when the row moves between the read and the fenced write", async () => {
-    const movedRow = { ...NOTE_ROW, updated_at: new Date("2025-01-02") };
-    // SELECT existing, fenced UPDATE hits nothing, re-read the fresh stamp
-    sql
-      .mockResolvedValueOnce([NOTE_ROW])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([movedRow]);
-    const req = makeRequest("PUT", "http://localhost/api/notes/note-uuid-1", {
-      content: "# Updated",
-      expectedUpdatedAt: "2025-01-01T00:00:00.000Z",
-    });
-    const res = await notePUT(req, {
-      params: Promise.resolve({ id: "note-uuid-1" }),
-    });
-    expect(res.status).toBe(409);
-    expect((await res.json()).updatedAt).toBe("2025-01-02T00:00:00.000Z");
+    expect(sql.mock.calls[0][0].join(" ")).toContain("FOR UPDATE");
     expect(enqueueNoteReindexJob).not.toHaveBeenCalled();
   });
 
@@ -256,6 +237,35 @@ describe("PUT /api/notes/[id]", () => {
     const res = await notePUT(req, {
       params: Promise.resolve({ id: "note-uuid-1" }),
     });
+    expect(res.status).toBe(200);
+  });
+
+  it("leaves content to the database when only the title changes", async () => {
+    // a rename that read the row before an autosave committed must not write
+    // the content it read back over the autosave
+    sql.mockResolvedValueOnce([NOTE_ROW]).mockResolvedValueOnce([{ ...NOTE_ROW, title: "Renamed" }]);
+    const res = await notePUT(
+      makeRequest("PUT", "http://localhost/api/notes/note-uuid-1", { title: "Renamed" }),
+      { params: Promise.resolve({ id: "note-uuid-1" }) },
+    );
+
+    expect(res.status).toBe(200);
+    expect(sql.begin).toHaveBeenCalledOnce();
+    expect(sql.mock.calls[0][0].join(" ")).toContain("FOR UPDATE");
+    const [updateText, ...updateValues] = sql.mock.calls[1];
+    expect(updateText.join(" ")).toMatch(/content = COALESCE\(\s*::text, content\)/);
+    expect(updateValues).not.toContain(NOTE_ROW.content);
+    expect(updateValues).toEqual(["Renamed", null, null, "note-uuid-1", MOCK_USER.user_id]);
+  });
+
+  it("saves a note larger than the default JSON body limit", async () => {
+    const content = "x".repeat(1_500_000);
+    sql.mockResolvedValueOnce([NOTE_ROW]).mockResolvedValueOnce([{ ...NOTE_ROW, content }]);
+    const res = await notePUT(
+      makeRequest("PUT", "http://localhost/api/notes/note-uuid-1", { content }),
+      { params: Promise.resolve({ id: "note-uuid-1" }) },
+    );
+
     expect(res.status).toBe(200);
   });
 });

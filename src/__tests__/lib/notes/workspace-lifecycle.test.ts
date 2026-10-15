@@ -82,13 +82,7 @@ vi.mock("@/lib/notes/state/layout", () => ({
 vi.mock("@/lib/notes/state/save-indicator", () => ({
   default: { setState: vi.fn() },
 }));
-vi.mock("@/lib/notes/state/search", () => ({
-  default: { setState: vi.fn() },
-}));
 vi.mock("@/lib/notes/state/sync-status", () => ({
-  default: { setState: vi.fn() },
-}));
-vi.mock("@/lib/notes/state/trash", () => ({
   default: { setState: vi.fn() },
 }));
 

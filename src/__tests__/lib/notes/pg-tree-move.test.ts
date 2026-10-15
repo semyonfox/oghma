@@ -11,11 +11,6 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock("@/database/pgsql", () => ({ default: mocks.sql }));
-vi.mock("@/lib/cache", () => ({
-  cacheGet: vi.fn(),
-  cacheSet: vi.fn(),
-  cacheKeys: { treeFull: vi.fn() },
-}));
 
 import {
   moveNoteInTree,

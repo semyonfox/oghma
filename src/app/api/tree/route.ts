@@ -15,7 +15,6 @@ import {
   updateTreeItem,
 } from "@/lib/notes/storage/pg-tree";
 import { parseTreeMutation } from "@/lib/notes/tree-mutation";
-import { cacheInvalidate, cacheKeys } from "@/lib/cache";
 
 export const POST = withErrorHandler(async (request) => {
   const user = await requireAuth();
@@ -24,12 +23,14 @@ export const POST = withErrorHandler(async (request) => {
   if (mutation.action === "mutate") {
     const { id, isExpanded } = mutation.data;
     requireValidId(id, "item ID");
-    const parentId = await updateTreeItem(user.user_id, id, { isExpanded });
-
-    await cacheInvalidate(
-      cacheKeys.treeChildren(user.user_id, parentId),
-      cacheKeys.treeFull(user.user_id),
-    );
+    try {
+      await updateTreeItem(user.user_id, id, { isExpanded });
+    } catch (error) {
+      if (error instanceof TreeItemUnavailableError) {
+        throw new ApiError(404, error.message);
+      }
+      throw error;
+    }
     return NextResponse.json({ success: true });
   }
 
@@ -38,14 +39,14 @@ export const POST = withErrorHandler(async (request) => {
   if (expectedParentId) requireValidId(expectedParentId, "expected parent ID");
   if (parentId) requireValidId(parentId, "parent ID");
 
-  let result;
   try {
-    result = await moveNoteInTree(
+    const result = await moveNoteInTree(
       user.user_id,
       noteId,
       parentId,
       expectedParentId,
     );
+    return NextResponse.json(result);
   } catch (error) {
     if (error instanceof TreeCycleError) {
       throw new ApiError(400, error.message);
@@ -61,12 +62,4 @@ export const POST = withErrorHandler(async (request) => {
     }
     throw error;
   }
-
-  await cacheInvalidate(
-    cacheKeys.treeChildren(user.user_id, result.oldParentId),
-    cacheKeys.treeChildren(user.user_id, result.newParentId),
-    cacheKeys.treeFull(user.user_id),
-  );
-
-  return NextResponse.json(result);
 });
