@@ -47,6 +47,7 @@ import {
 import StudyDrawer, { useDockedSheet } from "./study-drawer";
 import StudyInspector from "./study-inspector";
 import StudyExams from "./study-exams";
+import ExamPaperImportControl from "./exam-paper-import";
 import StudySearch from "./study-search";
 import { secondarySmall } from "./study-flow-panels";
 import {
@@ -1609,13 +1610,21 @@ function ModuleWorkspace({
         selected={selection}
       />
     ) : modulePanel === "exams" ? (
-      <StudyExams
-        snapshot={snapshot}
-        onAnalyse={(noteId) => queue("paper", noteId)}
-        onSavePaper={(input) =>
-          mutation("/papers", "PUT", input, "Exam review saved.")
-        }
-      />
+      <div className="space-y-4">
+        <ExamPaperImportControl
+          key={snapshot.map.id}
+          mapId={snapshot.map.id}
+          moduleName={snapshot.map.name}
+          onImported={() => refresh()}
+        />
+        <StudyExams
+          snapshot={snapshot}
+          onAnalyse={(noteId) => queue("paper", noteId)}
+          onSavePaper={(input) =>
+            mutation("/papers", "PUT", input, "Exam review saved.")
+          }
+        />
+      </div>
     ) : modulePanel === "add" ? (
       <AddMaterials
         snapshot={snapshot}

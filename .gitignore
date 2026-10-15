@@ -135,5 +135,8 @@ apps/mobile/ios/
 *.keystore
 *.jks
 
+# local exam archive and generated imports
+/exam-library/
+
 # local source-map upload credential
 .env.sentry-build-plugin
