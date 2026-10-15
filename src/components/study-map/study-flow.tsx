@@ -29,14 +29,14 @@ import { summariseExamCorpus } from "@/lib/study-map/exam-stats";
 import {
   assignmentSources,
   CARD_WIDTH,
+  CLUSTER_HEADER,
   flowLinks,
-  LEGEND_WIDTH,
   layoutModule,
   MODULE_GAP,
-  MODULE_HEADER,
   moduleItems,
   topicBridges,
   topicTrail,
+  type FlowCluster,
   type FlowItem,
   type FlowLink,
   type ModuleLayout,
@@ -158,6 +158,8 @@ interface Placed extends PlacedItem {
 interface Model {
   modules: ModuleModel[];
   byRef: Map<string, Placed>;
+  /** topic ID to its cluster, for edges and bridges */
+  clusters: Map<string, { module: ModuleModel; cluster: FlowCluster }>;
   ordered: Placed[];
   links: FlowLink[];
   bridges: TopicBridge[];
@@ -208,14 +210,23 @@ function examLines(snapshot: StudyMapSnapshot): Map<string, string> {
 }
 
 function buildModel(modules: FlowModule[]): Model {
+  const prepared = modules.map(({ snapshot, board }) => ({
+    snapshot,
+    board,
+    items: moduleItems(snapshot, board),
+  }));
+  // note links also pull related topics together, so they are worked out before the layout
+  const links = flowLinks(
+    prepared.map(({ items, board }) => ({ items, board })),
+  );
   let originY = 0;
-  const models: ModuleModel[] = modules.map(({ snapshot, board }) => {
-    const items = moduleItems(snapshot, board);
+  const models: ModuleModel[] = prepared.map(({ snapshot, board, items }) => {
     const layout = layoutModule(
       snapshot.map.id,
       snapshot.map.topics,
       items,
       board.placements,
+      links,
     );
     const exams = examLines(snapshot);
     const model: ModuleModel = {
@@ -257,16 +268,16 @@ function buildModel(modules: FlowModule[]): Model {
         });
     }
   }
-  // tab order follows modules, then weeks, then height
-  const ordered = [...byRef.values()].sort(
-    (a, b) =>
-      a.module.originY - b.module.originY ||
-      (a.item.week ?? 99) - (b.item.week ?? 99) ||
-      a.y - b.y,
+  // tab order follows modules, then clusters, then the order inside each cluster
+  const ordered = models.flatMap((module) =>
+    module.layout.clusters.flatMap((cluster) =>
+      cluster.refs.flatMap((ref) => byRef.get(ref) ?? []),
+    ),
   );
-  const links = flowLinks(
-    models.map((module) => ({ items: module.items, board: module.board })),
-  );
+  const clusters: Model["clusters"] = new Map();
+  for (const module of models)
+    for (const cluster of module.layout.clusters)
+      if (cluster.topic) clusters.set(cluster.key, { module, cluster });
   const bridges =
     models.length > 1
       ? topicBridges(
@@ -296,6 +307,7 @@ function buildModel(modules: FlowModule[]): Model {
   return {
     modules: models,
     byRef,
+    clusters,
     ordered,
     links,
     bridges,
@@ -365,6 +377,12 @@ const rectOf = (placed: Placed) => ({
   w: CARD_WIDTH,
   h: placed.item.height,
 });
+const headerRect = (module: ModuleModel, cluster: FlowCluster) => ({
+  x: cluster.x,
+  y: module.originY + cluster.y,
+  w: cluster.width,
+  h: CLUSTER_HEADER,
+});
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
 const reducedMotion = () =>
@@ -428,6 +446,7 @@ const CardLayer = memo(function CardLayer({
             key={item.ref}
             data-card={item.ref}
             tabIndex={0}
+            data-week={item.week ?? "none"}
             aria-label={`${item.title || "Untitled"}, ${item.week === null ? "no week" : `week ${item.week}`}, ${module.name}`}
             className={`absolute rounded-radius-lg outline-offset-2 transition-[opacity,box-shadow] duration-150 focus-visible:outline-2 focus-visible:outline focus-visible:outline-primary-500 ${flags.includes("selected") ? "outline outline-[1.5px] outline-primary-500/80" : ""} ${flags.includes("related") ? "shadow-[0_0_0_1px_var(--color-primary-300)]" : ""} ${flags.includes("dim") ? "opacity-15" : ""} ${flags.includes("supporting") ? "opacity-60" : ""} ${flags.includes("flash") ? "animate-pulse" : ""}`}
             style={{
@@ -674,7 +693,7 @@ export default function StudyFlow({
     [apply],
   );
 
-  // restore the last camera for this scope, otherwise start on the first weeks at a readable size
+  // restore the last camera for this scope, otherwise start on the first clusters at a readable size
   useLayoutEffect(() => {
     const board = boardRef.current;
     if (!board) return;
@@ -711,14 +730,15 @@ export default function StudyFlow({
           {
             x: 0,
             y: 0,
-            w: Math.min(first.layout.width, LEGEND_WIDTH + 3.4 * 284),
+            w: Math.min(first.layout.width, 1600),
             h: Math.min(first.layout.height, 900),
           },
           0.85,
           16,
         )
       : null;
-    // a phone shows the title, the topics and the first week at a readable size and pans, rather than a whole unreadable module
+    const firstCluster = first?.layout.clusters[0];
+    // a phone shows the title and the first cluster at a readable size and pans, rather than a whole unreadable module
     camera.current =
       restored ??
       (start && start.z < 0.5
@@ -726,7 +746,8 @@ export default function StudyFlow({
             x: 8,
             y: TOP_INSET + 4,
             z: clamp(
-              (board.clientWidth - 16) / (LEGEND_WIDTH + 284),
+              (board.clientWidth - 16) /
+                ((firstCluster?.x ?? 0) + (firstCluster?.width ?? 284) + 16),
               0.5,
               0.85,
             ),
@@ -990,12 +1011,12 @@ export default function StudyFlow({
       const items = topicTrail(topicId, module.items, module.layout)
         .map((item) => model.byRef.get(item.ref))
         .filter((placed): placed is Placed => Boolean(placed));
-      const row = module.layout.rows.find((entry) => entry.key === topicId);
+      const cluster = module.layout.clusters.find(
+        (entry) => entry.key === topicId,
+      );
       const rects = [
         ...items.map(rectOf),
-        ...(row
-          ? [{ x: 0, y: module.originY + row.y - 40, w: LEGEND_WIDTH, h: 80 }]
-          : []),
+        ...(cluster ? [headerRect(module, cluster)] : []),
       ];
       if (!rects.length) return;
       const x = Math.min(...rects.map((rect) => rect.x));
@@ -1091,7 +1112,7 @@ export default function StudyFlow({
         ...board,
         placements: board.placements.filter((entry) => entry.id !== ref),
       }));
-      setAnnouncement("Back in its week and topic position");
+      setAnnouncement("Back in its topic cluster");
     },
     [updateBoard],
   );
@@ -1102,7 +1123,7 @@ export default function StudyFlow({
         const weeks = { ...board.weeks };
         if (value === "detected") delete weeks[ref];
         else weeks[ref] = Number(value);
-        // a new week means a new column, so drop any manual position from the old one
+        // a new week reorders its cluster, so an unpinned card goes back into its place there
         return {
           ...board,
           weeks,
@@ -1128,7 +1149,7 @@ export default function StudyFlow({
     setAnnouncement(
       moved
         ? `Tidied ${moved} ${moved === 1 ? "card" : "cards"}. Pinned cards stay put.`
-        : "Everything is already in its week and topic position.",
+        : "Everything is already in its topic cluster.",
     );
   }, [model.modules, onBoardChange]);
 
@@ -1279,7 +1300,7 @@ export default function StudyFlow({
       dragPosition.current = null;
       setDragging(null);
       setAnnouncement(
-        "Moved. Its week and topics are unchanged; Tidy layout puts it back.",
+        "Moved. Its topics are unchanged; Tidy layout puts it back.",
       );
     }
     suppressClick.current = current.moved;
@@ -1518,9 +1539,11 @@ export default function StudyFlow({
     };
   }, []);
 
-  // geometry for links, ribbons and bridges
+  // geometry for topic relations, links and bridges
   const activeRef = hovered ?? selected;
   const svg = useMemo(() => {
+    // edges sit under the cluster frames so they only show in the gaps between clusters
+    const edges: ReactNode[] = [];
     const under: ReactNode[] = [];
     const over: ReactNode[] = [];
     const labels: Array<{
@@ -1531,55 +1554,106 @@ export default function StudyFlow({
       link?: FlowLink;
       tone: "plain" | "cross" | "strong";
     }> = [];
+    const active = activeRef ? model.byRef.get(activeRef) : undefined;
+    const activeTopic = active?.module.layout.primary.get(active.item.ref);
     for (const module of model.modules) {
-      for (const column of module.layout.columns) {
-        under.push(
-          <line
-            key={`col-${module.mapId}-${column.week}`}
-            x1={column.x}
-            x2={column.x}
-            y1={module.originY + MODULE_HEADER - 20}
-            y2={module.originY + module.layout.height - 40}
-            stroke="var(--color-border-subtle)"
+      const strongest = Math.max(
+        0,
+        ...module.layout.relations.map((relation) => relation.weight),
+      );
+      for (const relation of module.layout.relations) {
+        const a = module.layout.clusters.find(
+          (cluster) => cluster.key === relation.a,
+        );
+        const b = module.layout.clusters.find(
+          (cluster) => cluster.key === relation.b,
+        );
+        if (!a || !b) continue;
+        const ra = headerRect(module, a);
+        const rb = headerRect(module, b);
+        // on one shelf with clusters between them, a straight line would run behind those clusters, so it arcs over
+        const blocked =
+          a.y === b.y &&
+          module.layout.clusters.some(
+            (cluster) =>
+              cluster.y === a.y &&
+              cluster.x > Math.min(a.x, b.x) &&
+              cluster.x < Math.max(a.x, b.x),
+          );
+        const ax = ra.x + ra.w / 2;
+        const bx = rb.x + rb.w / 2;
+        const lift = Math.min(60, 28 + Math.abs(bx - ax) * 0.04);
+        const d = blocked
+          ? `M${ax},${ra.y} C${ax},${ra.y - lift} ${bx},${rb.y - lift} ${bx},${rb.y}`
+          : connector(ra, rb).d;
+        const lit = [focus?.topicId, hoverTopic, activeTopic].some(
+          (topicId) => topicId === relation.a || topicId === relation.b,
+        );
+        edges.push(
+          <path
+            key={`relation-${relation.a}-${relation.b}`}
+            data-relation={`${relation.a} ${relation.b}`}
+            d={d}
+            fill="none"
+            stroke={
+              lit ? "var(--color-text-secondary)" : "var(--color-text-tertiary)"
+            }
+            strokeWidth={1.5 + 5 * (relation.weight / (strongest || 1))}
+            strokeLinecap="round"
+            opacity={lit ? 0.7 : focus || hoverTopic ? 0.12 : 0.32}
           />,
         );
       }
-      for (const row of module.layout.rows) {
-        if (!row.topic) continue;
-        const items = topicTrail(row.topic.id, module.items, module.layout)
-          .map((item) => positionOf(item.ref))
-          .filter(
-            (placed): placed is Placed =>
-              Boolean(placed) &&
-              tagsShown(placed!.item).some(
-                (tag) => tag.topicId === row.topic!.id,
-              ),
-          );
-        if (!items.length) continue;
-        const topic = model.topics.get(row.topic.id);
-        const points = [
-          { x: LEGEND_WIDTH - 30, y: module.originY + row.y },
-          ...items.map((placed) => ({
-            x: placed.x + CARD_WIDTH / 2,
-            y: placed.y + Math.min(placed.item.height / 2, 70),
-          })),
-        ];
-        const on = focus
-          ? focus.topicId === row.topic.id
-          : hoverTopic === row.topic.id;
+    }
+    // a hovered or selected card points at the clusters of its other topics
+    if (active && !connect) {
+      for (const tag of tagsShown(active.item)) {
+        if (tag.topicId === activeTopic) continue;
+        const target = model.clusters.get(tag.topicId);
+        if (!target || target.module !== active.module) continue;
+        const position = positionOf(active.item.ref) ?? active;
+        over.push(
+          <path
+            key={`topic-line-${tag.topicId}`}
+            data-topic-line={tag.topicId}
+            d={
+              connector(
+                rectOf(position),
+                headerRect(target.module, target.cluster),
+              ).d
+            }
+            fill="none"
+            stroke={model.topics.get(tag.topicId)?.colour}
+            strokeWidth={tag.relevance === "core" ? 2 : 1.4}
+            strokeDasharray="3 5"
+            strokeLinecap="round"
+            opacity={0.55}
+          />,
+        );
+      }
+    }
+    // following a topic draws its stops in order, wherever their clusters are
+    if (focus && trail.length > 1) {
+      const points = trail
+        .map((item) => positionOf(item.ref))
+        .filter((placed): placed is Placed => placed !== undefined)
+        .map((placed) => ({
+          x: placed.x + CARD_WIDTH / 2,
+          y: placed.y + Math.min(placed.item.height / 2, 70),
+        }));
+      if (points.length > 1)
         under.push(
           <path
-            key={`ribbon-${row.topic.id}`}
+            key="trail"
             d={ribbon(points)}
             fill="none"
-            stroke={topic?.colour}
-            strokeWidth={on ? 34 : 26}
+            stroke={model.topics.get(focus.topicId)?.colour}
+            strokeWidth={8}
             strokeLinecap="round"
             strokeLinejoin="round"
-            opacity={focus ? (on ? 0.18 : 0.03) : on ? 0.16 : 0.06}
+            opacity={0.22}
           />,
         );
-      }
     }
     if (showLinks) {
       for (const link of model.links) {
@@ -1654,23 +1728,21 @@ export default function StudyFlow({
         );
       }
     }
-    // topics linked across modules run down the left margin
+    // topics linked across modules curve out through the left margin
     for (const bridge of model.bridges) {
-      const ta = model.topics.get(bridge.a);
-      const tb = model.topics.get(bridge.b);
-      const ma = model.modules.find((module) => module.mapId === ta?.mapId);
-      const mb = model.modules.find((module) => module.mapId === tb?.mapId);
-      const ra = ma?.layout.rows.find((row) => row.key === bridge.a);
-      const rb = mb?.layout.rows.find((row) => row.key === bridge.b);
-      if (!ma || !mb || !ra || !rb) continue;
-      const ya = ma.originY + ra.y;
-      const yb = mb.originY + rb.y;
+      const ca = model.clusters.get(bridge.a);
+      const cb = model.clusters.get(bridge.b);
+      if (!ca || !cb) continue;
+      const ra = headerRect(ca.module, ca.cluster);
+      const rb = headerRect(cb.module, cb.cluster);
+      const ya = ra.y + CLUSTER_HEADER / 2;
+      const yb = rb.y + CLUSTER_HEADER / 2;
       const bend = -120 - Math.abs(yb - ya) * 0.05;
-      const d = `M16,${ya} C${bend},${ya} ${bend},${yb} 16,${yb}`;
+      const d = `M${ra.x},${ya} C${bend},${ya} ${bend},${yb} ${rb.x},${yb}`;
       const on =
         [bridge.a, bridge.b].includes(focus?.topicId ?? "") ||
         [bridge.a, bridge.b].includes(hoverTopic ?? "");
-      (on ? over : under).push(
+      (on ? over : edges).push(
         <path
           key={`bridge-${bridge.a}-${bridge.b}-${bridge.reason}`}
           d={d}
@@ -1693,9 +1765,10 @@ export default function StudyFlow({
           tone: "cross",
         });
     }
-    return { under, over, labels };
+    return { edges, under, over, labels };
   }, [
     activeRef,
+    connect,
     focus,
     hoverTopic,
     model,
@@ -1703,6 +1776,7 @@ export default function StudyFlow({
     showLinks,
     stops,
     tagsShown,
+    trail,
   ]);
 
   const previewPlaced = preview ? model.byRef.get(preview.ref) : undefined;
@@ -1738,19 +1812,9 @@ export default function StudyFlow({
 
   const weekOptions = (placed: Placed) => {
     const max =
-      Math.max(
-        14,
-        ...placed.module.layout.columns.map((column) => column.week ?? 0),
-      ) + 2;
+      Math.max(14, ...placed.module.items.map((item) => item.week ?? 0)) + 2;
     return Array.from({ length: max }, (_, index) => index + 1);
   };
-
-  const legendCount = (module: ModuleModel, topicId: string) =>
-    module.items.filter((item) =>
-      item.tags.some(
-        (tag) => tag.topicId === topicId && tag.relevance === "core",
-      ),
-    ).length;
 
   const filtered = hidden.size > 0 || !showSuggested || !showLinks;
 
@@ -1761,7 +1825,7 @@ export default function StudyFlow({
           ref={boardRef}
           role="application"
           aria-roledescription="study map"
-          aria-label="Study map. Weeks run left to right and topics top to bottom. Tab moves between cards, Enter reads one, Space previews it."
+          aria-label="Study map. Cards are grouped by topic, with related topics side by side. Tab moves between cards, Enter reads one, Space previews it."
           tabIndex={0}
           className="absolute inset-0 touch-none select-none overflow-hidden bg-background focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary-500"
           style={{
@@ -1842,6 +1906,113 @@ export default function StudyFlow({
               height={1}
               aria-hidden="true"
             >
+              {svg.edges}
+            </svg>
+            {model.modules.map((module) => (
+              <div key={`clusters-${module.mapId}`}>
+                {module.layout.clusters.map((cluster) => {
+                  const topic = cluster.topic
+                    ? model.topics.get(cluster.topic.id)
+                    : undefined;
+                  const parent = cluster.topic?.parentId
+                    ? module.topics.find(
+                        (entry) => entry.id === cluster.topic!.parentId,
+                      )
+                    : undefined;
+                  const on = focus?.topicId === cluster.key;
+                  const count = cluster.refs.length;
+                  const elsewhere = cluster.topic
+                    ? module.items.filter(
+                        (item) =>
+                          module.layout.primary.get(item.ref) !== cluster.key &&
+                          item.tags.some((tag) => tag.topicId === cluster.key),
+                      ).length
+                    : 0;
+                  const meta = cluster.topic
+                    ? [
+                        parent?.name,
+                        `${count} ${count === 1 ? "card" : "cards"}`,
+                        topic?.exam
+                          ?.replace(/^In /, "in ")
+                          .replace(/ reviewed.*/, " papers"),
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")
+                    : `${count} ${count === 1 ? "card" : "cards"} · classify these to sort them`;
+                  return (
+                    <div
+                      key={cluster.key}
+                      data-cluster={cluster.key}
+                      className={`absolute rounded-[20px] border bg-surface ${on ? "border-primary-500/60" : "border-border-subtle"} ${lowerQuery && cluster.topic && !cluster.topic.name.toLocaleLowerCase().includes(lowerQuery) ? "opacity-60" : ""}`}
+                      style={{
+                        left: cluster.x,
+                        top: module.originY + cluster.y,
+                        width: cluster.width,
+                        height: cluster.height,
+                        borderTopColor: topic?.colour,
+                        borderTopWidth: topic ? 3 : 1,
+                      }}
+                    >
+                      <button
+                        type="button"
+                        data-legend={cluster.topic ? cluster.key : undefined}
+                        disabled={!cluster.topic}
+                        aria-pressed={cluster.topic ? on : undefined}
+                        title={
+                          cluster.topic
+                            ? `${cluster.topic.name}: follow this topic`
+                            : undefined
+                        }
+                        className={`flex w-full min-w-0 flex-col justify-center rounded-t-[18px] px-4 text-left transition-colors ${on ? "bg-primary-500/10" : cluster.topic ? "hover:bg-primary-500/5" : ""}`}
+                        style={{ height: CLUSTER_HEADER - 4 }}
+                      >
+                        <span
+                          className="flex w-full min-w-0 items-center gap-2 font-semibold leading-tight text-text"
+                          style={{ fontSize: far ? 44 : compact ? 24 : 15 }}
+                        >
+                          <span
+                            className="shrink-0 rounded-full"
+                            style={{
+                              width: far ? 20 : 8,
+                              height: far ? 20 : 8,
+                              background:
+                                topic?.colour ?? "var(--color-text-tertiary)",
+                            }}
+                            aria-hidden="true"
+                          />
+                          <span className="truncate">
+                            {cluster.topic
+                              ? cluster.topic.name
+                              : "Not sorted yet"}
+                          </span>
+                        </span>
+                        {!far && (
+                          <span
+                            className="w-full truncate text-xs text-text-tertiary"
+                            style={{ fontSize: compact ? 16 : undefined }}
+                          >
+                            {meta}
+                          </span>
+                        )}
+                      </button>
+                      {count === 0 && !far && (
+                        <p className="px-4 text-xs text-text-tertiary">
+                          {elsewhere
+                            ? `Covered by ${elsewhere} ${elsewhere === 1 ? "card" : "cards"} in other clusters`
+                            : "No material yet"}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+            <svg
+              className="pointer-events-none absolute left-0 top-0 overflow-visible"
+              width={1}
+              height={1}
+              aria-hidden="true"
+            >
               <defs>
                 <marker
                   id="flow-arrow"
@@ -1860,78 +2031,6 @@ export default function StudyFlow({
               </defs>
               {svg.under}
             </svg>
-            {model.modules.map((module) => (
-              <div key={`labels-${module.mapId}`}>
-                {module.layout.columns.map((column) => (
-                  <div
-                    key={`week-${column.week}`}
-                    data-week-label={column.week ?? "none"}
-                    className="absolute whitespace-nowrap font-medium text-text-tertiary"
-                    style={{
-                      left: column.x + 22,
-                      top: module.originY + MODULE_HEADER - (far ? 64 : 52),
-                      fontSize: far ? 44 : compact ? 26 : 15,
-                    }}
-                  >
-                    {column.week === null ? "No week" : `Week ${column.week}`}
-                  </div>
-                ))}
-                {module.layout.rows.map((row) => {
-                  const topic = row.topic
-                    ? model.topics.get(row.topic.id)
-                    : undefined;
-                  const parent = row.topic?.parentId
-                    ? module.topics.find(
-                        (entry) => entry.id === row.topic!.parentId,
-                      )
-                    : undefined;
-                  const on = focus?.topicId === row.key;
-                  return (
-                    <button
-                      key={row.key}
-                      type="button"
-                      data-legend={row.topic ? row.key : undefined}
-                      disabled={!row.topic}
-                      aria-pressed={row.topic ? on : undefined}
-                      className={`absolute flex flex-col items-start whitespace-nowrap rounded-radius-lg px-3 py-1.5 text-left transition-colors ${on ? "bg-primary-500/10" : "hover:bg-primary-500/5"} ${lowerQuery && row.topic && !row.topic.name.toLocaleLowerCase().includes(lowerQuery) ? "opacity-40" : ""}`}
-                      style={{
-                        left: 16,
-                        top: module.originY + row.y - (far ? 60 : 32),
-                        width: far ? undefined : LEGEND_WIDTH - 56,
-                        paddingLeft: parent ? 24 : 12,
-                      }}
-                    >
-                      <span
-                        className="flex items-center gap-2 font-semibold text-text"
-                        style={{ fontSize: far ? 64 : compact ? 24 : 15 }}
-                      >
-                        <span
-                          className="shrink-0 rounded-full"
-                          style={{
-                            width: far ? 24 : 8,
-                            height: far ? 24 : 8,
-                            background:
-                              topic?.colour ?? "var(--color-text-tertiary)",
-                          }}
-                          aria-hidden="true"
-                        />
-                        {row.topic ? row.topic.name : "Not classified yet"}
-                      </span>
-                      {!far && (
-                        <span
-                          className="text-xs text-text-tertiary"
-                          style={{ fontSize: compact ? 18 : undefined }}
-                        >
-                          {row.topic
-                            ? `${parent ? `${parent.name} · ` : ""}${legendCount(module, row.key)} core${topic?.exam ? ` · ${topic.exam.replace(/^In /, "in ").replace(/ reviewed.*/, " papers")}` : ""}`
-                            : "Classify these to place them"}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            ))}
             <CardLayer
               placed={culled}
               topics={model.topics}
@@ -2321,7 +2420,7 @@ export default function StudyFlow({
             <div className="absolute inset-0 grid place-items-center p-6 text-center">
               <p className="max-w-sm text-sm text-text-secondary">
                 Add notes, slides or files to this module and they will appear
-                here by week and topic.
+                here, grouped by topic.
               </p>
             </div>
           )}
@@ -2452,7 +2551,7 @@ export default function StudyFlow({
               type="button"
               className={islandButton}
               onClick={tidy}
-              title="Put moved cards back in their week and topic position"
+              title="Put moved cards back in their topic clusters"
             >
               <Squares2X2Icon
                 className="h-4 w-4 sm:hidden"

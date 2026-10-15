@@ -10,6 +10,7 @@ import {
   validateSectionInstructionPlacement,
 } from "./exam-evidence";
 import {
+  currentBoard,
   topicSchema,
   type StudyTopic,
   type SourceAnchor,
@@ -480,7 +481,11 @@ export async function saveStudyBoard(
         "The layout contains duplicate or unavailable cards or links",
       );
     }
-    const board = { ...input.board, layout: 2 as const };
+    // a page loaded before layout 3 can still send weekly-grid positions, so read it the way a stored board is read
+    const board = {
+      ...(input.board.layout === 2 ? currentBoard(input.board) : input.board),
+      layout: 3 as const,
+    };
     const [row] = await tx<{ board_version: number }[]>`
       UPDATE app.study_maps SET board = ${JSON.stringify(board)}::text::jsonb, board_version = board_version + 1, updated_at = NOW()
       WHERE id = ${mapId}::uuid AND user_id = ${userId}::uuid RETURNING board_version
