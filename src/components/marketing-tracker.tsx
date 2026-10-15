@@ -12,7 +12,7 @@ export function telemetryRoute(pathname: string | null): TelemetryRoute {
   if (pathname === "/settings") return "settings";
   if (pathname === "/notes" || pathname?.startsWith("/notes/")) return "editor";
   if (pathname === "/search") return "search";
-  if (pathname === "/privacy" || pathname === "/cookies" || pathname === "/contact") return "help";
+  if (pathname === "/privacy" || pathname === "/terms" || pathname === "/cookies" || pathname === "/contact") return "help";
   return "app";
 }
 

@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import sql from "@/database/pgsql";
-import { withErrorHandler } from "@/lib/api-error";
+import { parseJson, withErrorHandler } from "@/lib/api-error";
 import logger from "@/lib/logger";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
 import { sendEmail } from "@/lib/email";
+
+// a valid submission is at most a 5000-character message plus short fields,
+// even with every character JSON-escaped
+const CONTACT_BODY_LIMIT_BYTES = 64 * 1024;
 
 const contactSchema = z.object({
   first_name: z.string().trim().min(1).max(120),
@@ -81,7 +85,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const limited = await checkRateLimit("contact", getClientIp(request));
   if (limited) return limited;
 
-  const rawBody = await request.json().catch(() => null);
+  const rawBody = await parseJson(request, CONTACT_BODY_LIMIT_BYTES);
   const parsed = contactSchema.safeParse(rawBody);
   if (!parsed.success) {
     return NextResponse.json(
@@ -126,7 +130,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       ${null},
       ${null},
       ${body.message},
-      ${"contact_form"},
+      ${body.source === "home" ? "home_form" : "contact_form"},
       ${null},
       ${null},
       ${null},

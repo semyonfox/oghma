@@ -2,8 +2,7 @@ import Header from "@/components/header";
 import Footer from "@/components/footer";
 import React, { type ReactNode } from "react";
 import { getServerI18n } from "@/lib/i18n/server";
-
-type Translate = (key: string, params?: Record<string, unknown>) => string;
+import type { Translate } from "@/lib/i18n/translate";
 
 export function localizeText(node: ReactNode, t: Translate): ReactNode {
   if (typeof node === "string") {

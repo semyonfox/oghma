@@ -11,15 +11,9 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import rosetta from "rosetta";
-import pupa from "pupa";
 import { Locale } from "@/locales";
 import type { LocaleDictionary } from "@/lib/i18n/locale-data";
-
-export type Translate = (
-  key: string | readonly (string | number)[],
-  params?: Record<string, unknown>,
-) => string;
+import { translate, type Translate } from "@/lib/i18n/translate";
 
 export interface ContextProps {
   activeLocale: Locale;
@@ -42,7 +36,6 @@ export default function I18nProvider({
   lngDict,
   onLocaleChange,
 }: Props) {
-  const i18n = useMemo(() => rosetta<LocaleDictionary>(), []);
   const [localeData, setLocaleData] = useState({ locale, dict: lngDict });
 
   // Parent changes (initial cache/server reconciliation) remain authoritative.
@@ -55,23 +48,12 @@ export default function I18nProvider({
     );
   }, [locale, lngDict]);
 
-  // This instance belongs to this provider, so nested editor/public providers
-  // cannot overwrite one another's active locale.
-  i18n.set(localeData.locale, localeData.dict);
-  i18n.locale(localeData.locale);
-
+  // each provider reads its own dictionary, so nested editor/public providers
+  // cannot overwrite one another's active locale
+  const activeDictionary = localeData.dict;
   const t = useCallback<Translate>(
-    (key, params = {}) => {
-      const keyParts = typeof key === "string" ? [key] : [...key];
-      const translated = i18n.t(keyParts, params);
-      if (translated) {
-        return Object.keys(params).length > 0
-          ? pupa(translated, params)
-          : translated;
-      }
-      return pupa(keyParts.join(""), params);
-    },
-    [i18n],
+    (key, params) => translate(activeDictionary, key, params),
+    [activeDictionary],
   );
 
   const setLocale = useCallback(

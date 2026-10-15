@@ -11,41 +11,10 @@ const HTTP_METHODS = new Set([
   "head",
 ]);
 
-const SENSITIVE_OPERATIONS = new Set([
+// every non-GET session operation also needs confirmation; see decorate below
+const REGISTRATION_OPERATIONS = new Set([
   "post /api/auth/register",
   "post /agent/identity",
-  "post /api/notes",
-  "patch /api/notes/{id}",
-  "delete /api/notes/{id}",
-  "post /api/chat",
-  "post /api/canvas/connect",
-  "delete /api/canvas/connect",
-  "post /api/canvas/sync",
-  "post /api/assignments",
-  "post /api/calendar/token",
-]);
-
-const PRIVATE_DATA_OPERATIONS = new Set([
-  "get /api/notes",
-  "post /api/notes",
-  "get /api/notes/{id}",
-  "patch /api/notes/{id}",
-  "delete /api/notes/{id}",
-  "get /api/search",
-  "get /api/global-search",
-  "post /api/chat",
-  "get /api/tree/children",
-  "get /api/canvas/connect",
-  "post /api/canvas/connect",
-  "delete /api/canvas/connect",
-  "get /api/canvas/sync",
-  "post /api/canvas/sync",
-  "get /api/canvas/status",
-  "get /api/assignments",
-  "post /api/assignments",
-  "get /api/calendar/token",
-  "post /api/calendar/token",
-  "post /api/mcp/canvas",
 ]);
 
 const TAG_BY_PREFIX: ReadonlyArray<readonly [string, string]> = [
@@ -181,10 +150,16 @@ function decorateAgentOpenApiDocument(
         operation.security ??= [{ internalMcpBearer: [] }];
         operation["x-internal-only"] = true;
       }
-      if (SENSITIVE_OPERATIONS.has(key)) {
+      // derived from the route shape so a newly documented method cannot
+      // silently miss its flags
+      const sessionOperation = isSessionOperation(path);
+      if (
+        REGISTRATION_OPERATIONS.has(key) ||
+        (sessionOperation && method !== "get")
+      ) {
         operation["x-human-confirmation-required"] = true;
       }
-      if (PRIVATE_DATA_OPERATIONS.has(key)) {
+      if (sessionOperation || path === "/api/mcp/canvas") {
         operation["x-private-data"] = true;
       }
     }
@@ -214,9 +189,21 @@ export function buildAgentOpenApiJson(
         "application/json": {
           schema: {
             type: "object",
+            minProperties: 1,
             properties: {
               title: { type: "string", maxLength: 500 },
               content: { type: "string" },
+              pinned: {
+                type: "integer",
+                enum: [0, 1],
+                description: "1 pins the note, 0 unpins it.",
+              },
+              expectedUpdatedAt: {
+                type: "string",
+                format: "date-time",
+                description:
+                  "The note's updatedAt as last read. The save is refused with 409 if the note changed since.",
+              },
             },
           },
         },
@@ -224,9 +211,12 @@ export function buildAgentOpenApiJson(
     },
     responses: {
       "200": { description: "Updated note object" },
-      "400": { description: "Validation failed" },
+      "400": {
+        description: "Validation failed or no supported field supplied",
+      },
       "401": { description: "Unauthorized" },
       "404": { description: "Note not found" },
+      "409": { description: "The note changed after expectedUpdatedAt" },
     },
   });
 
@@ -406,7 +396,7 @@ export function buildAgentOpenApiJson(
         post: {
           summary: "Start an agent-initiated new-user registration",
           description:
-            "Creates a 15-minute claim for an email that does not already have an OghmaNotes account. The user must complete password creation and email verification in the browser. No access token is issued.",
+            "Creates a 15-minute claim for an email that does not already have an OghmaNotes account. The user completes it in the browser with matching verified Google/GitHub OAuth, or a password plus email verification. No access token is issued.",
           requestBody: {
             required: true,
             content: {
@@ -434,7 +424,7 @@ export function buildAgentOpenApiJson(
         post: {
           summary: "Poll an agent registration claim",
           description:
-            "Reports pending, registered, or verified status. It never returns an API credential.",
+            "Reports pending, registered, or verified status. Poll at most every 30 seconds; the limit is per IP address. It never returns an API credential.",
           requestBody: {
             required: true,
             content: {
@@ -543,7 +533,17 @@ export function buildAgentOpenApiJson(
                       type: "string",
                       minLength: 8,
                       maxLength: 128,
+                      description:
+                        "Must contain an uppercase letter, a lowercase letter, and a number.",
                     },
+                    agentClaimToken: {
+                      type: "string",
+                      minLength: 64,
+                      maxLength: 64,
+                      description:
+                        "Completes an /agent/identity claim. Send together with agentUserCode.",
+                    },
+                    agentUserCode: { type: "string", pattern: "^[0-9]{6}$" },
                   },
                 },
               },
@@ -585,7 +585,7 @@ export function buildAgentOpenApiJson(
                   required: ["email", "password"],
                   properties: {
                     email: { type: "string", format: "email", maxLength: 255 },
-                    password: { type: "string", maxLength: 128 },
+                    password: { type: "string", minLength: 1, maxLength: 128 },
                     rememberMe: { type: "boolean" },
                   },
                 },
@@ -619,37 +619,48 @@ export function buildAgentOpenApiJson(
                     message: { type: "string", minLength: 1, maxLength: 2000 },
                     stream: { type: "boolean", default: false },
                     useRag: { type: "boolean", default: true },
-                    noteId: { type: "string" },
-                    noteTitle: { type: "string" },
-                    noteIds: { type: "array", items: { type: "string" } },
-                    folderIds: { type: "array", items: { type: "string" } },
+                    noteId: { type: "string", maxLength: 64 },
+                    noteTitle: { type: "string", maxLength: 500 },
+                    noteIds: {
+                      type: "array",
+                      maxItems: 100,
+                      items: { type: "string", maxLength: 64 },
+                    },
+                    folderIds: {
+                      type: "array",
+                      maxItems: 100,
+                      items: { type: "string", maxLength: 64 },
+                    },
                     selectedNotes: {
                       type: "array",
+                      maxItems: 100,
                       items: {
                         type: "object",
                         required: ["id", "title"],
                         additionalProperties: false,
                         properties: {
-                          id: { type: "string" },
-                          title: { type: "string" },
+                          id: { type: "string", maxLength: 64 },
+                          title: { type: "string", maxLength: 500 },
                         },
                       },
                     },
                     selectedFolders: {
                       type: "array",
+                      maxItems: 100,
                       items: {
                         type: "object",
                         required: ["id", "title"],
                         additionalProperties: false,
                         properties: {
-                          id: { type: "string" },
-                          title: { type: "string" },
+                          id: { type: "string", maxLength: 64 },
+                          title: { type: "string", maxLength: 500 },
                         },
                       },
                     },
-                    sessionId: { type: ["string", "null"] },
+                    sessionId: { type: ["string", "null"], maxLength: 64 },
                     history: {
                       type: "array",
+                      maxItems: 20,
                       items: {
                         type: "object",
                         required: ["role", "content"],
@@ -657,9 +668,9 @@ export function buildAgentOpenApiJson(
                         properties: {
                           role: {
                             type: "string",
-                            enum: ["user", "assistant", "system"],
+                            enum: ["user", "assistant"],
                           },
-                          content: { type: "string" },
+                          content: { type: "string", maxLength: 20000 },
                         },
                       },
                     },
@@ -668,7 +679,7 @@ export function buildAgentOpenApiJson(
                       type: "string",
                       enum: ["off", "auto"],
                     },
-                    clientDateTime: { type: "string" },
+                    clientDateTime: { type: "string", maxLength: 64 },
                   },
                 },
               },
@@ -712,15 +723,25 @@ export function buildAgentOpenApiJson(
               schema: { type: "integer", minimum: 1, maximum: 200 },
             },
             {
+              name: "after",
+              in: "query",
+              required: false,
+              schema: { type: "string", maxLength: 512 },
+              description:
+                "Opaque cursor for the next page. Cannot be combined with skip.",
+            },
+            {
               name: "q",
               in: "query",
               required: false,
               schema: { type: "string", maxLength: 200 },
-              description: "Optional title search query.",
+              description:
+                "Optional title search query. Returns at most 50 matches.",
             },
           ],
           responses: {
             "200": { description: "Array of notes and folders" },
+            "400": { description: "Invalid cursor, or after combined with skip" },
             "401": { description: "Unauthorized" },
           },
         },
@@ -817,7 +838,9 @@ export function buildAgentOpenApiJson(
               name: "q",
               in: "query",
               required: true,
-              schema: { type: "string", minLength: 2 },
+              schema: { type: "string", maxLength: 200 },
+              description:
+                "Queries shorter than two characters return no results.",
             },
             {
               name: "mode",
@@ -918,7 +941,8 @@ export function buildAgentOpenApiJson(
                   properties: {
                     domain: {
                       type: "string",
-                      pattern: "^[\\w-]+\\.instructure\\.com$",
+                      description:
+                        "Canvas host or HTTPS URL, for example universityofgalway.instructure.com. Ports and credentials are rejected.",
                     },
                     token: { type: "string", maxLength: 4096 },
                   },
@@ -1095,6 +1119,7 @@ export function buildAgentOpenApiJson(
             "200": { description: "MCP JSON response" },
             "401": { description: "Missing or invalid internal MCP token" },
             "403": { description: "Canvas account not connected" },
+            "413": { description: "Request body too large" },
             "500": { description: "Canvas MCP request failed" },
           },
         },

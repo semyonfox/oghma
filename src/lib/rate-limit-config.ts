@@ -48,4 +48,6 @@ export const RATE_LIMITS: Record<string, RateLimitRule> = {
   'contact':        { limit: 5,   windowSeconds: 3600,  keyType: 'ip' },
   'share':          { limit: 10,  windowSeconds: 3600,  keyType: 'userId' },
   'global-search':  { limit: 120, windowSeconds: 3600,  keyType: 'userId' },
+  // anonymous product events. fail open: losing a few counts in an outage is fine
+  'telemetry':      { limit: 60,  windowSeconds: 60,    keyType: 'ip', failClosedOnStoreError: false },
 };

@@ -4,7 +4,6 @@ import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
 const BASE_LOCALE = "en.json";
-const LOCALE_IGNORE = new Set(["STRINGS_MAPPING_EN_FR.json"]);
 const SOURCE_EXTENSIONS = new Set([".js", ".jsx", ".ts", ".tsx"]);
 const PLACEHOLDER_RE = /\$\{[^{}]+\}|\{[^{}]+\}/g;
 const SAMPLE_LIMIT = 12;
@@ -146,7 +145,7 @@ export function auditI18n({
   localesDir = process.env.I18N_LOCALES_DIR ?? "src/locales",
 }: AuditOptions = {}): AuditReport {
   const localeFiles = readdirSync(localesDir)
-    .filter((file) => file.endsWith(".json") && !LOCALE_IGNORE.has(file))
+    .filter((file) => file.endsWith(".json"))
     .sort();
   const errors: string[] = [];
 

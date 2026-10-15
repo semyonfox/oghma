@@ -28,7 +28,7 @@ The email must be new. Response:
 
 Give the user \`claim.verification_uri\` and \`claim.user_code\`. They finish with matching verified Google/GitHub OAuth, or password plus email link.
 
-Poll no more than every five seconds: \`POST ${baseUrl}/agent/identity/claim\` with \`{ "claim_token": "…" }\`.
+Poll no more than once every 30 seconds: \`POST ${baseUrl}/agent/identity/claim\` with \`{ "claim_token": "…" }\`. Polling is rate limited per IP address; on \`429\`, wait for \`Retry-After\`.
 
 Claims expire after 15 minutes. Never request or receive the user's password, OAuth token, cookie, or verification link. A verified claim proves registration only; it is not an API credential.
 `;
