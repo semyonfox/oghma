@@ -10,6 +10,7 @@ import {
 } from "@/lib/api-error";
 import { markerAssetKey, sanitizeMarkerAssetName } from "@/lib/marker/output";
 import { getStorageProvider } from "@/lib/storage/init";
+import { INLINE_IMAGE_TYPES, storedObjectHeaders } from "@/lib/storage/inline-content";
 
 function dirname(path: string): string {
   const idx = path.lastIndexOf("/");
@@ -49,7 +50,7 @@ export const GET = withErrorHandler(
       const { body, contentType } = await storage.getObjectStream(markerKey);
       return new NextResponse(Readable.toWeb(body) as ReadableStream, {
         headers: {
-          "Content-Type": contentType ?? "application/octet-stream",
+          ...storedObjectHeaders(contentType, INLINE_IMAGE_TYPES),
           "Cache-Control": "private, max-age=60",
         },
       });
@@ -67,7 +68,7 @@ export const GET = withErrorHandler(
         const { body, contentType } = await storage.getObjectStream(cachedAsset.storage_key);
         return new NextResponse(Readable.toWeb(body) as ReadableStream, {
           headers: {
-            "Content-Type": contentType ?? "application/octet-stream",
+            ...storedObjectHeaders(contentType, INLINE_IMAGE_TYPES),
             "Cache-Control": "private, max-age=60",
           },
         });
@@ -116,7 +117,7 @@ export const GET = withErrorHandler(
     const { body, contentType } = await storage.getObjectStream(resolvedKey);
     return new NextResponse(Readable.toWeb(body) as ReadableStream, {
       headers: {
-        "Content-Type": contentType ?? "application/octet-stream",
+        ...storedObjectHeaders(contentType, INLINE_IMAGE_TYPES),
         "Cache-Control": "private, max-age=60",
       },
     });

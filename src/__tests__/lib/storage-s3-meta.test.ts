@@ -15,6 +15,7 @@ vi.mock("@aws-sdk/client-s3", async (importOriginal) => {
 
 import { StoreS3 } from "@/lib/storage/s3";
 import {
+  CopyObjectCommand,
   DeleteObjectCommand,
   DeleteObjectsCommand,
   ListObjectsV2Command,
@@ -139,5 +140,17 @@ describe("StoreS3.getObjectMeta", () => {
       /^Failed to delete 1 storage object$/,
     );
     expect(send).toHaveBeenCalledTimes(2);
+  });
+
+  it("URL-encodes copy sources so vault and Canvas filenames copy the right key", async () => {
+    send.mockResolvedValueOnce({});
+    const prefixed = new StoreS3({ bucket: "bucket", prefix: "oghma" });
+
+    await prefixed.copyObject("vault/u/j/Week 1/a+b?#ä.md", "notes/n/a+b.md", {});
+
+    const input = (send.mock.calls[0][0] as CopyObjectCommand).input;
+    expect(input.CopySource).toBe("bucket/oghma/vault/u/j/Week%201/a%2Bb%3F%23%C3%A4.md");
+    expect(input.Key).toBe("oghma/notes/n/a+b.md");
+    expect(input.MetadataDirective).toBe("COPY");
   });
 });

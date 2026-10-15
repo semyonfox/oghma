@@ -79,6 +79,18 @@ describe("CanvasClient.post", () => {
         expect(init.method).toBe("POST");
         expect((init.headers as Headers).get("authorization")).toBe("Bearer tok");
     });
+
+    it("does not resend a write after a 5xx", async () => {
+        const fetch = mockFetch([
+            { status: 502, body: {} },
+            { status: 200, body: { id: 1 } },
+        ]);
+        const client = new CanvasClient({ domain: "x.instructure.com", token: "tok", fetch });
+        await expect(
+            client.post("/api/v1/courses/1/assignments/2/submissions", { submission: { body: "x" } }),
+        ).rejects.toMatchObject({ status: 502 });
+        expect(fetch).toHaveBeenCalledTimes(1);
+    });
 });
 
 describe("CanvasClient.delete", () => {

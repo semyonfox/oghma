@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Readable } from "stream";
 import { getStorageProvider } from "@/lib/storage/init";
+import { INLINE_IMAGE_TYPES, storedObjectHeaders } from "@/lib/storage/inline-content";
 import { getSettingsFromS3 } from "@/lib/notes/storage/s3-storage";
 import { getAuthenticatedUserId } from "@/lib/auth/session";
 
@@ -18,7 +19,8 @@ export async function GET() {
   const { body, contentType } = await storage.getObjectStream(avatarKey);
   return new NextResponse(Readable.toWeb(body) as ReadableStream, {
     headers: {
-      "Content-Type": contentType ?? "image/jpeg",
+      // the stored type came from magic bytes, but never render anything but a raster image
+      ...storedObjectHeaders(contentType ?? "image/jpeg", INLINE_IMAGE_TYPES),
       "Cache-Control": "private, max-age=300",
     },
   });

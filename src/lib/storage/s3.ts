@@ -431,13 +431,16 @@ export class StoreS3 extends StoreProvider {
     this.logger.debug(`Copying object from ${from} to ${to}`);
 
     const hasMetadata = options.meta && Object.keys(options.meta).length > 0;
+    // the server parses CopySource as a URL path, so keys with spaces, `+`, `%`, `?`
+    // or `#` (vault and Canvas filenames) must be encoded or they copy the wrong key
+    const source = `${this.config.bucket}/${from}`.split('/').map(encodeURIComponent).join('/');
 
     try {
       await this.client.send(
         new CopyObjectCommand({
           Bucket: this.config.bucket,
           Key: to,
-          CopySource: `${this.config.bucket}/${from}`,
+          CopySource: source,
           Metadata: options.meta as Record<string, string> | undefined,
           CacheControl: options.headers?.cacheControl,
           ContentDisposition: options.headers?.contentDisposition,
