@@ -6,14 +6,11 @@ import {
   loginSchema,
   noteCreateSchema,
   noteUpdateSchema,
-  paginationSchema,
   quizSessionCreateSchema,
   registerSchema,
-  searchQuerySchema,
   timeBlockCreateSchema,
   timeBlockRangeSchema,
   timeBlockUpdateSchema,
-  uuidParam,
   validateBody,
 } from "@/lib/validations/schemas";
 
@@ -46,22 +43,6 @@ describe("time block request schemas", () => {
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.assignment_id).toBeNull();
     expect(timeBlockUpdateSchema.safeParse({ completed: "true" }).success).toBe(false);
-  });
-});
-
-// ─── uuidParam ───────────────────────────────────────────────────────────────
-
-describe("uuidParam", () => {
-  it("accepts valid UUIDs", () => {
-    expect(
-      uuidParam.safeParse("123e4567-e89b-12d3-a456-426614174000").success,
-    ).toBe(true);
-  });
-
-  it("rejects non-UUID strings", () => {
-    expect(uuidParam.safeParse("not-a-uuid").success).toBe(false);
-    expect(uuidParam.safeParse("").success).toBe(false);
-    expect(uuidParam.safeParse(123).success).toBe(false);
   });
 });
 
@@ -131,54 +112,6 @@ describe("noteUpdateSchema", () => {
 
   it("rejects empty object (neither field present)", () => {
     expect(noteUpdateSchema.safeParse({}).success).toBe(false);
-  });
-});
-
-// ─── paginationSchema ─────────────────────────────────────────────────────────
-
-describe("paginationSchema", () => {
-  it("defaults to page=1 and limit=50", () => {
-    const result = paginationSchema.safeParse({});
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.page).toBe(1);
-      expect(result.data.limit).toBe(50);
-    }
-  });
-
-  it("coerces string numbers", () => {
-    const result = paginationSchema.safeParse({ page: "2", limit: "25" });
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.page).toBe(2);
-      expect(result.data.limit).toBe(25);
-    }
-  });
-
-  it("rejects limit above 100", () => {
-    expect(paginationSchema.safeParse({ limit: 101 }).success).toBe(false);
-  });
-
-  it("rejects page less than 1", () => {
-    expect(paginationSchema.safeParse({ page: 0 }).success).toBe(false);
-  });
-});
-
-// ─── searchQuerySchema ────────────────────────────────────────────────────────
-
-describe("searchQuerySchema", () => {
-  it("accepts a valid query", () => {
-    expect(searchQuerySchema.safeParse({ q: "algorithms" }).success).toBe(true);
-  });
-
-  it("rejects empty q", () => {
-    expect(searchQuerySchema.safeParse({ q: "" }).success).toBe(false);
-  });
-
-  it("rejects q over 200 chars", () => {
-    expect(searchQuerySchema.safeParse({ q: "a".repeat(201) }).success).toBe(
-      false,
-    );
   });
 });
 

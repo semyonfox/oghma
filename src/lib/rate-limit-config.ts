@@ -1,5 +1,10 @@
 // centralized rate limit definitions for all protected endpoints
-// keyType determines what identifier is used: userId (session), ip (request header), or email (body field)
+// keyType documents what identifier callers pass: userId (session), ip (getClientIp), or email (body field)
+//
+// when Redis is down a rule either fails open to a per-process in-memory window
+// (fine for cost and abuse limits on signed-in users, where a short outage only
+// loosens limits per app instance) or fails closed with a 503 (security flows
+// where an attacker could otherwise wait out an outage). pick deliberately
 
 export interface RateLimitRule {
   limit: number;
@@ -13,7 +18,7 @@ export interface RateLimitRule {
   failClosedOnStoreError?: boolean;
 }
 
-export const RATE_LIMITS: Record<string, RateLimitRule> = {
+export const RATE_LIMITS = {
   // tier 1 — expensive external API calls
   'chat':           { limit: 120, windowSeconds: 3600,  keyType: 'userId' },
   // presence heartbeats fire every ~10s per open tab plus visibility events
@@ -50,4 +55,7 @@ export const RATE_LIMITS: Record<string, RateLimitRule> = {
   'global-search':  { limit: 120, windowSeconds: 3600,  keyType: 'userId' },
   // anonymous product events. fail open: losing a few counts in an outage is fine
   'telemetry':      { limit: 60,  windowSeconds: 60,    keyType: 'ip', failClosedOnStoreError: false },
-};
+} satisfies Record<string, RateLimitRule>;
+
+// typed so a misspelt category fails typecheck instead of silently skipping the limit
+export type RateLimitCategory = keyof typeof RATE_LIMITS;

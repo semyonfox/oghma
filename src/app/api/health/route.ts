@@ -35,6 +35,20 @@ function configuredQueueProvider(): string {
     return process.env.QUEUE_PROVIDER?.trim().toLowerCase() || 'bullmq';
 }
 
+// drops credentials entirely. the old /:\w+@/ pattern missed any password with
+// punctuation or percent-encoding and returned it to monitoring callers
+function redactDatabaseUrl(url: string): string {
+    try {
+        const parsed = new URL(url);
+        parsed.username = '';
+        parsed.password = '';
+        parsed.search = '';
+        return parsed.toString();
+    } catch {
+        return '[unparseable]';
+    }
+}
+
 function errorInfo(error: unknown): { message: string; code: string | null } {
     if (error instanceof Error) {
         const code = Reflect.get(error, "code");
@@ -50,7 +64,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     try {
         const start = Date.now();
         const dbUrl = process.env.DATABASE_URL || null;
-        const redactedDbUrl = dbUrl ? dbUrl.replace(/:\w+@/, ':****@') : null;
         const dbStatus: DatabaseHealth = {
             connected: false,
             latencyMs: null,
@@ -58,7 +71,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             error: null,
             errorCode: null,
             databaseUrlPresent: !!dbUrl,
-            databaseUrl: redactedDbUrl
+            databaseUrl: dbUrl ? redactDatabaseUrl(dbUrl) : null,
         };
         try {
             if (!dbUrl) throw new Error('DATABASE_URL env var missing');
@@ -93,7 +106,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
         // only expose internals if caller provides the monitoring secret
         const monitorSecret = process.env.HEALTH_CHECK_SECRET;
-        if (monitorSecret && request?.headers?.get('x-health-secret') === monitorSecret) {
+        if (monitorSecret && request.headers.get('x-health-secret') === monitorSecret) {
             response.service = 'ct216-project';
             response.database = dbStatus;
             response.rateLimiter = {

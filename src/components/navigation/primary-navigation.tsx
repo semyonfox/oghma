@@ -178,34 +178,13 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
               </>
             );
             const className = `flex min-h-11 w-full items-center gap-3 rounded-radius-md px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 ${isActive ? "bg-primary-500/10 text-primary-400" : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"}`;
-            if (item.section !== "search") {
-              return (
-                <Link key={item.id} href={item.href}
-                  onClick={() => handleNavClick(item)}
-                  aria-current={isActive ? "page" : undefined}
-                  className={className}>
-                  {content}
-                </Link>
-              );
-            }
             return (
-              <button
-                key={item.id}
-                type="button"
+              <Link key={item.id} href={item.href}
                 onClick={() => handleNavClick(item)}
-                aria-label={translatedLabel}
                 aria-current={isActive ? "page" : undefined}
-                className={`flex min-h-12 w-full items-center gap-3 rounded-radius-lg px-4 py-3 text-left text-base font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 ${
-                  isActive
-                    ? "bg-primary-500/10 text-primary-700 dark:text-primary-300"
-                    : "text-text-secondary hover:bg-subtle"
-                }`}
-                title={translatedLabel}
-              >
-                <IconComp className="h-5 w-5 shrink-0" aria-hidden="true" />
-                <span>{translatedLabel}</span>
-                {isActive && <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden="true" />}
-              </button>
+                className={className}>
+                {content}
+              </Link>
             );
           })}
 
@@ -223,7 +202,7 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
             }`}
             title={focusStarting ? t("Loading...") : focusTitle}
           >
-            <ClockIcon className="h-5 w-5 shrink-0" />
+            <ClockIcon className="h-5 w-5 shrink-0" aria-hidden="true" />
             <span>{focusTitle}</span>
           </button>
         </div>
@@ -245,14 +224,14 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
             aria-current={
               derivedActiveSection === "settings" ? "page" : undefined
             }
-            className={`flex min-h-11 w-full items-center gap-3 rounded-radius-md px-3 text-sm font-medium transition-colors ${
+            className={`flex min-h-11 w-full items-center gap-3 rounded-radius-md px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 ${
               derivedActiveSection === "settings"
                 ? "bg-primary-500/10 text-primary-600 dark:text-primary-400"
                 : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
             }`}
             title={t("Settings")}
           >
-            <Cog6ToothIcon className="h-5 w-5 shrink-0" />
+            <Cog6ToothIcon className="h-5 w-5 shrink-0" aria-hidden="true" />
             <span>{t("Settings")}</span>
           </Link>
         </div>
@@ -267,7 +246,7 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
     >
       <Link
         href={nativeAppBridge ? "/notes" : "/"}
-        className="mb-4 flex h-10 min-h-[44px] w-10 min-w-[44px] items-center justify-center transition-opacity hover:opacity-70"
+        className="mb-4 flex h-10 min-h-[44px] w-10 min-w-[44px] items-center justify-center rounded-radius-md transition-opacity hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50"
       >
         <BrandLogo size={24} alt="OghmaNotes Logo" className="h-6 w-6" />
       </Link>
@@ -301,14 +280,14 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
               aria-label={translatedLabel}
               aria-current={isActive ? "page" : undefined}
               aria-describedby={`tooltip-${item.id}`}
-              className={`group relative flex h-10 min-h-[44px] w-10 min-w-[44px] items-center justify-center rounded-radius-md transition-colors ${
+              className={`group relative flex h-10 min-h-[44px] w-10 min-w-[44px] items-center justify-center rounded-radius-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 ${
                 isActive
                   ? "bg-primary-500/10 text-primary-600 dark:text-primary-400"
                   : "text-text-tertiary hover:bg-subtle hover:text-text"
               }`}
               title={translatedLabel}
             >
-              <IconComp className="h-5 w-5" />
+              <IconComp className="h-5 w-5" aria-hidden="true" />
               <div
                 id={`tooltip-${item.id}`}
                 role="tooltip"
@@ -328,14 +307,14 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
           aria-pressed={focusActive}
           aria-busy={focusStarting}
           aria-describedby="tooltip-focus"
-          className={`group relative flex h-10 min-h-[44px] w-10 min-w-[44px] items-center justify-center rounded-radius-md transition-colors ${
+          className={`group relative flex h-10 min-h-[44px] w-10 min-w-[44px] items-center justify-center rounded-radius-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 ${
             focusActive
               ? "bg-primary-500/10 text-primary-600 dark:text-primary-400"
               : "text-text-tertiary hover:bg-subtle hover:text-text"
           }`}
           title={focusStarting ? t("Loading...") : focusTitle}
         >
-          <ClockIcon className="h-5 w-5" />
+          <ClockIcon className="h-5 w-5" aria-hidden="true" />
           <div
             id="tooltip-focus"
             role="tooltip"
@@ -362,14 +341,14 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
         aria-describedby="tooltip-settings"
         aria-label={t("Settings")}
         aria-current={derivedActiveSection === "settings" ? "page" : undefined}
-        className={`group relative flex h-10 min-h-[44px] w-10 min-w-[44px] items-center justify-center rounded-radius-md transition-colors ${
+        className={`group relative flex h-10 min-h-[44px] w-10 min-w-[44px] items-center justify-center rounded-radius-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 ${
           derivedActiveSection === "settings"
             ? "bg-primary-500/10 text-primary-600 dark:text-primary-400"
             : "text-text-tertiary hover:bg-subtle hover:text-text"
         }`}
         title={t("Settings")}
       >
-        <Cog6ToothIcon className="h-5 w-5" />
+        <Cog6ToothIcon className="h-5 w-5" aria-hidden="true" />
         <div
           id="tooltip-settings"
           role="tooltip"
