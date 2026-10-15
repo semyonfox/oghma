@@ -125,16 +125,21 @@ describe("GET /api/upload?stream=1", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toBe("application/pdf");
     expect(res.headers.get("Content-Length")).toBe("13");
+    expect(res.headers.get("Content-Disposition")).toBeNull();
   });
 
-  it("forces legacy SVG attachments to download instead of rendering them", async () => {
+  it.each([
+    ["legacy SVG", "image/svg+xml"],
+    ["Canvas HTML", "text/html; charset=utf-8"],
+    ["untyped", undefined],
+  ])("forces %s attachments to download instead of rendering them", async (_label, contentType) => {
     mockStorage.hasObject.mockResolvedValue(true);
     mockStorage.getObjectStream.mockResolvedValue({
-      body: Readable.from([Buffer.from('<svg><script>alert(1)</script></svg>')]),
-      contentType: "image/svg+xml",
+      body: Readable.from([Buffer.from("<script>alert(1)</script>")]),
+      contentType,
     });
 
-    const res = await GET(makeGet("notes/some-note/legacy.svg"));
+    const res = await GET(makeGet("notes/some-note/legacy"));
 
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toBe("application/octet-stream");

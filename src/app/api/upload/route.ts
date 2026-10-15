@@ -16,6 +16,7 @@ import { config } from "@/lib/config";
 import { enqueueCanvasJob } from "@/lib/queue";
 import { readBoundedBody, BodyTooLargeError } from "@/lib/http/bounded-body";
 import { detectMimeType } from "@/lib/ingestion/detect-mime";
+import { storedObjectHeaders } from "@/lib/storage/inline-content";
 import { invalidateTreeAfterPublish } from "@/lib/notes/tree-cache";
 
 function sanitizeFileName(raw: string): string {
@@ -42,6 +43,14 @@ const ALLOWED_MIME_TYPES = new Set([
   "audio/mpeg",
   "audio/wav",
   "video/mp4",
+]);
+
+// attachments also come from Canvas and vault imports, which store types this
+// route never accepts, and legacy objects predate the allowlist. Anything
+// outside this set downloads instead of rendering on the app origin
+const INLINE_MIME_TYPES: ReadonlySet<string> = new Set([
+  ...ALLOWED_MIME_TYPES,
+  "application/vnd.ms-powerpoint",
 ]);
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
@@ -257,15 +266,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     try {
       const { body, contentType, contentLength } = await storage.getObjectStream(path);
       const headers: Record<string, string> = {
-        // SVG is active XML. Legacy objects may predate the upload policy, so
-        // never render one as a same-origin document.
-        "Content-Type": contentType === "image/svg+xml" ? "application/octet-stream" : (contentType ?? "application/octet-stream"),
+        ...storedObjectHeaders(contentType, INLINE_MIME_TYPES),
         "Cache-Control": "private, max-age=300",
       };
-      if (contentType === "image/svg+xml") {
-        headers["Content-Disposition"] = "attachment";
-        headers["Content-Security-Policy"] = "sandbox";
-      }
       if (contentLength) headers["Content-Length"] = String(contentLength);
       return new NextResponse(Readable.toWeb(body) as ReadableStream, { headers });
     } catch (streamError) {
