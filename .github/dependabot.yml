@@ -2,9 +2,10 @@ version: 2
 updates:
   - package-ecosystem: "npm"
     directory: "/"
+    target-branch: "dev"
     schedule:
       interval: "cron"
-      cronjob: "0 * * * *"
+      cronjob: "0 6 * * *"
       timezone: "Europe/Dublin"
     open-pull-requests-limit: 99
     versioning-strategy: "increase"
@@ -39,9 +40,10 @@ updates:
       - "semyonfox"
   - package-ecosystem: "npm"
     directory: "/src/lib/canvas-mcp"
+    target-branch: "dev"
     schedule:
       interval: "cron"
-      cronjob: "15 * * * *"
+      cronjob: "15 6 * * *"
       timezone: "Europe/Dublin"
     open-pull-requests-limit: 99
     versioning-strategy: "increase"
@@ -67,5 +69,6 @@ updates:
       - "semyonfox"
   - package-ecosystem: docker
     directory: "/"
+    target-branch: "dev"
     schedule:
       interval: weekly

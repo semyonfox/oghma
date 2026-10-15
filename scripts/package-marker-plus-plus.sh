@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO=${MARKER_PLUS_PLUS_REPO:-/home/semyon/code/personal/marker++}
+REPO=${MARKER_PLUS_PLUS_REPO:-/home/semyon/code/contribs/marker++}
 COMMIT=${MARKER_PLUS_PLUS_COMMIT:-2d66e45c0a1f8a3c081c6c96f47e1f7b6af2b03a}
 DESTINATION=${1:-/tmp/marker-plus-plus-${COMMIT}.tar.gz}
 MANIFEST=${DESTINATION%.tar.gz}.manifest.json

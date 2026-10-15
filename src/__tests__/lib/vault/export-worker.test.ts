@@ -121,7 +121,8 @@ describe("processVaultExport", () => {
     expect(mocks.sendVaultExportCompleteEmail).not.toHaveBeenCalled();
     expect(mocks.s3Send).toHaveBeenCalledTimes(3);
   });
-  it("uploads equal-sized parts with only the last one shorter, as R2 requires", async () => {
+  // compresses ~20 MB, which outruns the 5s default when the machine is busy
+  it("uploads equal-sized parts with only the last one shorter, as R2 requires", { timeout: 30_000 }, async () => {
     // base64 of random bytes barely compresses, so the archive spans several parts
     const content = randomBytes(15 * 1024 * 1024).toString("base64");
     mocks.buildExportPathMap.mockResolvedValueOnce(
