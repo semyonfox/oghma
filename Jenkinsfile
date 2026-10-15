@@ -66,13 +66,29 @@ pipeline {
             parallel {
                 stage('app image') {
                     steps {
-                        sh 'docker build --label app=oghma --label env=$DEPLOY_ENV -t $IMAGE .'
+                        sh '''
+                            set +x
+                            set -eu
+                            set --
+                            if [ -n "${SENTRY_AUTH_TOKEN:-}" ]; then
+                              set -- --secret id=sentry_auth_token,env=SENTRY_AUTH_TOKEN
+                              echo '[sentry] source-map upload credential is set'
+                            else
+                              echo '[sentry] source-map upload is disabled: credential is unset'
+                            fi
+                            docker build "$@" --label app=oghma --label env="$DEPLOY_ENV" \
+                              --build-arg NEXT_PUBLIC_SENTRY_DSN \
+                              --build-arg SENTRY_ENVIRONMENT="$DEPLOY_ENV" \
+                              --build-arg SENTRY_RELEASE="$GIT_COMMIT" \
+                              --build-arg SENTRY_TRACES_SAMPLE_RATE="${SENTRY_TRACES_SAMPLE_RATE:-0.1}" \
+                              -t "$IMAGE" .
+                        '''
                         sh 'docker tag $IMAGE ${REGISTRY}:${DEPLOY_ENV}-latest'
                     }
                 }
                 stage('worker image') {
                     steps {
-                        sh 'docker build -f Dockerfile.worker --label app=oghma-worker --label env=$DEPLOY_ENV -t $WORKER_IMAGE .'
+                        sh 'docker build -f Dockerfile.worker --label app=oghma-worker --label env=$DEPLOY_ENV --build-arg SENTRY_ENVIRONMENT=$DEPLOY_ENV --build-arg SENTRY_RELEASE=$GIT_COMMIT -t $WORKER_IMAGE .'
                         sh 'docker tag $WORKER_IMAGE ${REGISTRY}-worker:${DEPLOY_ENV}-latest'
                     }
                 }

@@ -177,7 +177,7 @@ export const POST = withErrorHandler(async (request) => {
     }
     const [inserted] = await tx<{ id: string }[]>`
       INSERT INTO app.canvas_import_jobs (user_id, course_ids, status, job_type)
-      VALUES (${user.user_id}::uuid, ${JSON.stringify(courses)}::jsonb, 'queued', 'sync')
+      VALUES (${user.user_id}::uuid, ${JSON.stringify(courses)}::text::jsonb, 'queued', 'sync')
       RETURNING id
     `;
     return { blocker: null, job: inserted };

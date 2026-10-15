@@ -46,7 +46,12 @@ export interface NoteStoreState {
     options?: { forceFresh?: boolean },
   ) => Promise<NoteModel | undefined>;
   removeNote: (id: string) => Promise<void>;
-  mutateNote: (id: string, payload: NoteUpdateRequest) => Promise<void>;
+  // resolves with the saved note; throws NoteConflictError when the server
+  // refused the save because the note changed elsewhere
+  mutateNote: (
+    id: string,
+    payload: NoteUpdateRequest,
+  ) => Promise<NoteModel | undefined>;
   createNote: (
     body: NoteCreateRequest,
   ) => Promise<NoteModel | undefined>;
@@ -235,17 +240,27 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
     const mutationVersion = (noteWriteVersions.get(id) ?? 0) + 1;
     noteWriteVersions.set(id, mutationVersion);
 
-    const result = await noteAPI.mutate(id, payload);
-    if (result && ownerUserId && (payload.title !== undefined || payload.pinned !== undefined)) {
-      publishWorkspaceInvalidation(ownerUserId, "tree");
-    }
-
-    if (!result) {
+    const rollback = () => {
       if (get().generation === generation && noteWriteVersions.get(id) === mutationVersion) {
         set((currentState) => ({
           note: currentState.note?.id === id ? withDefaultContent(note) : currentState.note,
         }));
       }
+    };
+
+    let result: NoteModel | undefined;
+    try {
+      result = await noteAPI.mutate(id, payload);
+    } catch (error) {
+      rollback();
+      throw error;
+    }
+    if (result && ownerUserId && (payload.title !== undefined || payload.pinned !== undefined)) {
+      publishWorkspaceInvalidation(ownerUserId, "tree");
+    }
+
+    if (!result) {
+      rollback();
       throw new Error(noteAPI.error || "Failed to save note");
     }
 
@@ -259,6 +274,15 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
       note: currentState.note?.id === id ? savedNote : currentState.note,
     }));
     useSyncStatusStore.getState().markSynced(id);
+    // every open editor for this note learns the new stamp (and body) here,
+    // so a rename in the sidebar does not make the editor's next save conflict
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("note-content-sync", {
+          detail: { fileId: id, updatedAt: savedNote.updatedAt, content: payload.content },
+        }),
+      );
+    }
     await noteCache.setItem(id, savedNote);
     if (get().generation !== generation) {
       await noteCache.removeItem(id);
@@ -266,6 +290,7 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
     }
     await treeStore.getState().mutateItem(id, { data: savedNote });
     if (get().generation !== generation) return;
+    return savedNote;
   },
 
   createNote: async (body) => {

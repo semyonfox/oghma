@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # Stage 1: Builder
 FROM node:24-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d AS builder
 WORKDIR /app
@@ -14,8 +15,17 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 # Stub DATABASE_URL for build time (actual URL provided at runtime via env vars)
 ENV DATABASE_URL=postgresql://build:***@localhost:5432/build
-# stage board assets before building the standalone app
-RUN npm run build
+ARG NEXT_PUBLIC_SENTRY_DSN
+ARG SENTRY_ENVIRONMENT=production
+ARG SENTRY_RELEASE
+ARG SENTRY_TRACES_SAMPLE_RATE=0.1
+ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
+ENV NEXT_PUBLIC_SENTRY_ENVIRONMENT=$SENTRY_ENVIRONMENT
+ENV NEXT_PUBLIC_SENTRY_RELEASE=$SENTRY_RELEASE
+ENV NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE=$SENTRY_TRACES_SAMPLE_RATE
+ENV SENTRY_RELEASE=$SENTRY_RELEASE
+# the upload token exists only for this build step, never in an image layer
+RUN --mount=type=secret,id=sentry_auth_token,env=SENTRY_AUTH_TOKEN npm run build
 
 # Stage 2: Runner
 FROM node:24-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d AS runner
@@ -23,6 +33,10 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
+ARG SENTRY_ENVIRONMENT=production
+ARG SENTRY_RELEASE
+ENV SENTRY_ENVIRONMENT=$SENTRY_ENVIRONMENT
+ENV SENTRY_RELEASE=$SENTRY_RELEASE
 # Ensure Next.js binds to all interfaces inside container
 ENV HOSTNAME=0.0.0.0
 

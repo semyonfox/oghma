@@ -44,6 +44,8 @@ interface UseChatPersistenceResult {
   restoreError: boolean;
   retryRestore: () => void;
   finishBackgroundGeneration: (generationId?: string) => void;
+  /** stop polling the session once a live stream has taken over delivery */
+  claimBackgroundGeneration: (generationId: string) => void;
   /** true when the server still owns generation for a reopened session */
   backgroundLoading: boolean;
   backgroundGenerationId: string | null;
@@ -277,6 +279,20 @@ export function useChatPersistence(
   const [restoreError, setRestoreError] = useState(false);
   const [restoreAttempt, setRestoreAttempt] = useState(0);
   const finishedGenerationRef = useRef<string | null>(null);
+  // once the stream is attached it delivers every token and reconciles the
+  // durable session at the end, so refetching the whole history every 1.5s
+  // would only duplicate that work
+  const claimedGenerationRef = useRef<string | null>(null);
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
+  const claimBackgroundGeneration = useCallback((generationId: string) => {
+    claimedGenerationRef.current = generationId;
+    if (pollTimerRef.current) {
+      clearTimeout(pollTimerRef.current);
+      pollTimerRef.current = undefined;
+    }
+  }, []);
   const retryRestore = useCallback(() => {
     setRestored(false);
     setRestoreAttempt((attempt) => attempt + 1);
@@ -292,6 +308,7 @@ export function useChatPersistence(
 
   useEffect(() => {
     finishedGenerationRef.current = null;
+    claimedGenerationRef.current = null;
     if (!controlledSessionId) {
       setRestoredSessionId(null);
       setRestoredMessages(null);
@@ -303,7 +320,6 @@ export function useChatPersistence(
     }
 
     let cancelled = false;
-    let pollTimer: ReturnType<typeof setTimeout> | undefined;
     let firstLoad = true;
     const controller = new AbortController();
 
@@ -368,8 +384,11 @@ export function useChatPersistence(
           ...(draftMsg ? [draftMsg] : []),
         ]);
         firstLoad = false;
-        if (snapshot.generating) {
-          pollTimer = setTimeout(() => void restore(), 1_500);
+        if (
+          snapshot.generating &&
+          snapshot.activeGenerationId !== claimedGenerationRef.current
+        ) {
+          pollTimerRef.current = setTimeout(() => void restore(), 1_500);
         }
       } catch (error) {
         if (cancelled || controller.signal.aborted) return;
@@ -387,7 +406,10 @@ export function useChatPersistence(
     return () => {
       cancelled = true;
       controller.abort();
-      if (pollTimer) clearTimeout(pollTimer);
+      if (pollTimerRef.current) {
+        clearTimeout(pollTimerRef.current);
+        pollTimerRef.current = undefined;
+      }
     };
   }, [controlledSessionId, restoreAttempt]);
 
@@ -480,6 +502,7 @@ export function useChatPersistence(
     restoreError: matchesRoute && restoreError,
     retryRestore,
     finishBackgroundGeneration,
+    claimBackgroundGeneration,
     backgroundLoading: matchesRoute && backgroundLoading,
     backgroundGenerationId: matchesRoute ? backgroundGenerationId : null,
     updateRefs,

@@ -4,9 +4,7 @@ import { mapNoteFromDB } from "@/lib/notes/utils/map-note";
 import { cacheGet, cacheSet, cacheInvalidate, cacheKeys } from "@/lib/cache";
 import sql from "@/database/pgsql";
 import logger from "@/lib/logger";
-import { chunkText } from "@/lib/rag/chunking";
-import { replaceNoteEmbeddings } from "@/lib/rag/indexing";
-import { processExtractedText } from "@/lib/canvas/text-processing";
+import { enqueueNoteReindexJob } from "@/lib/queue";
 import { noteUpdateSchema, validateBody } from "@/lib/validations/schemas";
 import {
   parseJsonObject,
@@ -38,8 +36,10 @@ interface NoteContentRow {
   note_id: string;
   title: string;
   content: string;
-  extracted_text: string | null;
   pinned: number;
+  updated_at: string | Date;
+  // text form keeps PostgreSQL's microseconds, so it can fence the UPDATE
+  updated_at_raw: string;
 }
 
 const MAX_TITLE_LENGTH = parseInt(process.env.MAX_TITLE_LENGTH ?? "500", 10);
@@ -122,8 +122,9 @@ export const PUT = withErrorHandler(async (request: NextRequest, { params }: Not
     );
   }
 
+  const startedAt = performance.now();
   const existingRows = (await sql`
-    SELECT note_id, title, content, extracted_text, pinned
+    SELECT note_id, title, content, pinned, updated_at, updated_at::text AS updated_at_raw
     FROM app.notes
     WHERE note_id = ${noteId}::uuid
       AND user_id = ${user.user_id}::uuid
@@ -135,6 +136,25 @@ export const PUT = withErrorHandler(async (request: NextRequest, { params }: Not
     return tracedError("Note not found", 404);
   }
 
+  const conflict = (updatedAt: string) =>
+    NextResponse.json(
+      { error: "Note changed elsewhere", updatedAt },
+      { status: 409 },
+    );
+
+  // same normalisation as mapNoteFromDB, so the client compares like with like
+  const expectedUpdatedAt = body.expectedUpdatedAt;
+  const fenced = expectedUpdatedAt !== undefined;
+  const currentUpdatedAt = new Date(existingNote.updated_at).toISOString();
+  if (
+    expectedUpdatedAt !== undefined &&
+    new Date(expectedUpdatedAt).toISOString() !== currentUpdatedAt
+  ) {
+    return conflict(currentUpdatedAt);
+  }
+
+  // a fenced save also refuses to land if the row moved between the read
+  // above and this write
   const updatedRows = (await sql`
      UPDATE app.notes
      SET title = ${body.title ?? existingNote.title},
@@ -144,11 +164,20 @@ export const PUT = withErrorHandler(async (request: NextRequest, { params }: Not
      WHERE note_id = ${noteId}::uuid
        AND user_id = ${user.user_id}::uuid
        AND deleted_at IS NULL
+       AND (${!fenced} OR updated_at = ${existingNote.updated_at_raw}::timestamptz)
      RETURNING note_id, title, content, is_folder, s3_key, shared, pinned, created_at, updated_at
    `) as NoteSummaryRow[];
 
   const dbNote = updatedRows[0];
-  if (!dbNote) return tracedError("Note not found", 404);
+  if (!dbNote) {
+    if (!fenced) return tracedError("Note not found", 404);
+    const [latest] = (await sql`
+      SELECT updated_at FROM app.notes
+      WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid AND deleted_at IS NULL
+    `) as Pick<NoteContentRow, "updated_at">[];
+    if (!latest) return tracedError("Note not found", 404);
+    return conflict(new Date(latest.updated_at).toISOString());
+  }
 
   const keysToInvalidate = [cacheKeys.note(user.user_id, noteId)];
   if (body.title !== undefined && body.title !== existingNote.title) {
@@ -169,24 +198,21 @@ export const PUT = withErrorHandler(async (request: NextRequest, { params }: Not
       logger.error("note link index update failed", { noteId, error: linkErr });
     }
 
-    const cleanedText = processExtractedText(body.content);
-    if (cleanedText !== (existingNote.extracted_text ?? "")) {
-      try {
-        await replaceNoteEmbeddings(noteId, user.user_id, chunkText(body.content));
-        await sql`
-          UPDATE app.notes
-          SET extracted_text = ${cleanedText}
-          WHERE note_id = ${noteId}::uuid
-            AND user_id = ${user.user_id}::uuid
-            AND deleted_at IS NULL
-        `;
-      } catch (embedErr) {
-        logger.error("note embed error", { noteId, error: embedErr });
-      }
+    // embedding happens on the worker so the save returns as soon as the row
+    // is durable; see reindexNote for the debounce and staleness handling
+    try {
+      await enqueueNoteReindexJob(noteId, user.user_id);
+    } catch (queueErr) {
+      logger.error("note reindex enqueue failed", { noteId, error: queueErr });
     }
   }
 
-  return NextResponse.json(mapNoteFromDB(dbNote));
+  const response = NextResponse.json(mapNoteFromDB(dbNote));
+  response.headers.set(
+    "Server-Timing",
+    `save;dur=${(performance.now() - startedAt).toFixed(2)}`,
+  );
+  return response;
 });
 
 export const PATCH = PUT;

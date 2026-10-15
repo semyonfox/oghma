@@ -3,7 +3,7 @@ import { NOTE_PINNED } from "@/lib/notes/types/meta";
 import { NoteModel } from "@/lib/notes/types/note";
 import { useCallback } from 'react';
 import noteCache from '../cache/note';
-import useFetcher from './fetcher';
+import useFetcher, { FetchError } from './fetcher';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -21,6 +21,30 @@ export interface NoteUpdateRequest {
     title?: string;
     content?: string;
     pinned?: NOTE_PINNED;
+    // the updatedAt this client last saw; the server refuses the save with
+    // 409 when the note has moved on, see NoteConflictError
+    expectedUpdatedAt?: string;
+}
+
+/** The server rejected a save because another client changed the note first. */
+export class NoteConflictError extends Error {
+    constructor(readonly updatedAt: string | undefined) {
+        super("Note changed elsewhere");
+        this.name = "NoteConflictError";
+    }
+}
+
+function conflictUpdatedAt(body: string): string | undefined {
+    try {
+        const parsed: unknown = JSON.parse(body);
+        if (parsed && typeof parsed === "object" && "updatedAt" in parsed) {
+            const value = (parsed as { updatedAt: unknown }).updatedAt;
+            if (typeof value === "string") return value;
+        }
+    } catch {
+        // a conflict without a usable stamp still blocks this save
+    }
+    return undefined;
 }
 
 /** The small portion of the hook injected into the singleton note store. */
@@ -70,13 +94,22 @@ export default function useNoteAPI() {
 
     const mutate = useCallback(
         async (id: string, body: NoteUpdateRequest) => {
-            return request<NoteUpdateRequest, NoteModel>(
-                {
-                    method: 'PUT',
-                    url: `/api/notes/${id}`,
-                },
-                body
-            );
+            try {
+                return await request<NoteUpdateRequest, NoteModel>(
+                    {
+                        method: 'PUT',
+                        url: `/api/notes/${id}`,
+                        rethrow: true,
+                    },
+                    body
+                );
+            } catch (error) {
+                if (error instanceof FetchError && error.status === 409) {
+                    throw new NoteConflictError(conflictUpdatedAt(error.body));
+                }
+                // every other failure keeps the old contract: undefined + `error`
+                return undefined;
+            }
         },
         [request]
     );
