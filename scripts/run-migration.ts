@@ -75,6 +75,17 @@ function errorProperty(error: unknown, key: string): unknown {
     : undefined;
 }
 
+// migrations run while the previous release is still serving, so they can deadlock
+// with a live query or hit their lock_timeout. the transaction rolls back cleanly,
+// so those two errors are retried instead of failing the deploy
+const LOCK_CONFLICT_CODES = new Set(['40P01', '55P03']);
+const LOCK_CONFLICT_ATTEMPTS = 5;
+
+function isLockConflict(error: unknown): boolean {
+  const code = errorProperty(error, 'code');
+  return typeof code === 'string' && LOCK_CONFLICT_CODES.has(code);
+}
+
 async function getApplied(): Promise<MigrationRow[]> {
   return await sql<MigrationRow[]>`
     SELECT version, name, applied_at
@@ -115,6 +126,32 @@ async function status(): Promise<void> {
   }
 }
 
+async function applyMigration(filename: string, migrationSQL: string): Promise<void> {
+  // wrap in a transaction via postgres.js API
+  // (sql.unsafe() rejects explicit BEGIN/COMMIT — use sql.begin() instead)
+  await sql.begin(async (tx) => {
+    // a migration blocked behind a live query also blocks every query queued after
+    // it, so fail fast and retry. a migration's own SET LOCAL overrides this
+    await tx.unsafe("SET LOCAL lock_timeout = '3s'");
+    await tx.unsafe(migrationSQL);
+
+    // record migration in tracking table (create table if needed)
+    await tx.unsafe(`
+      CREATE TABLE IF NOT EXISTS app.schema_migrations (
+        version  TEXT PRIMARY KEY,
+        name     TEXT NOT NULL,
+        applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    const version = migrationId(filename);
+    await tx`
+      INSERT INTO app.schema_migrations (version, name)
+      VALUES (${version}, ${filename})
+      ON CONFLICT (version) DO NOTHING
+    `;
+  });
+}
+
 async function run(filename: string): Promise<void> {
   const filepath = resolve(migrationsDir, filename);
   let migrationSQL: string;
@@ -143,26 +180,18 @@ async function run(filename: string): Promise<void> {
   console.log('running migration...\n');
 
   try {
-    // wrap in a transaction via postgres.js API
-    // (sql.unsafe() rejects explicit BEGIN/COMMIT — use sql.begin() instead)
-    await sql.begin(async (tx) => {
-      await tx.unsafe(migrationSQL);
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await applyMigration(filename, migrationSQL);
+        break;
+      } catch (error) {
+        if (!isLockConflict(error) || attempt === LOCK_CONFLICT_ATTEMPTS) throw error;
+        const delaySeconds = attempt * 2;
+        console.warn(`lock conflict (${errorMessage(error)}), retrying in ${delaySeconds}s (${attempt}/${LOCK_CONFLICT_ATTEMPTS})`);
+        await new Promise(resolveDelay => setTimeout(resolveDelay, delaySeconds * 1000));
+      }
+    }
 
-      // record migration in tracking table (create table if needed)
-      await tx.unsafe(`
-        CREATE TABLE IF NOT EXISTS app.schema_migrations (
-          version  TEXT PRIMARY KEY,
-          name     TEXT NOT NULL,
-          applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        )
-      `);
-      const version = migrationId(filename);
-      await tx`
-        INSERT INTO app.schema_migrations (version, name)
-        VALUES (${version}, ${filename})
-        ON CONFLICT (version) DO NOTHING
-      `;
-    });
     const elapsed = ((Date.now() - start) / 1000).toFixed(1);
     console.log(`\nmigration completed and recorded in ${elapsed}s`);
 
