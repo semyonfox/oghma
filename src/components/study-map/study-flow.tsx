@@ -14,12 +14,14 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
+import { Popover, PopoverButton, PopoverPanel } from "@headlessui/react";
 import {
   AdjustmentsHorizontalIcon,
   ArrowsPointingOutIcon,
   MagnifyingGlassIcon,
   MinusIcon,
   PlusIcon,
+  Squares2X2Icon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 import AssignmentDetails from "@/components/assignments/assignment-details";
@@ -46,6 +48,7 @@ import type {
   StudyMapSnapshot,
 } from "@/lib/study-map/types";
 import { StudyFlowCard, readableExcerpt } from "./study-board-card";
+import { NoticeStack, islandButton, islandClass } from "./study-chrome";
 import {
   ItemActions,
   ItemBody,
@@ -67,7 +70,14 @@ export interface StudyFlowProps {
   modules: FlowModule[];
   /** scope key for remembering the camera between visits */
   viewKey: string;
-  toolbar?: ReactNode;
+  /** appended to the top-right island after search, filters and tidy */
+  actions?: ReactNode;
+  /** floats beside the top-right island, such as setup progress */
+  status?: ReactNode;
+  /** small text beside the zoom controls */
+  saveStatus?: ReactNode;
+  /** floating messages over the board */
+  notices?: ReactNode;
   onBoardChange: (mapId: string, board: StudyBoard) => void;
   onReview: (mapId: string, noteId: string) => void;
   onOpenModule: (mapId: string) => void;
@@ -92,6 +102,8 @@ const FAR_ZOOM = 0.24;
 const MIN_ZOOM = 0.06;
 const MAX_ZOOM = 1.8;
 const CULL_THRESHOLD = 260;
+// the floating islands cover this much of the top of the board
+const TOP_INSET = 56;
 const LINK_LABELS = [
   "builds on",
   "example of",
@@ -481,7 +493,10 @@ function shortName(title: string): string {
 export default function StudyFlow({
   modules,
   viewKey,
-  toolbar,
+  actions,
+  status,
+  saveStatus,
+  notices,
   onBoardChange,
   onReview,
   onOpenModule,
@@ -517,7 +532,7 @@ export default function StudyFlow({
     null,
   );
   const [flash, setFlash] = useState<string | null>(null);
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [hidden, setHidden] = useState<Set<FilterKey>>(new Set());
   const [showSuggested, setShowSuggested] = useState(true);
   const [showLinks, setShowLinks] = useState(true);
@@ -613,10 +628,11 @@ export default function StudyFlow({
       maxZoom = 1,
       padding = 48,
       leftInset = 0,
+      topInset = TOP_INSET,
     ) => {
       const board = boardRef.current;
       const w = (board?.clientWidth ?? 1200) - leftInset;
-      const h = board?.clientHeight ?? 800;
+      const h = (board?.clientHeight ?? 800) - topInset;
       const z = clamp(
         Math.min((w - padding * 2) / rect.w, (h - padding * 2) / rect.h),
         MIN_ZOOM,
@@ -624,7 +640,7 @@ export default function StudyFlow({
       );
       return {
         x: leftInset + w / 2 - (rect.x + rect.w / 2) * z,
-        y: h / 2 - (rect.y + rect.h / 2) * z,
+        y: topInset + h / 2 - (rect.y + rect.h / 2) * z,
         z,
       };
     },
@@ -702,11 +718,19 @@ export default function StudyFlow({
           16,
         )
       : null;
-    // a phone shows a couple of readable columns and pans, rather than a whole unreadable module
+    // a phone shows the title, the topics and the first week at a readable size and pans, rather than a whole unreadable module
     camera.current =
       restored ??
       (start && start.z < 0.5
-        ? { x: 8, y: 8 - (MODULE_HEADER - 70) * 0.5, z: 0.5 }
+        ? {
+            x: 8,
+            y: TOP_INSET + 4,
+            z: clamp(
+              (board.clientWidth - 16) / (LEGEND_WIDTH + 284),
+              0.5,
+              0.85,
+            ),
+          }
         : (start ?? { x: 40, y: 20, z: 0.7 }));
     apply();
     // only the scope decides where the camera starts
@@ -1336,7 +1360,8 @@ export default function StudyFlow({
     setHovered(ref);
     window.clearTimeout(previewTimer.current);
     window.clearTimeout(leaveTimer.current);
-    if (ref && !compact)
+    // link mode needs the cards clear, so no hover previews while it is on
+    if (ref && !compact && !connect)
       previewTimer.current = window.setTimeout(
         () =>
           setPreview((current) =>
@@ -1727,116 +1752,18 @@ export default function StudyFlow({
       ),
     ).length;
 
-  return (
-    <div className="flex h-full min-h-0 w-full flex-col">
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border-subtle bg-surface px-3 py-2">
-        {toolbar}
-        <label className="relative order-last flex min-w-0 basis-full items-center sm:order-none sm:ml-auto sm:max-w-xs sm:flex-1 sm:basis-auto">
-          <span className="sr-only">Search the map</span>
-          <MagnifyingGlassIcon
-            className="pointer-events-none absolute left-2.5 h-4 w-4 text-text-tertiary"
-            aria-hidden="true"
-          />
-          <input
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") setQuery("");
-              if (event.key !== "Enter" || !lowerQuery) return;
-              const topic = [...model.topics.values()].find((entry) =>
-                entry.name.toLocaleLowerCase().startsWith(lowerQuery),
-              );
-              if (topic) follow(topic.id);
-              else {
-                const match = model.ordered.find((placed) =>
-                  matchesQuery(placed, lowerQuery, model.topics),
-                );
-                if (match) goTo(match.item.ref, true);
-              }
-            }}
-            placeholder="Search notes and topics"
-            className="min-h-9 w-full rounded-radius-md border border-border-subtle bg-background py-1.5 pl-8 pr-3 text-base text-text placeholder:text-text-tertiary focus-visible:outline-2 focus-visible:outline-primary-500 md:text-sm"
-          />
-        </label>
-        <div className="relative">
-          <button
-            type="button"
-            className={secondarySmall}
-            aria-expanded={filtersOpen}
-            onClick={() => setFiltersOpen((open) => !open)}
-          >
-            <AdjustmentsHorizontalIcon className="h-4 w-4" aria-hidden="true" />
-            Show
-            {hidden.size || !showSuggested || !showLinks ? " (filtered)" : ""}
-          </button>
-          {filtersOpen && (
-            <div
-              data-flow-overlay
-              className="absolute right-0 top-10 z-40 w-60 rounded-radius-lg border border-border-subtle bg-surface p-3 text-sm shadow-lg"
-            >
-              <fieldset>
-                <legend className="mb-1 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
-                  Cards
-                </legend>
-                {FILTERS.map(([key, label]) => (
-                  <label key={key} className="flex min-h-8 items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={!hidden.has(key)}
-                      onChange={(event) =>
-                        setHidden((current) => {
-                          const next = new Set(current);
-                          if (event.target.checked) next.delete(key);
-                          else next.add(key);
-                          return next;
-                        })
-                      }
-                    />
-                    {label}
-                  </label>
-                ))}
-              </fieldset>
-              <fieldset className="mt-2 border-t border-border-subtle pt-2">
-                <legend className="sr-only">Relations</legend>
-                <label className="flex min-h-8 items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={showSuggested}
-                    onChange={(event) => setShowSuggested(event.target.checked)}
-                  />{" "}
-                  Suggested topics
-                </label>
-                <label className="flex min-h-8 items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={showLinks}
-                    onChange={(event) => setShowLinks(event.target.checked)}
-                  />{" "}
-                  Links between notes
-                </label>
-              </fieldset>
-            </div>
-          )}
-        </div>
-        <button
-          type="button"
-          className={secondarySmall}
-          onClick={tidy}
-          title="Put moved cards back in their week and topic position"
-        >
-          Tidy layout
-        </button>
-      </div>
+  const filtered = hidden.size > 0 || !showSuggested || !showLinks;
 
-      <div className="flex min-h-0 flex-1">
+  return (
+    <div className="relative flex h-full min-h-0 w-full">
+      <div className="relative min-h-0 min-w-0 flex-1">
         <div
           ref={boardRef}
           role="application"
           aria-roledescription="study map"
           aria-label="Study map. Weeks run left to right and topics top to bottom. Tab moves between cards, Enter reads one, Space previews it."
           tabIndex={0}
-          className="relative min-h-0 flex-1 touch-none select-none overflow-hidden bg-background focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary-500"
+          className="absolute inset-0 touch-none select-none overflow-hidden bg-background focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary-500"
           style={{
             backgroundImage:
               "radial-gradient(var(--color-border-subtle) 1px, transparent 1.2px)",
@@ -2120,7 +2047,17 @@ export default function StudyFlow({
                 selectedPlaced.x + CARD_WIDTH / 2,
                 selectedPlaced.y,
               );
-              if (position.y < 48 || position.x < 0 || position.x > view.w)
+              const below = toScreen(
+                selectedPlaced.x,
+                selectedPlaced.y + selectedPlaced.item.height,
+              ).y;
+              // the islands own the top strip, so a card near it gets its toolbar underneath
+              const flip = position.y < TOP_INSET + 48;
+              if (
+                position.x < 0 ||
+                position.x > view.w ||
+                (flip && below + 56 > view.h)
+              )
                 return null;
               const pinned = selectedPlaced.module.board.placements.find(
                 (entry) => entry.id === selectedPlaced.item.ref,
@@ -2130,8 +2067,8 @@ export default function StudyFlow({
                   data-flow-overlay
                   role="toolbar"
                   aria-label={`Actions for ${selectedPlaced.item.title}`}
-                  className="absolute z-30 flex -translate-x-1/2 -translate-y-[calc(100%+10px)] items-center gap-1 rounded-radius-lg border border-border-subtle bg-surface p-1 text-xs shadow-lg"
-                  style={{ left: position.x, top: position.y }}
+                  className={`absolute z-30 flex -translate-x-1/2 items-center gap-1 rounded-radius-lg border border-border-subtle bg-surface p-1 text-xs shadow-lg ${flip ? "translate-y-2.5" : "-translate-y-[calc(100%+10px)]"}`}
+                  style={{ left: position.x, top: flip ? below : position.y }}
                 >
                   <button
                     type="button"
@@ -2205,7 +2142,7 @@ export default function StudyFlow({
           {connect && (
             <div
               data-flow-overlay
-              className="absolute left-1/2 top-3 z-40 w-[min(440px,calc(100%-1.5rem))] -translate-x-1/2 rounded-radius-xl border border-border-subtle bg-surface p-3 text-sm shadow-lg"
+              className="absolute left-1/2 top-16 z-40 w-[min(440px,calc(100%-1.5rem))] -translate-x-1/2 rounded-radius-xl border border-border-subtle bg-surface p-3 text-sm shadow-lg"
             >
               {!connect.to ? (
                 <div className="flex items-center gap-2">
@@ -2285,7 +2222,7 @@ export default function StudyFlow({
             </div>
           )}
 
-          {previewPlaced && previewStyle && !reader && (
+          {previewPlaced && previewStyle && !reader && !connect && (
             <div
               data-flow-overlay
               role="dialog"
@@ -2332,9 +2269,10 @@ export default function StudyFlow({
               <ItemActions
                 item={previewPlaced.item}
                 onRead={() => openReader(previewPlaced.item.ref)}
-                onReview={() =>
-                  onReview(previewPlaced.item.mapId, previewPlaced.item.id)
-                }
+                onReview={() => {
+                  setPreview(null);
+                  onReview(previewPlaced.item.mapId, previewPlaced.item.id);
+                }}
                 onAssignment={() =>
                   previewPlaced.item.assignment &&
                   setAssignmentOpen(previewPlaced.item.assignment)
@@ -2345,8 +2283,9 @@ export default function StudyFlow({
 
           <div
             data-flow-overlay
-            className="absolute bottom-3 right-3 z-30 flex items-center gap-0.5 rounded-radius-lg border border-border-subtle bg-surface p-1 shadow-md"
+            className={`absolute bottom-3 right-3 z-30 ${islandClass}`}
           >
+            {saveStatus}
             <button
               type="button"
               className={iconButton}
@@ -2391,65 +2330,206 @@ export default function StudyFlow({
           </p>
         </div>
 
-        {readerPlaced && (
-          <aside
-            aria-label={`Reading ${readerPlaced.item.title}`}
-            className="flex w-full max-w-[460px] shrink-0 flex-col border-l border-border-subtle bg-surface max-lg:absolute max-lg:inset-y-0 max-lg:right-0 max-lg:z-50 max-lg:shadow-2xl"
-          >
-            <div className="flex items-start gap-2 border-b border-border-subtle px-4 py-3">
-              <div className="min-w-0 flex-1">
-                <ItemHeader placed={readerPlaced} />
-              </div>
+        <div className="pointer-events-none absolute right-3 top-3 z-40 flex flex-col items-end gap-2 xl:flex-row-reverse xl:items-center">
+          <div className={islandClass}>
+            <button
+              type="button"
+              className={`${islandButton} sm:hidden`}
+              aria-label="Search the map"
+              aria-expanded={searchOpen}
+              onClick={() => setSearchOpen((open) => !open)}
+            >
+              <MagnifyingGlassIcon className="h-4 w-4" aria-hidden="true" />
+            </button>
+            <label
+              className={`relative items-center ${searchOpen ? "flex max-sm:absolute max-sm:right-0 max-sm:top-full max-sm:mt-2 max-sm:w-[calc(100vw-1.5rem)] max-sm:rounded-radius-lg max-sm:border max-sm:border-border-subtle max-sm:bg-surface max-sm:p-1 max-sm:shadow-md" : "hidden sm:flex"}`}
+            >
+              <span className="sr-only">Search the map</span>
+              <MagnifyingGlassIcon
+                className="pointer-events-none absolute left-2.5 h-4 w-4 text-text-tertiary max-sm:left-3.5"
+                aria-hidden="true"
+              />
+              <input
+                type="search"
+                value={query}
+                autoFocus={searchOpen}
+                onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    // a first Escape clears the search, a second closes whatever is open
+                    if (query) event.preventDefault();
+                    else setSearchOpen(false);
+                    setQuery("");
+                  }
+                  if (event.key !== "Enter" || !lowerQuery) return;
+                  const topic = [...model.topics.values()].find((entry) =>
+                    entry.name.toLocaleLowerCase().startsWith(lowerQuery),
+                  );
+                  if (topic) follow(topic.id);
+                  else {
+                    const match = model.ordered.find((placed) =>
+                      matchesQuery(placed, lowerQuery, model.topics),
+                    );
+                    if (match) goTo(match.item.ref, true);
+                  }
+                }}
+                placeholder="Search notes and topics"
+                className="min-h-8 w-full rounded-radius-md bg-background/70 py-1 pl-8 pr-2 text-base text-text placeholder:text-text-tertiary focus-visible:outline-2 focus-visible:outline-primary-500 sm:w-44 md:text-sm lg:w-56"
+              />
+            </label>
+            <Popover>
+              <PopoverButton
+                className={islandButton}
+                title="Choose which cards and relations to show"
+              >
+                <AdjustmentsHorizontalIcon
+                  className="h-4 w-4"
+                  aria-hidden="true"
+                />
+                <span className="max-sm:sr-only">
+                  Show{filtered ? " (filtered)" : ""}
+                </span>
+                {filtered && (
+                  <span
+                    className="h-1.5 w-1.5 rounded-full bg-primary-500 sm:hidden"
+                    aria-hidden="true"
+                  />
+                )}
+              </PopoverButton>
+              <PopoverPanel
+                anchor="bottom end"
+                className="z-[60] w-60 rounded-radius-lg border border-border-subtle bg-surface p-3 text-sm text-text shadow-lg [--anchor-gap:8px] [--anchor-padding:8px] focus:outline-none"
+              >
+                <fieldset>
+                  <legend className="mb-1 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
+                    Cards
+                  </legend>
+                  {FILTERS.map(([key, label]) => (
+                    <label
+                      key={key}
+                      className="flex min-h-8 items-center gap-2"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={!hidden.has(key)}
+                        onChange={(event) =>
+                          setHidden((current) => {
+                            const next = new Set(current);
+                            if (event.target.checked) next.delete(key);
+                            else next.add(key);
+                            return next;
+                          })
+                        }
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </fieldset>
+                <fieldset className="mt-2 border-t border-border-subtle pt-2">
+                  <legend className="sr-only">Relations</legend>
+                  <label className="flex min-h-8 items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={showSuggested}
+                      onChange={(event) =>
+                        setShowSuggested(event.target.checked)
+                      }
+                    />{" "}
+                    Suggested topics
+                  </label>
+                  <label className="flex min-h-8 items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={showLinks}
+                      onChange={(event) => setShowLinks(event.target.checked)}
+                    />{" "}
+                    Links between notes
+                  </label>
+                </fieldset>
+              </PopoverPanel>
+            </Popover>
+            <button
+              type="button"
+              className={islandButton}
+              onClick={tidy}
+              title="Put moved cards back in their week and topic position"
+            >
+              <Squares2X2Icon
+                className="h-4 w-4 sm:hidden"
+                aria-hidden="true"
+              />
+              <span className="max-sm:sr-only">Tidy layout</span>
+            </button>
+            {actions}
+          </div>
+          {/* the phone search box drops into the same spot */}
+          {status && (
+            <div className={searchOpen ? "max-sm:hidden" : undefined}>
+              {status}
+            </div>
+          )}
+        </div>
+        <NoticeStack>{notices}</NoticeStack>
+      </div>
+
+      {readerPlaced && (
+        <aside
+          aria-label={`Reading ${readerPlaced.item.title}`}
+          className="flex w-full max-w-[460px] shrink-0 flex-col border-l border-border-subtle bg-surface max-lg:absolute max-lg:inset-y-0 max-lg:right-0 max-lg:z-50 max-lg:shadow-2xl"
+        >
+          <div className="flex items-start gap-2 border-b border-border-subtle px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <ItemHeader placed={readerPlaced} />
+            </div>
+            <button
+              type="button"
+              className="rounded-radius-md p-1.5 text-text-tertiary hover:bg-primary-500/5 hover:text-text"
+              onClick={() => setReader(null)}
+              aria-label="Close reader"
+            >
+              <XMarkIcon className="h-5 w-5" aria-hidden="true" />
+            </button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+            <ItemActions
+              item={readerPlaced.item}
+              onReview={() =>
+                onReview(readerPlaced.item.mapId, readerPlaced.item.id)
+              }
+              onAssignment={() =>
+                readerPlaced.item.assignment &&
+                setAssignmentOpen(readerPlaced.item.assignment)
+              }
+            >
               <button
                 type="button"
-                className="rounded-radius-md p-1.5 text-text-tertiary hover:bg-primary-500/5 hover:text-text"
-                onClick={() => setReader(null)}
-                aria-label="Close reader"
+                className={secondarySmall}
+                onClick={() => goTo(readerPlaced.item.ref)}
               >
-                <XMarkIcon className="h-5 w-5" aria-hidden="true" />
+                Show on map
               </button>
+            </ItemActions>
+            <div className="mt-3">
+              <ItemBody item={readerPlaced.item} full />
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-              <ItemActions
-                item={readerPlaced.item}
-                onReview={() =>
-                  onReview(readerPlaced.item.mapId, readerPlaced.item.id)
-                }
-                onAssignment={() =>
-                  readerPlaced.item.assignment &&
-                  setAssignmentOpen(readerPlaced.item.assignment)
-                }
-              >
-                <button
-                  type="button"
-                  className={secondarySmall}
-                  onClick={() => goTo(readerPlaced.item.ref)}
-                >
-                  Show on map
-                </button>
-              </ItemActions>
-              <div className="mt-3">
-                <ItemBody item={readerPlaced.item} full />
-              </div>
-              <div className="mt-3 border-t border-border-subtle pt-1">
-                <ItemRelations
-                  placed={readerPlaced}
-                  topics={model.topics}
-                  links={model.links}
-                  lookup={lookup}
-                  sources={model.sources.get(readerPlaced.item.ref) ?? []}
-                  usedBy={model.usedBy.get(readerPlaced.item.ref) ?? []}
-                  onGo={(ref) => {
-                    setReader(ref.startsWith("note:") ? ref : null);
-                    goTo(ref, !ref.startsWith("note:"));
-                  }}
-                  onFollow={follow}
-                />
-              </div>
+            <div className="mt-3 border-t border-border-subtle pt-1">
+              <ItemRelations
+                placed={readerPlaced}
+                topics={model.topics}
+                links={model.links}
+                lookup={lookup}
+                sources={model.sources.get(readerPlaced.item.ref) ?? []}
+                usedBy={model.usedBy.get(readerPlaced.item.ref) ?? []}
+                onGo={(ref) => {
+                  setReader(ref.startsWith("note:") ? ref : null);
+                  goTo(ref, !ref.startsWith("note:"));
+                }}
+                onFollow={follow}
+              />
             </div>
-          </aside>
-        )}
-      </div>
+          </div>
+        </aside>
+      )}
       {assignmentOpen && (
         <AssignmentDetails
           assignment={assignmentOpen}

@@ -241,11 +241,37 @@ function studyMap(page: Page) {
 }
 
 async function openMap(page: Page, mapId: string) {
-  await page.goto(`/study-map?map=${mapId}&tab=canvas`);
+  await page.goto(`/study-map?map=${mapId}`);
   await expect(studyMap(page)).toBeVisible();
   await expect(
-    page.getByRole("status").filter({ hasText: /^Layout saved$/ }),
+    page.getByRole("status").filter({ hasText: /^Saved$/ }),
   ).toBeVisible();
+}
+
+// drawers dock beside the canvas on large screens and are bottom sheets on small ones
+function sheet(page: Page, name: string) {
+  return page
+    .getByRole("complementary", { name, exact: true })
+    .or(page.getByRole("dialog", { name, exact: true }));
+}
+
+async function openModulePanel(page: Page, name: string) {
+  await page.getByRole("button", { name: "Module menu", exact: true }).click();
+  await page.getByRole("menuitem", { name, exact: true }).click();
+  const panel = sheet(page, name);
+  await expect(panel).toBeVisible();
+  return panel;
+}
+
+async function chooseFromSwitcher(page: Page, name: string) {
+  const item = page.getByRole("menuitem", { name, exact: true });
+  // the switcher is server rendered, so a click before hydration does nothing
+  await expect(async () => {
+    if (!(await item.isVisible()))
+      await page.getByRole("button", { name: /^Module: / }).click();
+    await expect(item).toBeVisible({ timeout: 2_000 });
+  }).toPass();
+  await item.click();
 }
 
 function boardSaved(page: Page, mapId: string) {
@@ -287,13 +313,11 @@ async function closePreview(page: Page) {
     exact: true,
   });
   if (await close.isVisible()) await close.click();
-  // clicking empty canvas clears the selection and its floating toolbar
-  const board = await studyMap(page).boundingBox();
-  if (!board) throw new Error("The study map is not visible");
-  await page.mouse.click(board.x + 12, board.y + 12);
-  await expect(
-    page.getByRole("toolbar", { name: /^Actions for / }),
-  ).toHaveCount(0);
+  // Escape on the board closes the preview, then clears the selection and its floating toolbar
+  const toolbar = page.getByRole("toolbar", { name: /^Actions for / });
+  for (let attempt = 0; attempt < 3 && (await toolbar.count()) > 0; attempt++)
+    await studyMap(page).press("Escape");
+  await expect(toolbar).toHaveCount(0);
 }
 
 test("a student adds a module and its notes, and topics and classification follow on their own", async ({
@@ -317,16 +341,15 @@ test("a student adds a module and its notes, and topics and classification follo
   );
 
   await page.goto("/study-map");
-  await page.getByRole("button", { name: "Add module", exact: true }).click();
+  await chooseFromSwitcher(page, "Add module");
   await page.getByLabel("Module name", { exact: true }).fill(name);
   const created = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname === "/api/study-maps" &&
       response.request().method() === "POST",
   );
-  await page
+  await sheet(page, "Add module")
     .getByRole("button", { name: "Add module", exact: true })
-    .last()
     .click();
   const createResponse = await created;
   expect(createResponse.status()).toBe(201);
@@ -337,9 +360,7 @@ test("a student adds a module and its notes, and topics and classification follo
     page.getByRole("heading", { name, exact: true }).first(),
   ).toBeVisible();
 
-  await page
-    .getByRole("button", { name: "Add materials", exact: true })
-    .click();
+  await openModulePanel(page, "Add materials");
   for (const note of [syllabus, lecture]) {
     await page
       .getByLabel("Search library by title", { exact: true })
@@ -380,8 +401,8 @@ test("a student adds a module and its notes, and topics and classification follo
       (entry) => entry.status === "suggested" && entry.evidence.length > 0,
     ),
   ).toBe(true);
-  await page.getByRole("tab", { name: "Materials", exact: true }).click();
-  const lectureCard = page.getByRole("button", {
+  const materials = await openModulePanel(page, "Materials");
+  const lectureCard = materials.getByRole("button", {
     name: new RegExp(lecture.title),
   });
   await expect(lectureCard).toBeVisible();
@@ -1008,9 +1029,7 @@ test("original-note labels, map pickers and all-module facets agree on desktop a
   await page
     .getByRole("button", { name: "Close inspector", exact: true })
     .click();
-  await page
-    .getByRole("button", { name: "Search all modules", exact: true })
-    .click();
+  await chooseFromSwitcher(page, "Search all modules");
   const search = page.getByRole("region", {
     name: "Search study materials",
     exact: true,
@@ -1064,14 +1083,10 @@ test("original-note labels, map pickers and all-module facets agree on desktop a
   await expectNoPageOverflow(page);
   await screenshot(page, testInfo, "desktop-search-facets");
 
-  await page
-    .getByRole("button", { name: "Back to module", exact: true })
+  await sheet(page, "Search all modules")
+    .getByRole("button", { name: "Close panel", exact: true })
     .click();
-  await page.getByRole("tab", { name: "Materials", exact: true }).click();
-  const materialList = page.getByRole("tabpanel", {
-    name: "Materials",
-    exact: true,
-  });
+  const materialList = await openModulePanel(page, "Materials");
   await materialList
     .getByLabel("Search materials", { exact: true })
     .fill(shared.title);
@@ -1087,11 +1102,10 @@ test("original-note labels, map pickers and all-module facets agree on desktop a
   await expect(page).toHaveURL(new RegExp(`/notes/${shared.id}$`));
   await page.goBack();
   await expect(
-    page.getByRole("combobox", { name: "Module", exact: true }),
-  ).toHaveValue(firstMap);
-  await expect(
-    page.getByRole("tab", { name: "Materials", exact: true }),
-  ).toHaveAttribute("aria-selected", "true");
+    page.getByRole("button", { name: /^Module: / }),
+  ).toHaveAccessibleName(new RegExp(`^Module: ${firstName},`));
+  await expect(page).toHaveURL(new RegExp(`map=${firstMap}`));
+  await expect(materialList).toBeVisible();
   await expect(
     materialList.getByLabel("Search materials", { exact: true }),
   ).toHaveValue(shared.title);
@@ -1106,22 +1120,18 @@ test("original-note labels, map pickers and all-module facets agree on desktop a
   ).toHaveCount(0);
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(`/study-map?map=${firstMap}&tab=materials`);
-  await expect(
-    page.getByRole("tab", { name: "Materials", exact: true }),
-  ).toHaveAttribute("aria-selected", "true");
-  await page.getByRole("tab", { name: "Materials", exact: true }).click();
-  await expect(
-    page.getByRole("tab", { name: "Map", exact: true }),
-  ).toHaveAttribute("aria-selected", "false");
+  await page.goto(`/study-map?map=${firstMap}&panel=materials`);
+  const mobileMaterials = page.getByRole("dialog", {
+    name: "Materials",
+    exact: true,
+  });
+  await expect(mobileMaterials).toBeVisible();
   await expectNoPageOverflow(page);
-  await page
-    .getByRole("tabpanel", { name: "Materials", exact: true })
+  await mobileMaterials
     .getByRole("button", { name: new RegExp(shared.title) })
     .scrollIntoViewIfNeeded();
   await screenshot(page, testInfo, "mobile-material-list");
-  await page
-    .getByRole("tabpanel", { name: "Materials", exact: true })
+  await mobileMaterials
     .getByRole("button", { name: new RegExp(shared.title) })
     .click();
   const inspector = page.getByRole("dialog", {
@@ -1181,9 +1191,9 @@ test("exam analysis keeps unknowns unresolved and counts only a reviewed compati
     "past_paper",
   );
   await page.goto(`/study-map?map=${mapId}`);
-  await page.getByRole("tab", { name: "Exam history", exact: true }).click();
+  const exams = await openModulePanel(page, "Exam history");
   for (const paper of [valid, unknown]) {
-    const pending = page.locator("article").filter({
+    const pending = exams.locator("article").filter({
       has: page.getByRole("heading", { name: paper.title, exact: true }),
     });
     await pending
@@ -1199,7 +1209,7 @@ test("exam analysis keeps unknowns unresolved and counts only a reviewed compati
       )
       .toBe(true);
   }
-  const incomplete = page.locator("article").filter({
+  const incomplete = exams.locator("article").filter({
     has: page
       .locator("summary")
       .filter({ hasText: new RegExp(`^${unknown.title}`) }),
@@ -1222,7 +1232,7 @@ test("exam analysis keeps unknowns unresolved and counts only a reviewed compati
   ).toBeVisible();
   await incomplete.locator("summary").click();
 
-  const complete = page.locator("article").filter({
+  const complete = exams.locator("article").filter({
     has: page
       .locator("summary")
       .filter({ hasText: new RegExp(`^${valid.title}`) }),

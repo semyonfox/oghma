@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useId, useState, type FormEvent, type ReactNode } from "react";
 import type { z } from "zod";
+import { XMarkIcon } from "@heroicons/react/24/outline";
 import {
   documentKinds,
   documentKindSchema,
@@ -124,11 +125,11 @@ function InspectorHeader({
       </div>
       <button
         type="button"
-        className={`${secondaryClass} shrink-0`}
+        className="-mr-2 -mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-radius-md text-text-tertiary hover:bg-primary-500/10 hover:text-text focus-visible:outline-2 focus-visible:outline-primary-500"
         onClick={onClose}
         aria-label="Close inspector"
       >
-        Close
+        <XMarkIcon className="h-5 w-5" aria-hidden="true" />
       </button>
     </header>
   );

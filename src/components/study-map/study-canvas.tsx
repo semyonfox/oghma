@@ -22,6 +22,7 @@ import {
 } from "./study-client";
 import StudyFlow, { type FlowModule } from "./study-flow";
 import { clearNoteCache, secondarySmall } from "./study-flow-panels";
+import { Toast } from "./study-chrome";
 
 export type FlowScope = "module" | "all";
 
@@ -33,6 +34,8 @@ export interface StudyCanvasProps {
   onReview: (mapId: string, noteId: string) => void;
   onOpenModule: (mapId: string) => void;
   actions?: ReactNode;
+  status?: ReactNode;
+  notices?: ReactNode;
 }
 
 type SaveStatus = "saved" | "pending" | "saving" | "conflict" | "error";
@@ -44,7 +47,7 @@ interface BoardEntry {
 }
 
 const SAVE_DELAY = 700;
-const MAX_MODULES = 12;
+export const MAX_MODULES = 12;
 const versionSchema = z.object({ version: z.number().int().nonnegative() });
 
 function adopt(snapshot: StudyMapSnapshot): BoardEntry {
@@ -64,6 +67,8 @@ export default function StudyCanvas({
   onReview,
   onOpenModule,
   actions,
+  status,
+  notices,
 }: StudyCanvasProps) {
   const [entries, setEntries] = useState<Record<string, BoardEntry>>(() => ({
     [snapshot.map.id]: adopt(snapshot),
@@ -75,6 +80,7 @@ export default function StudyCanvas({
   const [others, setOthers] = useState<Record<string, StudyMapSnapshot>>({});
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [scopeNoticeHidden, setScopeNoticeHidden] = useState(false);
 
   const update = useCallback(
     (mapId: string, change: (entry: BoardEntry) => BoardEntry) => {
@@ -239,20 +245,19 @@ export default function StudyCanvas({
     const ids = otherKey.split(",");
     setLoading(true);
     setLoadError(null);
+    setScopeNoticeHidden(false);
     let failures = 0;
     void (async () => {
       // a few at a time keeps a large library from flooding the API
       for (let index = 0; index < ids.length; index += 3) {
         const batch = await Promise.allSettled(
-          ids
-            .slice(index, index + 3)
-            .map(async (id) =>
-              snapshotSchema.parse(
-                await requestJson(`/api/study-maps/${id}`, {
-                  signal: controller.signal,
-                }),
-              ),
+          ids.slice(index, index + 3).map(async (id) =>
+            snapshotSchema.parse(
+              await requestJson(`/api/study-maps/${id}`, {
+                signal: controller.signal,
+              }),
             ),
+          ),
         );
         if (controller.signal.aborted) return;
         for (const result of batch) {
@@ -302,112 +307,96 @@ export default function StudyCanvas({
   );
   const hiddenCount = maps.length - 1 - otherIds.length;
 
-  const toolbar = (
-    <>
-      <div
-        role="group"
-        aria-label="Map scope"
-        className="flex rounded-radius-md border border-border-subtle p-0.5"
-      >
-        {(["module", "all"] as const).map((value) => (
-          <button
-            key={value}
-            type="button"
-            aria-pressed={scope === value}
-            className={`min-h-8 rounded-[5px] px-2.5 text-xs font-medium ${scope === value ? "bg-primary-600 text-text-on-primary" : "text-text-secondary hover:text-text"}`}
-            onClick={() => onScopeChange(value)}
-          >
-            {value === "module"
-              ? "This module"
-              : `All modules${maps.length > 1 ? ` (${Math.min(maps.length, MAX_MODULES)})` : ""}`}
-          </button>
-        ))}
-      </div>
-      <span role="status" className="text-xs text-text-tertiary">
-        {conflict
-          ? "Layout changed elsewhere"
-          : failed
-            ? "Layout not saved"
-            : saving
-              ? "Saving layout…"
-              : loading
-                ? "Loading modules…"
-                : "Layout saved"}
-      </span>
-      {actions}
-    </>
-  );
+  const saveText = conflict
+    ? "Changed elsewhere"
+    : failed
+      ? "Not saved"
+      : saving
+        ? "Saving…"
+        : loading
+          ? "Loading modules…"
+          : "Saved";
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-radius-xl border border-border-subtle bg-surface">
-      {conflict && (
-        <div
-          role="alert"
-          className="flex flex-wrap items-center gap-2 border-b border-border-subtle bg-ai-500/10 px-3 py-2 text-sm"
-        >
-          <span>
-            The {conflict.module.snapshot.map.name} layout changed in another
-            tab or device.
-          </span>
-          <button
-            type="button"
-            className={secondarySmall}
-            onClick={() => void resolve(conflict.module.snapshot.map.id, false)}
-          >
-            Use the latest
-          </button>
-          <button
-            type="button"
-            className={secondarySmall}
-            onClick={() => void resolve(conflict.module.snapshot.map.id, true)}
-          >
-            Keep mine
-          </button>
-        </div>
-      )}
-      {failed && !conflict && (
-        <div
-          role="alert"
-          className="flex flex-wrap items-center gap-2 border-b border-border-subtle bg-error-500/10 px-3 py-2 text-sm"
-        >
-          <span>
-            {failed.entry.message ?? "The layout could not be saved."}
-          </span>
-          <button
-            type="button"
-            className={secondarySmall}
-            onClick={() => void save(failed.module.snapshot.map.id)}
-          >
-            Try again
-          </button>
-        </div>
-      )}
-      {scope === "all" && (loadError || hiddenCount > 0) && (
-        <p
+    <StudyFlow
+      modules={modules}
+      viewKey={scope === "all" ? "all" : snapshot.map.id}
+      actions={actions}
+      status={status}
+      saveStatus={
+        <span
           role="status"
-          className="border-b border-border-subtle px-3 py-1.5 text-xs text-text-secondary"
+          title="Layout changes save automatically"
+          className={`whitespace-nowrap px-2 text-xs ${conflict || failed ? "text-error-700 dark:text-error-300" : "text-text-tertiary"}`}
         >
-          {loadError ?? ""}
-          {hiddenCount > 0
-            ? ` Showing ${MAX_MODULES} modules; open another from the module list.`
-            : ""}
-        </p>
-      )}
-      <div className="min-h-0 flex-1">
-        <StudyFlow
-          modules={modules}
-          viewKey={scope === "all" ? "all" : snapshot.map.id}
-          toolbar={toolbar}
-          onBoardChange={change}
-          onReview={onReview}
-          onOpenModule={onOpenModule}
-          onShowAllModules={
-            scope === "module" && maps.length > 1
-              ? () => onScopeChange("all")
-              : undefined
-          }
-        />
-      </div>
-    </div>
+          {saveText}
+        </span>
+      }
+      notices={
+        <>
+          {conflict && (
+            <Toast tone="warning">
+              <span>
+                The {conflict.module.snapshot.map.name} layout changed in
+                another tab or device.
+              </span>
+              <span className="flex gap-1.5">
+                <button
+                  type="button"
+                  className={secondarySmall}
+                  onClick={() =>
+                    void resolve(conflict.module.snapshot.map.id, false)
+                  }
+                >
+                  Use the latest
+                </button>
+                <button
+                  type="button"
+                  className={secondarySmall}
+                  onClick={() =>
+                    void resolve(conflict.module.snapshot.map.id, true)
+                  }
+                >
+                  Keep mine
+                </button>
+              </span>
+            </Toast>
+          )}
+          {failed && !conflict && (
+            <Toast tone="error">
+              <span>
+                {failed.entry.message ?? "The layout could not be saved."}
+              </span>
+              <button
+                type="button"
+                className={secondarySmall}
+                onClick={() => void save(failed.module.snapshot.map.id)}
+              >
+                Try again
+              </button>
+            </Toast>
+          )}
+          {scope === "all" &&
+            !scopeNoticeHidden &&
+            (loadError || hiddenCount > 0) && (
+              <Toast tone="info" onDismiss={() => setScopeNoticeHidden(true)}>
+                {loadError ?? ""}
+                {hiddenCount > 0
+                  ? ` Showing ${MAX_MODULES} modules; open another from the module list.`
+                  : ""}
+              </Toast>
+            )}
+          {notices}
+        </>
+      }
+      onBoardChange={change}
+      onReview={onReview}
+      onOpenModule={onOpenModule}
+      onShowAllModules={
+        scope === "module" && maps.length > 1
+          ? () => onScopeChange("all")
+          : undefined
+      }
+    />
   );
 }

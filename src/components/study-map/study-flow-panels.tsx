@@ -453,10 +453,11 @@ export function TrailPanel({
   onFollow: (topicId: string) => void;
   onClose: () => void;
 }) {
+  // on phones the strip under the islands holds the search box and setup status
   return (
     <aside
       aria-label={`${topic.name} through the course`}
-      className="absolute left-3 top-3 z-30 flex max-h-[calc(100%-5.5rem)] w-[min(320px,calc(100%-1.5rem))] flex-col overflow-hidden rounded-radius-xl border border-border-subtle bg-surface shadow-lg"
+      className="absolute left-3 top-16 z-30 flex max-h-[calc(100%-8.5rem)] w-[min(320px,calc(100%-1.5rem))] max-sm:top-[7.5rem] max-sm:max-h-[calc(100%-12rem)] flex-col overflow-hidden rounded-radius-xl border border-border-subtle bg-surface shadow-lg"
     >
       <div className="flex items-start gap-2 px-4 pt-3">
         <span
