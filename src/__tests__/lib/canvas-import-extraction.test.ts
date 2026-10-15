@@ -99,6 +99,7 @@ import { enqueueCanvasJob } from "@/lib/queue";
 import { getStorageProvider } from "@/lib/storage/init";
 import { processRagPipeline } from "@/lib/canvas/import-embedding";
 import { findOrCreateExtractionBundle } from "@/lib/notes/extraction-bundle";
+import { CanvasClient } from "@/lib/canvas/client";
 import {
   processDirectExtraction,
   processExtractionRetry,
@@ -371,6 +372,39 @@ describe("processCanvasFile ownership", () => {
       }),
     ).resolves.toBe(true);
 
+    expect(vi.mocked(processRagPipeline)).not.toHaveBeenCalled();
+  });
+
+  it("marks a file locked after discovery as forbidden instead of reusing the cache", async () => {
+    const jobId = "22222222-2222-4222-8222-222222222222";
+    const userId = "33333333-3333-4333-8333-333333333333";
+    const getFile = vi.fn().mockResolvedValue({
+      data: { id: "9", display_name: "week1.pdf", locked_for_user: true, lock_explanation: "Locked until Monday" },
+      forbidden: false,
+    });
+    vi.mocked(CanvasClient).mockImplementation(function () {
+      return { getFile };
+    } as never);
+    vi.mocked(sql)
+      .mockResolvedValueOnce([
+        {
+          id: "11111111-1111-4111-8111-111111111111",
+          job_id: jobId,
+          user_id: userId,
+          status: "pending",
+          canvas_course_id: "7",
+          canvas_file_id: "9",
+          canvas_token: "ciphertext",
+          canvas_domain: "canvas.example",
+        },
+      ] as never)
+      .mockResolvedValueOnce([{ id: "11111111-1111-4111-8111-111111111111", execution_attempts: 1 }] as never);
+
+    await processCanvasFile({ importRecordId: "11111111-1111-4111-8111-111111111111", jobId, userId });
+
+    expect(getFile).toHaveBeenCalledWith("7", "9");
+    const statusUpdate = vi.mocked(sql).mock.calls.find((call) => call.includes("forbidden" as never));
+    expect(statusUpdate).toContain("Locked until Monday");
     expect(vi.mocked(processRagPipeline)).not.toHaveBeenCalled();
   });
 });

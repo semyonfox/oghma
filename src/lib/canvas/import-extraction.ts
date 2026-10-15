@@ -1322,6 +1322,14 @@ export async function processCanvasFile({
         `Canvas file metadata request failed: ${fileError ?? "empty response"}`,
       );
     }
+    // a lecturer can lock or hide a file between discovery and extraction, and the
+    // shared source cache would otherwise still hand this user its content
+    if (file.locked_for_user || file.hidden_for_user) {
+      await setImportStatus(importRecordId, "forbidden", {
+        message: file.lock_explanation || "File is locked or hidden for this Canvas user",
+      }, activeJobId);
+      return false;
+    }
 
     const storedModuleId =
       activeRecord.canvas_module_id == null
