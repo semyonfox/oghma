@@ -37,7 +37,7 @@ export const pageTools: ToolDef[] = [
         }),
         handler: async (args, { canvas }) => {
             const page = await canvas.get(
-                `/api/v1/courses/${args.course_id}/pages/${args.page_url}`,
+                `/api/v1/courses/${args.course_id}/pages/${encodeURIComponent(args.page_url)}`,
                 {},
             );
             return jsonResult(page);
@@ -66,7 +66,7 @@ export const pageTools: ToolDef[] = [
         }),
         handler: async (args, { canvas }) => {
             const revisions = await canvas.collectPaginated(
-                `/api/v1/courses/${args.course_id}/pages/${args.page_url}/revisions`,
+                `/api/v1/courses/${args.course_id}/pages/${encodeURIComponent(args.page_url)}/revisions`,
                 { per_page: 100 },
             );
             return jsonResult(revisions);
@@ -84,7 +84,7 @@ export const pageTools: ToolDef[] = [
         }),
         handler: async (args, { canvas }) => {
             const revision = await canvas.get(
-                `/api/v1/courses/${args.course_id}/pages/${args.page_url}/revisions/${args.revision_id}`,
+                `/api/v1/courses/${args.course_id}/pages/${encodeURIComponent(args.page_url)}/revisions/${args.revision_id}`,
                 {
                     ...(args.summary !== undefined ? { summary: args.summary } : {}),
                 },
@@ -93,8 +93,7 @@ export const pageTools: ToolDef[] = [
         },
     }),
 
-    // Privileged tools remain in the standalone adapter. The hosted profile
-    // filters them in src/lib/canvas/mcp.ts.
+    // educator tools. the hosted profile disables these in src/lib/canvas/mcp.ts
     defineTool({
         name: "canvas_create_page",
         description: "Create a new page in a course. Requires educator permissions.",
@@ -133,7 +132,7 @@ export const pageTools: ToolDef[] = [
         }),
         handler: async (args, { canvas }) => {
             const page = await canvas.put(
-                `/api/v1/courses/${args.course_id}/pages/${args.page_url}`,
+                `/api/v1/courses/${args.course_id}/pages/${encodeURIComponent(args.page_url)}`,
                 {
                     wiki_page: {
                         ...(args.title !== undefined ? { title: args.title } : {}),
@@ -155,7 +154,7 @@ export const pageTools: ToolDef[] = [
         }),
         handler: async (args, { canvas }) => {
             const result = await canvas.delete(
-                `/api/v1/courses/${args.course_id}/pages/${args.page_url}`,
+                `/api/v1/courses/${args.course_id}/pages/${encodeURIComponent(args.page_url)}`,
             );
             return jsonResult(result);
         },
@@ -170,7 +169,7 @@ export const pageTools: ToolDef[] = [
         }),
         handler: async (args, { canvas }) => {
             const revision = await canvas.post(
-                `/api/v1/courses/${args.course_id}/pages/${args.page_url}/revisions/${args.revision_id}`,
+                `/api/v1/courses/${args.course_id}/pages/${encodeURIComponent(args.page_url)}/revisions/${args.revision_id}`,
             );
             return jsonResult(revision);
         },

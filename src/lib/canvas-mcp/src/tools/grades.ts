@@ -61,31 +61,7 @@ export const gradeTools: ToolDef[] = [
         },
     }),
 
-    // Privileged tools remain in the standalone adapter. The hosted profile
-    // filters them in src/lib/canvas/mcp.ts.
-    defineTool({
-        name: "canvas_submit_grade",
-        description: "Grade a student's submission for an assignment. Requires educator permissions.",
-        inputSchema: z.object({
-            course_id: canvasIdSchema,
-            assignment_id: canvasIdSchema,
-            user_id: canvasIdSchema,
-            posted_grade: z.string().optional(),
-            excuse: z.boolean().optional(),
-        }),
-        handler: async (args, { canvas }) => {
-            const result = await canvas.put(
-                `/api/v1/courses/${args.course_id}/assignments/${args.assignment_id}/submissions/${args.user_id}`,
-                {
-                    submission: {
-                        ...(args.posted_grade !== undefined ? { posted_grade: args.posted_grade } : {}),
-                        ...(args.excuse !== undefined ? { excuse: args.excuse } : {}),
-                    },
-                },
-            );
-            return jsonResult(result);
-        },
-    }),
+    // educator tools. the hosted profile disables these in src/lib/canvas/mcp.ts
     defineTool({
         name: "canvas_get_all_students_status",
         description: "List all student submissions for a course across assignments. Requires educator permissions.",

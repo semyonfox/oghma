@@ -2,18 +2,18 @@ import { readBoundedBody, BodyTooLargeError } from "@/lib/http/bounded-body";
 import { NextRequest, NextResponse } from "next/server";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import logger from "@/lib/logger";
-import {
-  CanvasClient,
-  type FetchLike,
-} from "@/lib/canvas-mcp/src/canvas/client";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
-import { createCanvasMcpServer } from "@/lib/canvas/mcp";
-import { safeCanvasFetch } from "@/lib/canvas/safe-fetch";
+import {
+  createCanvasMcpServer,
+  createUserCanvasClient,
+} from "@/lib/canvas/mcp";
 import { verifyInternalMcpToken } from "@/lib/auth/internal-mcp-token";
 
 export const dynamic = "force-dynamic";
 
-function unauthorizedResponse(message: string, status = 401) {
+const MAX_MCP_BODY_BYTES = 512 * 1024;
+
+function errorResponse(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
@@ -23,57 +23,39 @@ function extractBearerToken(request: NextRequest): string | null {
   return header.slice(7).trim() || null;
 }
 
+// internal endpoint for the chat MCP client. the bearer token is minted
+// server-side per user, so the Canvas connection used is always the caller's
 export async function POST(request: NextRequest): Promise<Response> {
   const token = extractBearerToken(request);
   if (!token) {
-    return unauthorizedResponse("Missing internal MCP token");
+    return errorResponse("Missing internal MCP token", 401);
   }
 
   let userId: string;
   try {
     userId = verifyInternalMcpToken(token).userId;
   } catch {
-    return unauthorizedResponse("Invalid internal MCP token");
+    return errorResponse("Invalid internal MCP token", 401);
   }
 
-  const credentials = await loadCanvasCredentials(userId);
-  if (!credentials) {
-    return unauthorizedResponse("Canvas account not connected", 403);
-  }
-
+  // stateless: one server and transport per request, closed in finally
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
   });
-  const canvasOrigin = new URL(`https://${credentials.domain}`).origin;
-  const guardedFetch: FetchLike = (url, init) => {
-    if (new URL(url).origin !== canvasOrigin) {
-      throw new Error("Canvas request points to another host");
-    }
-    if (init?.body != null && typeof init.body !== "string") {
-      throw new Error("Canvas request body must be JSON");
-    }
-    return safeCanvasFetch(
-      url,
-      Object.fromEntries(new Headers(init?.headers).entries()),
-      false,
-      {
-        method: init?.method,
-        body: init?.body ?? undefined,
-        signal: init?.signal ?? undefined,
-      },
-    );
-  };
-  const client = new CanvasClient({
-    domain: credentials.domain,
-    token: credentials.token,
-    fetch: guardedFetch,
-  });
-  const server = createCanvasMcpServer(client, userId);
+  let server: ReturnType<typeof createCanvasMcpServer> | undefined;
 
   try {
+    const credentials = await loadCanvasCredentials(userId);
+    if (!credentials) {
+      return errorResponse("Canvas account not connected", 403);
+    }
+    const bytes = await readBoundedBody(request, MAX_MCP_BODY_BYTES);
+    server = createCanvasMcpServer(
+      createUserCanvasClient(credentials),
+      userId,
+    );
     await server.connect(transport);
-    const bytes = await readBoundedBody(request, 512 * 1024);
     return await transport.handleRequest(
       new Request(request.url, {
         method: "POST",
@@ -82,21 +64,16 @@ export async function POST(request: NextRequest): Promise<Response> {
       }),
     );
   } catch (error) {
-    if (error instanceof BodyTooLargeError)
-      return NextResponse.json(
-        { error: "Request body too large" },
-        { status: 413 },
-      );
+    if (error instanceof BodyTooLargeError) {
+      return errorResponse("Request body too large", 413);
+    }
     logger.error("Canvas MCP request failed", {
       userId,
       error: error instanceof Error ? error.message : String(error),
     });
-    return NextResponse.json(
-      { error: "Canvas MCP request failed" },
-      { status: 500 },
-    );
+    return errorResponse("Canvas MCP request failed", 500);
   } finally {
     await transport.close().catch(() => {});
-    await server.close().catch(() => {});
+    await server?.close().catch(() => {});
   }
 }

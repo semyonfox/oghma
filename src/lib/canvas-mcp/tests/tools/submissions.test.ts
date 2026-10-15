@@ -83,8 +83,6 @@ describe("submission tools", () => {
         expect(result.content[0].text).toContain("assessor_id");
     });
 
-    // educator tools
-
     it("canvas_submit_assignment posts text entry submission", async () => {
         const post = vi.fn().mockResolvedValue({ id: 501, submission_type: "online_text_entry" });
         const tool = findTool("canvas_submit_assignment");
@@ -117,29 +115,20 @@ describe("submission tools", () => {
         expect(result.content[0].text).toContain("online_url");
     });
 
-    it("canvas_submit_assignment returns stub for online_upload", async () => {
-        const post = vi.fn();
-        const tool = findTool("canvas_submit_assignment");
-        const result = await tool.handler(
-            { course_id: 5, assignment_id: 10, submission_type: "online_upload" },
-            { canvas: fakeCanvas({ post }) },
-        );
-        expect(post).not.toHaveBeenCalled();
-        expect(result.content[0].text).toContain("multi-step flow");
-        expect(result.content[0].text).toContain("file_ids");
+    it("canvas_submit_assignment rejects submissions it cannot perform before any approval is stored", () => {
+        const schema = findTool("canvas_submit_assignment").inputSchema;
+        const base = { course_id: 5, assignment_id: 10 };
+
+        // a stub that "succeeds" would let an approved action report done with nothing submitted
+        expect(schema.safeParse({ ...base, submission_type: "online_upload" }).success).toBe(false);
+        expect(schema.safeParse({ ...base, submission_type: "media_recording" }).success).toBe(false);
+        expect(schema.safeParse({ ...base, submission_type: "online_text_entry" }).success).toBe(false);
+        expect(schema.safeParse({ ...base, submission_type: "online_url" }).success).toBe(false);
+        expect(schema.safeParse({ ...base, submission_type: "online_url", url: "javascript:alert(1)" }).success).toBe(false);
+        expect(schema.safeParse({ ...base, submission_type: "online_text_entry", body: "<p>answer</p>" }).success).toBe(true);
     });
 
-    it("canvas_submit_assignment returns stub for media_recording", async () => {
-        const post = vi.fn();
-        const tool = findTool("canvas_submit_assignment");
-        const result = await tool.handler(
-            { course_id: 5, assignment_id: 10, submission_type: "media_recording" },
-            { canvas: fakeCanvas({ post }) },
-        );
-        expect(post).not.toHaveBeenCalled();
-        expect(result.content[0].text).toContain("multi-step flow");
-        expect(result.content[0].text).toContain("Kaltura");
-    });
+    // educator tools
 
     it("canvas_grade_submission puts grade to submission endpoint", async () => {
         const put = vi.fn().mockResolvedValue({ id: 601, grade: "A", workflow_state: "graded" });

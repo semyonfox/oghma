@@ -213,8 +213,17 @@ describe("calendar tools", () => {
             { event_id: 42 },
             { canvas: fakeCanvas({ delete: del }) },
         );
-        expect(del).toHaveBeenCalledWith("/api/v1/calendar_events/42");
+        expect(del).toHaveBeenCalledWith("/api/v1/calendar_events/42", undefined);
         expect(result.content[0].text).toContain("deleted");
+    });
+
+    it("canvas_delete_calendar_event forwards cancel_reason instead of dropping it", async () => {
+        const del = vi.fn().mockResolvedValue({ deleted: true });
+        await findTool("canvas_delete_calendar_event").handler(
+            { event_id: 42, cancel_reason: "room unavailable" },
+            { canvas: fakeCanvas({ delete: del }) },
+        );
+        expect(del).toHaveBeenCalledWith("/api/v1/calendar_events/42", { cancel_reason: "room unavailable" });
     });
 
     it("canvas_create_planner_note posts to planner_notes", async () => {

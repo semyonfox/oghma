@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { canvasIdSchema, canvasUserIdSchema } from "./canvas-id.ts";
 import type { ToolDef } from "./types.ts";
-import { defineTool, jsonResult, textResult } from "./types.ts";
+import { defineTool, jsonResult } from "./types.ts";
 
 export const submissionTools: ToolDef[] = [
     defineTool({
@@ -101,66 +101,44 @@ export const submissionTools: ToolDef[] = [
         },
     }),
 
-    // Privileged tools remain in the standalone adapter. The hosted profile
-    // filters them in src/lib/canvas/mcp.ts.
+    // file and media submissions need a multi-step upload flow, so they are
+    // rejected by the schema rather than reported as done without submitting
     defineTool({
         name: "canvas_submit_assignment",
-        // STUB: online_upload and media_recording require multi-step Canvas API flows.
-        // online_upload: (1) request upload token POST /api/v1/courses/:id/assignments/:id/submissions/self/files,
-        //   (2) upload file bytes to the returned upload_url, (3) confirm upload, (4) POST submission with file_ids[].
-        // media_recording: (1) obtain a Kaltura upload token via GET /api/v1/services/kaltura_session,
-        //   (2) upload media to Kaltura, (3) POST submission with media_comment_id and media_comment_type.
-        // online_text_entry and online_url are handled directly by this tool.
-        // For file/media types, call the appropriate Canvas file-upload or Kaltura APIs manually, then submit.
         description:
-            "Submit an assignment. Supports online_text_entry and online_url directly. " +
-            "online_upload and media_recording require multi-step flows (see stub message returned by those types). " +
-            "Requires appropriate permissions.",
-        inputSchema: z.object({
-            course_id: canvasIdSchema,
-            assignment_id: canvasIdSchema,
-            submission_type: z.enum(["online_text_entry", "online_url", "online_upload", "media_recording"]),
-            body: z.string().optional(),
-            url: z.string().optional(),
-        }),
+            "Submit the authenticated student's own work for an assignment as online_text_entry (send body as HTML) " +
+            "or online_url (send url). File uploads and media recordings are not supported.",
+        inputSchema: z
+            .object({
+                course_id: canvasIdSchema,
+                assignment_id: canvasIdSchema,
+                submission_type: z.enum(["online_text_entry", "online_url"]),
+                body: z.string().min(1).optional(),
+                url: z.url({ protocol: /^https?$/ }).optional(),
+            })
+            .superRefine((args, ctx) => {
+                if (args.submission_type === "online_text_entry" && args.body === undefined) {
+                    ctx.addIssue({ code: "custom", path: ["body"], message: "body is required for online_text_entry" });
+                }
+                if (args.submission_type === "online_url" && args.url === undefined) {
+                    ctx.addIssue({ code: "custom", path: ["url"], message: "url is required for online_url" });
+                }
+            }),
         handler: async (args, { canvas }) => {
-            if (args.submission_type === "online_upload") {
-                return textResult(
-                    "online_upload submissions require a multi-step flow: " +
-                    "(1) POST /api/v1/courses/:course_id/assignments/:assignment_id/submissions/self/files " +
-                    "to request an upload token (provide name and size), " +
-                    "(2) upload the file bytes to the returned upload_url, " +
-                    "(3) confirm the upload to get a file_id, " +
-                    "(4) POST /api/v1/courses/:course_id/assignments/:assignment_id/submissions " +
-                    "with submission[submission_type]=online_upload and submission[file_ids][]=[file_id]. " +
-                    "This tool does not implement file upload — use the Canvas Files API directly.",
-                );
-            }
-            if (args.submission_type === "media_recording") {
-                return textResult(
-                    "media_recording submissions require a multi-step flow: " +
-                    "(1) GET /api/v1/services/kaltura_session to obtain a Kaltura upload token, " +
-                    "(2) upload the media to the Kaltura endpoint using the session token, " +
-                    "(3) POST /api/v1/courses/:course_id/assignments/:assignment_id/submissions " +
-                    "with submission[submission_type]=media_recording, " +
-                    "submission[media_comment_id]=<kaltura_entry_id>, and " +
-                    "submission[media_comment_type]=video|audio. " +
-                    "This tool does not implement Kaltura media upload — use the Kaltura API directly.",
-                );
-            }
             const result = await canvas.post(
                 `/api/v1/courses/${args.course_id}/assignments/${args.assignment_id}/submissions`,
                 {
                     submission: {
                         submission_type: args.submission_type,
-                        ...(args.body !== undefined ? { body: args.body } : {}),
-                        ...(args.url !== undefined ? { url: args.url } : {}),
+                        ...(args.submission_type === "online_text_entry" ? { body: args.body } : { url: args.url }),
                     },
                 },
             );
             return jsonResult(result);
         },
     }),
+
+    // educator tools. the hosted profile disables these in src/lib/canvas/mcp.ts
     defineTool({
         name: "canvas_grade_submission",
         description: "Grade a student's submission for an assignment. Requires educator permissions.",

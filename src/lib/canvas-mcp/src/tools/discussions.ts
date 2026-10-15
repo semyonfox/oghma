@@ -94,9 +94,41 @@ export const discussionTools: ToolDef[] = [
             return jsonResult(entry);
         },
     }),
+    defineTool({
+        name: "canvas_post_discussion_entry",
+        description: "Post a top-level reply to a discussion topic as the authenticated user.",
+        inputSchema: z.object({
+            course_id: canvasIdSchema,
+            topic_id: canvasIdSchema,
+            message: z.string().min(1),
+        }),
+        handler: async (args, { canvas }) => {
+            const entry = await canvas.post(
+                `/api/v1/courses/${args.course_id}/discussion_topics/${args.topic_id}/entries`,
+                { message: args.message },
+            );
+            return jsonResult(entry);
+        },
+    }),
+    defineTool({
+        name: "canvas_reply_to_discussion_entry",
+        description: "Reply to an existing discussion entry as the authenticated user.",
+        inputSchema: z.object({
+            course_id: canvasIdSchema,
+            topic_id: canvasIdSchema,
+            entry_id: canvasIdSchema,
+            message: z.string().min(1),
+        }),
+        handler: async (args, { canvas }) => {
+            const reply = await canvas.post(
+                `/api/v1/courses/${args.course_id}/discussion_topics/${args.topic_id}/entries/${args.entry_id}/replies`,
+                { message: args.message },
+            );
+            return jsonResult(reply);
+        },
+    }),
 
-    // Privileged tools remain in the standalone adapter. The hosted profile
-    // filters them in src/lib/canvas/mcp.ts.
+    // educator tools. the hosted profile disables these in src/lib/canvas/mcp.ts
     defineTool({
         name: "canvas_create_discussion_topic",
         description: "Create a new discussion topic in a course. Requires educator permissions.",
@@ -116,39 +148,6 @@ export const discussionTools: ToolDef[] = [
                 },
             );
             return jsonResult(topic);
-        },
-    }),
-    defineTool({
-        name: "canvas_post_discussion_entry",
-        description: "Post a top-level reply to a discussion topic. Requires educator permissions.",
-        inputSchema: z.object({
-            course_id: canvasIdSchema,
-            topic_id: canvasIdSchema,
-            message: z.string(),
-        }),
-        handler: async (args, { canvas }) => {
-            const entry = await canvas.post(
-                `/api/v1/courses/${args.course_id}/discussion_topics/${args.topic_id}/entries`,
-                { message: args.message },
-            );
-            return jsonResult(entry);
-        },
-    }),
-    defineTool({
-        name: "canvas_reply_to_discussion_entry",
-        description: "Reply to an existing discussion entry. Requires educator permissions.",
-        inputSchema: z.object({
-            course_id: canvasIdSchema,
-            topic_id: canvasIdSchema,
-            entry_id: canvasIdSchema,
-            message: z.string(),
-        }),
-        handler: async (args, { canvas }) => {
-            const reply = await canvas.post(
-                `/api/v1/courses/${args.course_id}/discussion_topics/${args.topic_id}/entries/${args.entry_id}/replies`,
-                { message: args.message },
-            );
-            return jsonResult(reply);
         },
     }),
     defineTool({

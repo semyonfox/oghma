@@ -1,15 +1,19 @@
 # canvas-mcp
 
-> Status: Experimental; multi-request transport lifecycle is a deployment blocker
+> Status: Experimental standalone server; OghmaNotes itself only imports the tool arrays
 >
 > Audience: Maintainers and operators integrating Canvas LMS with MCP clients
 >
-> Last verified: 2026-07-11 against the registered tool arrays and server entry
+> Last verified: 2026-10-06 against the registered tool arrays and server entry
 
 `canvas-mcp` is a TypeScript Streamable HTTP MCP server over the Canvas LMS
-REST API. It exposes 129 registered tools across 15 domains.
+REST API. It exposes 126 registered tools across 15 domains.
 
-**All 129 tools are registered by default.** The surface includes reads,
+OghmaNotes does not deploy this server. The app imports `src/tools` and
+`src/canvas/client.ts` and serves a filtered, confirmation-gated student
+profile from `/api/mcp/canvas` (see `src/lib/canvas/mcp.ts` in the app).
+
+**All 126 tools are registered by default.** The surface includes reads,
 self-state updates, creates, grading, messaging, and destructive
 educator/admin operations. Canvas permissions limit what a token can do, but
 they do not replace caller authentication, least privilege, human
@@ -27,7 +31,6 @@ The server itself does **not** provide:
 
 - application-layer caller authentication;
 - OAuth or user identity;
-- a Canvas-domain allowlist;
 - per-tool authorization or feature flags;
 - human-confirmation prompts;
 - audit logging;
@@ -39,14 +42,6 @@ admin tokens have a much larger blast radius.
 
 Use a least-privileged Canvas token, narrow the registered tools in code, and
 put the service behind a trusted boundary before connecting an agent.
-
-### Transport lifecycle blocker
-
-The current entry point creates one stateless `StreamableHTTPServerTransport`
-and reuses it across HTTP requests. The installed MCP SDK's stateless pattern
-requires a fresh transport per request. Treat multi-request operation as broken
-or at least unverified; do not deploy or connect a real agent until the server
-lifecycle is corrected and a test proves two or more sequential MCP requests.
 
 ## Tool Surface
 
@@ -74,12 +69,11 @@ both groups are live in `tools/list`.
 
 Notable limitations:
 
-- `canvas_upload_file` is an explicit stub because Canvas upload is a
-  multi-step multipart handshake.
-- upload/media paths of `canvas_submit_assignment` are not a complete file
-  transfer implementation; text and URL paths are the supported direct cases.
-- `canvas_download_file_to_disk` returns a pre-authenticated URL and ignores
-  the destination path. It does not write to the server filesystem.
+- there is no file upload tool. Canvas upload is a multi-step multipart
+  handshake that one bounded call cannot complete.
+- `canvas_submit_assignment` only accepts `online_text_entry` and
+  `online_url`; file and media submissions fail validation.
+- list tools stop after 20 pages of 100 items.
 
 Pre-authenticated download URLs are credentials until they expire. Do not log
 or expose them unnecessarily.
@@ -117,8 +111,10 @@ npm run build
 npm start
 ```
 
-`GET /health` returns `{"ok":true}`. MCP Streamable HTTP traffic is handled at
-the root path on port `3001` by default.
+`GET /health` returns `{"ok":true}`. MCP Streamable HTTP `POST` traffic is
+handled at the root path on port `3001` by default. The server is stateless:
+each request gets a fresh MCP server and transport, there is no session or SSE
+stream, and other methods return `405`.
 
 Example local client configuration:
 
@@ -163,28 +159,33 @@ Requests may supply:
 - `X-Canvas-Token`;
 - `X-Canvas-Domain`.
 
-The token is held in memory for the request and the environment acts as a
-fallback for a missing header.
+The token is held in memory for the request. The domain must be a plain host
+name; a leading `https://` is stripped, and paths, ports, credentials and raw
+IPs are rejected. The environment token is
+only used for the environment domain: a request that names another domain
+without its own `X-Canvas-Token` gets `401`, so the server's token is never
+sent to a caller-chosen host.
 
 This is a credential-passthrough mechanism, **not multi-tenant
-authentication**. The server does not authenticate the caller or allowlist the
-domain. Use it only when a trusted upstream service has already authenticated
+authentication**. The server does not authenticate the caller, and a caller
+with their own token can still point it at any public host name. Use it only when a trusted upstream service has already authenticated
 the user, authorized the Canvas account, constrained the destination, and
 protected the headers in transit.
 
-## Intended Request Flow
+## Request Flow
 
-After the transport lifecycle blocker above is fixed:
+1. `src/index.ts` loads config and listens; `src/server.ts` handles requests.
+2. `/health` answers directly; anything other than `POST` gets `405`.
+3. Token and domain are resolved from headers, then environment fallbacks.
+4. A request-scoped `CanvasClient`, MCP server and transport are created and
+   closed when the response ends.
+5. The tool's Zod schema validates arguments before the handler runs.
+6. The handler calls Canvas and returns JSON as MCP text content.
+7. Canvas failures become MCP error results with status/message context.
 
-1. The Node HTTP server handles `/health` or passes the request to the
-   Streamable HTTP transport.
-2. Token and domain are resolved from headers, then environment fallbacks.
-3. A request-scoped `CanvasClient` is placed in `AsyncLocalStorage`.
-4. MCP validates tool arguments with the tool's Zod schema.
-5. The handler calls Canvas and returns JSON as MCP text content.
-6. Canvas failures become MCP error results with status/message context.
-
-The intended design has no response cache, queue, or MCP session state.
+Reads that fail with a 5xx are retried once. Writes are never retried, since
+Canvas may have applied them. There is no response cache, queue, or MCP
+session state.
 
 ## Docker
 
@@ -203,8 +204,8 @@ user. Binding to loopback in the example is intentional.
 ## Deployment
 
 The target deployment is a long-lived Node process or container behind a
-trusted network/proxy boundary. The current transport lifecycle blocker must be
-fixed first. The process handles `SIGTERM`/`SIGINT` for graceful shutdown.
+trusted network/proxy boundary. The process handles `SIGTERM`/`SIGINT` for
+graceful shutdown.
 
 The code calls `http.listen()` and does not export a Lambda/function handler.
 Stateless MCP transport does not by itself make this package deployable on a
@@ -242,12 +243,11 @@ npm run typecheck
 npm run build
 ```
 
-`npm run verify-tools` is a representative, read-focused live smoke script,
-not exhaustive verification of all 129 tools. It prints response previews and
-currently calls a tool that returns a pre-authenticated file URL. **Do not run
-the current script against a real Canvas account until URL and credential
-redaction is implemented and verified.** Unit tests, type checking, a build,
-and inspection of `tools/list` are the supported verification path for now.
+`npm run verify-tools` (after `npm run build`) is a representative,
+read-focused live smoke script, not exhaustive verification of all 126 tools.
+It skips the self-state tools and redacts `verifier`/token query parameters
+from previews, but it still prints real course data, so only run it against a
+test account and keep the output private.
 
 ## Contributing
 

@@ -1,11 +1,12 @@
-// new hosted tools require confirmation until their read-only behaviour is checked
+// tools listed here run without user confirmation, so each one must only send
+// GET requests that change nothing in Canvas. anything new needs confirmation
+// until that is checked. the profile test enforces the GET-only rule
 const READ_ONLY_CANVAS_TOOLS = new Set([
   "canvas_get_activity_stream_summary",
-  "canvas_get_all_students_status",
   "canvas_get_announcement",
   "canvas_get_assignment",
   "canvas_get_assignment_feedback",
-  "canvas_get_comprehensive_status",
+  "canvas_get_conversation",
   "canvas_get_course",
   "canvas_get_discussion_entry",
   "canvas_get_discussion_topic",
@@ -60,7 +61,6 @@ const READ_ONLY_CANVAS_TOOLS = new Set([
   "canvas_list_quiz_questions",
   "canvas_list_quizzes",
   "canvas_list_rubrics",
-  "canvas_list_section_submissions",
   "canvas_list_sections",
   "canvas_list_todo_items",
   "canvas_list_upcoming_events",
