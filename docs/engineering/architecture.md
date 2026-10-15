@@ -4,7 +4,7 @@
 >
 > **Last reviewed:** 2026-10-10
 >
-> **Source of truth:** Current application code, [`Jenkinsfile`](../../Jenkinsfile), [`database/migrations/`](../../database/migrations/), and [`infra/HOMELAB.md`](../../infra/HOMELAB.md)
+> **Source of truth:** Current application code, [`database/migrations/`](../../database/migrations/), and [`infra/HOMELAB.md`](../../infra/HOMELAB.md)
 
 OghmaNotes is a Next.js App Router application with a separate long-running Node worker. The web application owns the UI, HTTP APIs, authentication, resumable chat delivery, and job submission. The worker owns LLM generation, Canvas, upload, and vault background jobs.
 

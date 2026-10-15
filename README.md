@@ -129,7 +129,7 @@ docker build -t oghma:local .
 docker build -f Dockerfile.worker -t oghma-worker:local .
 ```
 
-The root Compose file is a homelab/Jenkins convenience configuration, not a fresh-clone production deployment. A real deployment needs private environment configuration plus PostgreSQL, Redis/BullMQ, Qdrant, S3-compatible storage, auth and provider services. Follow [infra/HOMELAB.md](./infra/HOMELAB.md), [the worker runbook](./docs/operations/import-worker.md) and the `Jenkinsfile` rather than copying private operator paths.
+The root Compose file is a homelab/Jenkins convenience configuration, not a fresh-clone production deployment. A real deployment needs private environment configuration plus PostgreSQL, Redis/BullMQ, Qdrant, S3-compatible storage, auth and provider services. Follow [infra/HOMELAB.md](./infra/HOMELAB.md) and [the worker runbook](./docs/operations/import-worker.md) rather than copying private operator paths.
 
 ## Technology
 

@@ -23,8 +23,8 @@ Infrastructure documents have one responsibility each:
 | [Email operations](../docs/operations/email.md) | Human inbox and transactional-email ownership |
 | [Secrets policy](../docs/operations/secrets.md) | Safe repository boundary for runtime credentials |
 
-When documents disagree, use current code and `Jenkinsfile`, then
-`HOMELAB.md`. `TARGET_HOSTING.md` describes intent only. Historical records
+When documents disagree, use current code, then `HOMELAB.md`, which names
+the live Jenkins pipelines. `TARGET_HOSTING.md` describes intent only. Historical records
 must never supply live deployment commands.
 
 Hardware, SSH, LAN, and personal-device inventory does not belong in this
