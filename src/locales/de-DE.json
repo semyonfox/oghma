@@ -1038,5 +1038,6 @@
   "attachment_viewer.too_large": "Diese Datei ist für eine Vorschau zu groß. Lade sie herunter, um sie zu lesen.",
   "attachment_viewer.empty": "Diese Datei ist leer.",
   "Verify email": "E-Mail bestätigen",
-  "Choose a password only you know to finish verifying your account.": "Wählen Sie ein Passwort, das nur Sie kennen, um die Bestätigung Ihres Kontos abzuschließen."
+  "Choose a password only you know to finish verifying your account.": "Wählen Sie ein Passwort, das nur Sie kennen, um die Bestätigung Ihres Kontos abzuschließen.",
+  "This note could not be loaded. Check your connection and try again.": "Diese Notiz konnte nicht geladen werden. Prüfe deine Verbindung und versuche es erneut."
 }

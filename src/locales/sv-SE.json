@@ -1038,5 +1038,6 @@
   "attachment_viewer.too_large": "Filen är för stor för förhandsvisning. Ladda ner den för att läsa den.",
   "attachment_viewer.empty": "Filen är tom.",
   "Verify email": "Verifiera e-post",
-  "Choose a password only you know to finish verifying your account.": "Välj ett lösenord som bara du känner till för att slutföra verifieringen av ditt konto."
+  "Choose a password only you know to finish verifying your account.": "Välj ett lösenord som bara du känner till för att slutföra verifieringen av ditt konto.",
+  "This note could not be loaded. Check your connection and try again.": "Anteckningen kunde inte läsas in. Kontrollera anslutningen och försök igen."
 }

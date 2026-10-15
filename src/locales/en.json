@@ -1038,5 +1038,6 @@
   "attachment_viewer.too_large": "This file is too large to preview. Download it to read it.",
   "attachment_viewer.empty": "This file is empty.",
   "Verify email": "Verify email",
-  "Choose a password only you know to finish verifying your account.": "Choose a password only you know to finish verifying your account."
+  "Choose a password only you know to finish verifying your account.": "Choose a password only you know to finish verifying your account.",
+  "This note could not be loaded. Check your connection and try again.": "This note could not be loaded. Check your connection and try again."
 }

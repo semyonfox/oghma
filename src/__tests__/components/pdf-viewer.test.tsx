@@ -22,7 +22,7 @@ vi.mock("@/lib/notes/state/tree", () => ({
   default: { getState: () => ({ refreshTree: mocks.refreshTree }) },
 }));
 
-vi.mock("@/lib/notes/pdf-cache/use-pdf-cache", () => ({
+vi.mock("@/components/editor/use-pdf-cache", () => ({
   usePdfCache: () => ({ data: mocks.pdfData, loading: false, error: null }),
 }));
 

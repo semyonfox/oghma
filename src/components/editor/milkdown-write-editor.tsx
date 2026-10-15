@@ -526,6 +526,7 @@ export default function MilkdownWriteEditor({
     });
 
     let observer: MutationObserver | null = null;
+    let enhanceFrame = 0;
     let disposed = false;
     const handleBeforeInput = (event: InputEvent) => {
       if (event.data !== "[") return;
@@ -558,10 +559,16 @@ export default function MilkdownWriteEditor({
       enhanceMilkdownCodeBlocks(root);
       enhanceNoteReferenceButton(root);
       syncMermaidPreviews();
+      // ProseMirror mutates the DOM on most keystrokes and every pass walks
+      // all code blocks, so run at most one pass per frame
       observer = new MutationObserver(() => {
-        enhanceMilkdownCodeBlocks(root);
-        enhanceNoteReferenceButton(root);
-        syncMermaidPreviews();
+        if (enhanceFrame) return;
+        enhanceFrame = requestAnimationFrame(() => {
+          enhanceFrame = 0;
+          enhanceMilkdownCodeBlocks(root);
+          enhanceNoteReferenceButton(root);
+          syncMermaidPreviews();
+        });
       });
       observer.observe(root, { childList: true, subtree: true });
     });
@@ -569,6 +576,7 @@ export default function MilkdownWriteEditor({
     return () => {
       disposed = true;
       observer?.disconnect();
+      cancelAnimationFrame(enhanceFrame);
       root.removeEventListener("beforeinput", handleBeforeInput, true);
       crepeRef.current = null;
       mermaidSources.clear();

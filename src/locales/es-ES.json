@@ -1038,5 +1038,6 @@
   "attachment_viewer.too_large": "Este archivo es demasiado grande para la vista previa. Descárgalo para leerlo.",
   "attachment_viewer.empty": "Este archivo está vacío.",
   "Verify email": "Verificar correo electrónico",
-  "Choose a password only you know to finish verifying your account.": "Elige una contraseña que solo tú conozcas para terminar de verificar tu cuenta."
+  "Choose a password only you know to finish verifying your account.": "Elige una contraseña que solo tú conozcas para terminar de verificar tu cuenta.",
+  "This note could not be loaded. Check your connection and try again.": "No se pudo cargar esta nota. Comprueba tu conexión e inténtalo de nuevo."
 }

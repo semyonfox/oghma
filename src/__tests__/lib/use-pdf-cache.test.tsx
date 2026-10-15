@@ -15,10 +15,11 @@ vi.mock("@/lib/notes/pdf-cache/store", () => ({
 }));
 
 vi.mock("@/lib/notes/pdf-cache/evict", () => ({
+  MAX_ENTRY_BYTES: 100 * 1024 * 1024,
   runEviction: mocks.runEviction,
 }));
 
-import { usePdfCache } from "@/lib/notes/pdf-cache/use-pdf-cache";
+import { usePdfCache } from "@/components/editor/use-pdf-cache";
 
 describe("usePdfCache", () => {
   beforeEach(() => {
@@ -116,6 +117,73 @@ describe("usePdfCache", () => {
 
     expect(Array.from(result.current.data ?? [])).toEqual([37, 80, 68, 70]);
     expect(result.current.error).toBeNull();
+  });
+
+  it("looks a fileId-only PDF up under the storage key it was cached with", async () => {
+    const buffer = Uint8Array.from([37, 80, 68, 70, 45]).buffer;
+    mocks.getCacheEntry.mockResolvedValue({
+      s3Key: "notes/lecture.pdf",
+      buffer,
+      size: buffer.byteLength,
+      cachedAt: 1,
+    });
+    const fetchMock = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ s3Key: "notes/lecture.pdf" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() => usePdfCache(undefined, "note-1"));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(mocks.getCacheEntry).toHaveBeenCalledWith("notes/lecture.pdf");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "/api/notes/note-1?fields=s3Key,content",
+    );
+    expect(Array.from(result.current.data ?? [])).toEqual([37, 80, 68, 70, 45]);
+  });
+
+  it("fails instead of downloading the current page when no file URL comes back", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() =>
+      usePdfCache("notes/example.pdf", "note-1"),
+    );
+
+    await waitFor(() => expect(result.current.error).toBe("no-url"));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.current.data).toBeNull();
+  });
+
+  it("hands non-PDF responses to the viewer without caching them", async () => {
+    const page = new TextEncoder().encode("<!doctype html><p>Sign in</p>").buffer;
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ url: "/api/upload?path=notes%2Fexample.pdf&stream=1" }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          headers: new Headers({ "Content-Type": "text/html" }),
+          arrayBuffer: async () => page,
+        }),
+    );
+
+    const { result } = renderHook(() =>
+      usePdfCache("notes/example.pdf", "note-1"),
+    );
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.data).not.toBeNull();
+    expect(mocks.putCacheEntry).not.toHaveBeenCalled();
   });
 
   it("does not keep showing the previous PDF when the next load fails", async () => {

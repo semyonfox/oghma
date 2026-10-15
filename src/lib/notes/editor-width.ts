@@ -13,31 +13,22 @@ export const EDITOR_WIDTH_OPTIONS: Array<{
   { value: "full", label: "Full", detail: "Full width" },
 ];
 
-const EDITOR_WIDTH_STYLES: Record<
-  EditorSize,
-  {
-    sourceMaxWidth: string;
-    previewMaxWidth: string;
-  }
-> = {
-  large: {
-    sourceMaxWidth: "62rem",
-    previewMaxWidth: "62rem",
-  },
-  full: {
-    sourceMaxWidth: "none",
-    previewMaxWidth: "none",
-  },
+const EDITOR_MAX_WIDTHS: Record<EditorSize, string> = {
+  large: "62rem",
+  full: "none",
 };
 
-export function normalizeEditorSize(value: unknown): EditorSize {
-  return EDITOR_WIDTH_VALUES.includes(value as EditorSize)
-    ? (value as EditorSize)
-    : DEFAULT_EDITOR_SIZE;
+function isEditorSize(value: unknown): value is EditorSize {
+  return EDITOR_WIDTH_VALUES.some((size) => size === value);
 }
 
-export function getEditorWidthStyle(value: unknown) {
-  return EDITOR_WIDTH_STYLES[normalizeEditorSize(value)];
+export function normalizeEditorSize(value: unknown): EditorSize {
+  return isEditorSize(value) ? value : DEFAULT_EDITOR_SIZE;
+}
+
+/** CSS max-width for the writing column at the given setting. */
+export function getEditorMaxWidth(value: unknown): string {
+  return EDITOR_MAX_WIDTHS[normalizeEditorSize(value)];
 }
 
 export function getEditorWidthIndex(value: unknown) {

@@ -1038,5 +1038,6 @@
   "attachment_viewer.too_large": "Tá an comhad seo rómhór le réamhamharc a thaispeáint. Íoslódáil é chun é a léamh.",
   "attachment_viewer.empty": "Tá an comhad seo folamh.",
   "Verify email": "Fíoraigh r-phost",
-  "Choose a password only you know to finish verifying your account.": "Roghnaigh pasfhocal nach bhfuil ar eolas ag aon duine eile chun fíorú do chuntais a chríochnú."
+  "Choose a password only you know to finish verifying your account.": "Roghnaigh pasfhocal nach bhfuil ar eolas ag aon duine eile chun fíorú do chuntais a chríochnú.",
+  "This note could not be loaded. Check your connection and try again.": "Níorbh fhéidir an nóta seo a lódáil. Seiceáil do nasc agus bain triail eile as."
 }

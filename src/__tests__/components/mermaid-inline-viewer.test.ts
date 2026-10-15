@@ -74,4 +74,35 @@ describe("Mermaid inline viewer sizing", () => {
     fireEvent.click(screen.getByRole("button", { name: "View diagram large" }));
     await waitFor(() => expect(onExpand).toHaveBeenCalledOnce());
   });
+
+  it("keeps ctrl+wheel zoom inside the diagram instead of zooming the page", async () => {
+    const diagram = document.createElement("div");
+    diagram.innerHTML = '<svg viewBox="0 0 800 400"></svg>';
+    vi.mocked(renderMermaidElement).mockResolvedValue(diagram);
+
+    render(
+      createElement(MermaidInlineViewer, {
+        source: "flowchart LR\nA-->B",
+        onExpand: vi.fn(),
+        onEdit: vi.fn(),
+      }),
+    );
+    const viewport = screen.getByLabelText("Mermaid diagram preview");
+    await waitFor(() => expect(viewport.getAttribute("aria-busy")).toBe("false"));
+
+    const wheel = new WheelEvent("wheel", {
+      deltaY: -100,
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    viewport.dispatchEvent(wheel);
+
+    expect(wheel.defaultPrevented).toBe(true);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Reset diagram zoom" }).textContent,
+      ).toBe("125%"),
+    );
+  });
 });

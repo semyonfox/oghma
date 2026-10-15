@@ -1038,5 +1038,6 @@
   "attachment_viewer.too_large": "Dit bestand is te groot voor een voorbeeld. Download het om het te lezen.",
   "attachment_viewer.empty": "Dit bestand is leeg.",
   "Verify email": "E-mail verifiëren",
-  "Choose a password only you know to finish verifying your account.": "Kies een wachtwoord dat alleen u kent om de verificatie van uw account te voltooien."
+  "Choose a password only you know to finish verifying your account.": "Kies een wachtwoord dat alleen u kent om de verificatie van uw account te voltooien.",
+  "This note could not be loaded. Check your connection and try again.": "Deze notitie kon niet worden geladen. Controleer je verbinding en probeer het opnieuw."
 }
