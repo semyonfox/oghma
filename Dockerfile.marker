@@ -1,6 +1,6 @@
 # marker-ocr: Python 3.11 base with marker-pdf + fastapi
 # GPU support added via nvidia-container-runtime at deployment
-FROM python:3.11-slim-bookworm
+FROM python:3.14-slim-bookworm
 
 # Minimal build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
