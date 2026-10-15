@@ -1283,5 +1283,7 @@
   "attachment_viewer.unavailable": "تعذر تحميل هذا الملف. حاول فتحه مجددًا.",
   "attachment_viewer.no_preview": "لا تتوفر معاينة لهذا الملف. نزّله لفتحه.",
   "attachment_viewer.too_large": "هذا الملف كبير جدًا للمعاينة. نزّله لقراءته.",
-  "attachment_viewer.empty": "هذا الملف فارغ."
+  "attachment_viewer.empty": "هذا الملف فارغ.",
+  "Verify email": "تأكيد البريد الإلكتروني",
+  "Choose a password only you know to finish verifying your account.": "اختر كلمة مرور لا يعرفها أحد غيرك لإكمال التحقق من حسابك."
 }

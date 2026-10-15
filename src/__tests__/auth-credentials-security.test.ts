@@ -15,6 +15,10 @@ vi.mock("@/lib/auth/oauth", () => ({
   resolveVerifiedOAuthEmail: vi.fn(),
 }));
 vi.mock("@/lib/i18n/server", () => ({ getRequestLocale: vi.fn() }));
+vi.mock("@/lib/rate-limiter", () => ({
+  checkRateLimit: vi.fn().mockResolvedValue(null),
+  getClientIp: () => "127.0.0.1",
+}));
 const provider = authConfig.providers.find(
   (p) => typeof p !== "function" && p.id === "credentials",
 );
@@ -32,6 +36,8 @@ const user = {
   email: "owner@example.test",
   hashed_password: "synthetic",
   email_verified: true,
+  is_active: true,
+  deleted_at: null,
   session_version: 0,
 };
 const request = new Request(

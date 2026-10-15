@@ -61,7 +61,9 @@ export async function POST(request: NextRequest): Promise<Response> {
     if (error instanceof ApiError) {
       return createErrorResponse(error.userMessage, error.statusCode);
     }
-    logger.error("change password error", { error });
+    logger.error("change password error", {
+      errorType: error instanceof Error ? error.name : "unknown",
+    });
     return createErrorResponse("Failed to change password", 500);
   }
 }

@@ -23,11 +23,18 @@ export const RATE_LIMITS: Record<string, RateLimitRule> = {
   'canvas-connect': { limit: 10,  windowSeconds: 3600,  keyType: 'userId' },
 
   // tier 2 — auth security (public endpoints)
+  // per-ip cap on top of the per-email lockout so one address can't spray many
+  // accounts. AUTH_LOCKOUT_FAIL_OPEN is the operator's switch to keep password
+  // login up through a Redis outage, so this cap follows it instead of undoing it.
+  // loose on purpose: a whole campus can sit behind one eduroam NAT address
+  'login':          { limit: 100, windowSeconds: 900,   keyType: 'ip',    failClosedOnStoreError: process.env.AUTH_LOCKOUT_FAIL_OPEN !== 'true' },
   'register':       { limit: 5,   windowSeconds: 3600,  keyType: 'ip',    failClosedOnStoreError: true },
   'password-reset': { limit: 3,   windowSeconds: 3600,  keyType: 'email', failClosedOnStoreError: true },
+  'password-reset-ip': { limit: 10, windowSeconds: 3600, keyType: 'ip',   failClosedOnStoreError: true },
   'password-verify':{ limit: 10,  windowSeconds: 3600,  keyType: 'ip',    failClosedOnStoreError: true },
   'change-password': { limit: 3, windowSeconds: 3600, keyType: 'userId', failClosedOnStoreError: true },
   'resend-verification': { limit: 3,  windowSeconds: 3600, keyType: 'email', failClosedOnStoreError: true },
+  'resend-verification-ip': { limit: 10, windowSeconds: 3600, keyType: 'ip', failClosedOnStoreError: true },
   'verify-email':   { limit: 10,  windowSeconds: 3600,  keyType: 'ip',    failClosedOnStoreError: true },
   'agent-registration': { limit: 3, windowSeconds: 3600, keyType: 'ip', failClosedOnStoreError: true },
   'agent-registration-claim': { limit: 60, windowSeconds: 3600, keyType: 'ip', failClosedOnStoreError: true },

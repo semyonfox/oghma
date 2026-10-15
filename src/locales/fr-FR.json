@@ -1283,5 +1283,7 @@
   "attachment_viewer.unavailable": "Impossible de charger ce fichier. Essayez de le rouvrir.",
   "attachment_viewer.no_preview": "Aucun aperçu disponible pour ce fichier. Téléchargez-le pour l’ouvrir.",
   "attachment_viewer.too_large": "Ce fichier est trop volumineux pour un aperçu. Téléchargez-le pour le lire.",
-  "attachment_viewer.empty": "Ce fichier est vide."
+  "attachment_viewer.empty": "Ce fichier est vide.",
+  "Verify email": "Vérifier l'adresse e-mail",
+  "Choose a password only you know to finish verifying your account.": "Choisissez un mot de passe que vous seul connaissez pour terminer la vérification de votre compte."
 }

@@ -2,7 +2,7 @@
 // uses sorted sets for true sliding window — no burst-at-boundary problem
 // violations are logged to PostgreSQL for audit (fire-and-forget)
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { ensureRedisReady, redis, redisReady } from "@/lib/redis";
 import { RATE_LIMITS, type RateLimitRule } from "@/lib/rate-limit-config";
@@ -226,8 +226,10 @@ export async function checkRateLimit(
   return null; // allowed — continue with the request
 }
 
-// helper to extract client IP from request headers (CloudFront/Amplify)
-export function getClientIp(request: NextRequest): string {
+// the homelab nginx overwrites X-Forwarded-For and X-Real-IP with Cloudflare's
+// CF-Connecting-IP, so the first entry is the real client. behind a proxy that
+// appends instead, the first entry is client-controlled and IP limits are bypassable
+export function getClientIp(request: Request): string {
   return (
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
     request.headers.get("x-real-ip") ||

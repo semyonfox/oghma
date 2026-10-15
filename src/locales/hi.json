@@ -1283,5 +1283,7 @@
   "attachment_viewer.unavailable": "यह फ़ाइल लोड नहीं हो सकी। इसे फिर से खोलने की कोशिश करें।",
   "attachment_viewer.no_preview": "इस फ़ाइल का पूर्वावलोकन उपलब्ध नहीं है। इसे खोलने के लिए डाउनलोड करें।",
   "attachment_viewer.too_large": "यह फ़ाइल पूर्वावलोकन के लिए बहुत बड़ी है। इसे पढ़ने के लिए डाउनलोड करें।",
-  "attachment_viewer.empty": "यह फ़ाइल खाली है।"
+  "attachment_viewer.empty": "यह फ़ाइल खाली है।",
+  "Verify email": "ईमेल सत्यापित करें",
+  "Choose a password only you know to finish verifying your account.": "अपने खाते का सत्यापन पूरा करने के लिए ऐसा पासवर्ड चुनें जो केवल आप जानते हों।"
 }

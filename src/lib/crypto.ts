@@ -10,8 +10,28 @@ function getServerSecret(): string {
   );
 }
 
+// pbkdf2Sync at 100k rounds blocks the event loop for tens of ms or more, and every
+// Canvas request decrypts the user's token. the derived key is deterministic,
+// so keep recent ones; the secret is part of the entry so rotation can't reuse a stale key
+const MAX_CACHED_KEYS = 1_000;
+const derivedKeys = new Map<string, { secret: string; key: Buffer }>();
+
 function deriveKey(userId: string): Buffer {
-  return crypto.pbkdf2Sync(getServerSecret(), userId, 100_000, 32, "sha256");
+  const secret = getServerSecret();
+  const cached = derivedKeys.get(userId);
+  if (cached?.secret === secret) {
+    // refresh insertion order so the eviction below drops the least recently used key
+    derivedKeys.delete(userId);
+    derivedKeys.set(userId, cached);
+    return cached.key;
+  }
+  const key = crypto.pbkdf2Sync(secret, userId, 100_000, 32, "sha256");
+  derivedKeys.set(userId, { secret, key });
+  if (derivedKeys.size > MAX_CACHED_KEYS) {
+    const oldest = derivedKeys.keys().next().value;
+    if (oldest !== undefined) derivedKeys.delete(oldest);
+  }
+  return key;
 }
 
 export function encrypt(plaintext: string, userId: string): string {

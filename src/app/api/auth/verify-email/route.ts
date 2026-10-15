@@ -9,7 +9,7 @@ import {
 import { hashToken } from "@/lib/auth/tokens";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
 import logger from "@/lib/logger";
-import { assertTrustedOrigin } from "@/lib/api-error";
+import { ApiError, assertTrustedOrigin } from "@/lib/api-error";
 import type { NextRequest } from "next/server";
 
 interface VerificationCandidate {
@@ -79,7 +79,12 @@ export async function POST(request: NextRequest): Promise<Response> {
     // auto-login: create session for the verified user
     return await createAuthSession(matchedUser, 1);
   } catch (error) {
-    logger.error("email verification error", { error });
+    if (error instanceof ApiError) {
+      return createErrorResponse(error.userMessage, error.statusCode);
+    }
+    logger.error("email verification error", {
+      errorType: error instanceof Error ? error.name : "unknown",
+    });
     return createErrorResponse("Failed to verify email", 500);
   }
 }

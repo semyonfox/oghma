@@ -1,64 +1,63 @@
 import { NextResponse } from "next/server";
-import { withErrorHandler, requireAuth, ApiError } from "@/lib/api-error";
+import {
+  withErrorHandler,
+  requireAuth,
+  ApiError,
+  parseJsonObject,
+} from "@/lib/api-error";
+import { clearSessionCookies } from "@/lib/auth/session";
 import sql from "@/database/pgsql";
 import { DELETED_ACCOUNT_GRACE_DAYS } from "@/lib/auth/account-purge";
+import { cancelUserJobs } from "@/lib/auth/cancel-user-jobs";
 
 const CONFIRM_PHRASE = "delete my account";
 
 /**
  * DELETE /api/auth/delete-account
  *
- * Soft-deletes the authenticated user's account:
- *   1. Validates session
- *   2. Requires body: { confirmation: "delete my account" }
- *   3. Sets is_active = false and deleted_at = now() on app.login
- *   4. Clears the session cookie — account is immediately inaccessible
+ * Deactivates the account and keeps its data for a support-led recovery window.
+ * Every credential that could reach the account or act for it is revoked here:
+ * sessions (session_version), the calendar feed, pending reset and verification
+ * links, and the stored Canvas token. Queued Canvas imports and study-map jobs
+ * are cancelled in the same transaction so nothing keeps running for the account.
  *
  * The import worker purges rows once deleted_at is older than
  * DELETED_ACCOUNT_GRACE_DAYS (see lib/auth/account-purge.ts). Until then the
  * account can be recovered by contacting support, and its email stays taken.
  */
 export const DELETE = withErrorHandler(async (request) => {
-    const user = await requireAuth();
+  const user = await requireAuth();
 
-    // validate confirmation phrase
-    let body: { confirmation?: string } = {};
-    try {
-      body = await request.json();
-    } catch {
-      throw new ApiError(400, "Invalid request body");
-    }
+  const body = await parseJsonObject(request, 1024);
+  if (body.confirmation !== CONFIRM_PHRASE) {
+    throw new ApiError(400, `Confirmation phrase must be exactly: "${CONFIRM_PHRASE}"`);
+  }
 
-    if (body.confirmation !== CONFIRM_PHRASE) {
-      throw new ApiError(400, `Confirmation phrase must be exactly: "${CONFIRM_PHRASE}"`);
-    }
-
-    const userId = user.user_id;
-
-    // soft-delete: mark inactive with a timestamp, data stays intact
-    await sql`
+  await sql.begin(async (tx) => {
+    await tx`
       UPDATE app.login
       SET
-        is_active   = false,
-        deleted_at  = now(),
+        is_active = false,
+        deleted_at = now(),
+        session_version = session_version + 1,
         calendar_export_token = NULL,
-        session_version = session_version + 1
-      WHERE user_id = ${userId}::uuid
+        reset_token = NULL,
+        reset_token_expires = NULL,
+        verification_token = NULL,
+        verification_token_expires = NULL,
+        canvas_token = NULL,
+        canvas_domain = NULL
+      WHERE user_id = ${user.user_id}::uuid
+        AND deleted_at IS NULL
     `;
+    await cancelUserJobs(tx, user.user_id);
+  });
 
-    // clear the session cookie — login attempts will now 401 because is_active = false
-    const response = NextResponse.json({
+  return clearSessionCookies(
+    NextResponse.json({
       success: true,
       message: `Account scheduled for deletion. Data will be permanently removed after ${DELETED_ACCOUNT_GRACE_DAYS} days.`,
-    });
-
-    response.cookies.set("session", "", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      expires: new Date(0),
-      sameSite: "lax",
-      path: "/",
-    });
-
-    return response;
+    }),
+    request,
+  );
 });

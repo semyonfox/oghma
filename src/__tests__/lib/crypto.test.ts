@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { decrypt, encrypt } from "@/lib/crypto";
 
 beforeAll(() => {
@@ -68,5 +68,26 @@ describe("error handling", () => {
     delete process.env.SERVER_ENCRYPTION_SECRET;
     expect(() => encrypt("test", "user-1")).toThrow(/SERVER_ENCRYPTION_SECRET/);
     process.env.SERVER_ENCRYPTION_SECRET = saved;
+  });
+});
+
+describe("key derivation cache", () => {
+  it("derives the key once per user and re-derives after secret rotation", async () => {
+    const nodeCrypto = (await import("node:crypto")).default;
+    const derive = vi.spyOn(nodeCrypto, "pbkdf2Sync");
+    const saved = process.env.SERVER_ENCRYPTION_SECRET;
+    try {
+      const ciphertext = encrypt("token", "user-cache");
+      decrypt(ciphertext, "user-cache");
+      decrypt(ciphertext, "user-cache");
+      expect(derive).toHaveBeenCalledTimes(1);
+
+      process.env.SERVER_ENCRYPTION_SECRET = "b".repeat(64);
+      expect(() => decrypt(ciphertext, "user-cache")).toThrow();
+      expect(derive).toHaveBeenCalledTimes(2);
+    } finally {
+      process.env.SERVER_ENCRYPTION_SECRET = saved;
+      derive.mockRestore();
+    }
   });
 });

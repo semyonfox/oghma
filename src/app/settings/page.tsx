@@ -210,7 +210,9 @@ export default function SettingsPage() {
         if (profileResponse.ok) {
           const { user } = await profileResponse.json();
           if (user) {
-            const nameParts = (user.name || "").split(" ");
+            const nameParts = (
+              typeof user.displayName === "string" ? user.displayName.trim() : ""
+            ).split(/\s+/);
             profile = {
               ...profile,
               firstName: nameParts[0] || "",

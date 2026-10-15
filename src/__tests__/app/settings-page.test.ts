@@ -117,8 +117,12 @@ vi.mock("@/lib/native-app", () => ({
 }));
 
 vi.mock("@/components/settings/account-section", () => ({
-  default: () =>
-    React.createElement("section", { id: "account" }, "Personal Information"),
+  default: ({ formState }: { formState: { firstName: string; lastName: string } }) =>
+    React.createElement(
+      "section",
+      { id: "account", "data-name": `${formState.firstName}|${formState.lastName}` },
+      "Personal Information",
+    ),
 }));
 
 vi.mock("@/components/settings/editor-theme-section", () => ({
@@ -208,7 +212,9 @@ describe("SettingsPage", () => {
 
         if (url === "/api/auth/me") {
           return Promise.resolve(
-            okJson({ user: { name: "Jane Doe", email: "jane@example.com" } }),
+            okJson({
+              user: { displayName: "Jane van Doe", email: "jane@example.com" },
+            }),
           );
         }
 
@@ -279,6 +285,16 @@ describe("SettingsPage", () => {
         hasDueItems: true,
       },
     ]);
+  });
+
+  it("prefills the name fields from the account display name", async () => {
+    const { container } = await renderSettingsPage();
+
+    await vi.waitFor(() => {
+      expect(
+        container.querySelector("#account")?.getAttribute("data-name"),
+      ).toBe("Jane|van Doe");
+    });
   });
 
   it("opens the Canvas section from the URL hash after it loads", async () => {

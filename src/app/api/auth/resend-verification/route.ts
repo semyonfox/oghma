@@ -1,117 +1,113 @@
+import { after, type NextRequest } from "next/server";
 import sql from "@/database/pgsql";
 import { createErrorResponse, parseJsonBody } from "@/lib/auth/session";
 import { generateSecureToken, hashToken } from "@/lib/auth/tokens";
+import { normalizeEmail } from "@/lib/auth/password-login";
+import { waitForResponseFloor } from "@/lib/auth/response-floor";
 import { EmailSendError, sendVerificationEmail } from "@/lib/email";
-import { checkRateLimit } from "@/lib/rate-limiter";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
 import logger from "@/lib/logger";
 import { ApiError, assertTrustedOrigin } from "@/lib/api-error";
 import { Locale, normalizeLocale } from "@/locales";
-import type { NextRequest } from "next/server";
+
+const VERIFICATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
+
+interface PendingVerification {
+  user_id: string;
+  email: string;
+  locale: string | null;
+  verification_token: string | null;
+  verification_token_expires: Date | null;
+}
 
 function ackResponse(): Response {
-  return new Response(
-    JSON.stringify({
-      message: "If that email needs verification, a new link has been requested.",
-    }),
-    { status: 200, headers: { "Content-Type": "application/json" } },
-  );
+  return Response.json({
+    message: "If that email needs verification, a new link has been requested.",
+  });
+}
+
+// the previous link keeps working when the provider rejects the new one
+async function sendOrRestore(
+  user: PendingVerification,
+  verificationToken: string,
+  tokenHash: string,
+): Promise<void> {
+  try {
+    await sendVerificationEmail(
+      user.email,
+      verificationToken,
+      normalizeLocale(user.locale) ?? Locale.EN,
+    );
+  } catch (sendError) {
+    try {
+      await sql`
+        UPDATE app.login
+        SET verification_token = ${user.verification_token},
+          verification_token_expires = ${user.verification_token_expires}
+        WHERE user_id = ${user.user_id}::uuid
+          AND email_verified = false
+          AND verification_token = ${tokenHash}
+      `;
+    } catch {
+      logger.error("failed to restore verification token after resend failure");
+    }
+    logger.error("resend verification email failed", {
+      reason:
+        sendError instanceof EmailSendError ? sendError.reason : "unexpected",
+      httpStatus:
+        sendError instanceof EmailSendError ? sendError.httpStatus : undefined,
+      providerCode:
+        sendError instanceof EmailSendError ? sendError.providerCode : undefined,
+    });
+  }
 }
 
 export async function POST(request: NextRequest): Promise<Response> {
   try {
     assertTrustedOrigin(request);
+    // the per-email rule alone lets one client mail every address on a list
+    const ipLimited = await checkRateLimit("resend-verification-ip", getClientIp(request));
+    if (ipLimited) return ipLimited;
+
     const { data: body, error: parseError } = await parseJsonBody(request);
     if (parseError) return parseError;
 
-    const email = typeof body?.email === "string" ? body.email : "";
-    if (!email) return createErrorResponse("Email is required", 400);
+    const rawEmail = typeof body?.email === "string" ? body.email : "";
+    if (!rawEmail.trim()) return createErrorResponse("Email is required", 400);
+    const email = normalizeEmail(rawEmail);
 
-    const limited = await checkRateLimit(
-      "resend-verification",
-      email.trim().toLowerCase(),
-    );
+    const limited = await checkRateLimit("resend-verification", email);
     if (limited) return limited;
 
-    const users = await sql<
-      {
-        user_id: string;
-        email: string;
-        email_verified: boolean;
-        locale: string | null;
-        verification_token: string | null;
-        verification_token_expires: Date | null;
-      }[]
-    >`
-            SELECT user_id, email, email_verified, locale,
-              verification_token, verification_token_expires
-            FROM app.login
-            WHERE lower(btrim(email)) = ${email.trim().toLowerCase()}
-        `;
+    const startedAt = Date.now();
+    const [user] = await sql<PendingVerification[]>`
+      SELECT user_id, email, locale, verification_token, verification_token_expires
+      FROM app.login
+      WHERE lower(btrim(email)) = ${email}
+        AND email_verified = false
+        AND is_active = true AND deleted_at IS NULL
+      LIMIT 1
+    `;
 
-    // constant-time: same work whether email exists or not
-    const start = Date.now();
-    const MIN_RESPONSE_MS = 500;
-
-    if (users.length === 0 || users[0].email_verified === true) {
-      // burn equivalent CPU time
-      hashToken(generateSecureToken());
-      const elapsed = Date.now() - start;
-      if (elapsed < MIN_RESPONSE_MS) {
-        await new Promise((r) =>
-          setTimeout(r, MIN_RESPONSE_MS - elapsed + Math.random() * 100),
-        );
+    if (user) {
+      const verificationToken = generateSecureToken();
+      const tokenHash = hashToken(verificationToken);
+      // compare-and-set so two concurrent resends can't both mail a live link
+      const updated = await sql<{ user_id: string }[]>`
+        UPDATE app.login
+        SET verification_token = ${tokenHash},
+          verification_token_expires = ${new Date(Date.now() + VERIFICATION_TOKEN_TTL_MS)}
+        WHERE user_id = ${user.user_id}::uuid
+          AND email_verified = false
+          AND verification_token IS NOT DISTINCT FROM ${user.verification_token}
+        RETURNING user_id
+      `;
+      if (updated.length > 0) {
+        after(() => sendOrRestore(user, verificationToken, tokenHash));
       }
-      return ackResponse();
     }
 
-    const user = users[0];
-    const verificationToken = generateSecureToken();
-    const tokenHash = hashToken(verificationToken);
-    const tokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-
-    const updated = await sql<{ user_id: string }[]>`
-            UPDATE app.login
-            SET verification_token = ${tokenHash}, verification_token_expires = ${tokenExpires}
-            WHERE user_id = ${user.user_id}
-              AND email_verified = false
-              AND verification_token IS NOT DISTINCT FROM ${user.verification_token}
-            RETURNING user_id
-        `;
-    if (updated.length === 0) return ackResponse();
-
-    try {
-      await sendVerificationEmail(
-        email.trim(),
-        verificationToken,
-        normalizeLocale(user.locale) ?? Locale.EN,
-      );
-    } catch (sendError) {
-      try {
-        await sql`
-          UPDATE app.login
-          SET verification_token = ${user.verification_token},
-            verification_token_expires = ${user.verification_token_expires}
-          WHERE user_id = ${user.user_id}
-            AND email_verified = false
-            AND verification_token = ${tokenHash}
-        `;
-      } catch {
-        logger.error("failed to restore verification token after resend failure");
-      }
-      logger.error("resend verification email failed", {
-        reason:
-          sendError instanceof EmailSendError ? sendError.reason : "unexpected",
-        httpStatus:
-          sendError instanceof EmailSendError ? sendError.httpStatus : undefined,
-        providerCode:
-          sendError instanceof EmailSendError ? sendError.providerCode : undefined,
-      });
-    }
-
-    const elapsed = Date.now() - start;
-    if (elapsed < MIN_RESPONSE_MS) {
-      await new Promise((r) => setTimeout(r, MIN_RESPONSE_MS - elapsed));
-    }
+    await waitForResponseFloor(startedAt);
     return ackResponse();
   } catch (error) {
     if (error instanceof ApiError) {

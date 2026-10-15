@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   findOrCreateOAuthUser: vi.fn(),
   resolveVerifiedOAuthEmail: vi.fn(),
   OAuthAccountUnavailableError: class OAuthAccountUnavailableError extends Error {},
+  checkRateLimit: vi.fn(),
 }));
 
 vi.mock("next-auth/providers/google", () => ({
@@ -34,6 +35,11 @@ vi.mock("@/lib/auth/oauth", () => ({
 }));
 vi.mock("@/lib/i18n/server", () => ({
   getRequestLocale: vi.fn().mockResolvedValue("en"),
+}));
+
+vi.mock("@/lib/rate-limiter", async (original) => ({
+  ...(await original<typeof import("@/lib/rate-limiter")>()),
+  checkRateLimit: mocks.checkRateLimit,
 }));
 
 vi.mock("@/lib/auth/login-lockout", () => ({
@@ -73,7 +79,9 @@ async function authorizeCredentials(email: string, submittedPassword: string) {
   }
   return provider.authorize(
     { email, password: submittedPassword },
-    new Request("http://localhost/api/auth/callback/credentials"),
+    new Request("http://localhost/api/auth/callback/credentials", {
+      headers: { "x-forwarded-for": "203.0.113.7" },
+    }),
   );
 }
 
@@ -100,6 +108,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   account = { ...baseUser };
   mocks.reserveLoginAttempt.mockResolvedValue(true);
+  mocks.checkRateLimit.mockResolvedValue(null);
   mocks.clearFailedAttempts.mockResolvedValue(undefined);
   mocks.sql.mockImplementation(
     async (parts: TemplateStringsArray, ...values: unknown[]) => {
@@ -156,6 +165,17 @@ describe("Auth.js credentials authorize", () => {
   it("fails closed when the lockout store is unavailable", async () => {
     mocks.reserveLoginAttempt.mockRejectedValue(new Error("store unavailable"));
     await expect(authorizeCredentials(account.email, password)).resolves.toBeNull();
+    expect(mocks.sql).not.toHaveBeenCalled();
+  });
+
+  // the Auth.js callback is a second password endpoint, so it shares the per-ip login budget
+  it("refuses an ip over the login budget before touching the account", async () => {
+    mocks.checkRateLimit.mockResolvedValue(
+      Response.json({ error: "Too many requests" }, { status: 429 }),
+    );
+    await expect(authorizeCredentials(account.email, password)).resolves.toBeNull();
+    expect(mocks.checkRateLimit).toHaveBeenCalledWith("login", "203.0.113.7");
+    expect(mocks.reserveLoginAttempt).not.toHaveBeenCalled();
     expect(mocks.sql).not.toHaveBeenCalled();
   });
 

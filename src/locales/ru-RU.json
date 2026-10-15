@@ -1283,5 +1283,7 @@
   "attachment_viewer.unavailable": "Не удалось загрузить файл. Попробуйте открыть его снова.",
   "attachment_viewer.no_preview": "Предпросмотр этого файла недоступен. Скачайте его, чтобы открыть.",
   "attachment_viewer.too_large": "Файл слишком большой для предпросмотра. Скачайте его для чтения.",
-  "attachment_viewer.empty": "Этот файл пуст."
+  "attachment_viewer.empty": "Этот файл пуст.",
+  "Verify email": "Подтвердить email",
+  "Choose a password only you know to finish verifying your account.": "Придумайте пароль, который знаете только вы, чтобы завершить подтверждение аккаунта."
 }

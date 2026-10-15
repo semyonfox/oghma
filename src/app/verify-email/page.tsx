@@ -5,6 +5,7 @@ import { useState, Suspense, type FormEvent } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Alert } from "@/components/alert";
+import { getPasswordRequirements } from "@/lib/auth/credentials";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
 function VerifyEmailContent() {
@@ -14,13 +15,6 @@ function VerifyEmailContent() {
 
   const token = searchParams.get("token");
   const email = searchParams.get("email") || "";
-  const deliveryParam = searchParams.get("delivery");
-  const delivery =
-    deliveryParam === "delivered" ||
-    deliveryParam === "queued" ||
-    deliveryParam === "failed"
-      ? deliveryParam
-      : null;
 
   const [password, setPassword] = useState("");
   const [verifying, setVerifying] = useState(false);
@@ -28,7 +22,7 @@ function VerifyEmailContent() {
   const [error, setError] = useState("");
   const [resendMessage, setResendMessage] = useState("");
   const [resendLoading, setResendLoading] = useState(false);
-  const initialSendFailed = delivery === "failed" && !resendMessage;
+  const passwordRequirements = getPasswordRequirements(password);
   let instructions = email
     ? t(
         "We sent a verification link to {email}. Click the link to verify your account.",
@@ -37,14 +31,9 @@ function VerifyEmailContent() {
     : t(
         "We sent a verification link to your email. Click the link to verify your account.",
       );
-  if (delivery === "queued") {
+  if (token) {
     instructions = t(
-      "Your verification email is queued. It may take a few minutes to arrive.",
-    );
-  }
-  if (initialSendFailed) {
-    instructions = t(
-      "We couldn't send the verification email. Your account was created. Try resending once or contact support.",
+      "Choose a password only you know to finish verifying your account.",
     );
   }
   if (resendMessage) {
@@ -54,6 +43,11 @@ function VerifyEmailContent() {
   async function verify(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!token) return;
+    const unmet = passwordRequirements.find((requirement) => !requirement.met);
+    if (unmet) {
+      setError(t(unmet.error));
+      return;
+    }
     setVerifying(true);
     setError("");
     try {
@@ -147,9 +141,7 @@ function VerifyEmailContent() {
     <div className="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8 bg-app-page">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <h2 className="mt-6 text-center font-serif text-2xl font-semibold tracking-tight text-text">
-          {initialSendFailed
-            ? t("Verification email not sent")
-            : t("Check your email")}
+          {token ? t("Verify email") : t("Check your email")}
         </h2>
         {instructions && (
           <p className="mt-2 text-center text-sm text-text-tertiary">
@@ -167,10 +159,6 @@ function VerifyEmailContent() {
 
           {token && (
             <form onSubmit={verify} className="space-y-4">
-              <p>
-                Choose a password only you know to finish verifying your
-                account.
-              </p>
               <label
                 htmlFor="verification-password"
                 className="block text-sm font-medium"
@@ -182,21 +170,37 @@ function VerifyEmailContent() {
                 type="password"
                 autoComplete="new-password"
                 required
-                minLength={8}
                 maxLength={128}
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
+                aria-describedby="verification-password-requirements"
                 className="block w-full rounded-radius-md border border-border-subtle bg-surface px-3 py-2 text-text"
               />
-              <p className="text-sm text-text-tertiary">
-                Use 8–128 characters with an uppercase letter, a lowercase
-                letter and a number.
-              </p>
+              <ul
+                id="verification-password-requirements"
+                className="grid gap-1 text-xs sm:grid-cols-2"
+              >
+                {passwordRequirements.map((requirement) => (
+                  <li
+                    key={requirement.id}
+                    className={
+                      requirement.met
+                        ? "text-success-700 dark:text-emerald-400"
+                        : "text-text-tertiary"
+                    }
+                  >
+                    <span aria-hidden="true" className="mr-1.5">
+                      {requirement.met ? "✓" : "○"}
+                    </span>
+                    {t(requirement.label)}
+                  </li>
+                ))}
+              </ul>
               <button
                 type="submit"
                 className="min-h-11 w-full rounded-radius-md bg-primary-600 px-3 py-2 text-text-on-primary"
               >
-                Verify email
+                {t("Verify email")}
               </button>
             </form>
           )}

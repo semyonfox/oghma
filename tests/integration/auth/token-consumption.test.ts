@@ -54,7 +54,10 @@ vi.mock("@/lib/auth/session", () => {
     },
   };
 });
-vi.mock("@/lib/api-error", () => ({ assertTrustedOrigin: vi.fn() }));
+vi.mock("@/lib/api-error", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api-error")>()),
+  assertTrustedOrigin: vi.fn(),
+}));
 vi.mock("@/lib/rate-limiter", () => ({
   checkRateLimit: vi.fn(async () => null),
   getClientIp: vi.fn(() => "127.0.0.1"),

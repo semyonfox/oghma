@@ -1283,5 +1283,7 @@
   "attachment_viewer.unavailable": "Dit bestand kon niet worden geladen. Probeer het opnieuw te openen.",
   "attachment_viewer.no_preview": "Er is geen voorbeeld beschikbaar voor dit bestand. Download het om het te openen.",
   "attachment_viewer.too_large": "Dit bestand is te groot voor een voorbeeld. Download het om het te lezen.",
-  "attachment_viewer.empty": "Dit bestand is leeg."
+  "attachment_viewer.empty": "Dit bestand is leeg.",
+  "Verify email": "E-mail verifiëren",
+  "Choose a password only you know to finish verifying your account.": "Kies een wachtwoord dat alleen u kent om de verificatie van uw account te voltooien."
 }

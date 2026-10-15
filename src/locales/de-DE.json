@@ -1283,5 +1283,7 @@
   "attachment_viewer.unavailable": "Diese Datei konnte nicht geladen werden. Öffne sie erneut.",
   "attachment_viewer.no_preview": "Für diese Datei ist keine Vorschau verfügbar. Lade sie herunter, um sie zu öffnen.",
   "attachment_viewer.too_large": "Diese Datei ist für eine Vorschau zu groß. Lade sie herunter, um sie zu lesen.",
-  "attachment_viewer.empty": "Diese Datei ist leer."
+  "attachment_viewer.empty": "Diese Datei ist leer.",
+  "Verify email": "E-Mail bestätigen",
+  "Choose a password only you know to finish verifying your account.": "Wählen Sie ein Passwort, das nur Sie kennen, um die Bestätigung Ihres Kontos abzuschließen."
 }
