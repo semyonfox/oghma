@@ -1,10 +1,62 @@
 import sql from "@/database/pgsql";
 import type postgres from "postgres";
+import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { getStorageProvider } from "@/lib/storage/init";
+import { createS3ClientConfig, createS3ConfigFromEnv } from "@/lib/storage/s3";
 import { ApiError } from "@/lib/api-errors";
 
 export const VAULT_UPLOAD_MAX_BYTES = 10 * 1024 ** 3;
 const GLOBAL_STAGING_MAX_BYTES = 20 * 1024 ** 3;
+// matches the INTERVAL '24 hours' an export artifact lives after completion
+export const VAULT_EXPORT_DOWNLOAD_SECONDS = 24 * 60 * 60;
+
+export function vaultExportKey(userId: string, jobId: string): string {
+  return `exports/${userId}/${jobId}/vault-export.zip`;
+}
+
+export const VAULT_EXPORT_DOWNLOAD_NAME = "oghmanotes-vault.zip";
+
+/** Bucket and full object key for a vault path, for the direct multipart and signing clients. */
+export function vaultStorageLocation(path: string): { bucket: string; key: string } {
+  const config = createS3ConfigFromEnv();
+  return { bucket: config.bucket, key: `${config.prefix || "oghma"}/${path}` };
+}
+
+export async function signVaultExportDownload(path: string, expiresIn: number): Promise<string> {
+  const { bucket, key } = vaultStorageLocation(path);
+  const s3 = new S3Client(createS3ClientConfig(createS3ConfigFromEnv()));
+  return getSignedUrl(
+    s3,
+    new GetObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      ResponseContentDisposition: `attachment; filename="${VAULT_EXPORT_DOWNLOAD_NAME}"`,
+    }),
+    { expiresIn },
+  );
+}
+
+/**
+ * The archive behind a completed export, if retention has not removed it yet.
+ * Links are never signed past the artifact's own expiry.
+ */
+export async function findLiveVaultExport(
+  userId: string,
+  jobId: string,
+): Promise<{ s3Key: string; secondsLeft: number } | null> {
+  const [artifact] = await sql<{ s3_key: string; seconds_left: number }[]>`
+    SELECT s3_key, FLOOR(EXTRACT(EPOCH FROM expires_at - NOW()))::int AS seconds_left
+    FROM app.vault_artifacts
+    WHERE user_id = ${userId}::uuid AND job_id = ${jobId}::uuid
+      AND kind = 'export' AND expires_at > NOW()
+  `;
+  if (!artifact || artifact.seconds_left < 1) return null;
+  return {
+    s3Key: artifact.s3_key,
+    secondsLeft: Math.min(artifact.seconds_left, VAULT_EXPORT_DOWNLOAD_SECONDS),
+  };
+}
 
 export async function lockVaultArtifacts(tx: postgres.TransactionSql) {
   await tx`SELECT pg_advisory_xact_lock(hashtextextended('vault-artifact-quota', 4))`;
@@ -97,7 +149,7 @@ export async function reserveVaultExport(
   }
   await tx`
     INSERT INTO app.vault_artifacts (user_id, kind, s3_key, job_id, reserved_bytes, expires_at)
-    VALUES (${userId}::uuid, 'export', ${`exports/${userId}/${jobId}/vault-export.zip`}, ${jobId}::uuid, 0, NOW() + INTERVAL '24 hours')
+    VALUES (${userId}::uuid, 'export', ${vaultExportKey(userId, jobId)}, ${jobId}::uuid, 0, NOW() + INTERVAL '24 hours')
   `;
 }
 
@@ -139,6 +191,13 @@ export async function cleanupVaultArtifacts(): Promise<number> {
           AbortSignal.timeout(30_000),
         );
         await tx`DELETE FROM app.vault_artifacts WHERE id = ${artifact.id}::uuid`;
+        if (artifact.job_id && owner.kind === "export") {
+          // the job row outlives its archive; stop it advertising a dead download
+          await tx`
+            UPDATE app.canvas_import_jobs SET output_s3_key = NULL, download_url = NULL
+            WHERE id = ${artifact.job_id}::uuid
+          `;
+        }
         return true;
       });
       if (deleted) removed++;

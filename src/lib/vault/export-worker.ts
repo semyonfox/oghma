@@ -1,8 +1,9 @@
 import logger from "@/lib/logger";
 /**
  * Vault Export Worker
- * Queries user's tree, streams files from S3, builds a zip via fflate's
- * streaming Zip class, and uploads to S3 via multipart upload.
+ * Walks the user's tree, streams each file from S3 through fflate's
+ * streaming Zip, and uploads the archive to S3 via multipart upload. Memory
+ * stays around one part size no matter how large the vault or a file is.
  */
 
 import sql from "../../database/pgsql";
@@ -12,20 +13,36 @@ import {
   UploadPartCommand,
   CompleteMultipartUploadCommand,
   AbortMultipartUploadCommand,
-  GetObjectCommand,
   type CompletedPart,
   type S3Client,
 } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { getStorageProvider } from "../storage/init.ts";
 import { createS3ClientFromEnv } from "../storage/s3.ts";
-import { buildExportPathMap } from "./tree-builder";
-import { lockVaultExport } from "./artifacts";
+import { getStorageProvider } from "../storage/init.ts";
+import { buildExportPathMap, type ExportEntry } from "./tree-builder";
+import {
+  lockVaultExport,
+  signVaultExportDownload,
+  VAULT_EXPORT_DOWNLOAD_SECONDS,
+  vaultExportKey,
+  vaultStorageLocation,
+} from "./artifacts";
+import {
+  heartbeatVaultJob,
+  markVaultJobCancelled,
+  markVaultJobFailed,
+} from "./jobs";
 import { sendVaultExportCompleteEmail } from "../email";
 
 // R2 rejects a multipart upload unless every part but the last has the same
 // size, so parts are cut at exactly this length rather than "at least" it
 const PART_SIZE = 8 * 1024 * 1024;
+
+class VaultExportError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "VaultExportError";
+  }
+}
 
 /**
  * Stream zip data into S3 via multipart upload.
@@ -128,13 +145,6 @@ class S3MultipartZipUploader {
   }
 }
 
-/**
- * Main entry point — called from worker-entry.ts
- */
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 function requireMessageString(
   message: Record<string, unknown>,
   field: string,
@@ -146,6 +156,64 @@ function requireMessageString(
   return value;
 }
 
+function isTextPath(path: string): boolean {
+  return /\.(md|markdown|txt)$/i.test(path);
+}
+
+async function* noteContentChunks(
+  userId: string,
+  noteId: string,
+): AsyncGenerator<Uint8Array> {
+  const [note] = await sql<{ content: string | null }[]>`
+    SELECT content FROM app.notes
+    WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
+  `;
+  // a note deleted mid-export is simply not part of this archive
+  if (!note) return;
+  yield Buffer.from(note.content ?? "", "utf-8");
+}
+
+async function* objectChunks(key: string): AsyncGenerator<Uint8Array> {
+  const { body } = await getStorageProvider().getObjectStream(key);
+  try {
+    for await (const chunk of body) {
+      if (!(chunk instanceof Uint8Array)) throw new Error("Invalid storage stream bytes");
+      yield chunk;
+    }
+  } finally {
+    body.destroy();
+  }
+}
+
+/**
+ * Stream one entry into the archive, uploading parts as they fill. A failed
+ * source still closes its entry so the archive stream stays well-formed and
+ * later failures can be collected; the whole archive is discarded anyway.
+ */
+async function writeZipEntry(
+  zip: Zip,
+  uploader: S3MultipartZipUploader,
+  entry: ExportEntry,
+  chunks: AsyncIterable<Uint8Array>,
+): Promise<void> {
+  // always deflate (even level 1) so stored Office files cannot leak their own
+  // inner zip entries when the archive is re-imported by the streaming reader
+  const zipEntry = new ZipDeflate(entry.path, { level: isTextPath(entry.path) ? 6 : 1 });
+  zip.add(zipEntry);
+  try {
+    for await (const chunk of chunks) {
+      zipEntry.push(chunk);
+      await uploader.flushFullParts();
+    }
+  } finally {
+    zipEntry.push(new Uint8Array(0), true);
+  }
+  await uploader.flushFullParts();
+}
+
+/**
+ * Main entry point — called from worker-entry.ts
+ */
 export async function processVaultExport(
   msg: Record<string, unknown>,
 ): Promise<void> {
@@ -153,113 +221,65 @@ export async function processVaultExport(
   const userId = requireMessageString(msg, "userId");
   logger.info("worker_event");
 
-  const bucket = process.env.STORAGE_BUCKET;
-  const prefix = process.env.STORAGE_PREFIX || "oghma";
-  const s3 = createS3ClientFromEnv();
-  if (!bucket) {
-    throw new Error("Missing required environment variable: STORAGE_BUCKET");
-  }
-  const outputKey = `${prefix}/exports/${userId}/${jobId}/vault-export.zip`;
-
-  const uploader = new S3MultipartZipUploader(s3, bucket, outputKey);
+  const outputKey = vaultExportKey(userId, jobId);
+  // multipart isn't wrapped by the provider, so it writes the prefixed key directly
+  const output = vaultStorageLocation(outputKey);
+  const uploader = new S3MultipartZipUploader(
+    createS3ClientFromEnv(),
+    output.bucket,
+    output.key,
+  );
 
   try {
     const [claimed] = await sql`
-      UPDATE app.canvas_import_jobs SET status = 'processing', started_at = NOW()
+      UPDATE app.canvas_import_jobs
+      SET status = 'processing', started_at = NOW(), updated_at = NOW()
       WHERE id = ${jobId}::uuid AND user_id = ${userId}::uuid
-        AND type = 'vault-export' AND status = 'queued' RETURNING id
+        AND type = 'vault-export' AND status = 'queued'
+        AND cancel_requested_at IS NULL
+      RETURNING id
     `;
     if (!claimed) return;
 
-    getStorageProvider();
-    const exportMap = await buildExportPathMap(userId);
-    const totalFiles = exportMap.size;
-
+    const entries = await buildExportPathMap(userId);
     logger.info("worker_event");
-    await sql`UPDATE app.canvas_import_jobs SET expected_total = ${totalFiles} WHERE id = ${jobId}::uuid`;
+    await sql`
+      UPDATE app.canvas_import_jobs
+      SET expected_total = ${entries.length}, updated_at = NOW()
+      WHERE id = ${jobId}::uuid
+    `;
 
     await uploader.init();
 
-    // build the zip using fflate's streaming Zip
-    // ondata is synchronous — buffer chunks, flush async after each file
+    // ondata is synchronous, so it only buffers; parts are flushed between pushes
     const zip = new Zip();
-    zip.ondata = (err, data, _final) => {
+    zip.ondata = (err, data) => {
       if (err) throw err;
-      if (data.length > 0) {
-        uploader.addChunk(data); // sync buffer
-      }
+      if (data.length > 0) uploader.addChunk(data);
     };
 
     let processed = 0;
     const failedPaths: string[] = [];
 
-    for (const [_noteId, entry] of exportMap) {
+    for (const entry of entries) {
+      const chunks = entry.source.kind === "object"
+        ? objectChunks(entry.source.s3Key)
+        : noteContentChunks(userId, entry.source.noteId);
       try {
-        const { path, s3Key, content } = entry;
-        let fileData: Buffer;
-
-        if (s3Key) {
-          // download file from S3
-          const fullS3Key = `${prefix}/${s3Key}`;
-          const res = await s3.send(
-            new GetObjectCommand({ Bucket: bucket, Key: fullS3Key }),
-          );
-          if (!res.Body) {
-            throw new Error(`Storage object ${fullS3Key} returned no body`);
-          }
-          fileData = Buffer.from(await res.Body.transformToByteArray());
-        } else if (content !== null && content !== undefined) {
-          // text note — write as UTF-8
-          fileData = Buffer.from(content, "utf-8");
-        } else {
-          logger.info("worker_event");
-          continue;
-        }
-
-        // always use ZipDeflate to avoid nested-zip entry leakage when
-        // importing archives that contain zip-based formats (.pptx/.docx/.xlsx)
-        const isText =
-          path.endsWith(".md") ||
-          path.endsWith(".txt") ||
-          path.endsWith(".markdown");
-        const zipEntry = new ZipDeflate(path, { level: isText ? 6 : 1 });
-
-        zip.add(zipEntry);
-        zipEntry.push(new Uint8Array(fileData), true);
-
-        // flush buffered zip data to S3 (async — safe here in the for loop)
-        await uploader.flushFullParts();
-
-        processed++;
-        // poll cancel signal every iteration so small jobs are still cancellable;
-        // status may also be set directly to 'cancelled' via force=true on the route.
-        const [cancelRow] = await sql<
-          { cancel_requested_at: Date | string | null; status: string }[]
-        >`
-          SELECT cancel_requested_at, status FROM app.canvas_import_jobs
-          WHERE id = ${jobId}::uuid
-        `;
-        if (cancelRow?.cancel_requested_at || cancelRow?.status === "cancelled") {
-          logger.info("worker_event");
-          await uploader.abort();
-          await sql`
-            UPDATE app.canvas_import_jobs
-            SET status = 'cancelled', completed_at = NOW(), processed_files = ${processed}, updated_at = NOW()
-            WHERE id = ${jobId}::uuid AND status IN ('processing', 'cancelled')
-          `;
-          return; // exit the worker function
-        }
-        if (processed % 50 === 0) {
-          await sql`
-            UPDATE app.canvas_import_jobs
-            SET processed_files = ${processed}, updated_at = NOW()
-            WHERE id = ${jobId}::uuid AND status = 'processing'
-          `;
-          logger.info("worker_event");
-        }
+        await writeZipEntry(zip, uploader, entry, chunks);
       } catch (error) {
         logger.error("worker_event", { error });
         failedPaths.push(entry.path);
+      }
+
+      processed++;
+      // the heartbeat doubles as the cancel poll, so small exports stay cancellable
+      const state = await heartbeatVaultJob(jobId, userId, processed);
+      if (state !== "active") {
+        logger.info("worker_event");
+        await uploader.abort();
+        if (state === "cancel-requested") await markVaultJobCancelled(jobId, processed);
+        return;
       }
     }
 
@@ -267,52 +287,57 @@ export async function processVaultExport(
     // complete: abort it and keep the failed job visible for a deliberate retry.
     if (failedPaths.length > 0) {
       const examples = failedPaths.slice(0, 3).join(", ");
-      throw new Error(
+      throw new VaultExportError(
         `Could not export ${failedPaths.length} file${failedPaths.length === 1 ? "" : "s"}${examples ? `: ${examples}` : ""}`,
       );
     }
 
-    // final progress flush
-    await sql`
-      UPDATE app.canvas_import_jobs
-      SET processed_files = ${processed}
-      WHERE id = ${jobId}::uuid
-    `;
-
-    // finalize zip
     zip.end();
 
     // completion and cleanup take the same lock, so a cancelled worker cannot publish a late copy
-    const downloadUrl = await sql.begin(async tx => {
+    const outcome = await sql.begin(async (tx) => {
       await lockVaultExport(tx, userId);
-      const [job] = await tx`
-        SELECT j.id FROM app.canvas_import_jobs j
+      const [job] = await tx<{ cancel_requested_at: Date | string | null }[]>`
+        SELECT j.cancel_requested_at FROM app.canvas_import_jobs j
         JOIN app.vault_artifacts a ON a.job_id = j.id AND a.kind = 'export'
         WHERE j.id = ${jobId}::uuid AND j.user_id = ${userId}::uuid
-          AND j.status = 'processing' AND j.cancel_requested_at IS NULL
+          AND j.status = 'processing'
         FOR UPDATE OF j, a
       `;
-      if (!job) return null;
+      if (!job) return "gone" as const;
+      if (job.cancel_requested_at) {
+        // a cancel that lands after the last heartbeat must still finish the job
+        await tx`
+          UPDATE app.canvas_import_jobs
+          SET status = 'cancelled', completed_at = NOW(), processed_files = ${processed}, updated_at = NOW()
+          WHERE id = ${jobId}::uuid
+        `;
+        return "cancelled" as const;
+      }
       await uploader.complete();
-      const url = await getSignedUrl(s3, new GetObjectCommand({
-        Bucket: bucket, Key: outputKey,
-        ResponseContentDisposition: 'attachment; filename="oghmanotes-vault.zip"',
-      }), { expiresIn: 86400 });
       await tx`
-        UPDATE app.canvas_import_jobs SET status = 'complete', completed_at = NOW(), updated_at = NOW(),
-          output_s3_key = ${`exports/${userId}/${jobId}/vault-export.zip`}, download_url = ${url}
+        UPDATE app.canvas_import_jobs
+        SET status = 'complete', processed_files = ${processed}, completed_at = NOW(), updated_at = NOW(),
+          output_s3_key = ${outputKey}
         WHERE id = ${jobId}::uuid
       `;
-      await tx`UPDATE app.vault_artifacts SET expires_at = NOW() + INTERVAL '24 hours' WHERE job_id = ${jobId}::uuid`;
-      return url;
+      await tx`
+        UPDATE app.vault_artifacts
+        SET expires_at = NOW() + INTERVAL '24 hours'
+        WHERE job_id = ${jobId}::uuid AND kind = 'export'
+      `;
+      return "complete" as const;
     });
-    if (!downloadUrl) {
+    if (outcome !== "complete") {
       await uploader.abort();
       return;
     }
 
-    // send email notification
     try {
+      const downloadUrl = await signVaultExportDownload(
+        outputKey,
+        VAULT_EXPORT_DOWNLOAD_SECONDS,
+      );
       const [user] = await sql<{ email: string }[]>`
         SELECT email FROM app.login WHERE user_id = ${userId}::uuid
       `;
@@ -327,11 +352,13 @@ export async function processVaultExport(
   } catch (error) {
     logger.error("worker_event", { error });
     await uploader.abort();
-    await sql`
-      UPDATE app.canvas_import_jobs
-      SET status = 'failed', error_message = ${errorMessage(error)}, completed_at = NOW(), updated_at = NOW()
-      WHERE id = ${jobId}::uuid AND status = 'processing'
-    `;
+    // only the partial-archive message is meant for users; internal errors can carry hostnames
+    await markVaultJobFailed(
+      jobId,
+      error instanceof VaultExportError
+        ? error.message
+        : "Export failed. Please try again.",
+    );
     throw error;
   }
 }

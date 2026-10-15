@@ -3,28 +3,20 @@
  * Streams a zip file from S3, creates folders + notes in the user's tree,
  * and runs the full RAG pipeline (OCR, chunking, embeddings) on supported file types.
  *
- * ZIP entries are spooled to temporary files before bounded processing.
+ * ZIP parsing and its resource limits live in ./zip-stream.
  */
 
 import logger from "../logger";
 import type postgres from "postgres";
 import sql from "../../database/pgsql";
 import { v4 as uuidv4 } from "uuid";
-import { Readable } from "stream";
-import { UnzipInflate, Unzip } from "fflate";
-import { closeSync, mkdtempSync, openSync, writeSync } from "node:fs";
-import { readFile, rm, unlink } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { chunkText } from "../rag/chunking.ts";
 import { replaceNoteEmbeddings } from "../rag/indexing.ts";
 import { stripMarkdown } from "../rag/strip-markdown.ts";
 import { getStorageProvider } from "../storage/init.ts";
 import type { StoreProvider } from "../storage/base";
-import { createS3ClientFromEnv } from "../storage/s3.ts";
 import { insertNoteWithTree } from "../notes/storage/create-note";
 import { moveNoteToExtractionBundle } from "../notes/extraction-bundle";
-import { invalidateTreeAfterPublish } from "../notes/tree-cache";
 import { extractWithMarker } from "../marker/ocr.ts";
 import { markerQueueEnabled, submitMarkerJob } from "../marker/serverless.ts";
 import {
@@ -39,7 +31,15 @@ import {
   VaultImportCancelledError,
   VaultTreeParentUnavailableError,
 } from "./tree-builder";
+import { processVaultZipStream, VaultUserError } from "./zip-stream";
+import {
+  heartbeatVaultJob,
+  markVaultJobCancelled,
+  markVaultJobFailed,
+} from "./jobs";
 import { sendVaultImportCompleteEmail } from "../email";
+
+export { processVaultZipStream } from "./zip-stream";
 
 const PROCESSABLE_EXTS = new Set([
   "pdf",
@@ -63,13 +63,8 @@ const EXT_MIME: Record<string, string> = {
   txt: "text/plain",
 };
 
-const FILE_CONCURRENCY = 5;
-const MAX_DECOMPRESSED_SIZE = 20 * 1024 * 1024 * 1024; // 20GB
-const MAX_ENTRIES = 50_000;
-const MAX_ENTRY_BYTES = 250 * 1024 * 1024;
-const MAX_STAGED_BYTES = 512 * 1024 * 1024;
-const ZIP_INPUT_SLICE_BYTES = 4 * 1024;
-const MAX_PENDING_ENTRIES = 512;
+// quiz seeding only needs a sample, never every chunk of a large vault
+const QUIZ_SEED_CHUNK_SAMPLE = 500;
 
 function getMimeType(filename: string | null | undefined): string | null {
   const ext = filename?.toLowerCase().split(".").pop();
@@ -85,6 +80,19 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * Every archive entry gets its own object, even when the ZIP repeats a path.
+ * Two notes sharing one key would let deleting either remove the other's
+ * bytes. The job prefix stays first so Clear Vault can sweep the whole job.
+ */
+export function vaultSourceObjectKey(
+  userId: string,
+  jobId: string,
+  filename: string,
+): string {
+  return `vault/${userId}/${jobId}/${uuidv4()}/${filename}`;
+}
+
 async function isActiveNote(userId: string, noteId: string): Promise<boolean> {
   const [note] = await sql`
     SELECT note_id
@@ -97,47 +105,29 @@ async function isActiveNote(userId: string, noteId: string): Promise<boolean> {
   return Boolean(note);
 }
 
-async function createNote(
+/**
+ * Always a new note. Reusing a same-titled note here would overwrite a note
+ * the user already had (or another file from the same ZIP) with OCR output.
+ */
+async function createCompanionNote(
   userId: string,
   title: string,
   parentId: string | null,
-  opts: { s3Key?: string | null; content?: string } = {},
-  jobId?: string,
+  content: string,
+  jobId: string,
 ): Promise<string> {
   const noteId = uuidv4();
-  const s3Key = opts.s3Key ?? null;
-  const content = opts.content ?? "";
   await sql.begin(async (tx: postgres.TransactionSql) => {
-    // Coordinate with both Trash and Clear Vault. If Clear Vault wins, the
-    // job check fails while holding the same user-tree lock and no late note
-    // or tree row can be committed after its note snapshot was collected.
-    await tx`
-      SELECT pg_advisory_xact_lock(hashtextextended(${userId}::text, 0))
-    `;
     await assertVaultImportJobActive(tx, userId, jobId);
-    if (parentId) {
-      const [parent] = await tx`
-        SELECT note_id
-        FROM app.notes
-        WHERE note_id = ${parentId}::uuid
-          AND user_id = ${userId}::uuid
-          AND is_folder = TRUE
-          AND deleted_at IS NULL
-        FOR KEY SHARE
-      `;
-      if (!parent) throw new VaultTreeParentUnavailableError();
-    }
-    await tx`
-      INSERT INTO app.notes (note_id, user_id, title, content, s3_key, is_folder, created_at, updated_at)
-      VALUES (${noteId}::uuid, ${userId}::uuid, ${title}, ${content}, ${s3Key}, false, NOW(), NOW())
-    `;
-    await tx`
-      INSERT INTO app.tree_items (user_id, note_id, parent_id)
-      VALUES (${userId}::uuid, ${noteId}::uuid, ${parentId}::uuid)
-      ON CONFLICT (user_id, note_id) DO NOTHING
-    `;
+    await insertNoteWithTree(tx, {
+      noteId,
+      userId,
+      title,
+      content,
+      isFolder: false,
+      parentId,
+    });
   });
-  await invalidateTreeAfterPublish(userId, parentId);
   return noteId;
 }
 
@@ -209,33 +199,7 @@ export async function persistVaultSourceFile({
   // The source note is now durable even though OCR/embeddings may still be
   // running. Publish its branch only after the transaction succeeds so the
   // sidebar can show meaningful import progress without exposing rollbacks.
-  await invalidateTreeAfterPublish(userId, parentId);
   return noteId;
-}
-
-async function findOrCreateNote(
-  userId: string,
-  title: string,
-  parentId: string | null,
-  opts: { s3Key?: string | null; content?: string } = {},
-  jobId?: string,
-): Promise<{ noteId: string; created: boolean }> {
-  const existing = await sql`
-    SELECT n.note_id FROM app.notes n
-    JOIN app.tree_items t ON t.note_id = n.note_id AND t.user_id = n.user_id
-    WHERE n.user_id = ${userId}::uuid
-      AND n.title = ${title}
-      AND n.is_folder = false
-      AND n.deleted_at IS NULL
-      AND ${parentId ? sql`t.parent_id = ${parentId}::uuid` : sql`t.parent_id IS NULL`}
-    LIMIT 1
-  `;
-  if (existing.length > 0) {
-    return { noteId: existing[0].note_id, created: false };
-  }
-
-  const noteId = await createNote(userId, title, parentId, opts, jobId);
-  return { noteId, created: true };
 }
 
 export async function processRagPipeline(
@@ -243,7 +207,7 @@ export async function processRagPipeline(
   userId: string,
   parentFolderId: string | null,
   buffer: Buffer,
-  opts: { filename: string; mimeType: string | null; jobId?: string; s3Key?: string },
+  opts: { filename: string; mimeType: string | null; jobId: string; s3Key?: string },
 ): Promise<void> {
   const { filename, mimeType } = opts;
   const isText = mimeType?.startsWith("text/");
@@ -336,13 +300,11 @@ export async function processRagPipeline(
     mimeType === "application/pdf"
       ? await moveNoteToExtractionBundle(userId, noteId, filename)
       : parentFolderId;
-  const { noteId: mdNoteId } = await findOrCreateNote(
+  const mdNoteId = await createCompanionNote(
     userId,
     mdTitle,
     markdownParentFolderId,
-    {
-      content: rawText,
-    },
+    rawText,
     opts.jobId,
   );
   const storage = getStorageProvider();
@@ -402,225 +364,35 @@ function requireVaultImportMessage(msg: Record<string, unknown>): VaultImportMes
   return { jobId, userId, s3Key };
 }
 
-interface VaultZipLimits {
-  maxEntryBytes: number;
-  maxStagedBytes: number;
-  maxDecompressedBytes: number;
-  maxEntries: number;
-  maxPendingEntries: number;
-}
-
-const VAULT_ZIP_LIMITS: VaultZipLimits = {
-  maxEntryBytes: MAX_ENTRY_BYTES,
-  maxStagedBytes: MAX_STAGED_BYTES,
-  maxDecompressedBytes: MAX_DECOMPRESSED_SIZE,
-  maxEntries: MAX_ENTRIES,
-  maxPendingEntries: MAX_PENDING_ENTRIES,
-};
-
-/** Process ZIP bytes without retaining an archive or completed-file backlog. */
-export async function processVaultZipStream(
-  source: AsyncIterable<Uint8Array>,
-  processEntry: (entryPath: string, buffer: Buffer) => Promise<void>,
-  requestedLimits: Partial<VaultZipLimits> = {},
-  isCancelled: () => boolean = () => false,
-): Promise<number> {
-  const limits = { ...VAULT_ZIP_LIMITS, ...requestedLimits };
-  // callers may tighten these bounds, never loosen them
-  for (const key of Object.keys(VAULT_ZIP_LIMITS) as Array<keyof VaultZipLimits>) {
-    if (
-      !Number.isSafeInteger(limits[key]) ||
-      limits[key] <= 0 ||
-      limits[key] > VAULT_ZIP_LIMITS[key]
-    ) {
-      throw new Error(`Invalid ZIP limit: ${key}`);
-    }
-  }
-  const directory = mkdtempSync(join(tmpdir(), "oghma-vault-import-"));
-  const openFiles = new Set<number>();
-  const pending: Array<{ name: string; path: string; size: number }> = [];
-  let entryCount = 0;
-  let archiveEntryCount = 0;
-  let totalSize = 0;
-  let stagedBytes = 0;
-  let unfinishedEntries = 0;
-  let failure: Error | null = null;
-  let header = Buffer.alloc(0);
-  let zipSignatureChecked = false;
-
-  const fail = (error: unknown) => {
-    failure ??= error instanceof Error ? error : new Error(String(error));
-  };
-  const unzip = new Unzip((stream) => {
-    if (failure) return;
-    archiveEntryCount++;
-    if (archiveEntryCount > limits.maxEntries) {
-      fail(new Error(`ZIP exceeds ${limits.maxEntries} entries`));
-      return;
-    }
-    if (stream.originalSize !== undefined && stream.originalSize > limits.maxEntryBytes) {
-      fail(new Error(`ZIP entry exceeds ${limits.maxEntryBytes} bytes`));
-      return;
-    }
-    const ignored =
-      stream.name.endsWith("/") ||
-      !sanitizePath(stream.name) ||
-      shouldIgnore(stream.name);
-    let entrySize = 0;
-    let fd: number | null = null;
-    const path = join(directory, String(archiveEntryCount));
-    if (!ignored) {
-      entryCount++;
-      fd = openSync(path, "wx", 0o600);
-      openFiles.add(fd);
-    }
-    unfinishedEntries++;
-    stream.ondata = (error, data, final) => {
-      if (failure) return;
-      if (error) {
-        fail(error);
-        return;
-      }
-      if (data) {
-        // count actual inflated bytes before retaining or writing the chunk
-        if (data.length > limits.maxEntryBytes - entrySize) {
-          fail(new Error(`ZIP entry exceeds ${limits.maxEntryBytes} bytes`));
-          return;
-        }
-        if (data.length > limits.maxDecompressedBytes - totalSize) {
-          fail(new Error(`ZIP exceeds ${limits.maxDecompressedBytes} decompressed bytes`));
-          return;
-        }
-        entrySize += data.length;
-        totalSize += data.length;
-        if (fd !== null) {
-          if (data.length > limits.maxStagedBytes - stagedBytes) {
-            fail(new Error(`ZIP staging exceeds ${limits.maxStagedBytes} bytes`));
-            return;
-          }
-          stagedBytes += data.length;
-          try {
-            let written = 0;
-            while (written < data.length) {
-              const count = writeSync(fd, data, written, data.length - written);
-              if (!count) throw new Error("Could not write ZIP staging file");
-              written += count;
-            }
-          } catch (writeError) {
-            fail(writeError);
-            return;
-          }
-        }
-      }
-      if (final) {
-        unfinishedEntries--;
-        if (fd !== null) {
-          closeSync(fd);
-          openFiles.delete(fd);
-          fd = null;
-          if (pending.length >= limits.maxPendingEntries) {
-            fail(new Error(`ZIP exceeds ${limits.maxPendingEntries} pending entries`));
-            return;
-          }
-          pending.push({ name: stream.name, path, size: entrySize });
-        }
-      }
-    };
-    stream.start();
-  });
-  // synchronous inflation keeps compressed input backpressure effective. Small
-  // input slices bound each inflater allocation even when size headers lie
-  unzip.register(UnzipInflate);
-
-  const drain = async () => {
-    while (pending.length > 0) {
-      if (isCancelled()) throw new VaultImportCancelledError();
-      const batch: typeof pending = [];
-      let bytes = 0;
-      while (batch.length < FILE_CONCURRENCY && pending.length > 0) {
-        const entry = pending[0];
-        if (batch.length > 0 && entry.size > limits.maxEntryBytes - bytes) break;
-        batch.push(entry);
-        pending.shift();
-        bytes += entry.size;
-      }
-      // settle every active callback before cleanup or reporting a failure
-      const results = await Promise.allSettled(
-        batch.map(async (entry) => {
-          try {
-            const buffer = await readFile(entry.path);
-            await processEntry(entry.name, buffer);
-          } finally {
-            await unlink(entry.path);
-            stagedBytes -= entry.size;
-          }
-        }),
-      );
-      for (const result of results) {
-        if (result.status === "rejected") throw result.reason;
-      }
-    }
-  };
-
-  try {
-    for await (const chunk of source) {
-      if (!(chunk instanceof Uint8Array)) throw new Error("Invalid ZIP stream bytes");
-      for (let offset = 0; offset < chunk.length; offset += ZIP_INPUT_SLICE_BYTES) {
-        if (isCancelled()) throw new VaultImportCancelledError();
-        let bytes = chunk.subarray(offset, offset + ZIP_INPUT_SLICE_BYTES);
-        if (!zipSignatureChecked) {
-          const needed = 4 - header.length;
-          const take = Math.min(needed, bytes.length);
-          header = Buffer.concat([header, bytes.subarray(0, take)], header.length + take);
-          bytes = bytes.subarray(take);
-          if (header.length < 4) continue;
-          const signature = header.toString("hex");
-          if (signature !== "504b0304" && signature !== "504b0506") {
-            throw new Error("Uploaded object is not a ZIP file");
-          }
-          zipSignatureChecked = true;
-          unzip.push(header);
-          header = Buffer.alloc(0);
-        }
-        if (bytes.length > 0) unzip.push(bytes);
-        if (failure) throw failure;
-        // no completed entry survives into the next compressed input slice
-        await drain();
-      }
-    }
-    if (!zipSignatureChecked) throw new Error("Uploaded object is not a ZIP file");
-    unzip.push(new Uint8Array(0), true);
-    if (failure) throw failure;
-    if (unfinishedEntries > 0) throw new Error("ZIP contains unfinished entries");
-    await drain();
-    return entryCount;
-  } finally {
-    try {
-      for (const fd of openFiles) closeSync(fd);
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
-  }
-}
-
 async function streamAndProcessZip(
   s3Key: string,
   processEntry: (entryPath: string, buffer: Buffer) => Promise<void>,
   isCancelled: () => boolean,
 ): Promise<number> {
-  const { GetObjectCommand } = await import("@aws-sdk/client-s3");
-  const bucket = process.env.STORAGE_BUCKET;
-  const prefix = process.env.STORAGE_PREFIX || "oghma";
-  const fullKey = `${prefix}/${s3Key}`;
-  const s3 = createS3ClientFromEnv();
-  const res = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: fullKey }));
-  if (!(res.Body instanceof Readable)) throw new Error("S3 ZIP stream unavailable");
-  const readable = res.Body;
+  const { body: readable } = await getStorageProvider().getObjectStream(s3Key);
   try {
     return await processVaultZipStream(readable, processEntry, {}, isCancelled);
   } finally {
     readable.destroy();
   }
+}
+
+async function seedQuizFromImport(userId: string, jobId: string): Promise<void> {
+  const chunks = await sql<Array<{ id: string }>>`
+    SELECT c.id FROM app.chunks c
+    WHERE c.user_id = ${userId}::uuid
+      AND c.created_at >= (
+        SELECT started_at FROM app.canvas_import_jobs
+        WHERE id = ${jobId}::uuid AND user_id = ${userId}::uuid
+      )
+    ORDER BY c.created_at DESC
+    LIMIT ${QUIZ_SEED_CHUNK_SAMPLE}
+  `;
+  const chunkIds = chunks.map((row) => row.id);
+  if (chunkIds.length === 0) return;
+  const { seedQuestionsAfterImport } = await import("../quiz/generate-background.ts");
+  const seeded = await seedQuestionsAfterImport(userId, chunkIds, 5);
+  logger.info(`[vault-import] quiz seed: ${seeded} questions generated`);
 }
 
 /**
@@ -643,6 +415,7 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
         AND type = 'vault-import'
         AND input_s3_key = ${s3Key}
         AND status = 'queued'
+        AND cancel_requested_at IS NULL
       RETURNING id
     `;
     if (!claimed) {
@@ -651,10 +424,19 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
     }
 
     const storage = getStorageProvider();
-    const folderCache = new Map();
+    const folderCache = new Map<string, string>();
     let totalFiles = 0;
-    let totalFolders = 0;
     let failedFiles = 0;
+
+    const stopIfNoLongerActive = async () => {
+      const state = await heartbeatVaultJob(jobId, userId, totalFiles);
+      if (state === "active" || cancelled) return;
+      cancelled = true;
+      if (state === "cancel-requested") {
+        await markVaultJobCancelled(jobId, totalFiles);
+      }
+      logger.info(`[${ts()}] Vault import ${jobId} stopped after ${totalFiles} files`);
+    };
 
     logger.info(`[${ts()}] Streaming zip from S3: ${s3Key}`);
 
@@ -663,7 +445,7 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
       async (entryPath, buffer) => {
         if (cancelled) return;
         const cleanPath = sanitizePath(entryPath);
-        if (!cleanPath || shouldIgnore(entryPath)) return;
+        if (!cleanPath || shouldIgnore(cleanPath)) return;
 
         const filename = cleanPath.split("/").pop();
         if (!filename) return;
@@ -676,10 +458,9 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
             folderCache,
             jobId,
           );
-          totalFolders = folderCache.size;
 
           const mimeType = getMimeType(filename);
-          const s3FileKey = `vault/${userId}/${jobId}/${cleanPath}`;
+          const s3FileKey = vaultSourceObjectKey(userId, jobId, filename);
           uploadedFileKey = s3FileKey;
 
           const noteId = await persistVaultSourceFile({
@@ -713,31 +494,6 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
           }
 
           totalFiles++;
-          // poll cancel signal every iteration so small imports are still cancellable;
-          // status may also be set directly to 'cancelled' via force=true on the route.
-          const [cancelRow] = await sql`
-            SELECT cancel_requested_at, status FROM app.canvas_import_jobs
-            WHERE id = ${jobId}::uuid
-          `;
-          if (cancelRow?.cancel_requested_at || cancelRow?.status === "cancelled") {
-            logger.info(`[${ts()}] Cancel requested for ${jobId}; aborting after ${totalFiles} files`);
-            await sql`
-              UPDATE app.canvas_import_jobs
-              SET status = 'cancelled', completed_at = NOW(), processed_files = ${totalFiles}, updated_at = NOW()
-              WHERE id = ${jobId}::uuid AND status IN ('processing', 'cancelled')
-            `;
-            cancelled = true;
-            return; // exit processEntry — outer streamAndProcessZip will finish naturally
-          }
-          if (totalFiles % 10 === 0) {
-            await sql`
-              UPDATE app.canvas_import_jobs
-              SET expected_total = ${totalFiles + failedFiles},
-                  processed_files = ${totalFiles},
-                  updated_at = NOW()
-              WHERE id = ${jobId}::uuid AND status = 'processing'
-            `;
-          }
           logger.info(`[${ts()}] Imported: ${cleanPath}`);
         } catch (err) {
           if (
@@ -767,6 +523,8 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
             errorMessage(err),
           );
         }
+        // the heartbeat doubles as the cancel poll, so small imports stay cancellable
+        await stopIfNoLongerActive();
       },
       () => cancelled,
     );
@@ -780,26 +538,13 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
     // notes, but never report a partial import as complete. Vault jobs are
     // deliberately single-attempt until import replay is idempotent.
     if (failedFiles > 0) {
-      throw new Error(
+      throw new VaultUserError(
         `Could not import ${failedFiles} file${failedFiles === 1 ? "" : "s"}. Files processed before the error remain in your vault.`,
       );
     }
 
-    // seed initial quiz questions from newly imported chunks (non-fatal)
     try {
-      const chunks = await sql<Array<{ id: string }>>`
-        SELECT c.id FROM app.chunks c
-        WHERE c.user_id = ${userId}::uuid
-          AND c.created_at >= (SELECT started_at FROM app.canvas_import_jobs WHERE id = ${jobId}::uuid)
-      `;
-      const chunkIds = chunks.map((r: { id: string }) => r.id);
-      if (chunkIds.length > 0) {
-        const { seedQuestionsAfterImport } =
-          await import("../quiz/generate-background.ts");
-        const seeded = await seedQuestionsAfterImport(userId, chunkIds, 5);
-        logger.info(`[${ts()}] Quiz seed: ${seeded} questions generated`);
-
-      }
+      await seedQuizFromImport(userId, jobId);
     } catch (seedErr) {
       logger.warn(
         `[${ts()}] Quiz seed failed (non-fatal): ${errorMessage(seedErr)}`,
@@ -808,7 +553,7 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
 
     const completed = await sql`
       UPDATE app.canvas_import_jobs
-      SET status = 'complete', processed_files = ${totalFiles}, expected_total = ${totalEntries || totalFiles + failedFiles}, completed_at = NOW(), updated_at = NOW()
+      SET status = 'complete', processed_files = ${totalFiles}, expected_total = ${totalEntries}, completed_at = NOW(), updated_at = NOW()
       WHERE id = ${jobId}::uuid AND status = 'processing'
       RETURNING id
     `;
@@ -817,14 +562,13 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
       return;
     }
 
-
     try {
       const [user] =
         await sql`SELECT email FROM app.login WHERE user_id = ${userId}::uuid`;
       if (user?.email) {
         await sendVaultImportCompleteEmail(user.email, {
           totalFiles,
-          totalFolders,
+          totalFolders: folderCache.size,
           failedFiles,
         });
       }
@@ -833,7 +577,7 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
     }
 
     logger.info(
-      `[${ts()}] Vault import complete: ${totalFiles} files, ${totalFolders} folders, ${failedFiles} failures`,
+      `[${ts()}] Vault import complete: ${totalFiles} files, ${folderCache.size} folders`,
     );
   } catch (error) {
     if (cancelled) {
@@ -841,11 +585,14 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
       return;
     }
     logger.error(`[${ts()}] Vault import failed:`, error);
-    await sql`
-      UPDATE app.canvas_import_jobs
-      SET status = 'failed', error_message = ${errorMessage(error)}, completed_at = NOW(), updated_at = NOW()
-      WHERE id = ${jobId}::uuid AND status = 'processing'
-    `;
+    // only archive problems the user can act on are shown verbatim; internal
+    // errors can carry hostnames or SQL details
+    await markVaultJobFailed(
+      jobId,
+      error instanceof VaultUserError
+        ? error.message
+        : "Import failed. Please try again.",
+    );
     throw error;
   }
 }

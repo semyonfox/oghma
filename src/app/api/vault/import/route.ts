@@ -73,5 +73,7 @@ export const POST = withErrorHandler(async (request) => {
     }, // 15 minutes
   );
 
-  return NextResponse.json({ uploadUrl, s3Key, uploadId, contentLength: expectedSize });
+  // a retried signing request reuses its earlier reservation, and with it that key's upload id
+  const reservedUploadId = s3Key.split("/")[2] ?? uploadId;
+  return NextResponse.json({ uploadUrl, s3Key, uploadId: reservedUploadId, contentLength: expectedSize });
 });
