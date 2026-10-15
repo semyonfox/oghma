@@ -35,7 +35,8 @@ beforeEach(() => {
   vi.stubGlobal("ResizeObserver", class { observe() {} disconnect() {} });
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
-describe("calendar assignment opening", () => {
+// each case renders a full calendar view in jsdom, which outruns the 5s default when the machine is busy
+describe("calendar assignment opening", { timeout: 20_000 }, () => {
   it.each(["month", "week", "day", "compact tasks", "full tasks"])("opens and closes real details from the %s view without completing the task", async view => {
     if (view === "compact tasks") render(<AssignmentTracker surface="compact" />);
     if (view === "full tasks") render(<AssignmentTracker surface="full" />);

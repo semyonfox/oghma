@@ -87,7 +87,8 @@ try {
     ["--experimental-strip-types", "scripts/run-migration.ts", "--all"],
     {
       stdio: "inherit",
-      timeout: 60000,
+      // leaves room for lock-conflict retries in run-migration.ts
+      timeout: 300000,
       env: { ...process.env, DATABASE_URL: dbUrl },
     },
   );
