@@ -158,6 +158,7 @@
   "overrides": {
     "@hono/node-server": "2.1.5",
     "ioredis": "$ioredis",
+    "katex": "$katex",
     "postcss": "$postcss",
     "lodash-es": "4.18.1"
   }
