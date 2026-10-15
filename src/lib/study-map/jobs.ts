@@ -1,3 +1,4 @@
+import { monitorOperation } from "@/lib/monitoring/operations";
 import { randomUUID } from "node:crypto";
 import type postgres from "postgres";
 import { z } from "zod";
@@ -640,38 +641,40 @@ export async function processNextStudyJob(): Promise<boolean> {
     }, 30_000);
     heartbeat.unref();
     try {
-      const input = await readJobInput(job);
-      controller.signal.throwIfAborted();
-      const result =
-        job.kind === "taxonomy"
-          ? await (async () => {
-              const { sources, ...preview } = taxonomyPreview(input);
-              return proposeStudyTopics(
-                sources,
-                input.topics,
-                controller.signal,
-                {
-                  ...preview,
-                  cache: generationCache,
-                },
-              );
-            })()
-          : job.kind === "classify"
-            ? await classifyStudySource(
-                input.source,
-                input.topics,
-                controller.signal,
-                decisionCache,
-              )
-            : await extractStudyPaper(
-                input.source,
-                input.topics,
-                input.academicYear,
-                controller.signal,
-              );
-      await publishJob(job, input, result, controller.signal);
-      if (job.kind === "taxonomy")
-        await classifyAutomatically(job.user_id, job.map_id);
+      await monitorOperation(`study.${job.kind}`, async () => {
+        const input = await readJobInput(job);
+        controller.signal.throwIfAborted();
+        const result =
+          job.kind === "taxonomy"
+            ? await (async () => {
+                const { sources, ...preview } = taxonomyPreview(input);
+                return proposeStudyTopics(
+                  sources,
+                  input.topics,
+                  controller.signal,
+                  {
+                    ...preview,
+                    cache: generationCache,
+                  },
+                );
+              })()
+            : job.kind === "classify"
+              ? await classifyStudySource(
+                  input.source,
+                  input.topics,
+                  controller.signal,
+                  decisionCache,
+                )
+              : await extractStudyPaper(
+                  input.source,
+                  input.topics,
+                  input.academicYear,
+                  controller.signal,
+                );
+        await publishJob(job, input, result, controller.signal);
+        if (job.kind === "taxonomy")
+          await classifyAutomatically(job.user_id, job.map_id);
+      });
     } catch (error) {
       const safeMessage = controller.signal.aborted
         ? messages.lease

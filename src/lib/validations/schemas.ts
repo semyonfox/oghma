@@ -24,6 +24,9 @@ export const noteUpdateSchema = z
     pinned: z
       .union([z.literal(NOTE_PINNED.UNPINNED), z.literal(NOTE_PINNED.PINNED)])
       .optional(),
+    // updatedAt the client last saw; the save is refused with 409 if the note
+    // moved on since, so one device cannot silently overwrite another
+    expectedUpdatedAt: z.iso.datetime({ offset: true }).optional(),
   })
   .refine(
     (data) =>

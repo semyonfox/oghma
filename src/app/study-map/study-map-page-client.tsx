@@ -24,8 +24,11 @@ export default function StudyMapPageClient(props: {
         <div className="desktop-navigation-rail hidden w-14 shrink-0 border-r border-border-subtle bg-background lg:block">
           <PrimaryNavigation />
         </div>
-        <div className="mobile-dock-clearance min-w-0 flex-1 overflow-y-auto">
-          <StudyWorkspace {...props} />
+        {/* the canvas fills this column and stops above the mobile dock */}
+        <div className="mobile-dock-clearance flex min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="min-h-0 flex-1">
+            <StudyWorkspace {...props} />
+          </div>
         </div>
       </div>
       <MobileBottomNavigation />

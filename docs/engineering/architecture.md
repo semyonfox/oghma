@@ -2,7 +2,7 @@
 
 > **Status:** Active reference
 >
-> **Last reviewed:** 2026-10-04
+> **Last reviewed:** 2026-10-10
 >
 > **Source of truth:** Current application code, [`Jenkinsfile`](../../Jenkinsfile), [`database/migrations/`](../../database/migrations/), and [`infra/HOMELAB.md`](../../infra/HOMELAB.md)
 
@@ -80,8 +80,8 @@ the `canvas-import`, `extract-retry`, `marker-dispatch`, and BullMQ-only
   whose enqueue or completion handoff was lost.
 
 The worker handles durable LLM generation, Canvas discovery and files, direct
-extraction, extraction retries, serverless Marker dispatch/completion, and
-vault import/export. PostgreSQL and object storage remain authoritative when
+extraction, extraction retries, note search-index rebuilds after saves,
+serverless Marker dispatch/completion, and vault import/export. PostgreSQL and object storage remain authoritative when
 Marker runs on an ephemeral provider. Vast is the ready-to-provision target,
 not a live dependency; see the [Vast Marker runbook](../operations/vast-marker.md).
 See [Import pipeline](import-pipeline.md) for the import processing contract
@@ -90,6 +90,13 @@ and tuning boundaries.
 ## Search and chat
 
 Indexing stores chunk text and ownership in PostgreSQL, computes embeddings through the configured provider, and upserts vectors to Qdrant. Semantic search and chat embed the query, retrieve scoped Qdrant results, hydrate relational chunk data, optionally rerank it, and pass grounded context to the configured LLM.
+
+A note save does not embed inline. `PUT /api/notes/[id]` writes the row,
+refuses the write with `409` when the client's `expectedUpdatedAt` is older
+than the stored row, and queues a delayed, deduplicated `note-reindex` job.
+The worker ([`note-reindex.ts`](../../src/lib/rag/note-reindex.ts)) reads the
+content current at run time, skips notes whose `extracted_text` already
+matches, and requeues itself if the row changed while embeddings were built.
 
 Chat supports streaming and non-streaming responses. All delivery modes share
 one generation preparation/finalization model; only their transport differs.

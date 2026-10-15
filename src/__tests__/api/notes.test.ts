@@ -53,6 +53,10 @@ vi.mock("@/lib/notes/utils/filter-fields", () => ({
   filterNoteFields: vi.fn((note) => note),
 }));
 
+vi.mock("@/lib/queue", () => ({
+  enqueueNoteReindexJob: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { GET as notesGET } from "@/app/api/notes/route";
 import {
   GET as noteGET,
@@ -63,6 +67,7 @@ import {
 import { validateSession } from "@/lib/auth/session";
 import sql from "@/database/pgsql";
 import { moveSubtreeToTrash } from "@/lib/notes/storage/note-lifecycle";
+import { enqueueNoteReindexJob } from "@/lib/queue";
 
 const MOCK_USER = { user_id: "user-uuid-1", email: "test@example.com" };
 
@@ -190,6 +195,68 @@ describe("PUT /api/notes/[id]", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.title).toBe("Updated Title");
+    expect(enqueueNoteReindexJob).not.toHaveBeenCalled();
+  });
+
+  it("queues the reindex instead of embedding inside the request", async () => {
+    const updatedRow = { ...NOTE_ROW, content: "# Updated" };
+    sql.mockResolvedValueOnce([NOTE_ROW]).mockResolvedValueOnce([updatedRow]);
+    const req = makeRequest("PUT", "http://localhost/api/notes/note-uuid-1", {
+      content: "# Updated",
+    });
+    const res = await notePUT(req, {
+      params: Promise.resolve({ id: "note-uuid-1" }),
+    });
+    expect(res.status).toBe(200);
+    expect(enqueueNoteReindexJob).toHaveBeenCalledWith("note-uuid-1", "user-uuid-1");
+  });
+
+  it("refuses a save made against an older version of the note", async () => {
+    sql.mockResolvedValueOnce([NOTE_ROW]);
+    const req = makeRequest("PUT", "http://localhost/api/notes/note-uuid-1", {
+      content: "# Updated",
+      expectedUpdatedAt: "2024-12-31T23:59:59.000Z",
+    });
+    const res = await notePUT(req, {
+      params: Promise.resolve({ id: "note-uuid-1" }),
+    });
+    expect(res.status).toBe(409);
+    expect((await res.json()).updatedAt).toBe("2025-01-01T00:00:00.000Z");
+    // nothing was written and nothing was queued
+    expect(sql).toHaveBeenCalledTimes(1);
+    expect(enqueueNoteReindexJob).not.toHaveBeenCalled();
+  });
+
+  it("reports a conflict when the row moves between the read and the fenced write", async () => {
+    const movedRow = { ...NOTE_ROW, updated_at: new Date("2025-01-02") };
+    // SELECT existing, fenced UPDATE hits nothing, re-read the fresh stamp
+    sql
+      .mockResolvedValueOnce([NOTE_ROW])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([movedRow]);
+    const req = makeRequest("PUT", "http://localhost/api/notes/note-uuid-1", {
+      content: "# Updated",
+      expectedUpdatedAt: "2025-01-01T00:00:00.000Z",
+    });
+    const res = await notePUT(req, {
+      params: Promise.resolve({ id: "note-uuid-1" }),
+    });
+    expect(res.status).toBe(409);
+    expect((await res.json()).updatedAt).toBe("2025-01-02T00:00:00.000Z");
+    expect(enqueueNoteReindexJob).not.toHaveBeenCalled();
+  });
+
+  it("accepts a save whose expectedUpdatedAt matches the stored row", async () => {
+    const updatedRow = { ...NOTE_ROW, content: "# Updated" };
+    sql.mockResolvedValueOnce([NOTE_ROW]).mockResolvedValueOnce([updatedRow]);
+    const req = makeRequest("PUT", "http://localhost/api/notes/note-uuid-1", {
+      content: "# Updated",
+      expectedUpdatedAt: "2025-01-01T00:00:00.000Z",
+    });
+    const res = await notePUT(req, {
+      params: Promise.resolve({ id: "note-uuid-1" }),
+    });
+    expect(res.status).toBe(200);
   });
 });
 

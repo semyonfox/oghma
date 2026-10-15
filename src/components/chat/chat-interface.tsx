@@ -157,6 +157,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     restoreError,
     retryRestore,
     finishBackgroundGeneration,
+    claimBackgroundGeneration,
     backgroundLoading,
     backgroundGenerationId,
     updateRefs,
@@ -279,9 +280,11 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     }
     resumedGenerationRef.current = backgroundGenerationId;
     ownsMessagesRef.current = true;
+    claimBackgroundGeneration(backgroundGenerationId);
     void resume(backgroundGenerationId);
   }, [
     backgroundGenerationId,
+    claimBackgroundGeneration,
     loading,
     messages,
     restored,

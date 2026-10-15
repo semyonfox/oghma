@@ -4,25 +4,52 @@ import Link from "next/link";
 import {
   useCallback,
   useEffect,
-  useId,
-  useMemo,
   useRef,
   useState,
   type FormEvent,
+  type ReactNode,
 } from "react";
 import {
-  Dialog,
-  DialogBackdrop,
-  DialogPanel,
-  DialogTitle,
+  Menu,
+  MenuButton,
+  MenuHeading,
+  MenuItem,
+  MenuItems,
+  MenuSection,
+  MenuSeparator,
 } from "@headlessui/react";
+import {
+  AcademicCapIcon,
+  ArrowPathIcon,
+  Cog6ToothIcon,
+  DocumentPlusIcon,
+  EllipsisHorizontalIcon,
+  ExclamationTriangleIcon,
+  QueueListIcon,
+  SparklesIcon,
+  TagIcon,
+} from "@heroicons/react/24/outline";
 import { z } from "zod";
-import useSwipeDismiss from "@/components/navigation/use-swipe-dismiss";
-import StudyCanvas, { type FlowScope } from "./study-canvas";
+import StudyCanvas, { MAX_MODULES, type FlowScope } from "./study-canvas";
+import {
+  ChromeFrame,
+  ModuleSwitcher,
+  ScopeToggle,
+  Toast,
+  islandButton,
+  islandClass,
+  islandDivider,
+  menuHeadingClass,
+  menuItemClass,
+  menuPanelClass,
+  menuSeparatorClass,
+} from "./study-chrome";
+import StudyDrawer, { useDockedSheet } from "./study-drawer";
 import StudyInspector from "./study-inspector";
 import StudyExams from "./study-exams";
 import ExamPaperImportControl from "./exam-paper-import";
 import StudySearch from "./study-search";
+import { secondarySmall } from "./study-flow-panels";
 import {
   messageFor,
   requestJson,
@@ -52,13 +79,27 @@ export interface StudyWorkspaceProps {
 
 type Selection = { kind: "note" | "topic"; id: string };
 type MapFields = z.infer<typeof mapCreateSchema> & { autoClassify: boolean };
-const workspaceTabs = [
-  { id: "canvas", name: "Map" },
-  { id: "materials", name: "Materials" },
-  { id: "exams", name: "Exam history" },
-] as const;
-type WorkspaceTab = (typeof workspaceTabs)[number]["id"];
-type TabPreference = { chosen: WorkspaceTab | null };
+const panelSchema = z.enum([
+  "topics",
+  "materials",
+  "exams",
+  "add",
+  "settings",
+  "search",
+  "create",
+]);
+type Panel = z.infer<typeof panelSchema>;
+const panelTitles: Record<Panel, string> = {
+  topics: "Topics",
+  materials: "Materials",
+  exams: "Exam history",
+  add: "Add materials",
+  settings: "Module settings",
+  search: "Search all modules",
+  create: "Add module",
+};
+// these follow you from module to module; the rest belong to one module or none
+const browsingPanels = new Set<Panel>(["topics", "materials", "exams"]);
 const clearedFilters = {
   q: null,
   kind: null,
@@ -290,13 +331,7 @@ function MapForm({
     }
   }
   return (
-    <form
-      onSubmit={(event) => void save(event)}
-      className="space-y-4 rounded-radius-xl border border-border-subtle bg-surface p-4 sm:p-5"
-    >
-      <h2 className="text-lg font-semibold">
-        {creating ? "Add a module" : "Module settings"}
-      </h2>
+    <form onSubmit={(event) => void save(event)} className="space-y-4">
       {creating && (
         <p className="text-sm text-text-secondary">
           Imported Canvas courses get a module automatically. For anything else,
@@ -305,7 +340,7 @@ function MapForm({
         </p>
       )}
       <fieldset disabled={busy} className="min-w-0 space-y-4">
-        <div className={creating ? "" : "grid gap-4 sm:grid-cols-2"}>
+        <div className="space-y-4">
           <label className="block space-y-1 text-sm font-medium">
             Module name
             <input
@@ -423,8 +458,7 @@ function AddMaterials({
     }
   }
   return (
-    <section className="space-y-3 rounded-radius-xl border border-border-subtle bg-surface p-4">
-      <h2 className="text-base font-semibold">Add notes and files</h2>
+    <section aria-label="Add notes and files" className="space-y-3">
       <label className="block space-y-1 text-sm">
         Search library by title
         <input
@@ -443,7 +477,7 @@ function AddMaterials({
           Searching library...
         </p>
       )}
-      <ul className="max-h-64 overflow-y-auto divide-y divide-border-subtle">
+      <ul className="divide-y divide-border-subtle">
         {notes
           .filter((note) => !note.isFolder)
           .map((note) => (
@@ -699,8 +733,8 @@ function MaterialList({
     );
   return (
     <section className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <label className="block space-y-1 text-sm">
+      <div className="grid grid-cols-2 gap-3">
+        <label className="col-span-2 block space-y-1 text-sm">
           Search materials
           <input
             className={fieldClass}
@@ -807,7 +841,7 @@ function MaterialList({
       <p className="text-xs text-text-tertiary">
         {materials.length} of {snapshot.materials.length} materials
       </p>
-      <ul className="grid gap-3 lg:grid-cols-2">
+      <ul className="grid gap-3">
         {materials.map((material) => {
           const associations = effectiveAssociations(
             material,
@@ -885,22 +919,27 @@ function MaterialList({
 
 type ActiveJob = StudyMapSnapshot["jobs"][number];
 
-/** one line saying what the automatic setup is doing, or offering the one action it could use */
+/** what the automatic setup is doing, or the one action it could use */
 function describeSetup(
   snapshot: StudyMapSnapshot,
   activeJobs: ActiveJob[],
-): { text: string; action?: "find" | "find-now" } | null {
+): { short: string; text: string; action?: "find" | "find-now" } | null {
   const { map, provider } = snapshot;
   if (activeJobs.some((job) => job.kind === "taxonomy"))
-    return { text: "Reading this module's material to find its topics..." };
+    return {
+      short: "Finding topics…",
+      text: "Reading this module's material to find its topics...",
+    };
   const sorting = activeJobs.filter((job) => job.kind === "classify").length;
   if (sorting > 0)
     return {
+      short: `Sorting ${sorting} ${sorting === 1 ? "note" : "notes"}…`,
       text: `Sorting ${sorting} ${sorting === 1 ? "note" : "notes"} into topics. The map fills in as they finish.`,
     };
   if (map.topics.length > 0) return null;
   if (snapshot.materials.length === 0)
     return {
+      short: "No notes yet",
       text:
         map.rootNoteId || map.canvasCourseId
           ? "Waiting for this module's notes to arrive."
@@ -908,20 +947,24 @@ function describeSetup(
     };
   if (!provider.generationReady)
     return {
+      short: "No topics yet",
       text: "Topic suggestions are unavailable right now. Notes are laid out by week, and you can add topics yourself under Topics.",
     };
   const proposal = snapshot.jobs.find((job) => job.kind === "taxonomy");
   if (proposal?.state === "failed")
     return {
+      short: "Topics not found",
       text: `Topics could not be found. ${proposal.error ?? ""}`,
       action: "find",
     };
   if (proposal)
     return {
+      short: "No topics found",
       text: "No topics were found in this module's material. Add one yourself under Topics, or try again.",
       action: "find",
     };
   return {
+    short: "No topics yet",
     text: map.autoClassify
       ? "Notes are laid out by week. Topics are found automatically once the course finishes importing."
       : "Notes are laid out by week. Find topics to group them.",
@@ -929,13 +972,45 @@ function describeSetup(
   };
 }
 
+function menuEntry(
+  label: string,
+  Icon: typeof TagIcon,
+  onClick: () => void,
+  { detail, disabled = false }: { detail?: string; disabled?: boolean } = {},
+) {
+  return (
+    <MenuItem key={label} disabled={disabled}>
+      <button
+        type="button"
+        className={menuItemClass}
+        disabled={disabled}
+        onClick={onClick}
+      >
+        <Icon
+          className="h-4 w-4 shrink-0 text-text-tertiary"
+          aria-hidden="true"
+        />
+        <span className="min-w-0 flex-1">{label}</span>
+        {detail && (
+          <span className="text-xs text-text-tertiary" aria-hidden="true">
+            {detail}
+          </span>
+        )}
+      </button>
+    </MenuItem>
+  );
+}
+
 function ModuleWorkspace({
   mapId,
   initialNoteId,
   noteRequest,
-  tabPreference,
+  panel,
+  docked,
   maps,
   scope,
+  notices,
+  onPanelChange,
   onScopeChange,
   onOpenModule,
   onRefreshMaps,
@@ -945,9 +1020,12 @@ function ModuleWorkspace({
   mapId: string;
   initialNoteId?: string | null;
   noteRequest: number;
-  tabPreference: TabPreference;
+  panel: Panel | null;
+  docked: boolean;
   maps: StudyMapSummary[];
   scope: FlowScope;
+  notices: ReactNode;
+  onPanelChange: (panel: Panel | null) => void;
   onScopeChange: (scope: FlowScope) => void;
   onOpenModule: (mapId: string, noteId?: string | null) => void;
   onRefreshMaps: () => Promise<void>;
@@ -962,21 +1040,12 @@ function ModuleWorkspace({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [tab, setTab] = useState<WorkspaceTab>(
-    tabPreference.chosen ?? "canvas",
-  );
   const [selection, setSelection] = useState<Selection | null>(
     initialNoteId ? { kind: "note", id: initialNoteId } : null,
   );
-  const [settings, setSettings] = useState(false);
-  const [adding, setAdding] = useState(false);
   const [topicForm, setTopicForm] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
-  const [wide, setWide] = useState(false);
-  const [topicsOpen, setTopicsOpen] = useState<boolean | null>(null);
-  const [boardFocused, setBoardFocused] = useState(false);
-  const inspectorRef = useRef<HTMLElement>(null);
-  const tabId = useId();
+  const [noteOfferHidden, setNoteOfferHidden] = useState(false);
   const closeInspector = useCallback(() => {
     setSelection(null);
     updateLocation({ note: null });
@@ -985,55 +1054,12 @@ function ModuleWorkspace({
     setSelection(selection);
     updateLocation({ note: selection?.kind === "note" ? selection.id : null });
   }, []);
-  function chooseTab(tab: WorkspaceTab) {
-    tabPreference.chosen = tab;
-    setTab(tab);
-    setBoardFocused(false);
-    updateLocation({ tab });
+  // a drawer opened from the menu replaces the inspector; one opened from a drawer sits on top of it
+  function openPanel(next: Panel) {
+    closeInspector();
+    onPanelChange(next);
   }
-  useEffect(() => {
-    const restored = new URLSearchParams(window.location.search).get("tab");
-    const initial =
-      workspaceTabs.find((entry) => entry.id === restored)?.id ??
-      tabPreference.chosen ??
-      "canvas";
-    setTab(initial);
-    updateLocation({ tab: initial });
-  }, [tabPreference]);
-  useEffect(() => {
-    if (!boardFocused && !(wide && selection)) return;
-    const dismiss = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented) return;
-      if (selection && wide) closeInspector();
-      else setBoardFocused(false);
-    };
-    window.addEventListener("keydown", dismiss);
-    return () => window.removeEventListener("keydown", dismiss);
-  }, [boardFocused, closeInspector, selection, wide]);
-
-  const inspectorReady = snapshot !== null;
-  useEffect(() => {
-    if (!selection || !wide || !inspectorReady) return;
-    const previous = document.activeElement;
-    const panel = inspectorRef.current;
-    panel
-      ?.querySelector<HTMLButtonElement>('[aria-label="Close inspector"]')
-      ?.focus();
-    return () => {
-      if (
-        previous instanceof HTMLElement &&
-        previous.isConnected &&
-        (panel?.contains(document.activeElement) ||
-          document.activeElement === document.body)
-      )
-        previous.focus();
-    };
-  }, [inspectorReady, selection, tab, wide]);
-
-  const swipe = useSwipeDismiss({
-    open: selection !== null && !wide,
-    onClose: closeInspector,
-  });
+  const closePanel = useCallback(() => onPanelChange(null), [onPanelChange]);
 
   const refresh = useCallback(
     async (signal?: AbortSignal) => {
@@ -1055,6 +1081,7 @@ function ModuleWorkspace({
 
   useEffect(() => {
     if (initialNoteId) setSelection({ kind: "note", id: initialNoteId });
+    else setSelection((current) => (current?.kind === "note" ? null : current));
   }, [initialNoteId, noteRequest]);
 
   useEffect(() => {
@@ -1063,14 +1090,9 @@ function ModuleWorkspace({
     void refresh(controller.signal).catch((error) => {
       if (!controller.signal.aborted) setError(messageFor(error));
     });
-    const media = window.matchMedia("(min-width: 1280px)");
-    const updateWide = () => setWide(media.matches);
-    updateWide();
-    media.addEventListener("change", updateWide);
     return () => {
       mounted.current = false;
       controller.abort();
-      media.removeEventListener("change", updateWide);
     };
   }, [refresh]);
 
@@ -1209,9 +1231,9 @@ function ModuleWorkspace({
 
   if (!snapshot)
     return (
-      <section className="space-y-3 rounded-radius-xl border border-border-subtle p-5">
+      <ChromeFrame notices={notices}>
         {error ? (
-          <>
+          <div className="max-w-md space-y-3 rounded-radius-xl border border-border-subtle bg-surface p-5 shadow-md">
             <p role="alert" className={errorClass}>
               {error}
             </p>
@@ -1224,20 +1246,32 @@ function ModuleWorkspace({
             >
               Retry loading module
             </button>
-          </>
+          </div>
         ) : (
           <p role="status" className="text-sm text-text-secondary">
             Loading module map...
           </p>
         )}
-      </section>
+      </ChromeFrame>
     );
   const map = snapshot.map;
   const activeJobs = snapshot.jobs.filter(
     (job) => job.state === "pending" || job.state === "running",
   );
+  const failedJobs = snapshot.jobs.filter((job) => job.state === "failed");
   const reviewedTopics = map.topics.filter((topic) => topic.reviewed).length;
+  const toCheck = map.topics.length - reviewedTopics;
   const setupStatus = describeSetup(snapshot, activeJobs);
+  const findingTopics = activeJobs.some((job) => job.kind === "taxonomy");
+  const missingNote =
+    initialNoteId &&
+    !snapshot.materials.some((material) => material.noteId === initialNoteId)
+      ? initialNoteId
+      : null;
+  const modulePanel =
+    panel && panel !== "search" && panel !== "create" ? panel : null;
+  const globalPanel = panel === "search" || panel === "create";
+  const findTopics = () => launch(queue("taxonomy"));
   const inspector = selection && (
     <StudyInspector
       snapshot={snapshot}
@@ -1259,482 +1293,433 @@ function ModuleWorkspace({
     />
   );
 
-  return (
-    <section className="min-w-0 space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="min-w-0">
-          <h2 className="break-words text-base font-semibold">{map.name}</h2>
-          <p className="mt-0.5 text-xs text-text-secondary">
-            {map.academicYear} · {snapshot.materials.length} materials ·{" "}
-            {map.topics.length} topics
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            className={`${secondaryClass} lg:min-h-8 lg:py-1`}
-            disabled={busy !== null}
-            aria-expanded={settings}
-            onClick={() => setSettings((value) => !value)}
-          >
-            Module settings
-          </button>
-          <button
-            type="button"
-            className={`${primaryClass} lg:min-h-8 lg:py-1`}
-            disabled={busy !== null}
-            aria-expanded={adding}
-            onClick={() => setAdding((value) => !value)}
-          >
-            Add materials
-          </button>
-        </div>
-      </div>
-      {error && (
-        <p role="alert" className={errorClass}>
-          {error}
-        </p>
-      )}
-      {message && (
-        <p
-          role="status"
-          className="rounded-radius-md bg-primary-500/5 p-3 text-sm text-text-secondary"
+  const menu = (
+    <>
+      <span className={islandDivider} aria-hidden="true" />
+      <Menu>
+        <MenuButton
+          className={islandButton}
+          aria-label="Module menu"
+          title="Topics, materials, exam history and settings"
         >
-          {message}
-        </p>
-      )}
-      {settings && (
-        <div className="space-y-3">
-          <MapForm
-            key={map.id}
-            initial={map}
-            creating={false}
-            busy={busy !== null}
-            onCancel={() => setSettings(false)}
-            onSave={async (fields, version) => {
-              const parsed = mapUpdateSchema.parse({ ...fields, version });
-              await mutation("", "PATCH", parsed, "Module settings saved.");
-              setSettings(false);
-            }}
-          />
-          <div className="space-y-2 rounded-radius-lg border border-border-subtle p-4">
-            <p className="text-sm text-text-secondary">
-              Deleting this module removes its map, topic definitions, and exam
-              reviews. Your notes and files stay in the library.
-            </p>
-            {deleteConfirm ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-medium">
-                  Delete this module map?
-                </span>
-                <button
-                  type="button"
-                  className={dangerClass}
-                  disabled={busy !== null}
-                  onClick={() =>
-                    launch(
-                      operate(
-                        "delete",
-                        async () => {
-                          await requestJson(`/api/study-maps/${mapId}`, {
-                            method: "DELETE",
-                          });
-                          await onDeleted();
-                        },
-                        "Module deleted.",
-                        false,
-                      ),
-                    )
-                  }
-                >
-                  Confirm deletion
-                </button>
-                <button
-                  type="button"
-                  className={secondaryClass}
-                  disabled={busy !== null}
-                  onClick={() => setDeleteConfirm(false)}
-                >
-                  Cancel
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                className={dangerClass}
-                disabled={busy !== null}
-                onClick={() => setDeleteConfirm(true)}
-              >
-                Delete module map
-              </button>
+          <EllipsisHorizontalIcon className="h-4 w-4" aria-hidden="true" />
+          <span className="max-lg:hidden" aria-hidden="true">
+            Module
+          </span>
+        </MenuButton>
+        <MenuItems anchor="bottom end" className={menuPanelClass}>
+          <MenuSection>
+            <MenuHeading className={`${menuHeadingClass} truncate`}>
+              {map.name}
+            </MenuHeading>
+            {menuEntry("Topics", TagIcon, () => openPanel("topics"), {
+              detail:
+                toCheck > 0 ? `${toCheck} to check` : `${map.topics.length}`,
+            })}
+            {menuEntry(
+              "Materials",
+              QueueListIcon,
+              () => openPanel("materials"),
+              {
+                detail: `${snapshot.materials.length}`,
+              },
             )}
-          </div>
-        </div>
+            {menuEntry("Exam history", AcademicCapIcon, () =>
+              openPanel("exams"),
+            )}
+          </MenuSection>
+          <MenuSeparator className={menuSeparatorClass} />
+          {menuEntry(
+            "Add materials",
+            DocumentPlusIcon,
+            () => openPanel("add"),
+            {
+              disabled: busy !== null,
+            },
+          )}
+          {menuEntry("Module settings", Cog6ToothIcon, () =>
+            openPanel("settings"),
+          )}
+          {(snapshot.provider.generationReady || !map.autoClassify) && (
+            <MenuSeparator className={menuSeparatorClass} />
+          )}
+          {snapshot.provider.generationReady &&
+            menuEntry(
+              map.topics.length > 0 ? "Find topics again" : "Find topics",
+              SparklesIcon,
+              findTopics,
+              { disabled: busy !== null || findingTopics },
+            )}
+          {!map.autoClassify &&
+            menuEntry(
+              "Sync sources",
+              ArrowPathIcon,
+              () =>
+                launch(
+                  mutation(
+                    "/refresh",
+                    "POST",
+                    {},
+                    "Source folder and course materials synced.",
+                  ),
+                ),
+              {
+                disabled:
+                  busy !== null || (!map.rootNoteId && !map.canvasCourseId),
+              },
+            )}
+          {!map.autoClassify &&
+            menuEntry(
+              "Classify materials",
+              SparklesIcon,
+              () => launch(queue("classify")),
+              {
+                disabled:
+                  busy !== null ||
+                  !snapshot.provider.ready ||
+                  reviewedTopics === 0 ||
+                  snapshot.materials.length === 0 ||
+                  activeJobs.some((job) => job.kind === "classify"),
+              },
+            )}
+          {failedJobs.length > 0 && (
+            <>
+              <MenuSeparator className={menuSeparatorClass} />
+              {menuEntry(
+                "Processing errors",
+                ExclamationTriangleIcon,
+                () => openPanel("topics"),
+                { detail: `${failedJobs.length}` },
+              )}
+            </>
+          )}
+        </MenuItems>
+      </Menu>
+    </>
+  );
+
+  const setupPill = setupStatus && (
+    <div
+      role="status"
+      title={setupStatus.text}
+      className={`pointer-events-auto flex max-w-[min(22rem,calc(100vw-1.5rem))] items-center gap-2 rounded-full border border-border-subtle bg-surface/95 py-1 pl-3 text-xs text-text-secondary shadow-md backdrop-blur ${setupStatus.action ? "pr-1" : "pr-3"}`}
+    >
+      <span
+        className={`h-2 w-2 shrink-0 rounded-full ${setupStatus.action ? "bg-ai-500" : "animate-pulse bg-primary-500"}`}
+        aria-hidden="true"
+      />
+      <button
+        type="button"
+        className="min-w-0 truncate text-left hover:text-text focus-visible:outline-2 focus-visible:outline-primary-500"
+        onClick={() => openPanel("topics")}
+      >
+        {setupStatus.short}
+      </button>
+      {setupStatus.action && (
+        <button
+          type="button"
+          className="shrink-0 rounded-full bg-primary-600 px-2.5 py-1 font-medium text-text-on-primary hover:bg-primary-700 focus-visible:outline-2 focus-visible:outline-primary-500 disabled:opacity-50"
+          disabled={busy !== null}
+          onClick={findTopics}
+        >
+          {setupStatus.action === "find-now"
+            ? "Find topics now"
+            : "Find topics"}
+        </button>
       )}
-      {adding && (
-        <AddMaterials
-          snapshot={snapshot}
-          busy={busy !== null}
-          onAdd={(noteIds) =>
-            mutation("/materials", "POST", { noteIds }, "Materials added.")
-          }
-          onClose={() => setAdding(false)}
-        />
-      )}
-      {initialNoteId &&
-        !snapshot.materials.some(
-          (material) => material.noteId === initialNoteId,
-        ) && (
-          <div className="flex flex-wrap items-center gap-3 rounded-radius-lg border border-border-subtle p-3">
-            <p className="text-sm text-text-secondary">
-              The note you opened is not in this module.
-            </p>
+    </div>
+  );
+
+  const topicsPanel = (
+    <div className="space-y-4">
+      <p className="text-xs text-text-tertiary">
+        {map.topics.length} topics
+        {toCheck > 0 ? ` · ${toCheck} to check` : ""}
+        {map.autoClassify ? " · organised automatically" : ""}
+      </p>
+      {setupStatus && (
+        <div className="space-y-2 rounded-radius-lg bg-primary-500/5 p-3 text-sm text-text-secondary">
+          <p className="break-words">{setupStatus.text}</p>
+          {setupStatus.action && (
             <button
               type="button"
               className={secondaryClass}
               disabled={busy !== null}
+              onClick={findTopics}
+            >
+              {setupStatus.action === "find-now"
+                ? "Find topics now"
+                : "Find topics"}
+            </button>
+          )}
+        </div>
+      )}
+      <button
+        type="button"
+        className={secondaryClass}
+        disabled={busy !== null || map.topics.length >= 80}
+        aria-expanded={topicForm}
+        onClick={() => setTopicForm((value) => !value)}
+      >
+        Add a topic
+      </button>
+      {topicForm && (
+        <ManualTopic
+          busy={busy !== null}
+          onClose={() => setTopicForm(false)}
+          onAdd={async (topic) => {
+            await saveTopics([...map.topics, topic]);
+            selectInspector({ kind: "topic", id: topic.id });
+          }}
+        />
+      )}
+      {map.topics.length > 0 && (
+        <ul className="grid gap-2 sm:grid-cols-2">
+          {map.topics.map((topic) => (
+            <li key={topic.id}>
+              <button
+                type="button"
+                className={`${secondaryClass} w-full justify-start text-left`}
+                onClick={() => selectInspector({ kind: "topic", id: topic.id })}
+              >
+                <span className="min-w-0">
+                  <span className="block break-words">{topic.name}</span>
+                  <span className="block text-xs text-text-tertiary">
+                    {topic.reviewed ? "In use" : "Check and approve"}
+                    {topic.sources.length === 0
+                      ? " · Your definition"
+                      : " · From the syllabus"}
+                  </span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {!snapshot.provider.ready && (
+        <p className="text-sm text-text-secondary">
+          Automatic sorting is unavailable. You can organise materials and
+          topics yourself.
+        </p>
+      )}
+      {failedJobs.length > 0 && (
+        <section
+          aria-label="Processing errors"
+          className="space-y-2 rounded-radius-lg border border-border-subtle p-3"
+        >
+          <h3 className="text-sm font-medium text-text-secondary">
+            Processing errors
+          </h3>
+          <ul className="space-y-2">
+            {failedJobs.map((job) => (
+              <li
+                key={job.id}
+                className="text-sm text-error-700 dark:text-error-300"
+              >
+                {job.kind === "taxonomy"
+                  ? "Topic proposal"
+                  : job.kind === "paper"
+                    ? "Paper analysis"
+                    : "Classification"}
+                {job.noteId
+                  ? ` · ${snapshot.materials.find((material) => material.noteId === job.noteId)?.title || "Material"}`
+                  : ""}
+                : {job.error || "Processing failed. Try again."}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </div>
+  );
+
+  const settingsPanel = (
+    <div className="space-y-5">
+      <MapForm
+        key={map.id}
+        initial={map}
+        creating={false}
+        busy={busy !== null}
+        onCancel={closePanel}
+        onSave={async (fields, version) => {
+          const parsed = mapUpdateSchema.parse({ ...fields, version });
+          await mutation("", "PATCH", parsed, "Module settings saved.");
+          closePanel();
+        }}
+      />
+      <div className="space-y-2 border-t border-border-subtle pt-4">
+        <p className="text-sm text-text-secondary">
+          Deleting this module removes its map, topic definitions, and exam
+          reviews. Your notes and files stay in the library.
+        </p>
+        {deleteConfirm ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium">Delete this module map?</span>
+            <button
+              type="button"
+              className={dangerClass}
+              disabled={busy !== null}
               onClick={() =>
                 launch(
-                  mutation(
-                    "/materials",
-                    "POST",
-                    { noteIds: [initialNoteId] },
-                    "Note added to this module.",
+                  operate(
+                    "delete",
+                    async () => {
+                      await requestJson(`/api/study-maps/${mapId}`, {
+                        method: "DELETE",
+                      });
+                      await onDeleted();
+                    },
+                    "Module deleted.",
+                    false,
                   ),
                 )
               }
             >
-              Add this note
+              Confirm deletion
             </button>
-          </div>
-        )}
-      {setupStatus?.action && (
-        <div
-          role="status"
-          className="flex flex-wrap items-center gap-3 rounded-radius-lg border border-border-subtle bg-surface p-3 text-sm text-text-secondary"
-        >
-          <p className="min-w-0 flex-1 break-words">{setupStatus.text}</p>
-          <button
-            type="button"
-            className={secondaryClass}
-            disabled={busy !== null}
-            onClick={() => launch(queue("taxonomy"))}
-          >
-            {setupStatus.action === "find-now"
-              ? "Find topics now"
-              : "Find topics"}
-          </button>
-        </div>
-      )}
-      <details
-        open={topicsOpen ?? false}
-        onToggle={(event) => setTopicsOpen(event.currentTarget.open)}
-        className="rounded-radius-lg border border-border-subtle bg-surface"
-      >
-        <summary className="cursor-pointer px-3 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-primary-500">
-          Topics
-          <span className="ml-2 text-xs font-normal text-text-tertiary">
-            {map.topics.length} topics
-            {reviewedTopics < map.topics.length
-              ? ` · ${map.topics.length - reviewedTopics} to check`
-              : ""}
-            {map.autoClassify ? " · organised automatically" : ""}
-          </span>
-          {/* progress lives in this always-present row so the map below never shifts while jobs run */}
-          {setupStatus && !setupStatus.action && (
-            <span
-              role="status"
-              className="ml-2 text-xs font-normal text-text-secondary"
-            >
-              · {setupStatus.text}
-            </span>
-          )}
-        </summary>
-        <div className="space-y-3 border-t border-border-subtle p-3">
-          <div className="flex flex-wrap gap-2">
-            {map.topics.length > 0 && snapshot.provider.generationReady && (
-              <button
-                type="button"
-                className={secondaryClass}
-                disabled={
-                  busy !== null ||
-                  activeJobs.some((job) => job.kind === "taxonomy")
-                }
-                onClick={() => launch(queue("taxonomy"))}
-              >
-                Find topics again
-              </button>
-            )}
             <button
               type="button"
               className={secondaryClass}
-              disabled={busy !== null || map.topics.length >= 80}
-              aria-expanded={topicForm}
-              onClick={() => setTopicForm((value) => !value)}
+              disabled={busy !== null}
+              onClick={() => setDeleteConfirm(false)}
             >
-              Add a topic
+              Cancel
             </button>
-            {!map.autoClassify && (
-              <>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className={dangerClass}
+            disabled={busy !== null}
+            onClick={() => setDeleteConfirm(true)}
+          >
+            Delete module map
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
+  const panelContent =
+    modulePanel === "topics" ? (
+      topicsPanel
+    ) : modulePanel === "materials" ? (
+      <MaterialList
+        snapshot={snapshot}
+        onSelect={selectInspector}
+        selected={selection}
+      />
+    ) : modulePanel === "exams" ? (
+      <div className="space-y-4">
+        <ExamPaperImportControl
+          key={snapshot.map.id}
+          mapId={snapshot.map.id}
+          moduleName={snapshot.map.name}
+          onImported={() => refresh()}
+        />
+        <StudyExams
+          snapshot={snapshot}
+          onAnalyse={(noteId) => queue("paper", noteId)}
+          onSavePaper={(input) =>
+            mutation("/papers", "PUT", input, "Exam review saved.")
+          }
+        />
+      </div>
+    ) : modulePanel === "add" ? (
+      <AddMaterials
+        snapshot={snapshot}
+        busy={busy !== null}
+        onAdd={(noteIds) =>
+          mutation("/materials", "POST", { noteIds }, "Materials added.")
+        }
+        onClose={closePanel}
+      />
+    ) : modulePanel === "settings" ? (
+      settingsPanel
+    ) : null;
+
+  return (
+    <>
+      <StudyCanvas
+        snapshot={snapshot}
+        maps={maps}
+        scope={scope}
+        onScopeChange={onScopeChange}
+        onReview={(reviewMap, noteId) => {
+          if (reviewMap === mapId)
+            selectInspector({ kind: "note", id: noteId });
+          else onOpenModule(reviewMap, noteId);
+        }}
+        onOpenModule={(target) => onOpenModule(target)}
+        actions={menu}
+        status={setupPill}
+        notices={
+          <>
+            {notices}
+            {error && (
+              <Toast
+                key={`error:${error}`}
+                tone="error"
+                onDismiss={() => setError(null)}
+              >
+                {error}
+              </Toast>
+            )}
+            {message && (
+              <Toast
+                key={`message:${message}`}
+                tone="info"
+                timeout={6000}
+                onDismiss={() => setMessage(null)}
+              >
+                {message}
+              </Toast>
+            )}
+            {missingNote && !noteOfferHidden && (
+              <Toast tone="info" onDismiss={() => setNoteOfferHidden(true)}>
+                <span>The note you opened is not in this module.</span>
                 <button
                   type="button"
-                  className={secondaryClass}
-                  disabled={
-                    busy !== null || (!map.rootNoteId && !map.canvasCourseId)
-                  }
+                  className={secondarySmall}
+                  disabled={busy !== null}
                   onClick={() =>
                     launch(
                       mutation(
-                        "/refresh",
+                        "/materials",
                         "POST",
-                        {},
-                        "Source folder and course materials synced.",
+                        { noteIds: [missingNote] },
+                        "Note added to this module.",
                       ),
                     )
                   }
                 >
-                  Sync sources
+                  Add this note
                 </button>
-                <button
-                  type="button"
-                  className={secondaryClass}
-                  disabled={
-                    busy !== null ||
-                    !snapshot.provider.ready ||
-                    reviewedTopics === 0 ||
-                    snapshot.materials.length === 0 ||
-                    activeJobs.some((job) => job.kind === "classify")
-                  }
-                  onClick={() => launch(queue("classify"))}
-                >
-                  Classify materials
-                </button>
-              </>
+              </Toast>
             )}
-          </div>
-          {topicForm && (
-            <ManualTopic
-              busy={busy !== null}
-              onClose={() => setTopicForm(false)}
-              onAdd={async (topic) => {
-                await saveTopics([...map.topics, topic]);
-                selectInspector({ kind: "topic", id: topic.id });
-              }}
-            />
-          )}
-          {map.topics.length > 0 && (
-            <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {map.topics.map((topic) => (
-                <li key={topic.id}>
-                  <button
-                    type="button"
-                    className={`${secondaryClass} w-full justify-start text-left`}
-                    onClick={() =>
-                      selectInspector({ kind: "topic", id: topic.id })
-                    }
-                  >
-                    <span className="min-w-0">
-                      <span className="block break-words">{topic.name}</span>
-                      <span className="block text-xs text-text-tertiary">
-                        {topic.reviewed ? "In use" : "Check and approve"}
-                        {topic.sources.length === 0
-                          ? " · Your definition"
-                          : " · From the syllabus"}
-                      </span>
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          {!snapshot.provider.ready && (
-            <p className="text-sm text-text-secondary">
-              Automatic sorting is unavailable. You can organise materials and
-              topics yourself.
-            </p>
-          )}
-          {snapshot.jobs.some((job) => job.state === "failed") && (
-            <details className="rounded-radius-lg border border-border-subtle p-3">
-              <summary className="cursor-pointer text-sm text-text-secondary">
-                Processing errors
-              </summary>
-              <ul className="mt-2 space-y-2">
-                {snapshot.jobs
-                  .filter((job) => job.state === "failed")
-                  .map((job) => (
-                    <li
-                      key={job.id}
-                      className="text-sm text-error-700 dark:text-error-300"
-                    >
-                      {job.kind === "taxonomy"
-                        ? "Topic proposal"
-                        : job.kind === "paper"
-                          ? "Paper analysis"
-                          : "Classification"}
-                      {job.noteId
-                        ? ` · ${snapshot.materials.find((material) => material.noteId === job.noteId)?.title || "Material"}`
-                        : ""}
-                      : {job.error || "Processing failed. Try again."}
-                    </li>
-                  ))}
-              </ul>
-            </details>
-          )}
-        </div>
-      </details>
-      <div className="flex min-w-0 items-end justify-between gap-3 border-b border-border-subtle">
-        <div
-          role="tablist"
-          aria-label="Module view"
-          className="flex flex-wrap gap-1"
-          onKeyDown={(event) => {
-            const tabs = workspaceTabs.map((entry) => entry.id);
-            const index = tabs.indexOf(tab);
-            const nextIndex =
-              event.key === "ArrowRight"
-                ? (index + 1) % tabs.length
-                : event.key === "ArrowLeft"
-                  ? (index + tabs.length - 1) % tabs.length
-                  : event.key === "Home"
-                    ? 0
-                    : event.key === "End"
-                      ? tabs.length - 1
-                      : null;
-            if (nextIndex === null) return;
-            event.preventDefault();
-            const next = tabs[nextIndex];
-            chooseTab(next);
-            document.getElementById(`${tabId}-${next}-tab`)?.focus();
-          }}
-        >
-          {workspaceTabs.map((entry) => (
-            <button
-              key={entry.id}
-              id={`${tabId}-${entry.id}-tab`}
-              type="button"
-              role="tab"
-              tabIndex={tab === entry.id ? 0 : -1}
-              aria-selected={tab === entry.id}
-              aria-controls={`${tabId}-${entry.id}-panel`}
-              className={`${buttonClass} rounded-b-none lg:min-h-8 lg:py-1 ${tab === entry.id ? "border-b-2 border-primary-500 text-primary-700 dark:text-primary-300" : "text-text-secondary hover:bg-primary-500/5"}`}
-              onClick={() => chooseTab(entry.id)}
-            >
-              {entry.name}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="relative min-w-0">
-        <div className="min-w-0">
-          <section
-            id={`${tabId}-canvas-panel`}
-            role="tabpanel"
-            aria-labelledby={`${tabId}-canvas-tab`}
-            hidden={tab !== "canvas"}
-            className={
-              tab !== "canvas"
-                ? "hidden"
-                : boardFocused
-                  ? "fixed inset-0 z-[65] flex h-dvh min-h-0 flex-col gap-2 overflow-hidden bg-app-page p-3 text-text"
-                  : "relative flex h-[calc(100dvh-20rem)] min-h-[520px] flex-col gap-2 lg:h-[calc(100dvh-16rem)]"
-            }
-          >
-            <div className="flex min-h-0 flex-1 flex-col">
-              <StudyCanvas
-                snapshot={snapshot}
-                maps={maps}
-                scope={scope}
-                onScopeChange={onScopeChange}
-                onReview={(reviewMap, noteId) => {
-                  if (reviewMap === mapId)
-                    selectInspector({ kind: "note", id: noteId });
-                  else onOpenModule(reviewMap, noteId);
-                }}
-                onOpenModule={(target) => onOpenModule(target)}
-                actions={
-                  <button
-                    type="button"
-                    className="inline-flex min-h-8 items-center rounded-radius-md border border-border-subtle px-2.5 text-xs font-medium text-text-secondary hover:text-text"
-                    aria-pressed={boardFocused}
-                    onClick={() => setBoardFocused((value) => !value)}
-                  >
-                    {boardFocused ? "Exit full screen" : "Full screen"}
-                  </button>
-                }
-              />
-            </div>
-            {selection && wide && tab === "canvas" && (
-              <aside
-                ref={inspectorRef}
-                aria-label="Selected material or topic"
-                className="glass-panel absolute bottom-3 right-3 top-24 z-30 w-[360px] overflow-y-auto overscroll-contain rounded-radius-xl p-4 shadow-lg"
-              >
-                {inspector}
-              </aside>
-            )}
-          </section>
-          <section
-            id={`${tabId}-materials-panel`}
-            role="tabpanel"
-            aria-labelledby={`${tabId}-materials-tab`}
-            hidden={tab !== "materials"}
-          >
-            <MaterialList
-              snapshot={snapshot}
-              onSelect={selectInspector}
-              selected={selection}
-            />
-          </section>
-          <section
-            id={`${tabId}-exams-panel`}
-            role="tabpanel"
-            aria-labelledby={`${tabId}-exams-tab`}
-            hidden={tab !== "exams"}
-          >
-            <ExamPaperImportControl
-              key={snapshot.map.id}
-              mapId={snapshot.map.id}
-              moduleName={snapshot.map.name}
-              onImported={() => refresh()}
-            />
-            <StudyExams
-              snapshot={snapshot}
-              onAnalyse={(noteId) => queue("paper", noteId)}
-              onSavePaper={(input) =>
-                mutation("/papers", "PUT", input, "Exam review saved.")
-              }
-            />
-          </section>
-        </div>
-        {selection && wide && tab !== "canvas" && (
-          <aside
-            ref={inspectorRef}
-            aria-label="Selected material or topic"
-            className="glass-panel absolute right-0 top-0 z-30 max-h-[calc(100dvh-12rem)] w-[360px] overflow-y-auto overscroll-contain rounded-radius-xl p-4 shadow-lg"
-          >
-            {inspector}
-          </aside>
-        )}
-      </div>
-      {!wide && (
-        <Dialog
-          open={selection !== null}
-          onClose={closeInspector}
-          className="relative z-[70]"
-        >
-          <DialogBackdrop className="fixed inset-0 bg-black/40" />
-          <div className="fixed inset-0 flex items-end justify-center sm:items-center sm:p-4">
-            <DialogPanel
-              {...swipe}
-              className="max-h-[85dvh] w-full max-w-lg overflow-y-auto overscroll-contain rounded-t-radius-xl border border-border-subtle bg-surface p-4 pb-[max(1rem,var(--safe-bottom))] text-text sm:rounded-radius-xl"
-            >
-              <DialogTitle className="sr-only">Study map inspector</DialogTitle>
-              {inspector}
-            </DialogPanel>
-          </div>
-        </Dialog>
-      )}
-    </section>
+          </>
+        }
+      />
+      <StudyDrawer
+        open={!globalPanel && (selection !== null || modulePanel !== null)}
+        title={
+          selection
+            ? "Study map inspector"
+            : modulePanel
+              ? panelTitles[modulePanel]
+              : ""
+        }
+        docked={docked}
+        wide={
+          !selection && (modulePanel === "materials" || modulePanel === "exams")
+        }
+        header={!selection}
+        focusSelector={selection ? '[aria-label="Close inspector"]' : undefined}
+        onClose={selection ? closeInspector : closePanel}
+      >
+        {selection ? inspector : panelContent}
+      </StudyDrawer>
+    </>
   );
 }
 
@@ -1745,26 +1730,42 @@ export default function StudyWorkspace({
 }: StudyWorkspaceProps) {
   const [maps, setMaps] = useState(initialMaps);
   const [mapId, setMapId] = useState(initialMapId ?? initialMaps[0]?.id ?? "");
-  const [creating, setCreating] = useState(false);
   // imported courses become modules on open; only an empty result shows the manual form
   const [settingUp, setSettingUp] = useState(true);
-  const [searching, setSearching] = useState(false);
+  const [panel, setPanel] = useState<Panel | null>(null);
   const [noteId, setNoteId] = useState(initialNoteId);
   const [noteRequest, setNoteRequest] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [scope, setScope] = useState<FlowScope>("module");
-  const tabPreference = useMemo<TabPreference>(() => ({ chosen: null }), []);
+  const docked = useDockedSheet();
   useEffect(() => {
     const parameters = new URLSearchParams(window.location.search);
     const restoredMap = z.uuid().safeParse(parameters.get("map"));
     const restoredNote = z.uuid().safeParse(parameters.get("note"));
     if (restoredMap.success) setMapId(restoredMap.data);
-    if (restoredNote.success) setNoteId(restoredNote.data);
+    // back navigation can replay the note the page was first opened with, after it was closed
+    setNoteId(restoredNote.success ? restoredNote.data : null);
     if (parameters.get("scope") === "all") setScope("all");
     updateLocation({ map: restoredMap.success ? restoredMap.data : mapId });
   }, [mapId]);
+  useEffect(() => {
+    const parameters = new URLSearchParams(window.location.search);
+    // older links name the open view with tab
+    const restored = panelSchema.safeParse(
+      parameters.get("panel") ?? parameters.get("tab"),
+    );
+    if (restored.success) setPanel(restored.data);
+    updateLocation({
+      panel: restored.success ? restored.data : null,
+      tab: null,
+    });
+  }, []);
+  const choosePanel = useCallback((next: Panel | null) => {
+    setPanel(next);
+    updateLocation({ panel: next });
+  }, []);
 
   const refreshMaps = useCallback(async () => {
     const incoming = summarySchema
@@ -1823,7 +1824,7 @@ export default function StudyWorkspace({
       updateLocation({ map: result.mapId, note: null, ...clearedFilters });
       setNoteId(null);
       setMapId(result.mapId);
-      setCreating(false);
+      choosePanel(null);
       if (result.warning)
         setMessage(
           `Module created. Source sync needs attention: ${result.warning}`,
@@ -1848,143 +1849,108 @@ export default function StudyWorkspace({
     });
     setNoteId(null);
     setMapId(incoming[0]?.id ?? "");
+    choosePanel(null);
   }
 
-  return (
-    <main className="min-w-0 space-y-3 bg-app-page p-3 pb-28 text-text sm:p-4 lg:pb-4">
-      <header className="flex flex-wrap items-center gap-3 border-b border-border-subtle pb-3">
-        <h1 className="shrink-0 text-lg font-semibold tracking-tight">
-          Study maps
-        </h1>
-        {maps.length > 0 && (
-          <label className="block min-w-[12rem] flex-1 text-sm font-medium sm:max-w-sm">
-            <span className="sr-only">Module</span>
-            <select
-              className={`${fieldClass} lg:min-h-8 lg:py-1`}
-              value={mapId}
-              disabled={busy}
-              onChange={(event) => {
-                updateLocation({
-                  map: event.target.value,
-                  note: null,
-                  ...clearedFilters,
-                });
-                setMapId(event.target.value);
-                setNoteId(null);
-                setSearching(false);
-                setCreating(false);
-                setError(null);
-                setMessage(null);
-              }}
-            >
-              {!maps.some((map) => map.id === mapId) && mapId && (
-                <option value={mapId}>Selected module</option>
-              )}
-              {maps.map((map) => (
-                <option key={map.id} value={map.id}>
-                  {map.name} · {map.academicYear}
-                </option>
-              ))}
-            </select>
-          </label>
+  const changeScope = useCallback((next: FlowScope) => {
+    setScope(next);
+    updateLocation({ scope: next === "all" ? "all" : null });
+  }, []);
+  // rendered once at page level so an open switcher menu survives the map loading or changing
+  const island = (
+    <div className="pointer-events-none absolute left-3 top-3 z-40 flex max-w-[calc(100%-1.5rem)]">
+      <div className={islandClass}>
+        <ModuleSwitcher
+          maps={maps}
+          mapId={mapId}
+          disabled={busy}
+          onSelect={(target) => {
+            if (target === mapId) return;
+            updateLocation({ map: target, note: null, ...clearedFilters });
+            setMapId(target);
+            setNoteId(null);
+            setError(null);
+            setMessage(null);
+            if (panel && !browsingPanels.has(panel)) choosePanel(null);
+          }}
+          onSearch={() => choosePanel("search")}
+          onAddModule={() => choosePanel("create")}
+        />
+        {mapId && (
+          <>
+            <span className={islandDivider} aria-hidden="true" />
+            <ScopeToggle
+              scope={scope}
+              count={Math.min(maps.length, MAX_MODULES)}
+              onChange={changeScope}
+            />
+          </>
         )}
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            className={`${secondaryClass} lg:min-h-8 lg:py-1`}
-            disabled={busy}
-            onClick={() => {
-              setSearching((value) => !value);
-              setCreating(false);
-            }}
-            aria-expanded={searching}
-          >
-            {searching ? "Back to module" : "Search all modules"}
-          </button>
-          <button
-            type="button"
-            className={`${secondaryClass} lg:min-h-8 lg:py-1`}
-            disabled={busy}
-            onClick={() => {
-              setCreating((value) => !value);
-              setSearching(false);
-            }}
-            aria-expanded={creating}
-          >
-            Add module
-          </button>
-        </div>
-      </header>
+      </div>
+    </div>
+  );
+  const notices = (
+    <>
       {error && (
-        <p role="alert" className={errorClass}>
+        <Toast
+          key={`error:${error}`}
+          tone="error"
+          onDismiss={() => setError(null)}
+        >
           {error}
-        </p>
+        </Toast>
       )}
       {message && (
-        <p
-          role="status"
-          className="rounded-radius-md bg-primary-500/5 p-3 text-sm text-text-secondary"
+        <Toast
+          key={`message:${message}`}
+          tone="info"
+          timeout={6000}
+          onDismiss={() => setMessage(null)}
         >
           {message}
-        </p>
+        </Toast>
       )}
-      {creating && (
-        <MapForm
-          creating
-          busy={busy}
-          onSave={create}
-          onCancel={() => setCreating(false)}
-        />
-      )}
-      {searching && (
-        <StudySearch
-          onOpenMap={(mapId, noteId) => {
-            updateLocation({ map: mapId, note: noteId, ...clearedFilters });
-            setMapId(mapId);
-            setNoteId(noteId);
-            setNoteRequest((value) => value + 1);
-            setSearching(false);
+    </>
+  );
+
+  return (
+    <main className="relative h-full min-h-0 overflow-hidden bg-app-page text-text">
+      <h1 className="sr-only">Study maps</h1>
+      {mapId ? (
+        <ModuleWorkspace
+          key={mapId}
+          mapId={mapId}
+          initialNoteId={noteId}
+          noteRequest={noteRequest}
+          panel={panel}
+          docked={docked}
+          maps={maps}
+          scope={scope}
+          notices={notices}
+          onPanelChange={choosePanel}
+          onScopeChange={changeScope}
+          onOpenModule={(target, note) => {
+            updateLocation({
+              map: target,
+              note: note ?? null,
+              ...clearedFilters,
+            });
+            setMapId(target);
+            setNoteId(note ?? null);
+            if (note) setNoteRequest((value) => value + 1);
           }}
+          onRefreshMaps={refreshMaps}
+          onDeleted={deleted}
+          onBusyChange={setBusy}
         />
-      )}
-      <div hidden={creating || searching}>
-        {mapId ? (
-          <ModuleWorkspace
-            key={mapId}
-            mapId={mapId}
-            initialNoteId={noteId}
-            noteRequest={noteRequest}
-            tabPreference={tabPreference}
-            maps={maps}
-            scope={scope}
-            onScopeChange={(next) => {
-              setScope(next);
-              updateLocation({ scope: next === "all" ? "all" : null });
-            }}
-            onOpenModule={(target, note) => {
-              updateLocation({
-                map: target,
-                note: note ?? null,
-                ...clearedFilters,
-              });
-              setMapId(target);
-              setNoteId(note ?? null);
-              if (note) setNoteRequest((value) => value + 1);
-            }}
-            onRefreshMaps={refreshMaps}
-            onDeleted={deleted}
-            onBusyChange={setBusy}
-          />
-        ) : settingUp ? (
-          <p
-            role="status"
-            className="rounded-radius-xl border border-border-subtle bg-surface p-6 text-sm text-text-secondary"
-          >
-            Setting up your modules...
-          </p>
-        ) : (
-          !creating && (
-            <section className="rounded-radius-xl border border-border-subtle bg-surface p-6">
+      ) : (
+        <ChromeFrame notices={notices}>
+          {settingUp ? (
+            <p role="status" className="text-sm text-text-secondary">
+              Setting up your modules...
+            </p>
+          ) : (
+            <section className="max-w-md rounded-radius-xl border border-border-subtle bg-surface p-6 shadow-md">
               <h2 className="text-lg font-semibold">No modules yet</h2>
               <p className="mt-2 text-sm text-text-secondary">
                 Import a course from Canvas and its module map appears here on
@@ -1997,15 +1963,42 @@ export default function StudyWorkspace({
                 <button
                   type="button"
                   className={secondaryClass}
-                  onClick={() => setCreating(true)}
+                  onClick={() => choosePanel("create")}
                 >
                   Add a module from a folder
                 </button>
               </div>
             </section>
-          )
+          )}
+        </ChromeFrame>
+      )}
+      {island}
+      <StudyDrawer
+        open={panel === "create" || panel === "search"}
+        title={panel === "search" ? panelTitles.search : panelTitles.create}
+        docked={docked}
+        wide={panel === "search"}
+        onClose={() => choosePanel(null)}
+      >
+        {panel === "search" ? (
+          <StudySearch
+            onOpenMap={(mapId, noteId) => {
+              updateLocation({ map: mapId, note: noteId, ...clearedFilters });
+              setMapId(mapId);
+              setNoteId(noteId);
+              setNoteRequest((value) => value + 1);
+              choosePanel(null);
+            }}
+          />
+        ) : (
+          <MapForm
+            creating
+            busy={busy}
+            onSave={create}
+            onCancel={() => choosePanel(null)}
+          />
         )}
-      </div>
+      </StudyDrawer>
     </main>
   );
 }
