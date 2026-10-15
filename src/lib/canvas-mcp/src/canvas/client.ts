@@ -112,7 +112,9 @@ export class CanvasClient {
         };
 
         let res = await this.fetchImpl(url, init);
-        if (res.status >= 500) {
+        // a 5xx after a write may still have applied it, so only reads are retried.
+        // resending a submission, grade or message would duplicate it
+        if (res.status >= 500 && opts.method === "GET") {
             await sleep(200 + Math.random() * 200);
             res = await this.fetchImpl(url, { ...init, signal: AbortSignal.timeout(this.timeoutMs) });
         }
