@@ -258,14 +258,14 @@ describe("checkRateLimit", () => {
     redisState.ensureReady.mockResolvedValue(false);
     const { checkRateLimit } = await import("@/lib/rate-limiter");
 
-    // share allows 10 an hour per user
+    // canvas-connect allows 10 an hour per user
     for (let i = 0; i < 10; i += 1) {
-      await expect(checkRateLimit("share", "user-1")).resolves.toBeNull();
+      await expect(checkRateLimit("canvas-connect", "user-1")).resolves.toBeNull();
     }
-    const limited = await checkRateLimit("share", "user-1");
+    const limited = await checkRateLimit("canvas-connect", "user-1");
 
     expect(limited?.status).toBe(429);
     expect(redisState.multi).not.toHaveBeenCalled();
-    await expect(checkRateLimit("share", "user-2")).resolves.toBeNull();
+    await expect(checkRateLimit("canvas-connect", "user-2")).resolves.toBeNull();
   });
 });

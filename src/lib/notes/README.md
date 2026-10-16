@@ -16,8 +16,8 @@ note rows directly, so every read goes to PostgreSQL.
   with 409, update only the fields the body names, then refresh the link index
   and queue a worker reindex when content changed.
   [`note-limits.ts`](note-limits.ts) holds the title, content, and body caps.
-- `/api/notes/[id]/assets`, `/backlinks`, `/offline`, and `/share` serve Marker
-  images, link lists, the mobile offline snapshot, and the API-only clone.
+- `/api/notes/[id]/assets`, `/backlinks` and `/offline` serve Marker
+  images, link lists and the mobile offline snapshot.
 - [`/api/tree`](../../app/api/tree/route.ts) persists expansion and moves;
   [`/api/tree/children`](../../app/api/tree/children/route.ts) reads one branch.
 - [`/api/trash`](../../app/api/trash/route.ts) lists, restores, and deletes

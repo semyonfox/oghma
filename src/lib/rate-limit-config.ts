@@ -53,7 +53,6 @@ export const RATE_LIMITS = {
   'avatar-upload':  { limit: 10,  windowSeconds: 3600,  keyType: 'userId', failClosedOnStoreError: true },
   'vault-delete':   { limit: 1,   windowSeconds: 86400, keyType: 'userId', failClosedOnStoreError: true },
   'contact':        { limit: 5,   windowSeconds: 3600,  keyType: 'ip' },
-  'share':          { limit: 10,  windowSeconds: 3600,  keyType: 'userId' },
   'global-search':  { limit: 120, windowSeconds: 3600,  keyType: 'userId' },
   // anonymous product events. fail open: losing a few counts in an outage is fine
   'telemetry':      { limit: 60,  windowSeconds: 60,    keyType: 'ip', failClosedOnStoreError: false },
