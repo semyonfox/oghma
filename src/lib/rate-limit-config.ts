@@ -26,6 +26,8 @@ export const RATE_LIMITS = {
   'chat-cancel':    { limit: 120, windowSeconds: 3600,  keyType: 'userId' },
   'extract':        { limit: 10,  windowSeconds: 3600,  keyType: 'userId' },
   'canvas-connect': { limit: 10,  windowSeconds: 3600,  keyType: 'userId' },
+  // each semantic query is a paid embedding call, budgeted apart from the search palette
+  'semantic-search': { limit: 120, windowSeconds: 3600, keyType: 'userId' },
 
   // tier 2 — auth security (public endpoints)
   // per-ip cap on top of the per-email lockout so one address can't spray many
