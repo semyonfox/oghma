@@ -59,6 +59,22 @@ export const topicSchema = z.object({
 });
 export type StudyTopic = z.infer<typeof topicSchema>;
 
+/** what classification depends on; names and parents are presentation, so renaming keeps results current */
+export function taxonomyMeaning(topics: StudyTopic[]): string {
+  return JSON.stringify(
+    topics
+      .map(({ id, definition, includes, excludes, aliases, reviewed }) => ({
+        id,
+        definition,
+        includes,
+        excludes,
+        aliases: [...aliases].sort(),
+        reviewed,
+      }))
+      .sort((left, right) => left.id.localeCompare(right.id)),
+  );
+}
+
 const topicEvidenceSchema = z.object({
   anchor: sourceAnchorSchema,
   relevance: relevanceSchema,
@@ -159,9 +175,10 @@ const boardLinkSchema = z
     (value) => value.source !== value.target,
     "Choose two different cards",
   );
-// layout 2 is the course flow: placements are manual offsets inside the module frame and weeks override inferred weeks
+// layout 3 groups cards into topic clusters: placements are manual offsets inside the module frame and weeks override
+// inferred weeks. layout 2 was the weekly grid and is only ever read, see currentBoard
 export const boardSchema = z.object({
-  layout: z.literal(2).optional(),
+  layout: z.union([z.literal(2), z.literal(3)]).optional(),
   placements: z.array(boardPlacementSchema).max(1_000),
   weeks: z
     .record(
@@ -315,18 +332,23 @@ export const paperUpdateSchema = z.object({
 });
 
 export const emptyBoard = (): StudyBoard => ({
-  layout: 2,
+  layout: 3,
   placements: [],
   weeks: {},
   links: [],
   viewport: null,
 });
 
-/** earlier boards stored positions for other layouts; keep their note links and start the flow layout fresh */
+/** earlier boards stored positions for other layouts; keep their links and week overrides and start the layout fresh */
 export function currentBoard(board: StudyBoard): StudyBoard {
-  if (board.layout === 2) return board;
+  if (board.layout === 3) return board;
+  // weekly-grid positions mean nothing among topic clusters, but its links and weeks still do
+  if (board.layout === 2)
+    return { ...emptyBoard(), weeks: board.weeks, links: board.links };
+  // the drawing editor also linked topic cards, which the map no longer shows
   return {
     ...emptyBoard(),
+    weeks: board.weeks,
     links: board.links.filter(
       (link) =>
         noteReference.safeParse(link.source).success &&

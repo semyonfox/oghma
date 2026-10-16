@@ -28,7 +28,6 @@ declare class OghmaUpdaterNativeModule extends NativeModule<UpdaterEvents> {
   canInstallPackages(): boolean;
   openInstallPermissionSettings(): Promise<void>;
   installUpdate(): Promise<void>;
-  discardUpdate(): void;
 }
 
 const nativeModule =
@@ -56,10 +55,6 @@ export function openInstallPermissionSettings(): Promise<void> {
 
 export function installUpdate(): Promise<void> {
   return nativeModule.installUpdate();
-}
-
-export function discardUpdate(): void {
-  nativeModule.discardUpdate();
 }
 
 export function addDownloadProgressListener(

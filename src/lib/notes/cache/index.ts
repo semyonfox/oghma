@@ -1,5 +1,4 @@
 // extracted from Notea (MIT License)
-import { NoteModel } from '@/lib/notes/types/note';
 import { openDB, deleteDB, IDBPDatabase } from 'idb';
 
 let uiDb: IDBPDatabase | null = null;
@@ -97,24 +96,7 @@ const createCacheInterface = (dbName: 'ui' | 'note') => ({
         const db = await getDb(dbName);
         return (await db.getAllKeys('data')) as string[];
     },
-    iterate: async (callback: (value: unknown, key: IDBValidKey) => void | Promise<void>): Promise<void> => {
-        const db = await getDb(dbName);
-        const allKeys = await db.getAllKeys('data');
-        for (const key of allKeys) {
-            const value = await db.get('data', key);
-            await callback(value, key);
-        }
-    },
 });
 
 export const uiCache = createCacheInterface('ui');
 export const noteCacheInstance = createCacheInterface('note');
-
-export interface NoteCacheItem extends NoteModel {
-    /**
-     * remove markdown tag
-     */
-    rawContent?: string;
-
-    linkIds?: string[];
-}

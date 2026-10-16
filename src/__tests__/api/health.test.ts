@@ -59,6 +59,20 @@ describe("GET /api/health", () => {
     });
   });
 
+  it("never returns database credentials to monitoring", async () => {
+    process.env.DATABASE_URL =
+      "postgres://oghma:p%40ss-w0rd.x@db.internal:5432/oghma?sslmode=require";
+    process.env.HEALTH_CHECK_SECRET = "monitor-secret";
+
+    const response = await GET(new NextRequest("http://localhost/api/health", {
+      headers: { "x-health-secret": "monitor-secret" },
+    }));
+    const body = await response.json();
+
+    expect(body.database.databaseUrl).toBe("postgres://db.internal:5432/oghma");
+    expect(JSON.stringify(body)).not.toMatch(/p%40ss|w0rd|oghma:/);
+  });
+
   it("reports a missing database URL without attempting a connection", async () => {
     delete process.env.DATABASE_URL;
     process.env.HEALTH_CHECK_SECRET = "monitor-secret";

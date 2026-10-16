@@ -93,36 +93,19 @@ describe("registration password feedback", () => {
     expect(mocks.register).not.toHaveBeenCalled();
   });
 
-  it("submits a valid password and carries delivery state to verification", async () => {
+  it("continues to verification whether or not the address was free", async () => {
     mocks.register.mockResolvedValue({
+      success: true,
       requiresVerification: true,
-      emailDelivery: "queued",
+      message: "If this address can be registered, check your email.",
     });
     render(<RegisterPage />);
     fillForm("StrongPass1");
 
     await waitFor(() => expect(mocks.register).toHaveBeenCalledOnce());
     expect(mocks.replace).toHaveBeenCalledWith(
-      "/verify-email?email=student%40example.com&delivery=queued",
-    );
-  });
-
-  it("offers the resend path after an existing-account retry", async () => {
-    mocks.register.mockRejectedValue(
-      Object.assign(new Error("User already exists"), { status: 409 }),
-    );
-    render(<RegisterPage />);
-    fillForm("StrongPass1");
-
-    const resend = await screen.findByRole("link", {
-      name: "Resend verification email",
-    });
-    expect(resend.getAttribute("href")).toBe(
       "/verify-email?email=student%40example.com",
     );
-    expect(mocks.register).toHaveBeenCalledTimes(1);
-    expect(screen.getByLabelText("Password", { exact: true }).getAttribute("aria-invalid")).toBe("false");
-    expect(screen.queryByText("Password is required")).toBeNull();
   });
 
   it("shows the active rules and error in German", () => {

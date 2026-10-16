@@ -1,8 +1,8 @@
 # Canvas import reliability handover
 
-> Status: Implemented locally, deployment and live rollout unverified
+> Status: Code merged to `dev` and `main`; the retry-spending reclaim below reached `dev` on 2026-10-16 (#634). Claim recovery is still in observation mode (`CANVAS_CLAIM_RECOVERY` unset), so release gates 3 to 6 below are open. This file stays under engineering until those gates are done; then move it to `docs/history/`.
 >
-> Reviewed: 2026-09-15
+> Reviewed: 2026-10-16
 >
 > Scope: Canvas imports, discovery, extraction retries, shared PDF reuse
 
@@ -30,7 +30,7 @@ Migration [067](../../database/migrations/067_canvas_execution_ownership.sql) ad
 
 Discovery and initial/retry file processing acquire an execution token and renew a five-minute lease every 30 seconds. Publication checks the token while holding the existing user-tree lock and the owning job/file rows. Nested SQL helpers share that transaction. Recovery and Stop therefore either wait for an accepted publication or prevent it from starting. An old worker cannot resume and overwrite the successor's note state.
 
-Recovery handles abandoned active files, abandoned discovery, legacy stranded children, and retry budgets. It observes by default. The worker only applies it when `CANVAS_CLAIM_RECOVERY=enabled`. A durable poll repairs queue-send loss; delayed retry deliveries must match the stored sequence and due time. Provider retry counters cannot reset the database attempt budget.
+Recovery handles abandoned active files, abandoned discovery, legacy stranded children, and retry budgets. It observes by default; the worker only applies it when `CANVAS_CLAIM_RECOVERY=enabled`. Reclaiming an expired extraction lease spends one of the file's four extraction retries, in both the always-on extraction poll and the gated recovery pass, so a file that keeps killing its worker settles as a retryable `error`. A durable poll repairs queue-send loss; delayed retry deliveries must match the stored sequence and due time. Provider retry counters cannot reset the database attempt budget.
 
 External object/vector writes cannot roll back with PostgreSQL. Immutable object keys make repeated original-file writes safe. Old vectors are deleted after commit, and rollback cleanup removes newly written vectors. Existing deletion and vector-cleanup paths remain necessary if an external cleanup request itself fails. Long publication calls also hold the user-tree lock and can delay Stop until the current bounded request returns.
 

@@ -287,22 +287,11 @@ function reconcileTopics(
   return topics;
 }
 
-async function cachedGeneration(
-  prompt: string,
-  signal: AbortSignal | undefined,
-  cache: StudyGenerationCache | undefined,
-): Promise<z.infer<typeof generatedTopicsSchema>> {
-  const key = createHash("sha256")
+// content-addressed: the prompt holds the exact source text and any existing topics
+const generationKey = (prompt: string): string =>
+  createHash("sha256")
     .update(JSON.stringify([getLlmModel(), prompt]))
     .digest("hex");
-  const stored = generatedTopicsSchema.safeParse(await cache?.get(key));
-  if (stored.success) return stored.data;
-  const generated = generatedTopicsSchema.parse(
-    await generateJson(prompt, signal),
-  );
-  await cache?.set(key, generated);
-  return generated;
-}
 
 async function generateJson(
   prompt: string,
@@ -396,23 +385,47 @@ ${
 Existing topics: ${JSON.stringify(existing)}
 Source documents: ${JSON.stringify(promptSources)}
 `;
-  const proposals = isStudyMock()
-    ? mockTopics(sources, existing)
-    : (await cachedGeneration(prompt, signal, options.cache)).topics.map(
-        ({ sources: quotes, ...topic }) => ({
-          ...topic,
-          sources: quotes.map(({ source, ...quote }) => {
-            const noteId = refs.get(source);
-            if (!noteId)
-              throw new Error(
-                "Generation referenced an unknown source document.",
-              );
-            return { ...quote, noteId };
-          }),
+  if (isStudyMock())
+    return reconcileTopics(mockTopics(sources, existing), existing, sources);
+  const resolve = (generated: z.infer<typeof generatedTopicsSchema>) =>
+    reconcileTopics(
+      generated.topics.map(({ sources: quotes, ...topic }) => ({
+        ...topic,
+        sources: quotes.map(({ source, ...quote }) => {
+          const noteId = refs.get(source);
+          if (!noteId)
+            throw new Error(
+              "Generation referenced an unknown source document.",
+            );
+          return { ...quote, noteId };
         }),
-      );
+      })),
+      existing,
+      sources,
+    );
+  // reconcile keeps unchanged topics by identity, so any difference means the answer added something
+  const produced = (topics: StudyTopic[]) =>
+    topics.length !== existing.length ||
+    topics.some((topic, index) => topic !== existing[index]);
+  const key = generationKey(prompt);
+  const stored = generatedTopicsSchema.safeParse(await options.cache?.get(key));
+  if (stored.success) {
+    try {
+      const topics = resolve(stored.data);
+      if (produced(topics)) return topics;
+    } catch {
+      // answers cached before they were checked can be unusable; ask afresh below
+    }
+  }
+  const generated = generatedTopicsSchema.parse(
+    await generateJson(prompt, signal),
+  );
   signal?.throwIfAborted();
-  return reconcileTopics(proposals, existing, sources);
+  const topics = resolve(generated);
+  // only an answer that produced topics is shared. a misquoted or empty one would
+  // otherwise be replayed to classmates and to every "Find topics again"
+  if (produced(topics)) await options.cache?.set(key, generated);
+  return topics;
 }
 
 interface HeadingBlock {

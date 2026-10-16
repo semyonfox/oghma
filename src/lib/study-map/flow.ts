@@ -8,11 +8,14 @@ import {
 } from "./types";
 
 export const CARD_WIDTH = 240;
-const COLUMN_WIDTH = 284;
-export const LEGEND_WIDTH = 300;
-export const MODULE_HEADER = 170;
-const ROW_GAP = 172;
 const CARD_GAP = 16;
+const CLUSTER_PADDING = 16;
+export const CLUSTER_HEADER = 64;
+const CLUSTER_GAP = 48;
+const SHELF_GAP = 72;
+// clusters start below the module title
+const CLUSTER_TOP = 120;
+const EMPTY_BODY = 40;
 export const MODULE_GAP = 220;
 export const UNSORTED = "unsorted";
 
@@ -27,6 +30,8 @@ interface FlowTag {
   suggested: boolean;
   /** assignment topics come from the brief naming a topic, not from the classifier */
   mentioned: boolean;
+  /** how often the brief names the topic; 0 for classified material */
+  mentions: number;
 }
 
 export interface FlowItem {
@@ -53,23 +58,33 @@ export interface FlowLink {
   origin: "note" | "yours" | "assignment";
 }
 
-interface FlowRow {
+export interface FlowCluster {
+  /** topic ID, or UNSORTED */
   key: string;
   topic: StudyTopic | null;
+  x: number;
   y: number;
+  width: number;
+  height: number;
+  /** cards whose primary topic this is, in reading order */
+  refs: string[];
 }
 
-interface FlowColumn {
-  week: number | null;
-  x: number;
+export interface TopicRelation {
+  a: string;
+  b: string;
+  weight: number;
 }
 
 export interface ModuleLayout {
   mapId: string;
   width: number;
   height: number;
-  rows: FlowRow[];
-  columns: FlowColumn[];
+  clusters: FlowCluster[];
+  /** the strongest relations, at most three per topic */
+  relations: TopicRelation[];
+  /** card ref to the key of the cluster it sits in */
+  primary: Map<string, string>;
   positions: Map<string, { x: number; y: number; manual: boolean }>;
 }
 
@@ -143,17 +158,24 @@ const normal = (value: string) =>
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
 
-/** assignment briefs are not classified; a topic counts when its name or an alias appears as whole words */
-export function mentionedTopics(text: string, topics: StudyTopic[]): string[] {
+/** assignment briefs are not classified; a topic counts when its name or an alias appears as whole words, most named first */
+export function mentionedTopics(
+  text: string,
+  topics: StudyTopic[],
+): Array<{ topicId: string; count: number }> {
   const haystack = ` ${normal(text)} `;
   return topics
-    .filter((topic) =>
-      [topic.name, ...topic.aliases].some((name) => {
+    .map((topic) => ({
+      topicId: topic.id,
+      count: [topic.name, ...topic.aliases].reduce((sum, name) => {
         const needle = normal(name);
-        return needle.length >= 3 && haystack.includes(` ${needle} `);
-      }),
-    )
-    .map((topic) => topic.id);
+        return needle.length >= 3
+          ? sum + haystack.split(` ${needle} `).length - 1
+          : sum;
+      }, 0),
+    }))
+    .filter((entry) => entry.count > 0)
+    .sort((left, right) => right.count - left.count);
 }
 
 function tagsFor(
@@ -169,6 +191,7 @@ function tagsFor(
       probability: association.probability,
       suggested: association.status === "suggested",
       mentioned: false,
+      mentions: 0,
     }))
     .sort(
       (left, right) =>
@@ -186,7 +209,7 @@ const isTextual = (material: StudyMaterial) =>
   /^text\//.test(material.mimeType ?? "") ||
   /\.(md|markdown|txt)$/i.test(material.title);
 
-/** builds the cards for one module; syllabus and past papers belong to topics and exam history rather than the weekly flow */
+/** builds the cards for one module; syllabus and past papers belong to topics and exam history rather than the map */
 export function moduleItems(
   snapshot: StudyMapSnapshot,
   board: StudyBoard,
@@ -244,12 +267,13 @@ export function moduleItems(
     const tags: FlowTag[] = mentionedTopics(
       `${assignment.title} ${plainText(assignment.description)}`,
       map.topics,
-    ).map((topicId) => ({
+    ).map(({ topicId, count }) => ({
       topicId,
       relevance: "core",
       probability: null,
       suggested: false,
       mentioned: true,
+      mentions: count,
     }));
     const override = board.weeks[ref];
     const titled = inferWeek(assignment.title, null);
@@ -296,17 +320,120 @@ export function moduleItems(
 const coreTopics = (item: FlowItem) =>
   item.tags.filter((tag) => tag.relevance === "core").map((tag) => tag.topicId);
 
-/** keeps the syllabus hierarchy, then chains each sibling to the one it shares most material with */
+const weight = (tag: FlowTag) =>
+  (tag.relevance === "core" ? 1 : 0.4) *
+  (tag.suggested ? 0.7 : 1) *
+  (tag.mentioned ? 0.8 : 1);
+
+/** the topic a card is filed under: its heaviest tag, then the one its brief names most, then catalogue order */
+export function primaryTopic(
+  item: FlowItem,
+  catalogue: Map<string, number>,
+): string {
+  let best: FlowTag | null = null;
+  for (const tag of item.tags) {
+    if (!catalogue.has(tag.topicId)) continue;
+    if (
+      !best ||
+      weight(tag) > weight(best) ||
+      (weight(tag) === weight(best) &&
+        (tag.mentions > best.mentions ||
+          (tag.mentions === best.mentions &&
+            catalogue.get(tag.topicId)! < catalogue.get(best.topicId)!)))
+    )
+      best = tag;
+  }
+  return best?.topicId ?? UNSORTED;
+}
+
+const pairKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+
+/** how strongly each pair of topics goes together: cards tagged with both, plus note links between cards filed under each */
+export function topicRelations(
+  topics: StudyTopic[],
+  items: FlowItem[],
+  links: FlowLink[] = [],
+): TopicRelation[] {
+  const catalogue = new Map(topics.map((topic, index) => [topic.id, index]));
+  const totals = new Map<string, TopicRelation>();
+  const add = (a: string, b: string, amount: number) => {
+    if (a === b) return;
+    const key = pairKey(a, b);
+    const existing = totals.get(key);
+    if (existing) existing.weight += amount;
+    else
+      totals.set(key, {
+        a: a < b ? a : b,
+        b: a < b ? b : a,
+        weight: amount,
+      });
+  };
+  for (const item of items) {
+    const tags = item.tags.filter((tag) => catalogue.has(tag.topicId));
+    for (const [index, left] of tags.entries())
+      for (const right of tags.slice(index + 1))
+        add(left.topicId, right.topicId, weight(left) * weight(right));
+  }
+  const primary = new Map(
+    items.map((item) => [item.ref, primaryTopic(item, catalogue)]),
+  );
+  const linked = new Set<string>();
+  for (const link of links) {
+    const a = primary.get(link.source);
+    const b = primary.get(link.target);
+    const cards = pairKey(link.source, link.target);
+    if (!a || !b || a === UNSORTED || b === UNSORTED || linked.has(cards))
+      continue;
+    linked.add(cards);
+    add(a, b, 1);
+  }
+  return [...totals.values()].sort(
+    (left, right) =>
+      right.weight - left.weight ||
+      catalogue.get(left.a)! - catalogue.get(right.a)! ||
+      catalogue.get(left.b)! - catalogue.get(right.b)!,
+  );
+}
+
+// one core tag beside one supporting tag; two supporting mentions alone do not earn an edge
+const MIN_RELATION = 0.4;
+
+/** strongest first, skipping any relation whose topics already have three, so a busy topic does not turn into a hairball */
+function strongestRelations(
+  relations: TopicRelation[],
+  perTopic = 3,
+): TopicRelation[] {
+  const degree = new Map<string, number>();
+  const kept: TopicRelation[] = [];
+  for (const relation of relations) {
+    if (
+      relation.weight < MIN_RELATION ||
+      (degree.get(relation.a) ?? 0) >= perTopic ||
+      (degree.get(relation.b) ?? 0) >= perTopic
+    )
+      continue;
+    kept.push(relation);
+    degree.set(relation.a, (degree.get(relation.a) ?? 0) + 1);
+    degree.set(relation.b, (degree.get(relation.b) ?? 0) + 1);
+  }
+  return kept;
+}
+
+/** keeps the syllabus hierarchy, then chains each sibling to the one most related to the topic before it */
 export function orderTopics(
   topics: StudyTopic[],
   items: FlowItem[],
+  links: FlowLink[] = [],
 ): StudyTopic[] {
   const ids = new Set(topics.map((topic) => topic.id));
-  const tagged = items.map(
-    (item) => new Set(item.tags.map((tag) => tag.topicId)),
+  const strength = new Map(
+    topicRelations(topics, items, links).map((relation) => [
+      pairKey(relation.a, relation.b),
+      relation.weight,
+    ]),
   );
-  const shared = (left: string, right: string) =>
-    tagged.filter((set) => set.has(left) && set.has(right)).length;
+  const related = (left: string, right: string) =>
+    strength.get(pairKey(left, right)) ?? 0;
   const children = (parentId: string | null) =>
     topics.filter((topic) =>
       parentId === null
@@ -321,10 +448,9 @@ export function orderTopics(
     while (rest.length) {
       let best = 0;
       if (previous) {
+        const from = previous.id;
         rest.forEach((topic, index) => {
-          if (
-            shared(previous!.id, topic.id) > shared(previous!.id, rest[best].id)
-          )
+          if (related(from, topic.id) > related(from, rest[best].id))
             best = index;
         });
       }
@@ -341,107 +467,166 @@ export function orderTopics(
   return ordered;
 }
 
-const weight = (tag: FlowTag) =>
-  (tag.relevance === "core" ? 1 : 0.4) *
-  (tag.suggested ? 0.7 : 1) *
-  (tag.mentioned ? 0.8 : 1);
+const columnsFor = (count: number) =>
+  count <= 1 ? 1 : count <= 4 ? 2 : count <= 15 ? 3 : 4;
 
+/**
+ * one framed cluster per topic, each card in the cluster of its primary topic. clusters follow orderTopics and
+ * are packed left to right in shelves; a cluster that fits under the one before it, within the shelf's height
+ * and width, stacks there instead, so neighbours in the order stay neighbours on the canvas
+ */
 export function layoutModule(
   mapId: string,
   topics: StudyTopic[],
   items: FlowItem[],
   placements: StudyBoard["placements"],
+  links: FlowLink[] = [],
 ): ModuleLayout {
-  const order = orderTopics(topics, items);
-  const rows: FlowRow[] = order.map((topic, index) => ({
-    key: topic.id,
-    topic,
-    y: MODULE_HEADER + 40 + index * ROW_GAP,
-  }));
-  if (!rows.length || items.some((item) => item.tags.length === 0)) {
-    rows.push({
-      key: UNSORTED,
-      topic: null,
-      y: MODULE_HEADER + 40 + rows.length * ROW_GAP,
-    });
-  }
-  const rowY = new Map(rows.map((row) => [row.key, row.y]));
-  const weeks = [
-    ...new Set(
-      items
-        .map((item) => item.week)
-        .filter((week): week is number => week !== null),
-    ),
-  ].sort((a, b) => a - b);
-  const columns: FlowColumn[] = [
-    ...weeks,
-    ...(items.some((item) => item.week === null) ? [null] : []),
-  ].map((week, index) => ({ week, x: LEGEND_WIDTH + index * COLUMN_WIDTH }));
-  const columnX = new Map(columns.map((column) => [column.week, column.x]));
-  const manual = new Map(
-    placements.map((placement) => [placement.id, placement]),
+  const order = orderTopics(topics, items, links);
+  const catalogue = new Map(topics.map((topic, index) => [topic.id, index]));
+  const primary = new Map(
+    items.map((item) => [item.ref, primaryTopic(item, catalogue)]),
   );
-  const positions: ModuleLayout["positions"] = new Map();
-  let bottom = rows[rows.length - 1].y + ROW_GAP / 2;
-  for (const column of columns) {
-    const stack = items
-      .filter((item) => item.week === column.week)
-      .map((item) => {
-        let total = 0;
-        let sum = 0;
-        for (const tag of item.tags) {
-          const y = rowY.get(tag.topicId);
-          if (y === undefined) continue;
-          total += weight(tag);
-          sum += weight(tag) * y;
-        }
-        const centre = total ? sum / total : (rowY.get(UNSORTED) ?? rows[0].y);
-        return { item, target: centre - Math.min(item.height / 2, 60) };
-      })
+  const groups = new Map<string, FlowItem[]>(
+    order.map((topic) => [topic.id, []]),
+  );
+  const unsorted: FlowItem[] = [];
+  for (const item of items) {
+    const key = primary.get(item.ref)!;
+    (groups.get(key) ?? unsorted).push(item);
+  }
+  const entries: Array<{ key: string; topic: StudyTopic | null }> = [
+    ...order.map((topic) => ({ key: topic.id, topic })),
+    ...(unsorted.length || !order.length
+      ? [{ key: UNSORTED, topic: null }]
+      : []),
+  ];
+  groups.set(UNSORTED, unsorted);
+  const reviewedCore = (item: FlowItem, key: string) =>
+    item.tags.some(
+      (tag) =>
+        tag.topicId === key &&
+        tag.relevance === "core" &&
+        !tag.suggested &&
+        !tag.mentioned,
+    );
+  const sized = entries.map(({ key, topic }) => {
+    const cards = groups
+      .get(key)!
+      .slice()
       .sort(
         (left, right) =>
-          left.target - right.target ||
-          left.item.title.localeCompare(right.item.title),
+          Number(reviewedCore(right, key)) - Number(reviewedCore(left, key)) ||
+          (left.week ?? 99) - (right.week ?? 99) ||
+          left.title.localeCompare(right.title) ||
+          left.ref.localeCompare(right.ref),
       );
-    let previous = -Infinity;
-    const tops = stack.map(({ item, target }) => {
-      const top = Math.max(target, previous + CARD_GAP);
-      previous = top + item.height;
-      return top;
+    const columns = columnsFor(cards.length);
+    const offsets: Array<{ x: number; y: number }> = [];
+    let top = 0;
+    for (let start = 0; start < cards.length; start += columns) {
+      const row = cards.slice(start, start + columns);
+      row.forEach((_, column) =>
+        offsets.push({
+          x: CLUSTER_PADDING + column * (CARD_WIDTH + CARD_GAP),
+          y: CLUSTER_HEADER + top,
+        }),
+      );
+      top += Math.max(...row.map((item) => item.height)) + CARD_GAP;
+    }
+    const body = cards.length ? top - CARD_GAP : EMPTY_BODY;
+    return {
+      key,
+      topic,
+      cards,
+      offsets,
+      width:
+        columns * CARD_WIDTH + (columns - 1) * CARD_GAP + 2 * CLUSTER_PADDING,
+      height: CLUSTER_HEADER + body + CLUSTER_PADDING,
+    };
+  });
+  // aim for a canvas a little wider than tall, never narrower than its widest cluster
+  const area = sized.reduce(
+    (sum, entry) =>
+      sum + (entry.width + CLUSTER_GAP) * (entry.height + SHELF_GAP),
+    0,
+  );
+  const shelfWidth = Math.max(
+    ...sized.map((entry) => entry.width),
+    Math.min(3600, Math.max(1300, Math.sqrt(area * 1.8))),
+  );
+  const clusters: FlowCluster[] = [];
+  const positions: ModuleLayout["positions"] = new Map();
+  let shelfTop = CLUSTER_TOP;
+  let shelfHeight = 0;
+  let column = { x: 0, width: 0, bottom: CLUSTER_TOP };
+  for (const entry of sized) {
+    let x: number;
+    let y: number;
+    // nothing sits right of the newest column yet, so a wider cluster can stack under it too
+    const fitsUnder =
+      clusters.length > 0 &&
+      column.x + entry.width <= shelfWidth &&
+      column.bottom + SHELF_GAP / 2 + entry.height <= shelfTop + shelfHeight;
+    if (fitsUnder) {
+      x = column.x;
+      y = column.bottom + SHELF_GAP / 2;
+      column.width = Math.max(column.width, entry.width);
+    } else {
+      x = clusters.length ? column.x + column.width + CLUSTER_GAP : 0;
+      if (x > 0 && x + entry.width > shelfWidth) {
+        shelfTop += shelfHeight + SHELF_GAP;
+        shelfHeight = 0;
+        x = 0;
+      }
+      y = shelfTop;
+      column = { x, width: entry.width, bottom: y };
+    }
+    column.bottom = y + entry.height;
+    shelfHeight = Math.max(shelfHeight, column.bottom - shelfTop);
+    clusters.push({
+      key: entry.key,
+      topic: entry.topic,
+      x,
+      y,
+      width: entry.width,
+      height: entry.height,
+      refs: entry.cards.map((item) => item.ref),
     });
-    // crowded weeks drift down; lift the column back towards its topics without crossing the header
-    const drift =
-      stack.reduce((sum, entry, index) => sum + tops[index] - entry.target, 0) /
-      Math.max(stack.length, 1);
-    const lift = Math.max(
-      0,
-      Math.min(drift, (tops[0] ?? 0) - (MODULE_HEADER + 8)),
+    entry.cards.forEach((item, index) =>
+      positions.set(item.ref, {
+        x: x + entry.offsets[index].x,
+        y: y + entry.offsets[index].y,
+        manual: false,
+      }),
     );
-    stack.forEach(({ item }, index) => {
-      const placed = manual.get(item.ref);
-      const position = placed
-        ? { x: placed.x, y: placed.y, manual: true }
-        : {
-            x:
-              (columnX.get(column.week) ?? LEGEND_WIDTH) +
-              (COLUMN_WIDTH - CARD_WIDTH) / 2,
-            y: tops[index] - lift,
-            manual: false,
-          };
-      positions.set(item.ref, position);
-      bottom = Math.max(bottom, position.y + item.height);
-    });
   }
+  for (const placement of placements) {
+    if (positions.has(placement.id))
+      positions.set(placement.id, {
+        x: placement.x,
+        y: placement.y,
+        manual: true,
+      });
+  }
+  const byRef = new Map(items.map((item) => [item.ref, item]));
   const right = Math.max(
-    LEGEND_WIDTH + columns.length * COLUMN_WIDTH,
-    ...[...positions.values()].map((position) => position.x + CARD_WIDTH),
+    ...clusters.map((cluster) => cluster.x + cluster.width),
+    ...[...positions].map(([, position]) => position.x + CARD_WIDTH),
+  );
+  const bottom = Math.max(
+    ...clusters.map((cluster) => cluster.y + cluster.height),
+    ...[...positions].map(
+      ([ref, position]) => position.y + (byRef.get(ref)?.height ?? 0),
+    ),
   );
   return {
     mapId,
     width: right + 48,
     height: bottom + 72,
-    rows,
-    columns,
+    clusters,
+    relations: strongestRelations(topicRelations(topics, items, links)),
+    primary,
     positions,
   };
 }
@@ -462,7 +647,9 @@ export function topicTrail(
       (left, right) =>
         (left.week ?? 99) - (right.week ?? 99) ||
         (layout.positions.get(left.ref)?.y ?? 0) -
-          (layout.positions.get(right.ref)?.y ?? 0),
+          (layout.positions.get(right.ref)?.y ?? 0) ||
+        (layout.positions.get(left.ref)?.x ?? 0) -
+          (layout.positions.get(right.ref)?.x ?? 0),
     );
 }
 

@@ -1,9 +1,7 @@
 import { blogPosts } from "@/lib/blog-data";
-import { AGENT_RESOURCE_PATHS } from "@/lib/public/agent-content";
+import { AGENT_RESOURCE_PATHS, getBaseUrl } from "@/lib/public/agent-content";
 
-const BASE_URL = (
-  process.env.NEXT_PUBLIC_APP_URL || "https://oghmanotes.ie"
-).replace(/\/$/, "");
+const BASE_URL = getBaseUrl();
 
 export default function sitemap() {
   const staticRoutes = [

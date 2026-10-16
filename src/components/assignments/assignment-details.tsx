@@ -5,7 +5,7 @@ import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from "@headlessui/re
 import DOMPurify from "dompurify";
 import AssignmentMaterials from "./assignment-materials";
 import { z } from "zod";
-import { type Assignment } from "@/lib/notes/state/assignments";
+import useAssignmentStore, { type Assignment } from "@/lib/notes/state/assignments";
 import useSwipeDismiss from "@/components/navigation/use-swipe-dismiss";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
@@ -97,6 +97,8 @@ export default function AssignmentDetails({ assignment, onClose }: { assignment:
       if (!response.ok) throw new Error();
       setSubmitted(true);
       setReview(false);
+      // the server marks the task done, so pull that into the tracker
+      void useAssignmentStore.getState().fetchAssignments();
     } catch {
       setError("Submission could not be confirmed. Check Canvas before trying again.");
     } finally {

@@ -2,15 +2,15 @@
 
 import { type FormEvent, useState } from "react";
 import useI18n from "@/lib/notes/hooks/use-i18n";
-import {
-  reportTelemetry,
-} from "@/lib/marketing/client";
+import { reportTelemetry } from "@/lib/marketing/client";
 
-type ContactFormProps = { source?: string; centered?: boolean };
+// must match the source enum accepted by /api/contact
+type ContactFormProps = { source?: "contact" | "home"; centered?: boolean };
+type SubmitResult = { status: "success" | "error"; message: string } | null;
 
 export default function ContactForm({ source = "contact", centered = false }: ContactFormProps) {
   const { t } = useI18n();
-  const [result, setResult] = useState("");
+  const [result, setResult] = useState<SubmitResult>(null);
   const [isLoading, setIsLoading] = useState(false);
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -30,20 +30,24 @@ export default function ContactForm({ source = "contact", centered = false }: Co
         body: JSON.stringify(payload),
       });
 
-      const data = await response.json();
+      const data: unknown = await response.json();
+      const accepted =
+        typeof data === "object" &&
+        data !== null &&
+        Reflect.get(data, "success") === true;
 
-      if (response.ok && data.success) {
-        setResult(t("Message sent successfully!"));
+      if (response.ok && accepted) {
+        setResult({ status: "success", message: t("Message sent successfully!") });
         form.reset();
         reportTelemetry({ kind: "count", name: "action_completed", route: "help" });
-        setTimeout(() => setResult(""), 5000);
+        setTimeout(() => setResult(null), 5000);
       } else {
         reportTelemetry({ kind: "error", name: "request_failed", route: "help" });
-        setResult(t("Error sending message. Please try again."));
+        setResult({ status: "error", message: t("Error sending message. Please try again.") });
       }
-    } catch (_error) {
+    } catch {
       reportTelemetry({ kind: "error", name: "request_failed", route: "help" });
-      setResult(t("Error sending message. Please try again."));
+      setResult({ status: "error", message: t("Error sending message. Please try again.") });
     } finally {
       setIsLoading(false);
     }
@@ -161,9 +165,10 @@ export default function ContactForm({ source = "contact", centered = false }: Co
         </button>
         {result && (
           <p
-            className={`text-sm ${result.includes("success") ? "text-success-500" : "text-error-500"}`}
+            role={result.status === "error" ? "alert" : "status"}
+            className={`text-sm ${result.status === "success" ? "text-success-500" : "text-error-500"}`}
           >
-            {result}
+            {result.message}
           </p>
         )}
       </div>

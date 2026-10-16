@@ -197,10 +197,7 @@ export default function CourseList({
             totalCards={course.totalCards}
             dueCount={course.dueCount}
             mastery={course.mastery}
-            isLoading={
-              loadingCourseId === course.courseId ||
-              loadingCourseId === String(course.courseId)
-            }
+            isLoading={loadingCourseId === course.courseId}
             disabled={anyLoading}
             isArchived={false}
             onClick={() => onSelectCourse(course.courseId)}
@@ -222,10 +219,7 @@ export default function CourseList({
                 totalCards={course.totalCards}
                 dueCount={course.dueCount}
                 mastery={course.mastery}
-                isLoading={
-                  loadingCourseId === course.courseId ||
-                  loadingCourseId === String(course.courseId)
-                }
+                isLoading={loadingCourseId === course.courseId}
                 disabled={true}
                 isArchived={true}
                 onClick={() => onSelectCourse(course.courseId)}

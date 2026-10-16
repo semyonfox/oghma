@@ -41,8 +41,7 @@ vi.mock("@/lib/config", () => ({
   config: { upload: { maxFileSizeBytes: 50 * 1024 * 1024 } },
 }));
 vi.mock("@/lib/notes/storage/create-note", () => ({
-  createNoteWithTree: vi.fn(),
-  removeNewNoteWithTree: vi.fn(),
+  insertNoteWithTree: vi.fn(),
 }));
 vi.mock("@/lib/notes/tree-cache", () => ({
   invalidateTreeAfterPublish: vi.fn(),

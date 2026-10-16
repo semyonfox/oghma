@@ -1,4 +1,7 @@
+import type { PDFParse } from "pdf-parse";
+
 import { chunkText } from "@/lib/rag/chunking";
+import { markerOcrEnabled } from "@/lib/marker/config";
 import { extractWithMarker } from "@/lib/marker/ocr";
 import type { MarkerImages } from "@/lib/marker/output";
 
@@ -26,23 +29,23 @@ function isTextLikeFile(filename: string, mimeType?: string): boolean {
   return Boolean(ext && ["md", "markdown", "txt"].includes(ext));
 }
 
-function markerOcrEnabled(): boolean {
-  const value = process.env.MARKER_OCR_ENABLED?.trim().toLowerCase();
-  return ["1", "true", "on"].includes(value ?? "");
-}
-
 async function extractPdfTextLayer(
   buffer: Buffer,
 ): Promise<{ rawText: string; chunks: string[] } | null> {
+  let parser: PDFParse | null = null;
   try {
-    const { PDFParse } = await import("pdf-parse");
-    const parser = new PDFParse({ data: buffer });
+    const pdfParse = await import("pdf-parse");
+    parser = new pdfParse.PDFParse({ data: buffer });
     const result = await parser.getText();
     const rawText = (result?.text ?? "").trim();
     if (!rawText) return null;
     return { rawText, chunks: chunkText(rawText) };
   } catch {
     return null;
+  } finally {
+    // the long-lived worker parses every imported PDF; without this each
+    // pdf.js document stays loaded
+    await parser?.destroy().catch(() => {});
   }
 }
 
@@ -69,7 +72,8 @@ export async function extractContentFromBuffer({
     }
   }
 
-  // Marker is an explicit fallback for scanned/image-only documents.
+  // the direct Marker server is an explicit fallback for scanned/image-only
+  // documents. serverless Marker is queued by the caller on a skipped result
   if (process.env.MARKER_API_URL && markerOcrEnabled()) {
     const marker = await extractWithMarker(buffer, filename);
     return {

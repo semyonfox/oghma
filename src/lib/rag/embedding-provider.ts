@@ -1,11 +1,29 @@
 // embedding provider — calls any OpenAI-compatible endpoint (SiliconFlow, ollama, etc.)
 // configured via EMBEDDING_API_URL, EMBEDDING_API_KEY, EMBEDDING_MODEL
 
+export interface EmbedOptions {
+  timeoutMs?: number;
+  maxAttempts?: number;
+}
+
 interface EmbeddingProvider {
   name: string;
-  embedBatch(texts: string[]): Promise<number[][]>;
-  embedSingle(text: string): Promise<number[]>;
+  embedBatch(texts: string[], options?: EmbedOptions): Promise<number[][]>;
+  embedSingle(text: string, options?: EmbedOptions): Promise<number[]>;
   isConfigured(): boolean;
+}
+
+class EmbeddingHttpError extends Error {
+  constructor(readonly status: number) {
+    super(`Embedding API ${status}`);
+  }
+}
+
+// a bad request or rejected credential fails the same way on retry. 402 and
+// 429 stay retryable because a fallback endpoint or a short wait can help
+function isRetryable(error: unknown): boolean {
+  if (!(error instanceof EmbeddingHttpError)) return true;
+  return error.status === 402 || error.status === 429 || error.status >= 500;
 }
 
 // reads env vars at call time so tests can set them after import
@@ -30,6 +48,13 @@ function configured(endpoint: Endpoint): boolean {
   return !!(endpoint.apiUrl && endpoint.apiKey && endpoint.model);
 }
 
+function isVector(value: unknown): value is number[] {
+  return (
+    Array.isArray(value) &&
+    value.every((entry) => typeof entry === "number" && Number.isFinite(entry))
+  );
+}
+
 async function requestEmbeddings(
   endpoint: Endpoint,
   texts: string[],
@@ -46,7 +71,7 @@ async function requestEmbeddings(
   });
 
   if (!res.ok) {
-    throw new Error(`Embedding API ${res.status}`);
+    throw new EmbeddingHttpError(res.status);
   }
 
   const json: unknown = await res.json();
@@ -83,10 +108,7 @@ async function requestEmbeddings(
       typeof item !== "object" ||
       item === null ||
       !("embedding" in item) ||
-      !Array.isArray(item.embedding) ||
-      !item.embedding.every(
-        (value) => typeof value === "number" && Number.isFinite(value),
-      )
+      !isVector(item.embedding)
     ) {
       throw new Error("Embedding API returned an invalid vector");
     }
@@ -104,15 +126,11 @@ async function requestEmbeddings(
       throw new Error("Embedding API returned invalid indices");
     }
     seen.add(index);
-    const embedding = item.embedding.filter(
-      (value): value is number => typeof value === "number",
-    );
-    if (expectedSize !== undefined) {
-      if (embedding.length !== expectedSize) {
-        throw new Error(
-          `Embedding dimension mismatch: expected ${expectedSize}, got ${embedding.length}`,
-        );
-      }
+    const embedding = item.embedding;
+    if (expectedSize !== undefined && embedding.length !== expectedSize) {
+      throw new Error(
+        `Embedding dimension mismatch: expected ${expectedSize}, got ${embedding.length}`,
+      );
     }
     embeddings[index] = embedding;
   });
@@ -155,7 +173,10 @@ class SelfHostedEmbeddingProvider implements EmbeddingProvider {
     );
   }
 
-  async embedBatch(texts: string[]): Promise<number[][]> {
+  async embedBatch(
+    texts: string[],
+    options: EmbedOptions = {},
+  ): Promise<number[][]> {
     const {
       apiUrl,
       apiKey,
@@ -176,8 +197,12 @@ class SelfHostedEmbeddingProvider implements EmbeddingProvider {
       );
     }
 
-    const timeoutMs = positiveIntEnv("EMBEDDING_TIMEOUT_MS", 120_000);
-    const maxAttempts = positiveIntEnv("EMBEDDING_MAX_ATTEMPTS", 2);
+    const timeoutMs = Math.min(
+      options.timeoutMs ?? Number.POSITIVE_INFINITY,
+      positiveIntEnv("EMBEDDING_TIMEOUT_MS", 120_000),
+    );
+    const maxAttempts =
+      options.maxAttempts ?? positiveIntEnv("EMBEDDING_MAX_ATTEMPTS", 2);
     let lastError: unknown;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -192,6 +217,7 @@ class SelfHostedEmbeddingProvider implements EmbeddingProvider {
         return await requestEmbeddings(fallback, texts, timeoutMs);
       } catch (error) {
         lastError = error;
+        if (!isRetryable(error)) break;
         if (attempt < maxAttempts) {
           await delay(500 * attempt);
         }
@@ -201,8 +227,8 @@ class SelfHostedEmbeddingProvider implements EmbeddingProvider {
     throw lastError instanceof Error ? lastError : new Error(String(lastError));
   }
 
-  async embedSingle(text: string): Promise<number[]> {
-    const [embedding] = await this.embedBatch([text]);
+  async embedSingle(text: string, options?: EmbedOptions): Promise<number[]> {
+    const [embedding] = await this.embedBatch([text], options);
     if (!embedding) throw new Error("Failed to embed single text");
     return embedding;
   }

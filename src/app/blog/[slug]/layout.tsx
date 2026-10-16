@@ -1,4 +1,4 @@
-import { blogPostsBySlug } from "@/lib/blog-data";
+import { findBlogPost } from "@/lib/blog-data";
 
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
@@ -7,7 +7,7 @@ type SlugParams = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: SlugParams): Promise<Metadata> {
   const { slug } = await params;
-  const post = blogPostsBySlug[slug];
+  const post = findBlogPost(slug);
   if (!post) return { title: "Post Not Found" };
   return {
     title: post.title,

@@ -1,4 +1,5 @@
 import { Locale } from "@/locales";
+import logger from "@/lib/logger";
 
 const CLOUDFLARE_EMAIL_ENDPOINT = "https://api.cloudflare.com/client/v4";
 const RESEND_EMAIL_ENDPOINT = "https://api.resend.com/emails";
@@ -65,11 +66,10 @@ interface VaultImportSummary {
   failedFiles: number;
 }
 
-function errorMessage(error: unknown): string {
-  if (error instanceof EmailSendError && error.httpStatus) {
-    return `${error.message} (HTTP ${error.httpStatus})`;
-  }
-  return error instanceof Error ? error.message : String(error);
+function emailFailureMeta(error: unknown) {
+  return error instanceof EmailSendError
+    ? { reason: error.reason, httpStatus: error.httpStatus, providerCode: error.providerCode }
+    : { reason: "unexpected" };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -217,7 +217,7 @@ export async function sendPasswordResetEmail(
 ): Promise<void> {
   const fromEmail = getFromEmail();
   if (!fromEmail) {
-    throw new Error("Email from-address not configured (set EMAIL_FROM)");
+    throw new EmailSendError("configuration");
   }
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -256,12 +256,7 @@ export async function sendPasswordResetEmail(
     text: `${action}: ${resetUrl}\n\nThis link expires in 1 hour.`,
   };
 
-  try {
-    await sendEmail(mailOptions);
-  } catch (err) {
-    console.error("[email] failed to send password reset:", errorMessage(err));
-    throw new Error("Failed to send password reset email");
-  }
+  await sendEmail(mailOptions);
 }
 
 export async function sendVerificationEmail(
@@ -327,9 +322,7 @@ export async function sendVaultImportCompleteEmail(
 ): Promise<void> {
   const fromEmail = getFromEmail();
   if (!fromEmail) {
-    console.warn(
-      "[email] from-address not configured, skipping vault import notification",
-    );
+    logger.warn("email from-address not configured, skipping vault import notification");
     return;
   }
 
@@ -362,10 +355,7 @@ export async function sendVaultImportCompleteEmail(
   try {
     await sendEmail(mailOptions);
   } catch (err) {
-    console.error(
-      "[email] failed to send vault import notification:",
-      errorMessage(err),
-    );
+    logger.error("vault import notification email failed", emailFailureMeta(err));
   }
 }
 
@@ -375,9 +365,7 @@ export async function sendVaultExportCompleteEmail(
 ): Promise<void> {
   const fromEmail = getFromEmail();
   if (!fromEmail) {
-    console.warn(
-      "[email] from-address not configured, skipping vault export notification",
-    );
+    logger.warn("email from-address not configured, skipping vault export notification");
     return;
   }
 
@@ -403,9 +391,6 @@ export async function sendVaultExportCompleteEmail(
   try {
     await sendEmail(mailOptions);
   } catch (err) {
-    console.error(
-      "[email] failed to send vault export notification:",
-      errorMessage(err),
-    );
+    logger.error("vault export notification email failed", emailFailureMeta(err));
   }
 }

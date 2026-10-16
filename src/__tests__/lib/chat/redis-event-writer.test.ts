@@ -72,3 +72,24 @@ it("does not publish later events past a failed Redis append", async () => {
   await expect(writer.flush()).rejects.toThrow("Lost write");
   expect(append).toHaveBeenCalledTimes(1);
 });
+
+it("drops queued writes after it is discarded without reporting a failure", async () => {
+  let resolveAppend: (() => void) | undefined;
+  const append = vi.fn(
+    () =>
+      new Promise<void>((resolve) => {
+        resolveAppend = resolve;
+      }),
+  );
+  const writer = createBufferedSseWriter(append);
+
+  writer.enqueue(encoder.encode('event: token\ndata: {"text":"one"}\n\n'));
+  writer.enqueue(encoder.encode('event: token\ndata: {"text":"two"}\n\n'));
+  await Promise.resolve();
+  writer.discard();
+  writer.enqueue(encoder.encode("event: done\ndata: {}\n\n"));
+  resolveAppend?.();
+
+  await expect(writer.flush()).resolves.toBeUndefined();
+  expect(append).toHaveBeenCalledTimes(1);
+});

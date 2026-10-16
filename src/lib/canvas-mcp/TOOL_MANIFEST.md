@@ -4,9 +4,9 @@
 >
 > Audience: Integrators, security reviewers, and contributors
 >
-> Last verified: 2026-07-11 against `src/tools/*.ts`
+> Last verified: 2026-10-06 against `src/tools/*.ts`
 
-The server registers all 129 standalone tool objects across 15 Canvas domains.
+The server registers all 126 standalone tool objects across 15 Canvas domains.
 That count includes reads, self-state updates, creates, submissions, grading,
 messaging, and destructive educator/admin operations. Every listed tool is
 visible in `tools/list`; section placement does not disable it.
@@ -24,8 +24,17 @@ Treat every `DELETE` endpoint and bulk-removal tool as potentially irreversible;
 require explicit confirmation immediately before the call.
 
 Canvas permission checks constrain the supplied token, but the server has no
-caller authentication, domain allowlist, per-tool authorization, or
-confirmation layer. See `README.md` before deployment.
+caller authentication, per-tool authorization, or confirmation layer. See
+`README.md` before deployment.
+
+OghmaNotes does not run this server. It imports the tool arrays and serves a
+filtered student profile from `/api/mcp/canvas`, where
+`src/lib/canvas/mcp.ts` disables the educator/admin tools and
+`src/lib/canvas/tool-policy.ts` decides which reads run without confirmation.
+Every other tool becomes a proposal the user approves first.
+
+Paginated list tools follow Canvas `Link` headers on the same host, 100 items
+per page, and stop after 20 pages so one call cannot walk an unbounded list.
 
 Tool names in this manifest were matched to code on the verification date.
 Runtime Zod schemas and handlers remain authoritative for exact inputs and
@@ -54,7 +63,7 @@ a tool; it is provenance context, not a license conclusion.
 
 | Tool | Endpoint | Inputs | Sources | Notes |
 |------|----------|--------|---------|-------|
-| canvas_list_assignments | GET /api/v1/courses/:course_id/assignments | course_id, bucket?, include[]?, search_term?, per_page? | vishalsachdev, r-huijts, DMontgomery40 | paginated; bucket supports `past`, `overdue`, `undated`, `ungraded`, `unsubmitted`, `upcoming`, `future`; include[] supports `submission`, `all_dates`, `overrides` |
+| canvas_list_assignments | GET /api/v1/courses/:course_id/assignments | course_id, bucket?, include[]?, search_term? | vishalsachdev, r-huijts, DMontgomery40 | paginated; bucket supports `past`, `overdue`, `undated`, `ungraded`, `unsubmitted`, `upcoming`, `future`; include[] supports `submission`, `all_dates`, `overrides` |
 | canvas_get_assignment | GET /api/v1/courses/:course_id/assignments/:id | course_id, assignment_id, include[]? | r-huijts, DMontgomery40 | include[] supports `submission`, `rubric`, `assignment_visibility` |
 | canvas_list_assignment_groups | GET /api/v1/courses/:course_id/assignment_groups | course_id, include[]? | r-huijts, ahnopologetic, DMontgomery40 | include[] supports `assignments`, `submission` |
 | canvas_list_missing_assignments | GET /api/v1/users/self/missing_submissions | course_ids[]?, include[]?, filter[]? | mtgibbs | student-facing; filter[] supports `submittable`, `current_grading_period` |
@@ -86,7 +95,7 @@ a tool; it is provenance context, not a license conclusion.
 
 | Tool | Endpoint | Safety |
 |------|----------|--------|
-| canvas_submit_assignment | POST /api/v1/courses/:course_id/assignments/:id/submissions | Self-mutation; confirm |
+| canvas_submit_assignment | POST /api/v1/courses/:course_id/assignments/:id/submissions | Self-mutation; confirm. `online_text_entry` needs `body`, `online_url` needs an http(s) `url`; file and media submissions are rejected |
 | canvas_grade_submission | PUT /api/v1/courses/:course_id/assignments/:id/submissions/:user_id | Confirm; verify Canvas permission |
 | canvas_bulk_grade_submissions | POST /api/v1/courses/:course_id/assignments/:id/submissions/update_grades | Confirm; verify Canvas permission |
 | canvas_post_submission_comment | PUT /api/v1/courses/:course_id/assignments/:id/submissions/:user_id (comment[]) | Confirm; verify Canvas permission |
@@ -99,14 +108,13 @@ a tool; it is provenance context, not a license conclusion.
 | Tool | Endpoint | Inputs | Sources | Notes |
 |------|----------|--------|---------|-------|
 | canvas_get_my_grades | GET /api/v1/users/self/enrollments | course_id?, state[]?, limit? | vishalsachdev, DMontgomery40, mtgibbs | returns enrollment objects with current_score, final_score, current_grade, final_grade, and grading-period fields. state defaults to active+invited. limit is client-side |
-| canvas_get_assignment_feedback | GET /api/v1/courses/:course_id/assignments/:id/submissions/self | course_id, assignment_id | mtgibbs | wraps grading comments + rubric assessment |
+| canvas_get_assignment_feedback | GET /api/v1/courses/:course_id/assignments/:id/submissions/self | course_id, assignment_id, include[]? | mtgibbs | wraps grading comments + rubric assessment |
 | canvas_get_grading_standards | GET /api/v1/courses/:course_id/grading_standards | course_id | r-huijts | letter-grade thresholds for the course |
 
 ### Mutating or elevated-permission tools (registered)
 
 | Tool | Endpoint | Safety |
 |------|----------|--------|
-| canvas_submit_grade | PUT /api/v1/courses/:course_id/assignments/:id/submissions/:user_id | Confirm; verify Canvas permission |
 | canvas_get_all_students_status | GET /api/v1/courses/:course_id/students/submissions | Confirm; verify Canvas permission |
 | canvas_get_comprehensive_status | (composite grade + submission roll-up) | Confirm; verify Canvas permission |
 
@@ -143,10 +151,10 @@ a tool; it is provenance context, not a license conclusion.
 | Tool | Endpoint | Inputs | Sources | Notes |
 |------|----------|--------|---------|-------|
 | canvas_list_pages | GET /api/v1/courses/:course_id/pages | course_id, sort?, search_term?, published? | vishalsachdev, r-huijts, DMontgomery40 | paginated |
-| canvas_get_page | GET /api/v1/courses/:course_id/pages/:url_or_id | course_id, page_url_or_id | vishalsachdev, r-huijts, DMontgomery40 | returns `body` HTML |
+| canvas_get_page | GET /api/v1/courses/:course_id/pages/:url_or_id | course_id, page_url | vishalsachdev, r-huijts, DMontgomery40 | returns `body` HTML |
 | canvas_get_front_page | GET /api/v1/courses/:course_id/front_page | course_id | vishalsachdev | |
-| canvas_list_page_revisions | GET /api/v1/courses/:course_id/pages/:url_or_id/revisions | course_id, page_url_or_id | r-huijts | paginated |
-| canvas_get_page_revision | GET /api/v1/courses/:course_id/pages/:url_or_id/revisions/:revision_id | course_id, page_url_or_id, revision_id, summary? | r-huijts | |
+| canvas_list_page_revisions | GET /api/v1/courses/:course_id/pages/:url_or_id/revisions | course_id, page_url | r-huijts | paginated |
+| canvas_get_page_revision | GET /api/v1/courses/:course_id/pages/:url_or_id/revisions/:revision_id | course_id, page_url, revision_id, summary? | r-huijts | |
 
 ### Mutating or elevated-permission tools (registered)
 
@@ -174,7 +182,7 @@ a tool; it is provenance context, not a license conclusion.
 |------|----------|--------|
 | canvas_create_calendar_event | POST /api/v1/calendar_events | Confirm; verify Canvas permission |
 | canvas_update_calendar_event | PUT /api/v1/calendar_events/:id | Confirm; verify Canvas permission |
-| canvas_delete_calendar_event | DELETE /api/v1/calendar_events/:id | Confirm; verify Canvas permission |
+| canvas_delete_calendar_event | DELETE /api/v1/calendar_events/:id | Confirm; verify Canvas permission; forwards `cancel_reason` |
 | canvas_create_planner_note | POST /api/v1/planner_notes | Confirm; verify Canvas permission |
 | canvas_update_planner_note | PUT /api/v1/planner_notes/:id | Confirm; verify Canvas permission |
 | canvas_delete_planner_note | DELETE /api/v1/planner_notes/:id | Confirm; verify Canvas permission |
@@ -187,7 +195,7 @@ a tool; it is provenance context, not a license conclusion.
 | Tool | Endpoint | Inputs | Sources | Notes |
 |------|----------|--------|---------|-------|
 | canvas_list_announcements | GET /api/v1/announcements | context_codes[], start_date?, end_date?, active_only? | vishalsachdev, DMontgomery40, mtgibbs | `context_codes[]` required, e.g. `course_123`; paginated |
-| canvas_list_course_announcements | GET /api/v1/courses/:course_id/discussion_topics?only_announcements=true | course_id, per_page? | vishalsachdev | paginated |
+| canvas_list_course_announcements | GET /api/v1/courses/:course_id/discussion_topics?only_announcements=true | course_id | vishalsachdev | paginated |
 | canvas_get_announcement | GET /api/v1/courses/:course_id/discussion_topics/:topic_id | course_id, announcement_id | vishalsachdev | announcements are discussion topics with `is_announcement=true` |
 | canvas_list_account_notifications | GET /api/v1/accounts/self/account_notifications | — | Kuria-Mbatia | global institution-wide notices |
 
@@ -236,9 +244,7 @@ a tool; it is provenance context, not a license conclusion.
 
 | Tool | Endpoint | Safety |
 |------|----------|--------|
-| canvas_upload_file | POST /api/v1/courses/:course_id/files (3-step flow) | Confirm; verify Canvas permission |
 | canvas_delete_file | DELETE /api/v1/files/:id | Confirm; verify Canvas permission |
-| canvas_download_file_to_disk | GET /api/v1/files/:id | Sensitive URL output; ignores `destination_path`; do not log |
 
 ---
 
@@ -247,7 +253,7 @@ a tool; it is provenance context, not a license conclusion.
 | Tool | Endpoint | Inputs | Sources | Notes |
 |------|----------|--------|---------|-------|
 | canvas_list_conversations | GET /api/v1/conversations | scope?, filter[]?, include[]? | vishalsachdev, mtgibbs, DMontgomery40 | paginated; scope supports `unread`, `starred`, `archived`, `sent` |
-| canvas_get_conversation | GET /api/v1/conversations/:id | conversation_id, include[]? | vishalsachdev, DMontgomery40 | include[] supports `participant_avatars` |
+| canvas_get_conversation | GET /api/v1/conversations/:id | conversation_id, include[]? | vishalsachdev, DMontgomery40 | sends `auto_mark_as_read=false` so reading does not change inbox state; include[] supports `participant_avatars` |
 | canvas_get_unread_count | GET /api/v1/conversations/unread_count | — | vishalsachdev, mtgibbs | |
 | canvas_mark_conversation_read | PUT /api/v1/conversations/:id | conversation_id, workflow_state? | vishalsachdev | mutates conversation read state |
 

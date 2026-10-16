@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ pathname: "/", report: vi.fn() }));
 vi.mock("next/navigation", () => ({ usePathname: () => mocks.pathname }));
 vi.mock("@/lib/marketing/client", () => ({ reportTelemetry: mocks.report }));
-import MarketingTracker from "@/components/marketing-tracker";
+import MarketingTracker, { telemetryRoute } from "@/components/marketing-tracker";
 beforeEach(() => { mocks.pathname = "/"; mocks.report.mockClear(); });
 afterEach(cleanup);
 it("maps navigation to closed categories without a private path", () => {
@@ -21,4 +21,11 @@ it("does not capture link clicks, form actions or input content", () => {
   mocks.report.mockClear();
   fireEvent.click(view.getByRole("button"));
   expect(mocks.report).not.toHaveBeenCalled();
+});
+it("maps dynamic, legal and unknown URLs to a finite category", () => {
+  expect(telemetryRoute("/notes/private-note-id")).toBe("editor");
+  expect(telemetryRoute("/settings")).toBe("settings");
+  expect(telemetryRoute("/terms")).toBe("help");
+  expect(telemetryRoute("/private-fixture?email=person@example.test")).toBe("app");
+  expect(telemetryRoute(null)).toBe("app");
 });

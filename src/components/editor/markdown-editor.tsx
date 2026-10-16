@@ -25,7 +25,7 @@ import { useSettingsStore } from "@/lib/notes/state/ui/settings";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { toast } from "sonner";
 import { writeDraft, readDraft, clearDraft, acknowledgeDraftRecovery, type NoteDraft } from "@/lib/notes/draft-cache";
-import { getEditorWidthStyle } from "@/lib/notes/editor-width";
+import { getEditorMaxWidth } from "@/lib/notes/editor-width";
 
 // Milkdown accesses browser APIs on import, so load the writing surface client-side only.
 const MilkdownWriteEditor = dynamic(() => import("./milkdown-write-editor"), {
@@ -42,6 +42,20 @@ const DRAFT_DEBOUNCE_MS = 1000;
 // drafts already cover the gap locally, this closes it across devices
 const AUTOSAVE_DEBOUNCE_MS = 3000;
 
+// the note store reports every failed fetch as a missing note. only a definite
+// answer from the server may close the pane: offline or a 5xx keeps it open
+async function noteIsGone(noteId: string): Promise<boolean> {
+  try {
+    const response = await fetch(
+      `/api/notes/${encodeURIComponent(noteId)}?fields=id`,
+      { cache: "no-store" },
+    );
+    return response.status === 400 || response.status === 403 || response.status === 404;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Markdown editor with one Notion-ish writing surface.
  * Markdown stays canonical underneath; the beta UI just softens the editing layer.
@@ -54,6 +68,8 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   // only subscribe to stable action refs — never the global `note` object.
   // subscribing to `note` caused pane A to flicker/reload whenever pane B
   // fetched a different note because both shared the same singleton state.
@@ -66,7 +82,6 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
   const markSynced = useSyncStatusStore((s) => s.markSynced);
   const editorSize = useSettingsStore((s) => s.settings?.editorsize);
   const setSettings = useSettingsStore((s) => s.setSettings);
-  const [resolvedEditorSize, setResolvedEditorSize] = useState<unknown>();
   const currentFileId = useRef(file.fileId);
   const { t } = useI18n();
   const isDirtyRef = useRef(false);
@@ -82,7 +97,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
   const saveInFlight = useRef(false);
   const saveQueued = useRef(false);
   const saveLatest = useRef<() => void>(() => {});
-  const editorWidth = getEditorWidthStyle(resolvedEditorSize ?? editorSize);
+  const editorMaxWidth = getEditorMaxWidth(editorSize);
 
   // keep refs in sync so event listeners always read current values
   const localContentRef = useRef(localContent);
@@ -92,20 +107,13 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
   }, [isDirty, localContent]);
 
   useEffect(() => {
-    if (editorSize) setResolvedEditorSize(editorSize);
-  }, [editorSize]);
-
-  useEffect(() => {
     if (editorSize) return;
 
     let cancelled = false;
     fetch("/api/settings")
       .then((response) => (response.ok ? response.json() : null))
       .then((settings) => {
-        if (!cancelled && settings) {
-          setSettings(settings);
-          setResolvedEditorSize(settings.editorsize);
-        }
+        if (!cancelled && settings) setSettings(settings);
       })
       .catch(() => {});
 
@@ -114,19 +122,35 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
     };
   }, [editorSize, setSettings]);
 
-  // flush draft and warn on page close to prevent data loss
+  // flush the debounced draft whenever the page may be going away. mobile
+  // browsers and the Android WebView often kill a hidden page without ever
+  // firing beforeunload, so hiding the page counts too
   useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (!isDirtyRef.current) return;
-      if (draftTimer.current) clearTimeout(draftTimer.current);
-      // fire-and-forget flush — IDB write is fast enough to land before teardown
+    const flushDraft = () => {
+      if (!isDirtyRef.current) return false;
+      if (draftTimer.current) {
+        clearTimeout(draftTimer.current);
+        draftTimer.current = null;
+      }
       writeDraft(currentFileId.current, localContentRef.current, draftOwner).catch(
         () => {},
       );
-      e.preventDefault();
+      return true;
+    };
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (flushDraft()) e.preventDefault();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") flushDraft();
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener("pagehide", flushDraft);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener("pagehide", flushDraft);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, [draftOwner]);
 
   // load note content when file changes.
@@ -135,6 +159,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
     if (!file.fileId) return;
     currentFileId.current = file.fileId;
     setLoaded(false);
+    setLoadFailed(false);
     setIsDirty(false);
     isDirtyRef.current = false;
     editRevision.current = 0;
@@ -148,6 +173,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
     (async () => {
       // check for an unsaved draft first — restore immediately if it exists
       let restoredDraft: NoteDraft | null = null;
+      let showingLocalCopy = false;
       const notifyRecovery = () => {
         if (!cancelled && acknowledgeDraftRecovery(file.fileId)) {
           toast.info(t("Restored unsaved draft"), {
@@ -169,6 +195,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
           setLoaded(true);
           setIsDirty(true);
           restoredDraft = draft;
+          showingLocalCopy = true;
         }
       } catch {
         // draft read failure is non-fatal
@@ -190,16 +217,29 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
             setLocalContent(cached.content);
             localContentRef.current = cached.content;
             setLoaded(true);
+            showingLocalCopy = true;
           }
         } catch {
           // cache miss — fall through to API fetch
         }
       }
 
+      // keep whatever local copy is on screen; with nothing to show, offer a retry
+      const reportUnreachable = () => {
+        if (cancelled || currentFileId.current !== stale) return;
+        if (restoredDraft) notifyRecovery();
+        if (!showingLocalCopy) setLoadFailed(true);
+      };
+
       // fetch from API for freshness
       try {
         const result = await fetchNote(file.fileId);
         if (!cancelled && !result && currentFileId.current === stale) {
+          if (!(await noteIsGone(file.fileId))) {
+            reportUnreachable();
+            return;
+          }
+          if (cancelled || currentFileId.current !== stale) return;
           const survivingFile = dismissUnavailablePane(pane, file.fileId);
           if (pane === "A" && survivingFile !== undefined) {
             router.replace(
@@ -248,8 +288,8 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
           }
         }
       } catch (_err) {
-        if (restoredDraft) notifyRecovery();
         console.error("note_load_failed");
+        reportUnreachable();
       }
     })();
 
@@ -269,7 +309,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
         );
       }
     };
-  }, [dismissUnavailablePane, draftOwner, file.fileId, fetchNote, markSynced, pane, router, t]);
+  }, [dismissUnavailablePane, draftOwner, file.fileId, fetchNote, loadAttempt, markSynced, pane, router, t]);
 
   // removed: the old effect watched the global `note` singleton, meaning a
   // fetchNote in pane B would push new state into pane A and cause a flash.
@@ -408,7 +448,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
   // toolbar/outer-shell focus so the editor still behaves like one mode.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!e.defaultPrevented && (e.ctrlKey || e.metaKey) && e.key === "s" && useLayoutStore.getState().activePane === pane) {
+      if (!e.defaultPrevented && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s" && useLayoutStore.getState().activePane === pane) {
         e.preventDefault();
         void handleSave();
       }
@@ -461,7 +501,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
         className="flex-1 overflow-hidden bg-app-page"
         style={
           {
-            "--editor-write-max-width": editorWidth.sourceMaxWidth,
+            "--editor-write-max-width": editorMaxWidth,
           } as React.CSSProperties
         }
       >
@@ -487,6 +527,22 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
               onOpenNote={(noteId) => router.push(`/notes/${noteId}`)}
             />
           </div>
+        ) : loadFailed ? (
+          <div
+            className="flex h-full min-h-0 w-full flex-col items-center justify-center gap-3 px-6 text-center"
+            role="alert"
+          >
+            <p className="text-sm text-text-secondary">
+              {t("This note could not be loaded. Check your connection and try again.")}
+            </p>
+            <button
+              type="button"
+              onClick={() => setLoadAttempt((attempt) => attempt + 1)}
+              className="rounded-radius-md px-3 py-2 text-sm font-medium text-primary-400 hover:bg-subtle hover:text-primary-300"
+            >
+              {t("Try again")}
+            </button>
+          </div>
         ) : (
           <div
             className="h-full min-h-0 w-full overflow-hidden"
@@ -495,7 +551,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
           >
             <div
               className="mx-auto h-full w-full px-6 py-8 sm:px-10"
-              style={{ maxWidth: editorWidth.sourceMaxWidth }}
+              style={{ maxWidth: editorMaxWidth }}
             >
               <div className="h-5 w-2/5 animate-pulse rounded-radius-sm bg-subtle" />
               <div className="mt-7 space-y-3" aria-hidden="true">

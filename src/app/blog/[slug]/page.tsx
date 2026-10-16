@@ -7,13 +7,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import Header from "@/components/header";
 import Footer from "@/components/footer";
-import { blogPostsBySlug } from "@/lib/blog-data";
+import { findBlogPost } from "@/lib/blog-data";
 import { getServerI18n } from "@/lib/i18n/server";
 
 export default async function BlogPost({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const { t } = await getServerI18n();
-  const post = blogPostsBySlug[slug];
+  const post = findBlogPost(slug);
 
   if (!post) {
     notFound();
@@ -136,11 +136,7 @@ export default async function BlogPost({ params }: { params: Promise<{ slug: str
             <p className="mt-6">{t("blog.cta.description")}</p>
             <div className="mt-8">
               <Link
-                href="/contact?utm_source=blog&utm_medium=article_cta&utm_campaign=launch_beta#contact-form"
-                data-marketing-event="cta_click"
-                data-marketing-page="blog_article"
-                data-marketing-location="bottom"
-                data-marketing-cta="request_beta_access"
+                href="/contact#contact-form"
                 className="rounded-radius-md bg-primary-600 px-6 py-2.5 text-sm font-semibold text-text-on-primary hover:bg-primary-700"
               >
                 {t("Join the beta")}

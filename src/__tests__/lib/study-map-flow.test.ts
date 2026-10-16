@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
   assignmentSources,
+  CARD_WIDTH,
   flowLinks,
   inferWeek,
   layoutModule,
   mentionedTopics,
   moduleItems,
   orderTopics,
+  primaryTopic,
   topicBridges,
+  topicRelations,
   topicTrail,
   UNSORTED,
 } from "@/lib/study-map/flow";
@@ -361,39 +364,262 @@ describe("layout", () => {
     ]);
   });
 
-  it("places cards in their week column between their topics, without overlap, and keeps manual positions", () => {
-    const both = material(1, "Week 3: pointers and memory", [
-      association(pointers.id),
+  it("files each card under its heaviest topic, breaking ties by catalogue order and briefs by how often they name a topic", () => {
+    const supportingFirst = material(1, "Lecture 1", [
+      association(pointers.id, "supporting"),
       association(memory.id),
     ]);
-    const onlyPointers = material(2, "Week 3: pointer basics", [
+    const tie = material(2, "Lecture 2", [
+      association(memory.id),
       association(pointers.id),
     ]);
-    const later = material(3, "Week 5: bitmasks", [association(bits.id)]);
-    const loose = material(4, "Unsorted reading", []);
+    const reviewedBeatsSuggested = material(3, "Lecture 3", [
+      association(types.id, "core", "suggested"),
+      association(bits.id, "supporting"),
+    ]);
+    const brief = assignment(
+      70,
+      "Bit manipulation lab",
+      "Uses pointers once. Bit manipulation with masks; more bit manipulation.",
+    );
+    const unnamed = assignment(71, "Reflection", "Write about your week.");
+    const catalogue = [types, pointers, bits, memory];
     const items = moduleItems(
-      snapshot([pointers, memory, bits], [both, onlyPointers, later, loose]),
+      snapshot(
+        catalogue,
+        [supportingFirst, tie, reviewedBeatsSuggested],
+        [brief, unnamed],
+      ),
       emptyBoard(),
     );
-    const layout = layoutModule(MAP, [pointers, memory, bits], items, []);
-    expect(layout.columns.map((column) => column.week)).toEqual([3, 5, null]);
-    expect(layout.rows.at(-1)?.key).toBe(UNSORTED);
-    const a = layout.positions.get(`note:${both.noteId}`)!;
-    const b = layout.positions.get(`note:${onlyPointers.noteId}`)!;
-    expect(a.x).toBe(b.x);
-    const [upper, lower] = a.y < b.y ? [a, b] : [b, a];
-    expect(lower.y - upper.y).toBeGreaterThanOrEqual(140);
-    expect(layout.positions.get(`note:${later.noteId}`)!.x).toBeGreaterThan(
-      a.x,
-    );
-    const moved = layoutModule(MAP, [pointers, memory, bits], items, [
-      { id: `note:${both.noteId}`, x: 9, y: 11, pinned: true, topicId: null },
+    const ranks = new Map(catalogue.map((entry, index) => [entry.id, index]));
+    const filed = (title: string) =>
+      primaryTopic(
+        items.find((item) => item.title === title)!,
+        ranks,
+      );
+    expect(filed("Lecture 1")).toBe(memory.id);
+    expect(filed("Lecture 2")).toBe(pointers.id);
+    // a suggested core weighs 0.7, a reviewed supporting tag 0.4
+    expect(filed("Lecture 3")).toBe(types.id);
+    expect(filed("Bit manipulation lab")).toBe(bits.id);
+    expect(filed("Reflection")).toBe(UNSORTED);
+    const layout = layoutModule(MAP, catalogue, items, []);
+    expect(layout.primary.get(`assignment:${unnamed.id}`)).toBe(UNSORTED);
+  });
+
+  it("orders a cluster by reviewed core first, then week with no week last, then title, in a small grid", () => {
+    const notes = [
+      material(1, "Week 4: b", [association(pointers.id)]),
+      material(2, "Week 2: z", [association(pointers.id, "supporting")]),
+      material(3, "Undated a", [association(pointers.id)]),
+      material(4, "Week 4: a", [association(pointers.id)]),
+      material(5, "Week 1: guess", [
+        association(pointers.id, "core", "suggested"),
+      ]),
+    ];
+    const items = moduleItems(snapshot([pointers], notes), emptyBoard());
+    const layout = layoutModule(MAP, [pointers], items, []);
+    const cluster = layout.clusters[0];
+    expect(cluster.key).toBe(pointers.id);
+    expect(
+      cluster.refs.map((ref) => items.find((item) => item.ref === ref)!.title),
+    ).toEqual([
+      "Week 4: a",
+      "Week 4: b",
+      "Undated a",
+      "Week 1: guess",
+      "Week 2: z",
     ]);
-    expect(moved.positions.get(`note:${both.noteId}`)).toEqual({
-      x: 9,
-      y: 11,
-      manual: true,
+    // five cards use three columns, so the cluster is two rows tall rather than one long stack
+    const xs = new Set(cluster.refs.map((ref) => layout.positions.get(ref)!.x));
+    const ys = new Set(cluster.refs.map((ref) => layout.positions.get(ref)!.y));
+    expect(xs.size).toBe(3);
+    expect(ys.size).toBe(2);
+  });
+
+  it("packs clusters without overlap, keeps every card inside its frame, and puts unsorted material last", () => {
+    const catalogue = [types, pointers, bits, memory];
+    const notes = Array.from({ length: 23 }, (_, index) =>
+      material(index + 1, `Week ${(index % 12) + 1}: note ${index}`, [
+        association(catalogue[index % catalogue.length].id),
+        ...(index % 3 === 0
+          ? [association(catalogue[(index + 1) % 4].id, "supporting")]
+          : []),
+      ]),
+    );
+    const loose = material(40, "Reading list", []);
+    const pdf = material(41, "Slides.pdf", [association(bits.id)], {
+      isFile: true,
+      mimeType: "application/pdf",
     });
+    const items = moduleItems(
+      snapshot(catalogue, [...notes, loose, pdf]),
+      emptyBoard(),
+    );
+    const layout = layoutModule(MAP, catalogue, items, []);
+    expect(layout.clusters.at(-1)).toMatchObject({
+      key: UNSORTED,
+      topic: null,
+      refs: [`note:${loose.noteId}`],
+    });
+    const overlaps = (
+      a: { x: number; y: number; width: number; height: number },
+      b: { x: number; y: number; width: number; height: number },
+    ) =>
+      a.x < b.x + b.width &&
+      b.x < a.x + a.width &&
+      a.y < b.y + b.height &&
+      b.y < a.y + a.height;
+    for (const [index, cluster] of layout.clusters.entries()) {
+      for (const other of layout.clusters.slice(index + 1))
+        expect(overlaps(cluster, other)).toBe(false);
+      for (const ref of cluster.refs) {
+        const position = layout.positions.get(ref)!;
+        const height = items.find((item) => item.ref === ref)!.height;
+        expect(position.x).toBeGreaterThanOrEqual(cluster.x);
+        expect(position.y).toBeGreaterThanOrEqual(cluster.y);
+        expect(position.x + CARD_WIDTH).toBeLessThanOrEqual(
+          cluster.x + cluster.width,
+        );
+        expect(position.y + height).toBeLessThanOrEqual(
+          cluster.y + cluster.height,
+        );
+      }
+    }
+    expect(layout.clusters.flatMap((cluster) => cluster.refs).sort()).toEqual(
+      items.map((item) => item.ref).sort(),
+    );
+    expect(layout.width).toBeGreaterThanOrEqual(
+      Math.max(...layout.clusters.map((cluster) => cluster.x + cluster.width)),
+    );
+  });
+
+  it("puts related topics next to each other, counting shared cards and note links", () => {
+    // in catalogue order pointers would be followed by types; its note link to bits wins instead
+    const catalogue = [pointers, types, memory, bits];
+    const shared = material(1, "Lecture 1", [
+      association(types.id),
+      association(memory.id),
+    ]);
+    const typesNote = material(2, "Lecture 2", [association(types.id)]);
+    const bitsNote = material(3, "Lecture 3", [association(bits.id)]);
+    const pointersNote = material(4, "Lecture 4", [association(pointers.id)], {
+      references: [
+        {
+          id: bitsNote.noteId,
+          title: bitsNote.title,
+          kind: "note",
+        },
+      ],
+    });
+    const memoryNote = material(5, "Lecture 5", [association(memory.id)]);
+    const notes = [shared, typesNote, bitsNote, pointersNote, memoryNote];
+    const items = moduleItems(snapshot(catalogue, notes), emptyBoard());
+    const links = flowLinks([{ items, board: emptyBoard() }]);
+    const relations = topicRelations(catalogue, items, links);
+    const pair = (left: string, right: string) =>
+      left < right ? { a: left, b: right } : { a: right, b: left };
+    expect(relations).toEqual(
+      expect.arrayContaining([
+        { ...pair(types.id, memory.id), weight: 1 },
+        { ...pair(pointers.id, bits.id), weight: 1 },
+      ]),
+    );
+    expect(relations).toHaveLength(2);
+    expect(orderTopics(catalogue, items).map((entry) => entry.name)).toEqual([
+      "Pointers",
+      "Types",
+      "Memory management",
+      "Bit manipulation",
+    ]);
+    expect(
+      orderTopics(catalogue, items, links).map((entry) => entry.name),
+    ).toEqual(["Pointers", "Bit manipulation", "Types", "Memory management"]);
+    const layout = layoutModule(MAP, catalogue, items, [], links);
+    const cluster = (key: string) =>
+      layout.clusters.find((entry) => entry.key === key)!;
+    expect(layout.clusters.map((entry) => entry.key)).toEqual([
+      pointers.id,
+      bits.id,
+      types.id,
+      memory.id,
+    ]);
+    const pointersCluster = cluster(pointers.id);
+    const bitsCluster = cluster(bits.id);
+    // packed left to right on one shelf with nothing between them
+    expect(bitsCluster.y).toBe(pointersCluster.y);
+    expect(bitsCluster.x).toBeGreaterThan(pointersCluster.x);
+    expect(
+      layout.clusters.filter(
+        (entry) =>
+          entry.y === pointersCluster.y &&
+          entry.x > pointersCluster.x &&
+          entry.x < bitsCluster.x,
+      ),
+    ).toEqual([]);
+    expect(layout.relations).toHaveLength(2);
+  });
+
+  it("keeps at most three relation edges per topic, strongest first", () => {
+    const catalogue = [types, pointers, bits, memory, topic(5, "Files")];
+    const hub = catalogue[0];
+    const notes = catalogue
+      .slice(1)
+      .flatMap((other, index) =>
+        Array.from({ length: index + 1 }, (_, copy) =>
+          material(10 * (index + 1) + copy, `Lecture ${other.name} ${copy}`, [
+            association(hub.id),
+            association(other.id),
+          ]),
+        ),
+      );
+    const items = moduleItems(snapshot(catalogue, notes), emptyBoard());
+    const layout = layoutModule(MAP, catalogue, items, []);
+    const touching = layout.relations.filter(
+      (relation) => relation.a === hub.id || relation.b === hub.id,
+    );
+    expect(touching).toHaveLength(3);
+    // the weakest partner, pointers with one shared card, is the one left out
+    expect(
+      touching.some(
+        (relation) => relation.a === pointers.id || relation.b === pointers.id,
+      ),
+    ).toBe(false);
+  });
+
+  it("is deterministic regardless of input order and keeps manual positions", () => {
+    const catalogue = [types, pointers, bits, memory];
+    const notes = Array.from({ length: 12 }, (_, index) =>
+      material(index + 1, `Note ${index}`, [
+        association(catalogue[index % 4].id),
+        association(catalogue[(index + 2) % 4].id, "supporting"),
+      ]),
+    );
+    const items = moduleItems(snapshot(catalogue, notes), emptyBoard());
+    const first = layoutModule(MAP, catalogue, items, []);
+    const again = layoutModule(MAP, catalogue, [...items].reverse(), []);
+    expect(again.clusters).toEqual(first.clusters);
+    expect(new Map([...again.positions].sort())).toEqual(
+      new Map([...first.positions].sort()),
+    );
+    const ref = `note:${notes[0].noteId}`;
+    const moved = layoutModule(MAP, catalogue, items, [
+      { id: ref, x: 9, y: 11, pinned: true, topicId: null },
+    ]);
+    expect(moved.positions.get(ref)).toEqual({ x: 9, y: 11, manual: true });
+    expect(moved.clusters).toEqual(first.clusters);
+  });
+
+  it("shows one unsorted cluster when a module has no topics", () => {
+    const items = moduleItems(
+      snapshot([], [material(1, "Week 1", []), material(2, "Week 2", [])]),
+      emptyBoard(),
+    );
+    const layout = layoutModule(MAP, [], items, []);
+    expect(layout.clusters.map((cluster) => cluster.key)).toEqual([UNSORTED]);
+    expect(layout.clusters[0].refs).toHaveLength(2);
+    expect(layout.relations).toEqual([]);
   });
 
   it("orders a topic trail by week and lists assignment sources with attached files first", () => {
@@ -524,5 +750,32 @@ describe("relations", () => {
       ...emptyBoard(),
       links: [legacy.links[0]],
     });
+  });
+
+  it("reads a weekly-grid board as a fresh layout that keeps its links and week overrides", () => {
+    const link = {
+      id: id(902),
+      source: `assignment:${id(4)}`,
+      target: `note:${id(2)}`,
+      label: "needed for",
+    };
+    const weekly = boardSchema.parse({
+      layout: 2,
+      placements: [
+        { id: `note:${id(1)}`, x: 300, y: 400, pinned: true, topicId: null },
+      ],
+      weeks: { [`note:${id(1)}`]: 4, [`assignment:${id(4)}`]: 0 },
+      links: [link],
+      viewport: { x: 1, y: 2, zoom: 1 },
+    });
+    const fresh = currentBoard(weekly);
+    expect(fresh).toEqual({
+      ...emptyBoard(),
+      weeks: weekly.weeks,
+      links: [link],
+    });
+    expect(fresh.layout).toBe(3);
+    expect(currentBoard(fresh)).toBe(fresh);
+    expect(emptyBoard().layout).toBe(3);
   });
 });

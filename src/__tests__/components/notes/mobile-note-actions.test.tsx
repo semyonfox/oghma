@@ -8,9 +8,7 @@ const mocks = vi.hoisted(() => ({
   loadChildren: vi.fn(),
   moveItem: vi.fn(),
   mutateNote: vi.fn(),
-  fetchNote: vi.fn(),
-  createNote: vi.fn(),
-  push: vi.fn(),
+  handleDuplicate: vi.fn(),
   close: vi.fn(),
   tree: {
     items: {
@@ -59,7 +57,6 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/notes/note-a",
-  useRouter: () => ({ push: mocks.push }),
 }));
 vi.mock("@/lib/notes/hooks/use-i18n", () => ({
   __esModule: true,
@@ -87,8 +84,6 @@ vi.mock("@/lib/notes/state/note", () => ({
   default: {
     getState: () => ({
       mutateNote: mocks.mutateNote,
-      fetchNote: mocks.fetchNote,
-      createNote: mocks.createNote,
     }),
   },
 }));
@@ -114,6 +109,7 @@ vi.mock("@/components/notes/sidebar/use-sidebar-actions", () => ({
     handleDeleteConfirm: vi.fn(),
     handleTogglePin: vi.fn(),
     handleOpenInAIChat: vi.fn(),
+    handleDuplicate: mocks.handleDuplicate,
   }),
 }));
 
@@ -154,13 +150,12 @@ describe("MobileNoteActions", () => {
     expect(mocks.close).not.toHaveBeenCalled();
   });
 
-  it("duplicates the full fetched note instead of the shallow library summary", async () => {
-    mocks.fetchNote.mockResolvedValueOnce({ id: "note-a", title: "Draft", content: "# Full note\n\nRemember this.", pid: "folder-b" });
-    mocks.createNote.mockResolvedValueOnce({ id: "copy-id" });
+  it("duplicates through the shared sidebar action and closes the sheet", async () => {
+    mocks.handleDuplicate.mockResolvedValueOnce(undefined);
     render(<MobileNoteActions noteId="note-a" onClose={mocks.close} />);
     fireEvent.click(screen.getByRole("button", { name: "Duplicate" }));
-    await waitFor(() => expect(mocks.createNote).toHaveBeenCalledWith(expect.objectContaining({ content: "# Full note\n\nRemember this.", pid: "folder-b" })));
-    expect(mocks.push).toHaveBeenCalledWith("/notes/copy-id");
+    await waitFor(() => expect(mocks.handleDuplicate).toHaveBeenCalledWith("note-a"));
+    await waitFor(() => expect(mocks.close).toHaveBeenCalledTimes(1));
   });
 
   it("excludes a folder and its descendants from move destinations, then moves to an allowed folder", async () => {

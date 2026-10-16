@@ -1,3 +1,5 @@
+import { MarkerDispatchRejectedError } from "@/lib/marker/errors";
+
 const DEFAULT_ROUTER_URL = "https://run.vast.ai/route/";
 const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
 
@@ -90,6 +92,20 @@ function workerUrlFrom(
   return route.url.replace(/\/+$/, "");
 }
 
+function reportedFailure(text: string): boolean {
+  try {
+    const parsed: unknown = JSON.parse(text);
+    return (
+      Boolean(parsed) &&
+      typeof parsed === "object" &&
+      !Array.isArray(parsed) &&
+      (parsed as Record<string, unknown>).success === false
+    );
+  } catch {
+    return false;
+  }
+}
+
 function backoffMs(
   attempt: number,
   maxIntervalMs: number,
@@ -130,10 +146,12 @@ export async function requestVastEndpoint<T extends Record<string, unknown>>(
   dependencies: VastServerlessDependencies = {},
 ): Promise<VastServerlessResult<T>> {
   if (!config.endpointName.trim() || !config.endpointApiKey.trim()) {
-    throw new Error("Vast endpoint name and endpoint API key are required");
+    throw new MarkerDispatchRejectedError(
+      "Vast endpoint name and endpoint API key are required",
+    );
   }
   if (!workerRoute.startsWith("/")) {
-    throw new Error("Vast worker route must start with /");
+    throw new MarkerDispatchRejectedError("Vast worker route must start with /");
   }
 
   const fetchFn = dependencies.fetch ?? fetch;
@@ -154,11 +172,17 @@ export async function requestVastEndpoint<T extends Record<string, unknown>>(
   let routePolls = 0;
   let workerAttempts = 0;
   let routeReadyAt = startedAt;
+  // once a worker call may have started converting, every later failure is
+  // ambiguous: that worker can still upload a result
+  let workerMayHaveRun = false;
+
+  const failure = (message: string): Error =>
+    workerMayHaveRun ? new Error(message) : new MarkerDispatchRejectedError(message);
 
   const remainingMs = (): number => {
     const remaining = deadline - now();
     if (remaining <= 0) {
-      throw new Error(`Vast request timed out after ${totalTimeoutMs}ms`);
+      throw failure(`Vast request timed out after ${totalTimeoutMs}ms`);
     }
     return remaining;
   };
@@ -208,17 +232,21 @@ export async function requestVastEndpoint<T extends Record<string, unknown>>(
           await sleep(backoffMs(pollAttempt, maxPollIntervalMs, random));
           continue;
         }
-        throw new Error(
+        throw failure(
           `Vast route failed (${routeResponse.status}): ${sanitizeDetail(routeText || routeResponse.statusText, apiKey)}`,
         );
       }
 
-      routeBody = parseJson(routeText, "Vast route") as RouteResponse;
-      requestIndex = requestIndexFrom(routeBody, requestIndex);
-      workerBaseUrl = workerUrlFrom(
-        routeBody,
-        config.allowInsecureWorkerUrl === true,
-      );
+      try {
+        routeBody = parseJson(routeText, "Vast route") as RouteResponse;
+        requestIndex = requestIndexFrom(routeBody, requestIndex);
+        workerBaseUrl = workerUrlFrom(
+          routeBody,
+          config.allowInsecureWorkerUrl === true,
+        );
+      } catch (error) {
+        throw failure(error instanceof Error ? error.message : String(error));
+      }
       if (!workerBaseUrl) {
         routePolls += 1;
         pollAttempt += 1;
@@ -249,6 +277,7 @@ export async function requestVastEndpoint<T extends Record<string, unknown>>(
         Math.min(workerTimeoutMs, remainingMs()),
       );
     } catch {
+      workerMayHaveRun = true;
       requestIndex = 0;
       if (workerAttempts >= maxWorkerAttempts) {
         throw new Error(
@@ -261,6 +290,9 @@ export async function requestVastEndpoint<T extends Record<string, unknown>>(
 
     const workerText = await workerResponse.text();
     if (!workerResponse.ok) {
+      // the backend answers its own failures with {"success": false}; any other
+      // error body could come from a proxy in front of a still-running worker
+      if (!reportedFailure(workerText)) workerMayHaveRun = true;
       if (
         RETRYABLE_STATUS.has(workerResponse.status) &&
         workerAttempts < maxWorkerAttempts
@@ -268,7 +300,7 @@ export async function requestVastEndpoint<T extends Record<string, unknown>>(
         await sleep(backoffMs(workerAttempts, maxPollIntervalMs, random));
         continue;
       }
-      throw new Error(
+      throw failure(
         `Vast worker failed (${workerResponse.status}): ${sanitizeDetail(workerText || workerResponse.statusText, apiKey)}`,
       );
     }

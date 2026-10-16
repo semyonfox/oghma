@@ -97,11 +97,15 @@ export async function recoverCanvasExecutions(
         WHERE canvas_job_id = ${candidate.job_id}::uuid
           AND status NOT IN ('completed', 'failed', 'invalid_result', 'cancelled')
       `;
+      // An abandoned extraction spends a retry, matching the staged extract
+      // reclaim, so a file that kills its worker cannot loop forever.
       const changed = await tx`
         UPDATE app.canvas_imports SET
+          retry_attempts = retry_attempts + CASE WHEN ${activeJob} AND status = 'indexing' THEN 1 ELSE 0 END,
           status = CASE WHEN ${job.status === "cancelled"} THEN 'cancelled'
-            WHEN ${activeJob} AND retry_attempts >= 4 AND status IN ('indexing', 'pending_retry') THEN 'error'
-            WHEN ${activeJob} AND retry_attempts > 0 AND retry_attempts < 4
+            WHEN ${activeJob} AND status = 'indexing' AND retry_attempts + 1 >= 4 THEN 'error'
+            WHEN ${activeJob} AND status = 'pending_retry' AND retry_attempts >= 4 THEN 'error'
+            WHEN ${activeJob} AND retry_attempts > 0
               AND status = 'indexing' AND source_s3_key IS NOT NULL THEN 'pending_retry'
             WHEN ${activeJob} AND status = 'pending_retry' AND retry_attempts < 4
               AND source_s3_key IS NOT NULL THEN 'pending_retry'

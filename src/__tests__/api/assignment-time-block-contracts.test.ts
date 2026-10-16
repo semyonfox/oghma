@@ -141,6 +141,14 @@ describe("time-block API contracts", () => {
     expect(mocks.sql).not.toHaveBeenCalled();
   });
 
+  it("GET rejects a range longer than 100 days before querying", async () => {
+    await expectTraced400(getTimeBlocks(request(
+      "/api/time-blocks?start=2026-01-01T00%3A00%3A00Z&end=2026-06-01T00%3A00%3A00Z",
+      "GET",
+    )));
+    expect(mocks.sql).not.toHaveBeenCalled();
+  });
+
   it("GET accepts an ordered RFC3339 range", async () => {
     mocks.queryResults.push([]);
     const response = await getTimeBlocks(request(
@@ -157,6 +165,25 @@ describe("time-block API contracts", () => {
   ])("POST rejects invalid types or ordering", async (body) => {
     await expectTraced400(postTimeBlock(request("/api/time-blocks", "POST", body)));
     expect(mocks.sql).not.toHaveBeenCalled();
+  });
+
+  it("POST rejects a block longer than 24 hours", async () => {
+    await expectTraced400(postTimeBlock(request(
+      "/api/time-blocks",
+      "POST",
+      JSON.stringify({ starts_at: "2026-08-02T10:00:00Z", ends_at: "2026-08-03T10:01:00Z" }),
+    )));
+    expect(mocks.sql).not.toHaveBeenCalled();
+  });
+
+  it("PATCH rejects a one-sided resize that stretches the stored block past 24 hours", async () => {
+    mocks.queryResults.push([{ starts_at: "2026-08-02T10:00:00Z", ends_at: "2026-08-02T12:00:00Z" }]);
+    await expectTraced400(patchTimeBlock(
+      request(`/api/time-blocks/${ITEM_ID}`, "PATCH", JSON.stringify({ ends_at: "2026-08-04T12:00:00Z" })),
+      { params: Promise.resolve({ id: ITEM_ID }) },
+    ));
+    // only the ownership-scoped read ran; nothing was written
+    expect(mocks.sql).toHaveBeenCalledTimes(1);
   });
 
   it("PATCH combines a one-sided move with the persisted endpoint and recomputes pomodoros", async () => {

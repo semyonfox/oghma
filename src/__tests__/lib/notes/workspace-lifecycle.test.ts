@@ -51,8 +51,13 @@ const mocks = vi.hoisted(() => {
     removeUiItem: vi.fn(async (_key: string) => {}),
     uiKeys: vi.fn(async () => [] as string[]),
     layoutReset: vi.fn(),
+    clearPdfCache: vi.fn(async () => {}),
   };
 });
+
+vi.mock("@/lib/notes/pdf-cache/store", () => ({
+  clearPdfCache: mocks.clearPdfCache,
+}));
 
 vi.mock("@/lib/notes/cache", () => ({
   noteCacheInstance: {
@@ -82,13 +87,7 @@ vi.mock("@/lib/notes/state/layout", () => ({
 vi.mock("@/lib/notes/state/save-indicator", () => ({
   default: { setState: vi.fn() },
 }));
-vi.mock("@/lib/notes/state/search", () => ({
-  default: { setState: vi.fn() },
-}));
 vi.mock("@/lib/notes/state/sync-status", () => ({
-  default: { setState: vi.fn() },
-}));
-vi.mock("@/lib/notes/state/trash", () => ({
   default: { setState: vi.fn() },
 }));
 
@@ -138,6 +137,7 @@ describe("workspace lifecycle", () => {
     await expect(reconcileWorkspaceSession("user-1")).resolves.toBe(false);
 
     expect(mocks.noteCacheClear).not.toHaveBeenCalled();
+    expect(mocks.clearPdfCache).not.toHaveBeenCalled();
     expect(mocks.layoutReset).not.toHaveBeenCalled();
     expect(localStorage.getItem("canvas_active_job")).not.toBeNull();
     expect(mocks.noteValues.has("note-1")).toBe(true);
@@ -182,6 +182,8 @@ describe("workspace lifecycle", () => {
     await expect(reconcileWorkspaceSession("user-2")).resolves.toBe(true);
 
     expect(mocks.noteCacheClear).toHaveBeenCalledOnce();
+    // a shared browser must not keep the previous account's PDF bytes
+    expect(mocks.clearPdfCache).toHaveBeenCalledOnce();
     expect(mocks.removeUiItem).toHaveBeenCalledWith("tree");
     expect(mocks.layoutReset).toHaveBeenCalledOnce();
     expect(localStorage.getItem("canvas_active_job")).toBeNull();
@@ -192,6 +194,15 @@ describe("workspace lifecycle", () => {
     expect(localStorage.getItem("oghmaNotes-workspace-owner")).toBe(
       JSON.stringify("user-2"),
     );
+  });
+
+  it("still opens the new workspace when the PDF cache cannot be cleared", async () => {
+    localStorage.setItem("oghmaNotes-workspace-owner", JSON.stringify("user-1"));
+    mocks.clearPdfCache.mockRejectedValueOnce(new Error("IndexedDB unavailable"));
+
+    await expect(reconcileWorkspaceSession("user-2")).resolves.toBe(true);
+
+    expect(mocks.noteState).toMatchObject({ ownerUserId: "user-2", sessionReady: true });
   });
 
   it("quarantines unknown legacy notes and drafts before opening a fresh workspace", async () => {

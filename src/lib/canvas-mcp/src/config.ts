@@ -20,7 +20,7 @@ export interface Config {
 
 function normaliseDomain(raw: string | undefined): string | undefined {
     if (!raw) return undefined;
-    const trimmed = raw.replace(/^https?:\/\//, "").replace(/\/$/, "");
+    const trimmed = raw.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, "");
     return trimmed.length > 0 ? trimmed : undefined;
 }
 

@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { z } from "zod";
 
+const CALENDAR_TOOLS = new Set(["addTimeBlock", "completeTimeBlock"]);
+
 const actionSchema = z.object({
   id: z.string().uuid(),
   tool_name: z.string(),
@@ -54,6 +56,13 @@ export default function ActionConfirmation({ actionId }: { actionId: string }) {
       const value = z
         .object({ status: z.string() })
         .parse(await response.json());
+      // an open calendar view only learns about chat-made blocks from this event
+      if (
+        value.status === "completed" &&
+        CALENDAR_TOOLS.has(currentAction.tool_name)
+      ) {
+        window.dispatchEvent(new CustomEvent("oghma:time-block-changed"));
+      }
       setAction((current) =>
         current?.id === actionId
           ? { ...current, status: value.status }

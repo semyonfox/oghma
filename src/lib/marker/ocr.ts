@@ -1,14 +1,13 @@
-// document text extraction via Marker server
-// expects a MARKER_API_URL pointing at a marker_server (POST /marker/upload).
-// set MARKER_API_TOKEN to send Authorization: Bearer <token>.
-// when unset, callers fall back to pdf-parse (text layer only).
+// synchronous client for a directly hosted Marker server (infra/marker,
+// POST /marker/upload) at MARKER_API_URL. MARKER_API_TOKEN is sent as a bearer
+// token. the serverless GPU path lives in serverless.ts instead
 import { readBoundedBody } from "@/lib/http/bounded-body";
 import {
-  validateMarkerOutput,
   markerResultByteLimit,
+  normalizeMarkerMarkdown,
+  validateMarkerOutput,
+  type MarkerImages,
 } from "@/lib/marker/output";
-import { normalizeMarkerMarkdown } from "./output";
-import type { MarkerImages } from "./output";
 
 export interface MarkerResult {
   text: string;
@@ -72,7 +71,6 @@ export async function extractWithMarker(
     filename,
     TOTAL_TIMEOUT_MS,
   );
-  if (!result) throw new Error("Marker returned no result");
   return { ...result, source: "marker", pageRange: markerPageRange() };
 }
 
@@ -81,12 +79,7 @@ async function callMarker(
   buffer: Buffer,
   filename: string,
   timeoutMs: number,
-): Promise<{
-  text: string;
-  chunks: string[];
-  images: MarkerImages;
-  metadata: unknown;
-} | null> {
+): Promise<Omit<MarkerResult, "source" | "pageRange">> {
   const form = new FormData();
   const mime = mimeFromFilename(filename);
   const fileBytes = new Uint8Array(buffer.length);

@@ -63,6 +63,12 @@ interface UseChatStreamResult {
   resume: (generationId: string) => Promise<void>;
 }
 
+function requestGenerationCancel(generationId: string): void {
+  void fetch(`/api/chat/generations/${generationId}/cancel`, {
+    method: "POST",
+  }).catch(() => {});
+}
+
 function clearDraft(sid: string | null): void {
   if (!sid) return;
   try {
@@ -125,6 +131,13 @@ export function useChatStream(
     generationId: string;
     eventId: string;
   } | null>(null);
+  // Stop pressed while POST /api/chat is still creating the generation. The
+  // server may already have queued it, so aborting the request would orphan a
+  // running answer; cancel it as soon as its id arrives instead
+  const pendingStartRef = useRef<{
+    operationId: number;
+    stopRequested: boolean;
+  } | null>(null);
   const mountedRef = useRef(true);
   const operationIdRef = useRef(0);
   const activeOperationRef = useRef<ChatOperation | null>(null);
@@ -166,9 +179,15 @@ export function useChatStream(
     const generationId = activeGenerationRef.current;
     if (generationId) {
       // Keep delivery attached until the worker saves the cancelled output.
-      void fetch(`/api/chat/generations/${generationId}/cancel`, {
-        method: "POST",
-      }).catch(() => {});
+      requestGenerationCancel(generationId);
+      return;
+    }
+    const pendingStart = pendingStartRef.current;
+    if (
+      pendingStart &&
+      pendingStart.operationId === activeOperationRef.current?.id
+    ) {
+      pendingStart.stopRequested = true;
       return;
     }
     detachOperation();
@@ -369,6 +388,8 @@ export function useChatStream(
           thinkingMode,
         });
 
+        const pendingStart = { operationId: operation.id, stopRequested: false };
+        pendingStartRef.current = pendingStart;
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -402,6 +423,10 @@ export function useChatStream(
         if (contentType.includes("application/json")) {
           const data = await res.json();
           if (typeof data.generationId === "string") {
+            if (pendingStart.stopRequested) {
+              requestGenerationCancel(data.generationId);
+            }
+            pendingStartRef.current = null;
             handleNewSession(operation, data.sessionId, text);
             await consumeGeneration(
               operation,
@@ -463,12 +488,7 @@ export function useChatStream(
           throw new Error("Missing stream body");
         }
 
-        const { timeBlockChanged } = await consumeStream(
-          operation,
-          res.body,
-          assistantId,
-          text,
-        );
+        await consumeStream(operation, res.body, assistantId, text);
         if (!isCurrent(operation)) return;
         logChatStream("info", "stream completed", {
           assistantId,
@@ -480,9 +500,6 @@ export function useChatStream(
             m.id === assistantId ? { ...m, timestamp: completionTime } : m,
           ),
         );
-        if (timeBlockChanged) {
-          window.dispatchEvent(new CustomEvent("oghma:time-block-changed"));
-        }
         clearDraft(sessionIdRef.current);
         onStreamComplete?.(sessionIdRef.current);
       } catch (err) {
@@ -522,6 +539,9 @@ export function useChatStream(
           }
         }
       } finally {
+        if (pendingStartRef.current?.operationId === operation.id) {
+          pendingStartRef.current = null;
+        }
         if (isCurrent(operation)) {
           activeOperationRef.current = null;
           setLoading(false);

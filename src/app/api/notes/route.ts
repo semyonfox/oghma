@@ -7,7 +7,6 @@ import {
   mapNoteFromDB,
   type DatabaseNoteRow,
 } from "@/lib/notes/utils/map-note";
-import { cacheInvalidate, cacheKeys } from "@/lib/cache";
 import sql from "@/database/pgsql";
 import logger from "@/lib/logger";
 import { noteCreateSchema, validateBody } from "@/lib/validations/schemas";
@@ -17,13 +16,7 @@ import {
   InvalidNoteParentError,
   type CreatedNote,
 } from "@/lib/notes/storage/create-note";
-
-// Constants
-const MAX_TITLE_LENGTH = parseInt(process.env.MAX_TITLE_LENGTH ?? "500", 10);
-const MAX_CONTENT_LENGTH = parseInt(
-  process.env.MAX_CONTENT_LENGTH ?? String(5 * 1024 * 1024),
-  10,
-);
+import { assertNoteLengths, MAX_NOTE_BODY_BYTES } from "@/lib/notes/note-limits";
 
 export const GET = withErrorHandler(async (request) => {
   const user = await requireAuth();
@@ -111,26 +104,13 @@ export const GET = withErrorHandler(async (request) => {
 export const POST = withErrorHandler(async (request) => {
   const user = await requireAuth();
 
-  const rawBody = await parseJsonObject(request);
+  const rawBody = await parseJsonObject(request, MAX_NOTE_BODY_BYTES);
 
   // validate input shape
   const validation = validateBody(noteCreateSchema, rawBody);
   if (!validation.success) return validation.response;
   const body = validation.data;
-
-  // validate input lengths
-  if (body.title && body.title.length > MAX_TITLE_LENGTH) {
-    logger.warn("note title exceeds max length", {
-      length: body.title.length,
-    });
-    throw new ApiError(400, `Title must be ${MAX_TITLE_LENGTH} characters or fewer`);
-  }
-  if (body.content && body.content.length > MAX_CONTENT_LENGTH) {
-    logger.warn("note content exceeds max length", {
-      length: body.content.length,
-    });
-    throw new ApiError(400, `Content must be ${MAX_CONTENT_LENGTH} bytes or fewer`);
-  }
+  assertNoteLengths(body);
 
   // The notes UI creates an optimistic UUID before POSTing so its tree item and
   // route point at the same persisted note. API-only callers may omit it.
@@ -165,13 +145,6 @@ export const POST = withErrorHandler(async (request) => {
       });
     }
   }
-
-  // invalidate tree + note list caches
-  await cacheInvalidate(
-    cacheKeys.treeChildren(user.user_id, parentId),
-    cacheKeys.treeFull(user.user_id),
-    cacheKeys.notesList(user.user_id, 0, undefined),
-  );
 
   return NextResponse.json(
     {

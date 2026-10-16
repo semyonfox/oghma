@@ -483,4 +483,40 @@ describe("chat session lifecycle", () => {
     expect(screen.getByRole("button", { name: /Read 1 note/ })).toBeTruthy();
     expect(onComplete).toHaveBeenCalledWith("session-1");
   });
+
+  it("cancels a generation that was still being created when Stop was pressed", async () => {
+    const network = setupNetwork({ existing: false });
+    let releaseCreate: (() => void) | undefined;
+    const created = new Promise<void>((resolve) => {
+      releaseCreate = resolve;
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, options?: RequestInit) => {
+        if (url === "/api/chat") await created;
+        return network.fetchMock(url, options);
+      }),
+    );
+    render(<ChatInterface />);
+    await sendQuestion();
+
+    fireEvent.click(screen.getByRole("button", { name: "Stop generating" }));
+    // the request stays attached: aborting it could orphan a queued generation
+    expect(screen.getByText("New question")).toBeTruthy();
+    expect(
+      network.fetchMock.mock.calls.some(([url]) => url.endsWith("/cancel")),
+    ).toBe(false);
+
+    await act(async () => {
+      releaseCreate?.();
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+    expect(network.fetchMock).toHaveBeenCalledWith(
+      "/api/chat/generations/generation-1/cancel",
+      expect.objectContaining({ method: "POST" }),
+    );
+    await network.finish();
+    expect(screen.getAllByText("New answer")).toHaveLength(1);
+  });
 });
+

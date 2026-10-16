@@ -17,6 +17,20 @@ describe('database connection settings', () => {
     await sql.end();
   });
 
+  it.each([
+    ['sslmode=verify-full', 'verify-full'],
+    ['sslmode=require', 'require'],
+    ['sslmode=disable', false],
+    ['search_path=app,public', false],
+  ])('keeps the TLS mode from %s', async (query, expected) => {
+    vi.resetModules();
+    vi.stubEnv('DATABASE_URL', `postgres://audit@127.0.0.1:1/audit?${query}`);
+    const { default: sql } = await import('@/database/pgsql');
+    // an explicit ssl option used to override verify-full with plaintext
+    expect(Reflect.get(sql, 'options')).toMatchObject({ ssl: expected });
+    await sql.end();
+  });
+
   it.each(['0', '-1', '2.5', '20junk', 'Infinity'])('rejects invalid pool limit %s', async value => {
     vi.resetModules();
     vi.stubEnv('DB_MAX_CONNECTIONS', value);

@@ -269,4 +269,47 @@ describe("CanvasIntegrationSettings connection check", () => {
       expect(localStorage.getItem("canvas_selected_courses")).toBe('["1","2"]');
     });
   });
+  it("survives corrupt saved state instead of crashing the settings page", async () => {
+    localStorage.setItem("canvas_course_errors", "{not json");
+    localStorage.setItem("canvas_synced_courses", '"oops"');
+    localStorage.setItem("canvas_selected_courses", "{broken");
+    mockConnectionResponse({
+      connected: true,
+      connectionState: "connected",
+      domain: "example.instructure.com",
+      courses: [{ id: "1", name: "Course 1", course_code: "CT1", canvasStatus: "current" }],
+    });
+
+    render(<CanvasIntegrationSettings />);
+
+    expect(await screen.findByText("1 selected")).toBeTruthy();
+    expect(localStorage.getItem("canvas_course_errors")).toBeNull();
+  });
+
+  it("stays connected when the server did not drop the token", async () => {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === "DELETE") return { ok: false, status: 500, json: async () => ({}) };
+      if (url === "/api/canvas/sync") return { ok: true, status: 200, json: async () => ({ available: false }) };
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          connected: true,
+          connectionState: "connected",
+          domain: "example.instructure.com",
+          courses: [{ id: "1", name: "Course 1", course_code: "CT1" }],
+        }),
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    localStorage.setItem("canvas_selected_courses", '["1"]');
+
+    render(<CanvasIntegrationSettings />);
+    fireEvent.click(await screen.findByRole("button", { name: "Disconnect" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/canvas/connect", { method: "DELETE" }));
+    expect(await screen.findByText(/Connected to/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Disconnect" })).toBeTruthy();
+    expect(localStorage.getItem("canvas_selected_courses")).toBe('["1"]');
+  });
 });

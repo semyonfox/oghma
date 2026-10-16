@@ -7,7 +7,7 @@ import { PROCESSABLE_TYPES, resolveMimeType } from "@/lib/canvas/file-types";
 import { normalizeCanvasCourseSelection } from "@/lib/canvas/id";
 import { startCanvasRun } from "@/lib/canvas/import-runs";
 import { CanvasTrashConflictError } from "@/lib/canvas/trash-conflicts";
-import { enqueueCanvasJob } from "@/lib/queue";
+import { enqueueCanvasDiscoverJob } from "@/lib/queue";
 import logger from "@/lib/logger";
 
 async function loadMaterials(context: RouteParamsContext<{ id: string }>) {
@@ -68,7 +68,9 @@ export const POST = withErrorHandler(async (_request, context: RouteParamsContex
   if (result.kind === "conflict") throw new ApiError(409, "Another Canvas import is running. Wait for it to finish, then try again.");
   if (result.kind === "created") {
     try {
-      await enqueueCanvasJob("canvas-discover", { jobId: result.jobId, userId });
+      // the same dedupe id the worker's republish uses, so a recovery pass
+      // can't publish a second discovery for this job
+      await enqueueCanvasDiscoverJob(result.jobId, userId);
     } catch {
       // The worker's database poll also dispatches queued imports.
       logger.warn("Assignment import queued in database; queue dispatch unavailable", { jobId: result.jobId });

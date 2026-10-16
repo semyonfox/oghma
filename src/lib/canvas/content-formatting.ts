@@ -61,15 +61,23 @@ export function stripHtmlToText(html?: string | null) {
     .replace(/<\/h[1-6]>/gi, '\n\n')
     .replace(/<h[1-6][^>]*>/gi, '## ')
     .replace(/<[^>]+>/g, '')
-    .replace(
-      /&(?:amp|lt|gt|quot|nbsp|#39);/g,
-      (entity) => HTML_ENTITIES[entity as keyof typeof HTML_ENTITIES],
-    )
+    // one pass, so "&amp;lt;" stays the literal text "&lt;"
+    .replace(/&(#\d+|#x[0-9a-f]+|[a-z]+);/gi, decodeEntity)
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
 
-const HTML_ENTITIES = {
-  '&amp;': '&', '&lt;': '<', '&gt;': '>',
-  '&quot;': '"', '&nbsp;': ' ', '&#39;': "'",
-} as const;
+// Canvas's editor emits typographic named entities and numeric references
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
+  lsquo: '\u2018', rsquo: '\u2019', ldquo: '\u201c', rdquo: '\u201d',
+  ndash: '\u2013', mdash: '\u2014', hellip: '\u2026',
+};
+
+function decodeEntity(entity: string, name: string) {
+  if (!name.startsWith('#')) return NAMED_ENTITIES[name] ?? entity;
+  const code = name[1] === 'x' || name[1] === 'X'
+    ? Number.parseInt(name.slice(2), 16)
+    : Number.parseInt(name.slice(1), 10);
+  return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : entity;
+}

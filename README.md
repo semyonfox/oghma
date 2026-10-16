@@ -129,7 +129,7 @@ docker build -t oghma:local .
 docker build -f Dockerfile.worker -t oghma-worker:local .
 ```
 
-The root Compose file is a homelab/Jenkins convenience configuration, not a fresh-clone production deployment. A real deployment needs private environment configuration plus PostgreSQL, Redis/BullMQ, Qdrant, S3-compatible storage, auth and provider services. Follow [infra/HOMELAB.md](./infra/HOMELAB.md), [the worker runbook](./docs/operations/import-worker.md) and the `Jenkinsfile` rather than copying private operator paths.
+The root Compose file is a homelab/Jenkins convenience configuration, not a fresh-clone production deployment. A real deployment needs private environment configuration plus PostgreSQL, Redis/BullMQ, Qdrant, S3-compatible storage, auth and provider services. Follow [infra/HOMELAB.md](./infra/HOMELAB.md) and [the worker runbook](./docs/operations/import-worker.md) rather than copying private operator paths.
 
 ## Technology
 
@@ -139,10 +139,10 @@ The root Compose file is a homelab/Jenkins convenience configuration, not a fres
 | Data and retrieval | PostgreSQL and Qdrant |
 | Async processing | Redis, BullMQ, Node worker |
 | Files | S3-compatible object storage |
-| AI pipeline | Configurable LLM, embedding, rerank and optional OCR providers |
+| AI pipeline | Configurable LLM, embedding and optional OCR providers |
 | Delivery | Docker, Jenkins, Cloudflare Tunnel |
 | Validation | Vitest, Playwright, ESLint, GitHub Actions |
 
 ## Documentation
 
-Start with [docs/README.md](./docs/README.md) for the canonical documentation map. The most relevant technical references are the [architecture](./docs/engineering/architecture.md), [import pipeline](./docs/engineering/import-pipeline.md) and [deployment/operations](./infra/HOMELAB.md) documents.
+Start with [docs/README.md](./docs/README.md) for the canonical documentation map. The most relevant technical references are the [architecture](./docs/engineering/architecture.md), the per-area [domain map](./docs/engineering/domains.md), the [import pipeline](./docs/engineering/import-pipeline.md) and [deployment/operations](./infra/HOMELAB.md) documents.

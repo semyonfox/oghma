@@ -507,26 +507,33 @@ function referencesFor(
   return [...references.values()];
 }
 
-export async function getStudyMapSnapshot(
+const TOO_MANY_MATERIALS =
+  "This study map has more than 500 active materials. Remove materials or split them into smaller maps.";
+
+async function readMapContext(
   userId: string,
   mapId: string,
-): Promise<StudyMapSnapshot> {
-  const [mapRow] = await readMaps(userId, mapId);
-  if (!mapRow) throw new ApiError(404, "Study map not found");
-  const map = await mapFromRow(userId, mapRow);
+): Promise<{ map: StudyMap; taxonomyEvidenceStale: boolean }> {
+  const [row] = await readMaps(userId, mapId);
+  if (!row) throw new ApiError(404, "Study map not found");
+  const map = await mapFromRow(userId, row);
   const reviewedTopicIds = new Set(
     map.topics.filter((topic) => topic.reviewed).map((topic) => topic.id),
   );
+  // a reviewed topic whose cited syllabus passage changed no longer vouches for any result
   const taxonomyEvidenceStale = topicsSchema
-    .parse(mapRow.topics)
+    .parse(row.topics)
     .some((topic) => topic.reviewed && !reviewedTopicIds.has(topic.id));
-  if (map.materialCount > 500) {
-    throw new ApiError(
-      422,
-      "This study map has more than 500 active materials. Remove materials or split them into smaller maps.",
-    );
-  }
-  const rows = await sql<MaterialRow[]>`
+  return { map, taxonomyEvidenceStale };
+}
+
+/** active material rows of one map, or only the listed notes when noteIds is given */
+async function readMaterialRows(
+  userId: string,
+  mapId: string,
+  noteIds: string[] | null,
+): Promise<MaterialRow[]> {
+  return sql<MaterialRow[]>`
     SELECT material.note_id, material.map_id, material.kind, material.labels,
       material.associations, material.overrides, material.source_hash,
       material.taxonomy_version, material.status, material.updated_at, material.classified_at,
@@ -535,78 +542,51 @@ export async function getStudyMapSnapshot(
     FROM app.study_materials material
     JOIN app.notes n ON n.note_id = material.note_id AND n.user_id = material.user_id
     WHERE material.map_id = ${mapId}::uuid AND material.user_id = ${userId}::uuid AND material.excluded = FALSE
+      AND (${noteIds}::uuid[] IS NULL OR material.note_id = ANY(${noteIds}::uuid[]))
       AND n.deleted_at IS NULL AND n.is_folder = FALSE AND n.is_import_cache_source = FALSE
       AND EXISTS (SELECT 1 FROM app.tree_items tree
         WHERE tree.note_id = n.note_id AND tree.user_id = n.user_id)
     ORDER BY n.title, n.note_id
     LIMIT 501
   `;
-  if (rows.length > 500) {
-    throw new ApiError(
-      422,
-      "This study map has more than 500 active materials. Remove materials or split them into smaller maps.",
-    );
-  }
+}
+
+interface LoadedMaterials {
+  materials: StudyMaterial[];
+  notesById: Map<string, NoteRow>;
+  documents: Map<string, SourceDocument>;
+}
+
+/** reads the canonical source of each row and works out what is still current about it */
+async function loadMaterials(
+  userId: string,
+  map: StudyMap,
+  taxonomyEvidenceStale: boolean,
+  rows: MaterialRow[],
+): Promise<LoadedMaterials> {
   const noteIds = rows.map((row) => row.note_id);
-  const [notes, derivedNotes, references, assignments, paperRows, jobRows] =
-    await Promise.all([
-      readNotes(userId, noteIds),
-      readDerivedNotes(userId, noteIds),
-      readReferences(userId, noteIds),
-      readAssignments(userId, map.canvasCourseId, noteIds),
-      sql<PaperRow[]>`
-      SELECT paper.note_id, paper.source_hash, paper.taxonomy_version, paper.reviewed, paper.structure
-      FROM app.study_papers paper
-      JOIN app.study_materials material ON material.map_id = paper.map_id
-        AND material.user_id = paper.user_id AND material.note_id = paper.note_id AND material.excluded = FALSE
-      JOIN app.notes n ON n.note_id = paper.note_id AND n.user_id = paper.user_id
-      WHERE paper.map_id = ${mapId}::uuid AND paper.user_id = ${userId}::uuid
-        AND n.deleted_at IS NULL AND n.is_folder = FALSE AND n.is_import_cache_source = FALSE
-        AND EXISTS (SELECT 1 FROM app.tree_items tree
-          WHERE tree.note_id = n.note_id AND tree.user_id = n.user_id)
-      ORDER BY n.title, n.note_id
-    `,
-      sql<JobRow[]>`
-      SELECT job.id, job.kind, job.note_id, job.state, job.error, job.created_at
-      FROM app.study_jobs job
-      WHERE job.map_id = ${mapId}::uuid AND job.user_id = ${userId}::uuid
-        AND (job.note_id IS NULL OR EXISTS (
-          SELECT 1 FROM app.notes n
-          JOIN app.study_materials material ON material.note_id = n.note_id AND material.user_id = n.user_id
-            AND material.map_id = job.map_id AND material.excluded = FALSE
-          WHERE n.note_id = job.note_id AND n.user_id = job.user_id
-            AND n.deleted_at IS NULL AND n.is_folder = FALSE AND n.is_import_cache_source = FALSE
-            AND EXISTS (SELECT 1 FROM app.tree_items tree
-              WHERE tree.note_id = n.note_id AND tree.user_id = n.user_id)))
-      ORDER BY (job.state IN ('pending', 'running')) DESC, job.created_at DESC, job.id DESC LIMIT 120
-    `,
-    ]);
   const associations = new Map(
     rows.map((row) => [
       row.note_id,
       associationsSchema.parse(row.associations),
     ]),
   );
-  const parsedPapers = paperRows.map((row) => ({
-    row,
-    structure: examStructureSchema.parse(row.structure),
-  }));
   const evidenceIds = [
-    ...new Set([
-      ...[...associations.values()].flatMap((items) =>
+    ...new Set(
+      [...associations.values()].flatMap((items) =>
         items.flatMap((item) =>
           item.evidence.map((evidence) => evidence.anchor.noteId),
         ),
       ),
-      ...parsedPapers.flatMap(({ structure }) => [
-        ...structure.questions.map((question) => question.source.noteId),
-        ...structure.sections.flatMap((section) =>
-          section.source ? [section.source.noteId] : [],
-        ),
-      ]),
-    ]),
+    ),
   ];
-  const accessibleEvidence = await readNotes(userId, evidenceIds);
+  const [notes, derivedNotes, references, accessibleEvidence] =
+    await Promise.all([
+      readNotes(userId, noteIds),
+      readDerivedNotes(userId, noteIds),
+      readReferences(userId, noteIds),
+      readNotes(userId, evidenceIds),
+    ]);
   const accessibleIds = new Set(accessibleEvidence.map((note) => note.note_id));
   const topicIds = new Set(map.topics.map((topic) => topic.id));
   const notesById = new Map(notes.map((note) => [note.note_id, note]));
@@ -691,6 +671,65 @@ export async function getStudyMapSnapshot(
       },
     ];
   });
+  return { materials, notesById, documents };
+}
+
+export async function getStudyMapSnapshot(
+  userId: string,
+  mapId: string,
+): Promise<StudyMapSnapshot> {
+  const { map, taxonomyEvidenceStale } = await readMapContext(userId, mapId);
+  if (map.materialCount > 500) throw new ApiError(422, TOO_MANY_MATERIALS);
+  const rows = await readMaterialRows(userId, mapId, null);
+  if (rows.length > 500) throw new ApiError(422, TOO_MANY_MATERIALS);
+  const noteIds = rows.map((row) => row.note_id);
+  const [loaded, assignments, paperRows, jobRows] = await Promise.all([
+    loadMaterials(userId, map, taxonomyEvidenceStale, rows),
+    readAssignments(userId, map.canvasCourseId, noteIds),
+    sql<PaperRow[]>`
+      SELECT paper.note_id, paper.source_hash, paper.taxonomy_version, paper.reviewed, paper.structure
+      FROM app.study_papers paper
+      JOIN app.study_materials material ON material.map_id = paper.map_id
+        AND material.user_id = paper.user_id AND material.note_id = paper.note_id AND material.excluded = FALSE
+      JOIN app.notes n ON n.note_id = paper.note_id AND n.user_id = paper.user_id
+      WHERE paper.map_id = ${mapId}::uuid AND paper.user_id = ${userId}::uuid
+        AND n.deleted_at IS NULL AND n.is_folder = FALSE AND n.is_import_cache_source = FALSE
+        AND EXISTS (SELECT 1 FROM app.tree_items tree
+          WHERE tree.note_id = n.note_id AND tree.user_id = n.user_id)
+      ORDER BY n.title, n.note_id
+    `,
+    sql<JobRow[]>`
+      SELECT job.id, job.kind, job.note_id, job.state, job.error, job.created_at
+      FROM app.study_jobs job
+      WHERE job.map_id = ${mapId}::uuid AND job.user_id = ${userId}::uuid
+        AND (job.note_id IS NULL OR EXISTS (
+          SELECT 1 FROM app.notes n
+          JOIN app.study_materials material ON material.note_id = n.note_id AND material.user_id = n.user_id
+            AND material.map_id = job.map_id AND material.excluded = FALSE
+          WHERE n.note_id = job.note_id AND n.user_id = job.user_id
+            AND n.deleted_at IS NULL AND n.is_folder = FALSE AND n.is_import_cache_source = FALSE
+            AND EXISTS (SELECT 1 FROM app.tree_items tree
+              WHERE tree.note_id = n.note_id AND tree.user_id = n.user_id)))
+      ORDER BY (job.state IN ('pending', 'running')) DESC, job.created_at DESC, job.id DESC LIMIT 120
+    `,
+  ]);
+  const { materials, notesById, documents } = loaded;
+  const topicIds = new Set(map.topics.map((topic) => topic.id));
+  const parsedPapers = paperRows.map((row) => ({
+    row,
+    structure: examStructureSchema.parse(row.structure),
+  }));
+  const paperEvidence = await readNotes(userId, [
+    ...new Set(
+      parsedPapers.flatMap(({ structure }) => [
+        ...structure.questions.map((question) => question.source.noteId),
+        ...structure.sections.flatMap((section) =>
+          section.source ? [section.source.noteId] : [],
+        ),
+      ]),
+    ),
+  ]);
+  const accessibleIds = new Set(paperEvidence.map((note) => note.note_id));
   const papers: StudyPaper[] = parsedPapers.flatMap(({ row, structure }) => {
     const note = notesById.get(row.note_id);
     const source = documents.get(row.note_id);
@@ -826,25 +865,28 @@ export async function getNoteStudyMaps(
     if (!selectedMaterials.has(row.map_id))
       selectedMaterials.set(row.map_id, row.note_id);
   }
-  const snapshots = await Promise.all(
-    [...selectedMaterials.keys()].map((mapId) =>
-      getStudyMapSnapshot(userId, mapId),
-    ),
+  // the note inspector asks on every note it opens, so only the one material is loaded,
+  // not the whole map snapshot with its assignments, papers and jobs
+  const linked = await Promise.all(
+    [...selectedMaterials].map(async ([mapId, materialId]) => {
+      const { map, taxonomyEvidenceStale } = await readMapContext(
+        userId,
+        mapId,
+      );
+      const { materials } = await loadMaterials(
+        userId,
+        map,
+        taxonomyEvidenceStale,
+        await readMaterialRows(userId, mapId, [materialId]),
+      );
+      return materials.map((material) => ({
+        mapId: map.id,
+        mapName: map.name,
+        material,
+        topics: map.topics,
+        taxonomyVersion: map.taxonomyVersion,
+      }));
+    }),
   );
-  return snapshots.flatMap(({ map, materials }) => {
-    const material = materials.find(
-      (item) => item.noteId === selectedMaterials.get(map.id),
-    );
-    return material
-      ? [
-          {
-            mapId: map.id,
-            mapName: map.name,
-            material,
-            topics: map.topics,
-            taxonomyVersion: map.taxonomyVersion,
-          },
-        ]
-      : [];
-  });
+  return linked.flat();
 }

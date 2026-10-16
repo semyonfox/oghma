@@ -948,7 +948,7 @@ function describeSetup(
   if (!provider.generationReady)
     return {
       short: "No topics yet",
-      text: "Topic suggestions are unavailable right now. Notes are laid out by week, and you can add topics yourself under Topics.",
+      text: "Topic suggestions are unavailable right now. Notes wait under Not sorted yet, and you can add topics yourself under Topics.",
     };
   const proposal = snapshot.jobs.find((job) => job.kind === "taxonomy");
   if (proposal?.state === "failed")
@@ -966,8 +966,8 @@ function describeSetup(
   return {
     short: "No topics yet",
     text: map.autoClassify
-      ? "Notes are laid out by week. Topics are found automatically once the course finishes importing."
-      : "Notes are laid out by week. Find topics to group them.",
+      ? "Notes wait under Not sorted yet. Topics are found automatically once the course finishes importing."
+      : "Notes wait under Not sorted yet. Find topics to group them.",
     action: map.autoClassify ? "find-now" : "find",
   };
 }
@@ -1954,7 +1954,7 @@ export default function StudyWorkspace({
               <h2 className="text-lg font-semibold">No modules yet</h2>
               <p className="mt-2 text-sm text-text-secondary">
                 Import a course from Canvas and its module map appears here on
-                its own, laid out by week and sorted into topics.
+                its own, with its notes grouped by topic.
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <Link href="/settings#canvas" className={primaryClass}>

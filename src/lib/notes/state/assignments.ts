@@ -25,6 +25,23 @@ export interface Assignment {
 
 export type AssignmentTab = "upcoming" | "done" | "late";
 
+export type CanvasSyncResult =
+  | { synced: true; count: number }
+  | { synced: false; code: "not_connected" | "reconnect" | "unavailable" };
+
+function parseSyncResult(value: unknown): CanvasSyncResult | null {
+  if (typeof value !== "object" || value === null) return null;
+  const body = value as Record<string, unknown>;
+  if (body.synced === true) {
+    return { synced: true, count: typeof body.count === "number" ? body.count : 0 };
+  }
+  if (body.synced !== false) return null;
+  const code = body.code === "not_connected" || body.code === "reconnect"
+    ? body.code
+    : "unavailable";
+  return { synced: false, code };
+}
+
 interface AssignmentState {
   assignments: Assignment[];
   loading: boolean;
@@ -45,7 +62,7 @@ interface AssignmentState {
     data: Partial<Assignment>,
   ) => Promise<Assignment | null>;
   deleteAssignment: (id: string) => Promise<boolean>;
-  syncFromCanvas: () => Promise<{ count: number } | null>;
+  syncFromCanvas: () => Promise<CanvasSyncResult | null>;
   setCourseFilter: (course: string | null) => void;
   setActiveTab: (tab: AssignmentTab) => void;
   setIncludeAll: (all: boolean) => void;
@@ -144,7 +161,7 @@ const useAssignmentStore = create<AssignmentState>()(
         try {
           const res = await fetch("/api/assignments/sync", { method: "POST" });
           if (!res.ok) return null;
-          const result = await res.json();
+          const result = parseSyncResult(await res.json());
           // always re-fetch after sync to pick up any status changes
           await get().fetchAssignments();
           return result;

@@ -6,7 +6,8 @@
 >
 > Last verified: 2026-08-04 against current Oghma code, the 2026-07-24
 > Marker++ corpus evidence, Vast SDK/CLI 1.5.0, and the linked Vast
-> documentation
+> documentation. Failure classification rechecked against code on 2026-10-16,
+> after the domain audit's Marker fixes landed on `dev` (#634).
 
 No Vast endpoint, workergroup, worker, registry push, or paid resource was
 created while preparing this runbook. The account was unfunded. Commands in
@@ -86,8 +87,13 @@ runbook.
 The result object key is generated once and is immutable. Oghma makes at most
 one application-originated routed-worker request for a durable job. A lost or
 ambiguous response moves the row to `awaiting_result`, where it probes that
-object for `MARKER_RESULT_GRACE_SECONDS` instead of automatically spending on
-another GPU call. This constrains Oghma's behavior; it is not a claim that a
+object for `MARKER_RESULT_GRACE_SECONDS`, or until five minutes after its signed
+result URL expires if that comes first, instead of automatically spending on
+another GPU call. Definitive rejections skip that wait and go straight to
+`failure_queued`: missing config, a signing failure, the route refusing or
+timing out before any worker call, or a worker that reports `success: false`.
+Anything after a worker call may have started stays ambiguous. The backend
+accepts markdown output only. This constrains Oghma's behavior; it is not a claim that a
 provider can prove exactly-once billing or execution across its own boundary.
 The worker's conditional `If-None-Match: *` result PUT must be smoke-tested
 against the selected object store before launch. The Vast payload uses an opaque callback ID and result key plus a generic
@@ -133,7 +139,7 @@ Job states are operational state, not a public API:
 |---|---|
 | `dispatch_queued` | Durable row exists and dispatch was enqueued |
 | `dispatching` | Node worker is routing or awaiting a provider result |
-| `awaiting_result` | A worker outcome was ambiguous; observe the immutable output object, never pay for a second automatic call |
+| `awaiting_result` | A worker outcome was ambiguous; observe the immutable output object, never pay for a second automatic call. Definitive rejections skip this state |
 | `completion_queued` | A result object exists and an indexing continuation is queued |
 | `completing` | One database-claimed consumer is validating/indexing the result |
 | `completion_retry` | A valid result needs another indexing attempt |
@@ -171,8 +177,7 @@ The checked plan is `infra/vast-marker/serverless-plan.json`:
 |---|---:|---|
 | `min_load` | 0 | no paid hot floor |
 | `min_cold_load` | 0 | no cold capacity floor |
-| `min_workers` | 0 | avoid Vast's default inactive-worker floor |
-| `cold_workers` | 0 | required for true scale-to-zero |
+| `cold_workers` | 0 | required for true scale-to-zero; the CLI otherwise keeps 5 cold workers |
 | `cold_mult` | 1 | match total capacity to active load without retaining extra idle capacity |
 | `inactivity_timeout` | 300 s | release an idle worker after a short warm window |
 | `max_workers` | 1 | cost and correctness gate for first launch |
@@ -392,7 +397,7 @@ HAVING COUNT(*) > 1;
 4. set dispatch concurrency to 1 and enable Marker only in development;
 5. submit one small non-private PDF;
 6. test a cold start, a warm request, a worker failure, a provider timeout, and
-   a completion-enqueue failure; confirm that the timeout stays in `awaiting_result` and is not automatically redispatched;
+   a completion-enqueue failure; confirm that a worker transport timeout stays in `awaiting_result` and is not automatically redispatched (a route-phase timeout before any worker call fails straight away);
 7. verify the result object, note output, embeddings, terminal database state, and duplicate queue delivery;
 8. before any private PDF leaves Oghma, approve the data-processing terms,
    eligible regions and host policy, then apply and read back the matching

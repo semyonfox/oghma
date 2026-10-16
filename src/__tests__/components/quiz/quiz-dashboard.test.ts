@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => {
   const fetchSettings = vi.fn().mockResolvedValue(undefined);
   const toggleShowArchived = vi.fn();
   let showArchived = false;
+  let timeZone = "UTC";
   const quizStoreState = {
     startSession,
   };
@@ -39,11 +40,22 @@ const mocks = vi.hoisted(() => {
     set showArchived(value: boolean) {
       showArchived = value;
     },
+    get timeZone() {
+      return timeZone;
+    },
+    set timeZone(value: string) {
+      timeZone = value;
+    },
     quizStoreState,
     lastCourseListProps: null as CourseListProps | null,
     lastManagerProps: null as CourseVisibilityProps | null,
   };
 });
+
+vi.mock("@/lib/quiz/time-zone", () => ({
+  DEFAULT_TIME_ZONE: "UTC",
+  browserTimeZone: () => mocks.timeZone,
+}));
 
 vi.mock("@/lib/notes/state/quiz", () => ({
   default: Object.assign(() => mocks.quizStoreState, {
@@ -151,6 +163,7 @@ describe("QuizDashboard archive refresh", () => {
     document.body.innerHTML = "";
     vi.clearAllMocks();
     mocks.showArchived = false;
+    mocks.timeZone = "UTC";
     mocks.lastCourseListProps = null;
     mocks.lastManagerProps = null;
   });
@@ -173,7 +186,7 @@ describe("QuizDashboard archive refresh", () => {
 
     expect(mocks.archiveCourse).toHaveBeenCalledWith("42", "Course A");
     expect(mocks.fetchSettings).toHaveBeenCalledTimes(2);
-    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/quiz/dashboard");
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/quiz/dashboard?tz=UTC");
     expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/quiz/dashboard/courses");
     expect(mocks.lastCourseListProps!.courses).toEqual([
       {
@@ -197,7 +210,7 @@ describe("QuizDashboard archive refresh", () => {
 
     await renderDashboard();
 
-    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/quiz/dashboard");
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/quiz/dashboard?tz=UTC");
     expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/quiz/dashboard/courses?includeArchived=1");
   });
 
@@ -210,5 +223,18 @@ describe("QuizDashboard archive refresh", () => {
     expect(container.textContent).toContain("quiz.title");
     expect(mocks.lastCourseListProps!.courses).toEqual(initialCourses);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("recounts today's reviews in the browser's zone after a UTC server render", async () => {
+    mocks.timeZone = "America/New_York";
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(okJson({ ...initialDashboard, reviewedToday: 4 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await renderDashboard();
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledWith("/api/quiz/dashboard?tz=America%2FNew_York");
   });
 });

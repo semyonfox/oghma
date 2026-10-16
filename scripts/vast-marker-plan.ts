@@ -26,7 +26,6 @@ type EndpointPlan = {
   max_workers: number;
   min_cold_load: number;
   min_load: number;
-  min_workers: number;
   target_queue_time: number;
   target_util: number;
 };
@@ -132,7 +131,6 @@ function loadPlan(planPath: string): VastMarkerPlan {
       endpoint_name: requiredString(endpoint, "endpoint.endpoint_name"),
       min_load: requiredNumber(endpoint, "endpoint.min_load"),
       min_cold_load: requiredNumber(endpoint, "endpoint.min_cold_load"),
-      min_workers: requiredNumber(endpoint, "endpoint.min_workers"),
       target_util: requiredNumber(endpoint, "endpoint.target_util"),
       cold_mult: requiredNumber(endpoint, "endpoint.cold_mult"),
       cold_workers: requiredNumber(endpoint, "endpoint.cold_workers"),
@@ -230,7 +228,6 @@ if (plan.workergroup.endpoint_name !== plan.endpoint.endpoint_name) {
 }
 requireEqual(plan.endpoint, "min_load", 0);
 requireEqual(plan.endpoint, "min_cold_load", 0);
-requireEqual(plan.endpoint, "min_workers", 0);
 requireEqual(plan.endpoint, "cold_workers", 0);
 requireEqual(plan.endpoint, "cold_mult", 1);
 requireEqual(plan.endpoint, "max_workers", 1);
@@ -305,8 +302,12 @@ const worker = plan.workergroup;
 const templateOptions = Object.entries(templateEnvironment)
   .map(([name, value]) => `-e ${name}=${value}`)
   .join(" ");
+// vastai 1.8 dropped --test_workers and --cold_workers from create workergroup and the
+// API then defaults both to 3 paid workers, so pin the CLI these flags were checked
+// against (1.5.0) instead of whatever is installed. no version has --min_workers
+const vastCli = "uvx --from vastai==1.5.0 vastai";
 const templateCommand = [
-  "vastai create template",
+  `${vastCli} create template`,
   `--name ${shellQuote(plan.template.name)}`,
   `--image ${shellQuote(image)}`,
   `--env ${shellQuote(templateOptions)}`,
@@ -315,11 +316,10 @@ const templateCommand = [
   "--no-default",
 ].join(" ");
 const endpointCommand = [
-  "vastai create endpoint",
+  `${vastCli} create endpoint`,
   `--endpoint_name ${shellQuote(endpoint.endpoint_name)}`,
   `--min_load ${endpoint.min_load}`,
   `--min_cold_load ${endpoint.min_cold_load}`,
-  `--min_workers ${endpoint.min_workers}`,
   `--target_util ${endpoint.target_util}`,
   `--cold_mult ${endpoint.cold_mult}`,
   `--cold_workers ${endpoint.cold_workers}`,
@@ -329,7 +329,7 @@ const endpointCommand = [
   `--inactivity_timeout ${endpoint.inactivity_timeout}`,
 ].join(" ");
 const workergroupCommand = [
-  "vastai create workergroup",
+  `${vastCli} create workergroup`,
   `--endpoint_name ${shellQuote(worker.endpoint_name)}`,
   `--template_hash ${shellQuote(templateHash)}`,
   `--test_workers ${worker.test_workers}`,
@@ -356,8 +356,8 @@ if (suppliedHash) {
   );
   console.log(endpointCommand);
   console.log(workergroupCommand);
-  console.log("vastai show endpoints");
-  console.log("vastai show workergroups");
+  console.log(`${vastCli} show endpoints`);
+  console.log(`${vastCli} show workergroups`);
 }
 if (
   !suppliedHash &&

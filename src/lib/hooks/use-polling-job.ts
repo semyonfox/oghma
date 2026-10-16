@@ -18,36 +18,57 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isOptionalString(value: unknown): value is string | undefined {
-  return value === undefined || typeof value === "string";
+const INVALID = Symbol("invalid");
+type Field<T> = T | undefined | typeof INVALID;
+
+// APIs often send null for an absent field. Treat it as absent rather than
+// rejecting the whole poll, which used to drop every vault status response
+function optionalString(value: unknown): Field<string> {
+  if (value === undefined || value === null) return undefined;
+  return typeof value === "string" ? value : INVALID;
 }
 
-function isPollingJobData(value: unknown): value is PollingJobData {
-  if (!isRecord(value)) return false;
+function optionalNumber(value: unknown): Field<number> {
+  if (value === undefined || value === null) return undefined;
+  return typeof value === "number" ? value : INVALID;
+}
 
-  const job = value.job;
-  if (
-    job !== undefined &&
-    (!isRecord(job) ||
-      !isOptionalString(job.status) ||
-      !isOptionalString(job.error) ||
-      !isOptionalString(job.jobId))
-  ) {
-    return false;
+/**
+ * Validate a poll response and normalise null fields to undefined, so
+ * `PollingJobData` describes what callers actually receive. Returns null for a
+ * response that does not have the expected shape.
+ */
+export function parsePollingJobData(value: unknown): PollingJobData | null {
+  if (!isRecord(value)) return null;
+  const data: PollingJobData = {};
+
+  if (value.job !== undefined && value.job !== null) {
+    if (!isRecord(value.job)) return null;
+    const status = optionalString(value.job.status);
+    const error = optionalString(value.job.error);
+    const jobId = optionalString(value.job.jobId);
+    if (status === INVALID || error === INVALID || jobId === INVALID) return null;
+    data.job = { status, error, jobId };
   }
 
-  const progress = value.progress;
-  if (
-    progress !== undefined &&
-    (!isRecord(progress) ||
+  if (value.progress !== undefined && value.progress !== null) {
+    const progress = value.progress;
+    if (
+      !isRecord(progress) ||
       typeof progress.completed !== "number" ||
-      typeof progress.total !== "number" ||
-      (progress.percent !== undefined && typeof progress.percent !== "number"))
-  ) {
-    return false;
+      typeof progress.total !== "number"
+    ) {
+      return null;
+    }
+    const percent = optionalNumber(progress.percent);
+    if (percent === INVALID) return null;
+    data.progress = { completed: progress.completed, total: progress.total, percent };
   }
 
-  return isOptionalString(value.downloadUrl);
+  const downloadUrl = optionalString(value.downloadUrl);
+  if (downloadUrl === INVALID) return null;
+  data.downloadUrl = downloadUrl;
+  return data;
 }
 
 export interface PollingJobOptions {
@@ -117,9 +138,9 @@ export function usePollingJob({
         const res = await fetch(url, { signal: controller.signal });
         if (!active || controller.signal.aborted) return;
         if (!res.ok) return;
-        const data: unknown = await res.json();
+        const data = parsePollingJobData(await res.json());
         if (!active || controller.signal.aborted) return;
-        if (!isPollingJobData(data)) {
+        if (!data) {
           onErrorRef.current?.(new Error("Invalid polling job response"));
           return;
         }

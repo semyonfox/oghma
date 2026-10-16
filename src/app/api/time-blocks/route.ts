@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import { withErrorHandler, requireAuth, ApiError, parseJson } from '@/lib/api-error';
 import sql from '@/database/pgsql';
-import { pomodoroCountForRange } from '@/lib/calendar/time-blocks';
+import {
+  assertValidTimeBlockQueryRange,
+  assertValidTimeBlockSpan,
+  MAX_TIME_BLOCKS_PER_RANGE,
+  pomodoroCountForRange,
+} from '@/lib/calendar/time-blocks';
 import {
   timeBlockCreateSchema,
   timeBlockRangeSchema,
@@ -10,7 +15,7 @@ import {
 
 /**
  * GET /api/time-blocks?start=ISO&end=ISO
- * List time blocks in a date range.
+ * List time blocks overlapping a date range of at most 100 days.
  */
 export const GET = withErrorHandler(async (request) => {
   const user = await requireAuth();
@@ -22,6 +27,7 @@ export const GET = withErrorHandler(async (request) => {
   });
   if (!rangeValidation.success) return rangeValidation.response;
   const { start, end } = rangeValidation.data;
+  assertValidTimeBlockQueryRange(new Date(start), new Date(end));
 
   const rows = await sql`
     SELECT tb.id, tb.user_id, tb.assignment_id, tb.title, tb.starts_at, tb.ends_at,
@@ -34,6 +40,7 @@ export const GET = withErrorHandler(async (request) => {
       AND tb.starts_at < ${end}::timestamptz
       AND tb.ends_at > ${start}::timestamptz
     ORDER BY tb.starts_at ASC
+    LIMIT ${MAX_TIME_BLOCKS_PER_RANGE}
   `;
 
   return NextResponse.json(rows);
@@ -42,6 +49,7 @@ export const GET = withErrorHandler(async (request) => {
 /**
  * POST /api/time-blocks
  * Create a time block. Auto-calculates pomodoro_count from duration.
+ * Overlapping blocks are allowed; the calendar UI warns before creating one.
  */
 export const POST = withErrorHandler(async (request) => {
   const user = await requireAuth();
@@ -52,6 +60,8 @@ export const POST = withErrorHandler(async (request) => {
 
   const start = new Date(starts_at);
   const end = new Date(ends_at);
+  assertValidTimeBlockSpan(start, end);
+
   // Verify an optional assignment belongs to the caller before linking it.
   if (assignment_id) {
     const [owned] = await sql`

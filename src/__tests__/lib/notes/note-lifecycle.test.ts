@@ -6,139 +6,67 @@ const mocks = vi.hoisted(() => {
       async (callback: (transaction: typeof sql) => unknown) => callback(sql),
     ),
   });
-  return { sql };
+  return { sql, setChunkVectorsSearchable: vi.fn() };
 });
 
 vi.mock("@/database/pgsql", () => ({ default: mocks.sql }));
+vi.mock("@/lib/qdrant", () => ({
+  deleteChunkVectors: vi.fn(),
+  setChunkVectorsSearchable: mocks.setChunkVectorsSearchable,
+}));
 
-import {
-  restoreNote,
-  softDeleteNote,
-} from "@/lib/notes/storage/note-lifecycle";
+import { restoreTrashRoot } from "@/lib/notes/storage/note-lifecycle";
+
+const USER_ID = "00000000-0000-4000-8000-000000000001";
+const ROOT_ID = "00000000-0000-4000-8000-000000000002";
+const CHILD_ID = "00000000-0000-4000-8000-000000000003";
 
 function queryText(call: unknown[]): string {
-  return (call[0] as TemplateStringsArray).join(" ");
+  return (call[0] as TemplateStringsArray).join("?");
 }
 
-describe("note trash lifecycle", () => {
+describe("restoreTrashRoot", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.sql.mockResolvedValue([]);
     mocks.sql.begin.mockImplementation(
       async (callback: (transaction: typeof mocks.sql) => unknown) =>
         callback(mocks.sql),
     );
   });
 
-  it("soft-deletes and restores a note at its active saved parent", async () => {
+  it("moves a restored bundle to the workspace root when its folder is unavailable", async () => {
     mocks.sql
-      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]) // user tree lock
       .mockResolvedValueOnce([
-        { note_id: "note-1", is_folder: false },
-      ])
-      .mockResolvedValueOnce([{ parent_id: "folder-1" }])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        {
-          note_id: "note-1",
-          parent_id: "folder-1",
-        },
-      ])
-      .mockResolvedValueOnce([{ note_id: "folder-1" }])
-      .mockResolvedValueOnce([{ note_id: "note-1", is_folder: false }])
-      .mockResolvedValueOnce([]);
+        { note_id: ROOT_ID, title: "Week 1", is_folder: true, parent_id: "still-trashed" },
+        { note_id: CHILD_ID, title: "Lecture", is_folder: false, parent_id: ROOT_ID },
+      ]);
 
-    await expect(softDeleteNote("user-1", "note-1")).resolves.toEqual({
-      parentId: "folder-1",
-      previousParentId: "folder-1",
-      affectedFolderIds: [],
-      affectedNoteIds: ["note-1"],
-    });
-    await expect(restoreNote("user-1", "note-1")).resolves.toEqual({
-      parentId: "folder-1",
-      previousParentId: "folder-1",
-      affectedFolderIds: [],
-      affectedNoteIds: ["note-1"],
+    await expect(restoreTrashRoot(USER_ID, ROOT_ID)).resolves.toMatchObject({
+      rootId: ROOT_ID,
+      noteIds: [ROOT_ID, CHILD_ID],
     });
 
-    const deleteQuery = queryText(mocks.sql.mock.calls[1]);
-    expect(deleteQuery).toContain("SET deleted_at = NOW()");
-    expect(deleteQuery).not.toMatch(/DELETE FROM|app\.chunks|pdf_annotations/);
-
-    const restoreQuery = queryText(mocks.sql.mock.calls[6]);
-    expect(restoreQuery).toContain("cohort AS MATERIALIZED");
-    expect(restoreQuery).toContain("note.deleted_at = cohort.deleted_at");
-    expect(restoreQuery).toContain("WITH RECURSIVE subtree");
-    expect(mocks.sql.mock.calls[6].slice(1)).not.toContain(
-      "2026-08-12T10:00:00.000Z",
+    // the active tree only reads children of live folders, so without this
+    // statement the restored bundle would be unreachable from the sidebar
+    const placement = mocks.sql.mock.calls.find((call) =>
+      queryText(call).includes("SET parent_id = NULL"),
     );
-    expect(queryText(mocks.sql.mock.calls[7])).toContain(
-      "ON CONFLICT (user_id, note_id) DO UPDATE",
-    );
+    expect(placement).toBeDefined();
+    const text = queryText(placement!);
+    expect(text).toContain("parent.deleted_at IS NULL");
+    expect(text).toContain("parent.is_folder = TRUE");
+    expect(placement!.slice(1)).toEqual([USER_ID, ROOT_ID, USER_ID]);
   });
 
-  it("restores at root when the saved parent is unavailable", async () => {
-    mocks.sql
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        {
-          note_id: "note-1",
-          parent_id: "deleted-folder",
-        },
-      ])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ note_id: "note-1", is_folder: false }])
-      .mockResolvedValueOnce([]);
+  it("does not touch the tree when the bundle is no longer in Trash", async () => {
+    mocks.sql.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
 
-    await expect(restoreNote("user-1", "note-1")).resolves.toEqual({
-      parentId: null,
-      previousParentId: "deleted-folder",
-      affectedFolderIds: [],
-      affectedNoteIds: ["note-1"],
-    });
-  });
+    await expect(restoreTrashRoot(USER_ID, ROOT_ID)).resolves.toBeNull();
 
-  it("deletes and restores the active folder subtree as one cohort", async () => {
-    mocks.sql
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        { note_id: "folder-1", is_folder: true },
-        { note_id: "child-1", is_folder: false },
-        { note_id: "nested-folder", is_folder: true },
-      ])
-      .mockResolvedValueOnce([{ parent_id: "course-1" }])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        {
-          note_id: "folder-1",
-          parent_id: "course-1",
-        },
-      ])
-      .mockResolvedValueOnce([{ note_id: "course-1" }])
-      .mockResolvedValueOnce([
-        { note_id: "folder-1", is_folder: true },
-        { note_id: "child-1", is_folder: false },
-        { note_id: "nested-folder", is_folder: true },
-      ])
-      .mockResolvedValueOnce([]);
-
-    await expect(softDeleteNote("user-1", "folder-1")).resolves.toEqual({
-      parentId: "course-1",
-      previousParentId: "course-1",
-      affectedFolderIds: ["folder-1", "nested-folder"],
-      affectedNoteIds: ["folder-1", "child-1", "nested-folder"],
-    });
-    await expect(restoreNote("user-1", "folder-1")).resolves.toEqual({
-      parentId: "course-1",
-      previousParentId: "course-1",
-      affectedFolderIds: ["folder-1", "nested-folder"],
-      affectedNoteIds: ["folder-1", "child-1", "nested-folder"],
-    });
-  });
-
-  it("returns null when the requested lifecycle transition is invalid", async () => {
-    mocks.sql.mockResolvedValue([]);
-
-    await expect(softDeleteNote("user-1", "note-1")).resolves.toBeNull();
-    await expect(restoreNote("user-1", "note-1")).resolves.toBeNull();
+    expect(
+      mocks.sql.mock.calls.some((call) => /(UPDATE|INSERT INTO) app\.(notes|tree_items)/.test(queryText(call))),
+    ).toBe(false);
   });
 });

@@ -17,4 +17,27 @@ describe("Vast Marker offline plan", () => {
     expect(result.stdout).toContain("Offline validation: PASS");
     expect(result.stdout).toContain("BLOCKED AS INTENDED");
   });
+
+  it("renders activation flags the pinned Vast CLI accepts", () => {
+    const result = spawnSync(
+      process.execPath,
+      [
+        "--experimental-strip-types",
+        resolve(process.cwd(), "scripts/vast-marker-plan.ts"),
+        "--template-hash",
+        "abc123",
+      ],
+      { encoding: "utf8" },
+    );
+
+    expect(result.status, result.stderr).toBe(0);
+    const workergroup = result.stdout
+      .split("\n")
+      .find((line) => line.includes(" create workergroup "));
+    // newer CLIs reject these flags and the API then defaults both to 3 paid workers
+    expect(workergroup).toMatch(/^uvx --from vastai==1\.5\.0 vastai /);
+    expect(workergroup).toContain("--test_workers 1");
+    expect(workergroup).toContain("--cold_workers 0");
+    expect(result.stdout).not.toContain("--min_workers");
+  });
 });

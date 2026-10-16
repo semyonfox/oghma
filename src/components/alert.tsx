@@ -17,6 +17,9 @@ const alertVariants = {
     iconColor: "text-yellow-700 dark:text-yellow-300",
     titleColor: "text-yellow-900 dark:text-yellow-100",
     descColor: "text-yellow-900 dark:text-yellow-100/80",
+    // static class names: tailwind cannot see classes built at runtime
+    dismissColor:
+      "hover:bg-yellow-500/10 focus-visible:outline-yellow-500/50",
     icon: ExclamationTriangleIcon,
   },
   error: {
@@ -25,6 +28,8 @@ const alertVariants = {
     iconColor: "text-red-700 dark:text-red-400",
     titleColor: "text-red-900 dark:text-red-200",
     descColor: "text-red-900 dark:text-red-200/80",
+    dismissColor:
+      "hover:bg-red-500/10 focus-visible:outline-red-500/50",
     icon: XCircleIcon,
   },
   success: {
@@ -33,6 +38,8 @@ const alertVariants = {
     iconColor: "text-green-700 dark:text-green-400",
     titleColor: "text-green-900 dark:text-green-200",
     descColor: "text-green-900 dark:text-green-200/85",
+    dismissColor:
+      "hover:bg-green-500/10 focus-visible:outline-green-500/50",
     icon: CheckCircleIcon,
   },
   info: {
@@ -41,6 +48,8 @@ const alertVariants = {
     iconColor: "text-blue-700 dark:text-blue-400",
     titleColor: "text-blue-900 dark:text-blue-300",
     descColor: "text-blue-900 dark:text-blue-300/85",
+    dismissColor:
+      "hover:bg-blue-500/10 focus-visible:outline-blue-500/50",
     icon: InformationCircleIcon,
   },
 };
@@ -70,7 +79,7 @@ export function Alert({
   const { t } = useI18n();
   const [isOpen, setIsOpen] = useState(true);
 
-  const styles = alertVariants[variant] || alertVariants.info;
+  const styles = alertVariants[variant];
   const Icon = styles.icon;
 
   if (!isOpen) return null;
@@ -120,7 +129,7 @@ export function Alert({
               <button
                 type="button"
                 onClick={handleDismiss}
-                className={`inline-flex rounded-md p-1.5 ${styles.iconColor} hover:bg-${variant}-500/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-${variant}-500/50`}
+                className={`inline-flex rounded-md p-1.5 ${styles.iconColor} ${styles.dismissColor} focus-visible:outline-2 focus-visible:outline-offset-2`}
                 aria-label={t("Dismiss alert")}
               >
                 <span className="sr-only">{t("Dismiss")}</span>

@@ -1,9 +1,17 @@
 "use client";
 
-import { type ChangeEvent, type FormEvent, useState, Suspense } from "react";
+import {
+  type ChangeEvent,
+  type FormEvent,
+  useEffect,
+  useRef,
+  useState,
+  Suspense,
+} from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Alert } from "@/components/alert";
+import { getPasswordRequirements } from "@/lib/auth/credentials";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
 type PasswordResetPurpose = "reset" | "change";
@@ -20,14 +28,31 @@ function ResetPasswordForm({
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const redirectTimerRef = useRef<number | null>(null);
 
   const token = searchParams.get("token") || "";
+
+  useEffect(
+    () => () => {
+      if (redirectTimerRef.current !== null) {
+        window.clearTimeout(redirectTimerRef.current);
+      }
+    },
+    [],
+  );
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
     setMessage("");
 
+    const unmet = getPasswordRequirements(password).find(
+      (requirement) => !requirement.met,
+    );
+    if (unmet) {
+      setError(t(unmet.error));
+      return;
+    }
     if (password !== confirmPassword) {
       setError(t("Passwords do not match"));
       return;
@@ -42,7 +67,7 @@ function ResetPasswordForm({
         body: JSON.stringify({ token, password }),
       });
 
-      const data = await res.json();
+      const data: unknown = await res.json().catch(() => null);
 
       if (res.ok) {
         setMessage(
@@ -50,15 +75,18 @@ function ResetPasswordForm({
             ? t("Password changed successfully")
             : t("Password reset successful! Redirecting to login..."),
         );
-        setTimeout(() => {
+        redirectTimerRef.current = window.setTimeout(() => {
           window.location.href = "/login";
         }, 2000);
       } else {
-        setError(
-          data.error ||
-            data.errors?.join(", ") ||
-            t("Failed to reset password"),
-        );
+        const serverError =
+          typeof data === "object" &&
+          data !== null &&
+          "error" in data &&
+          typeof data.error === "string"
+            ? data.error
+            : "";
+        setError(serverError ? t(serverError) : t("Failed to reset password"));
       }
     } catch (_err) {
       setError(t("An error occurred. Please try again."));

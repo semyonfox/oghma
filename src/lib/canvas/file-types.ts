@@ -20,13 +20,16 @@ const EXT_MIME: Record<string, string> = {
   txt: "text/plain",
 };
 
+// Canvas reports whatever the uploader's browser claimed, including text/html
+// and image/svg+xml. Never pass that through: a stored object keeps the type
+// it was written with, and an active type served from the app origin is XSS
 export function resolveMimeType(
   filename?: string | null,
   canvasMimeType?: string | null,
-): string | undefined {
+): string {
   if (canvasMimeType && PROCESSABLE_TYPES.has(canvasMimeType))
     return canvasMimeType;
   const ext = filename?.toLowerCase().split(".").pop();
   if (ext && EXT_MIME[ext]) return EXT_MIME[ext];
-  return canvasMimeType ?? undefined;
+  return "application/octet-stream";
 }

@@ -29,10 +29,10 @@ vi.mock("@/lib/api-error", () => {
     requireAuth: mocks.requireAuth,
     parseJsonObject: (request: NextRequest) => request.json(),
     withErrorHandler:
-      (handler: (request: NextRequest) => Promise<Response>) =>
-      async (request: NextRequest) => {
+      (handler: (request: NextRequest, context?: unknown) => Promise<Response>) =>
+      async (request: NextRequest, context?: unknown) => {
         try {
-          return await handler(request);
+          return await handler(request, context);
         } catch (error) {
           const status = error instanceof ApiError ? error.statusCode : 500;
           const message = error instanceof ApiError
@@ -67,6 +67,8 @@ vi.mock("@/lib/storage/init", () => ({
 import appSql from "@/database/pgsql";
 import { POST as startVaultExport } from "@/app/api/vault/export/route";
 import { POST as startVaultImport } from "@/app/api/vault/import/start/route";
+import { DELETE as cancelVaultJob } from "@/app/api/vault/jobs/[jobId]/cancel/route";
+import { STALE_VAULT_JOB_MESSAGE } from "@/lib/vault/jobs";
 
 const fixtureSql = postgres(requireE2EDatabaseUrl(), { max: 4 });
 let userId: string;
@@ -183,4 +185,53 @@ describe("vault job start durability", () => {
       expect(mocks.enqueue).toHaveBeenCalledTimes(2);
     },
   );
+
+  it("expires an export whose worker stopped heartbeating so a new one can start", async () => {
+    const [dead] = await fixtureSql`
+      INSERT INTO app.canvas_import_jobs (user_id, type, status, started_at, updated_at)
+      VALUES (${userId}::uuid, 'vault-export', 'processing', NOW() - INTERVAL '2 hours', NOW() - INTERVAL '1 hour')
+      RETURNING id
+    `;
+
+    const response = await startVaultExport(exportRequest());
+
+    expect(response.status).toBe(200);
+    const [expired] = await fixtureSql`
+      SELECT status, error_message FROM app.canvas_import_jobs WHERE id = ${dead.id}::uuid
+    `;
+    expect(expired).toMatchObject({ status: "failed", error_message: STALE_VAULT_JOB_MESSAGE });
+  });
+
+  it("cancels a queued job at once, since no worker will claim it afterwards", async () => {
+    const [queued] = await fixtureSql`
+      INSERT INTO app.canvas_import_jobs (user_id, type, status)
+      VALUES (${userId}::uuid, 'vault-export', 'queued')
+      RETURNING id
+    `;
+
+    const response = await cancelVaultJob(
+      new NextRequest(`http://localhost/api/vault/jobs/${queued.id}/cancel`, { method: "DELETE" }),
+      { params: Promise.resolve({ jobId: String(queued.id) }) },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(activeJobs("vault-export")).resolves.toHaveLength(0);
+  });
+
+  it("does not let one user cancel another user's job", async () => {
+    const [queued] = await fixtureSql`
+      INSERT INTO app.canvas_import_jobs (user_id, type, status)
+      VALUES (${userId}::uuid, 'vault-export', 'queued')
+      RETURNING id
+    `;
+    mocks.requireAuth.mockResolvedValue({ user_id: randomUUID() });
+
+    const response = await cancelVaultJob(
+      new NextRequest(`http://localhost/api/vault/jobs/${queued.id}/cancel`, { method: "DELETE" }),
+      { params: Promise.resolve({ jobId: String(queued.id) }) },
+    );
+
+    expect(response.status).toBe(404);
+    await expect(activeJobs("vault-export")).resolves.toHaveLength(1);
+  });
 });

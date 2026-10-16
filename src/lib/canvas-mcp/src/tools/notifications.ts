@@ -45,10 +45,9 @@ export const notificationTools: ToolDef[] = [
         },
     }),
 
-    // The hosted profile applies its own mutation policy in lib/canvas/mcp.ts.
     defineTool({
         name: "canvas_dismiss_account_notification",
-        description: "Dismiss an account-level notification banner by ID. Requires educator permissions.",
+        description: "Dismiss an institution-wide notification banner for the authenticated user.",
         inputSchema: z.object({
             notification_id: canvasIdSchema,
         }),
@@ -62,7 +61,7 @@ export const notificationTools: ToolDef[] = [
     defineTool({
         name: "canvas_update_notification_preference",
         description:
-            "Update a notification preference for a specific communication channel. Requires educator permissions.",
+            "Update how often the authenticated user is notified about one notification category on one of their communication channels.",
         inputSchema: z.object({
             channel_id: canvasIdSchema,
             notification: z.string(),
@@ -70,7 +69,7 @@ export const notificationTools: ToolDef[] = [
         }),
         handler: async (args, { canvas }) => {
             const result = await canvas.put(
-                `/api/v1/users/self/communication_channels/${args.channel_id}/notification_preferences/${args.notification}`,
+                `/api/v1/users/self/communication_channels/${args.channel_id}/notification_preferences/${encodeURIComponent(args.notification)}`,
                 { notification_preferences: { frequency: args.frequency } },
             );
             return jsonResult(result);

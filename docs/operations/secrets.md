@@ -92,7 +92,7 @@ artifact cleanup.
 ## Review Checklist
 
 - Tracked files contain placeholders only.
-- Runtime paths match `AGENTS.md` and `Jenkinsfile`.
+- Runtime paths match `AGENTS.md` and the live pipelines named in [HOMELAB.md](../../infra/HOMELAB.md).
 - Runtime env permissions are restricted.
 - Dev and production use different credentials where supported.
 - Tokens have only the permissions required by their consumer.

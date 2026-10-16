@@ -14,6 +14,9 @@ const CORS_HEADERS = {
     "Access-Control-Allow-Credentials": "true",
 };
 
+// custom JWT, Auth.js v5 session, and the numbered chunks Auth.js uses for large tokens
+const SESSION_COOKIE = /^(?:session|(?:__Secure-)?authjs\.session-token(?:\.\d+)?)$/;
+
 const MARKDOWN_REWRITES = new Map([
     ["/ai", "/ai.md"],
     ["/info", "/info.md"],
@@ -56,18 +59,20 @@ export async function proxy(request: NextRequest) {
         return response;
     }
 
-    const session = request.cookies.get("session")?.value;
-    // Auth.js v5 uses "authjs." prefix (not "next-auth." which was v4)
-    const nextAuthSession = request.cookies.get("authjs.session-token")?.value
-        || request.cookies.get("__Secure-authjs.session-token")?.value;
-    const isAuthenticated = !!(session || nextAuthSession);
-    // cookie presence cannot establish validity; login must remain reachable after revocation
+    // presence only: the edge proxy can't reach the DB, so revocation is enforced by
+    // validateSession in every API route. login must stay reachable with a revoked cookie
+    const isAuthenticated = request.cookies
+        .getAll()
+        .some((cookie) => SESSION_COOKIE.test(cookie.name) && cookie.value);
 
     // redirect unauthenticated users to login for protected routes
     // (skip auth pages to avoid redirect loops)
     const isAuthPage = pathname === "/login" || pathname === "/register";
     if (!isAuthenticated && !isAuthPage) {
-        const response = NextResponse.redirect(new URL("/login", request.url));
+        // fetch callers expect the same 401 JSON the routes return, not a login page
+        const response = pathname.startsWith("/api/")
+            ? NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+            : NextResponse.redirect(new URL("/login", request.url));
         Object.entries(corsHeaders).forEach(([key, value]) => response.headers.set(key, value));
         return response;
     }
@@ -90,10 +95,8 @@ export const config = {
         "/settings/:path*",
         "/trash/:path*",
         "/chat/:path*",
-        "/api/extract/:path*",
         "/api/notes/:path*",
         "/api/chat/:path*",
-        "/api/import-export/:path*",
         "/api/tree/:path*",
         "/api/trash/:path*",
         "/api/upload/:path*",

@@ -10,7 +10,7 @@ import {
 } from "react";
 import { usePathname } from "next/navigation";
 import I18nProvider from "@/lib/i18n/provider";
-import { Locale, normalizeLocale } from "@/locales";
+import { isRtlLocale, Locale, normalizeLocale } from "@/locales";
 import enDict from "@/locales/en.json";
 import {
   persistClientLocale,
@@ -192,7 +192,7 @@ function I18nRootProviderContent({
   useEffect(() => {
     const root = document.documentElement;
     root.lang = localeData.locale;
-    root.dir = localeData.locale.toLowerCase().startsWith("ar") ? "rtl" : "ltr";
+    root.dir = isRtlLocale(localeData.locale) ? "rtl" : "ltr";
   }, [localeData.locale]);
 
   return (

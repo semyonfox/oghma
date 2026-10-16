@@ -41,15 +41,16 @@ Verified 2026-09-15: the live jobs use the operator-owned pipelines at
 `/home/semyon/server-stacks/jenkins/oghma-dev/Jenkinsfile` and
 `/home/semyon/server-stacks/jenkins/oghma-prod/Jenkinsfile`. Their GitHub check
 gate uses `jenkins/scripts/wait-for-github-ci.sh` in that same stack repository.
-Changing this repository's root `Jenkinsfile` does not update those live jobs.
-The deployment sequence below describes the repository pipeline; compare the
-operator-owned pipeline before changing a live deployment.
+This repository has no pipeline of its own; the deployment sequence below
+describes those live jobs (rechecked 2026-10-16). `init.groovy.d/seed-jobs.groovy`
+copies them into the jobs only when the Jenkins controller starts, so an edit
+takes effect after a controller restart, which also re-seeds every other
+disk-loaded pipeline.
 
 Release commits on `dev` and `main` must run CI. Do not use `[skip ci]` or other
 [GitHub skip instructions](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/skip-workflow-runs)
-for releases. Run `bash scripts/check-deploy-commit.sh` after checkout and
-before waiting for GitHub checks. The live pipelines need this guard wired
-separately; its presence in the repository is not proof of installation.
+for releases. The live pipelines don't run `scripts/check-deploy-commit.sh`;
+their GitHub check gate times out on a commit whose checks never ran.
 
 The live app storage endpoint was verified as Cloudflare R2 on 2026-09-15.
 RustFS remains a running stack service; its health does not prove application
@@ -128,15 +129,20 @@ The local job definitions use this candidate flow in both environments:
    `npm run worker:healthcheck`.
 9. Check app `/api/health` and run the worker healthcheck. The local jobs do
    not run the public browser smoke suite after deployment.
-10. Remove candidate/previous containers after success and retain the three
-    most recent tagged images per app/worker repository and environment.
+10. Remove candidate/previous containers after success, re-tag the build's
+    commit-tagged images as `-latest`, and retain the three most recent tagged
+    images per app/worker repository and environment. Every stage deploys the
+    commit tag, so `-latest` only ever names the last build that passed.
 
 The candidate container proves that the image can start before the fixed
 runtime is replaced. There is still a short swap window; do not describe it as
 universally zero-downtime.
 
-Migrations are recorded in `app.schema_migrations`. Never edit that table by
-hand as a normal rollback mechanism.
+Migrations are recorded in `app.schema_migrations` with a SHA-256 checksum of
+each file. `scripts/run-migration.ts` holds a PostgreSQL advisory lock while it
+applies them, so two runs against the same database apply migrations one at a
+time, and it warns when an applied file has since been edited. Never edit that
+table by hand as a normal rollback mechanism.
 
 ## Queues
 
@@ -187,7 +193,8 @@ Do not include env-file contents in diagnostics.
 database is reachable, including when Redis is unavailable, but returns
 `{"status":"degraded"}` in that case. Monitoring authenticated with
 `x-health-secret: $HEALTH_CHECK_SECRET` also receives
-`rateLimiter.redisReady` and `rateLimiter.status`. Alert on a degraded status
+`rateLimiter.redisReady` and `rateLimiter.status`, plus the database URL with
+its credentials and query string stripped. Alert on a degraded status
 or `redisReady: false`; do not treat a successful container liveness check as
 proof of distributed rate limiting.
 

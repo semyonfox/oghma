@@ -2,7 +2,6 @@ export type QuestionType = 'mcq' | 'true_false' | 'fill_in';
 export type BloomLevel = 1 | 2 | 3 | 4;
 export type CardState = 'new' | 'learning' | 'review' | 'relearning';
 export type FilterType = 'course' | 'module' | 'note' | 'search' | 'chat_session' | 'all';
-type FSRSRating = 1 | 2 | 3 | 4; // again, hard, good, easy
 
 export interface QuizOption {
     text: string;
@@ -59,7 +58,6 @@ export interface QuizSessionQuestion extends Pick<
     | 'explanation'
 > {
     card_id: string;
-    intervals?: Record<FSRSRating, number>;
 }
 
 export interface QuizSessionProgress {
@@ -85,7 +83,9 @@ export interface QuizSessionStartResponse {
 export interface QuizSessionResumeResponse {
     cardIds: string[];
     currentIndex: number;
+    answeredCount: number;
     correct_count: number;
+    completed: boolean;
     question: QuizSessionQuestion | null;
 }
 
@@ -95,6 +95,9 @@ export interface QuizCardResponse {
 
 export interface QuizAnswerResponse {
     success: boolean;
+    // true when this card was already answered and nothing was rescheduled
+    duplicate: boolean;
+    wasCorrect: boolean;
     nextQuestion: QuizSessionQuestion | null;
     fatigueWarning: boolean;
     isLeech: boolean;
@@ -114,12 +117,32 @@ export interface UserStreak {
 // session config defaults
 export const SESSION_DEFAULTS = {
     maxQuestions: 20,
-    maxNewPerDay: 30,
     leechThreshold: 4,
     fatigueThreshold: 0.4, // 40% wrong triggers fatigue warning
     weightDue: 0.7,
     weightNew: 0.2,
     weightRetention: 0.1,
-    // minimum questions answered in a session before the day counts toward streak
+    // questions answered in one session before the day counts toward the
+    // streak, capped at the session length so short sessions still count
     minStreakRound: 10,
 };
+
+export interface QuizDashboardSummary {
+    dueCount: number;
+    totalCards: number;
+    mastery: number;
+    reviewedToday: number;
+    weekAccuracy: number;
+    currentStreak: number;
+    longestStreak: number;
+    hasContent: boolean;
+}
+
+export interface QuizDashboardCourse {
+    courseId: string;
+    courseName: string;
+    totalCards: number;
+    dueCount: number;
+    mastery: number;
+    isActive: boolean;
+}

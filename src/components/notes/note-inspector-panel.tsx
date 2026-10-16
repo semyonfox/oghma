@@ -19,6 +19,8 @@ import {
 } from "@/lib/chat/sidebar-session";
 import { buildChatSessionHref, buildNewChatHref } from "@/lib/chat/routes";
 import { removeMarkdown } from "@/lib/notes/utils/markdown";
+import useNoteStore from "@/lib/notes/state/note";
+import useSaveIndicatorStore, { saveIndicatorKey } from "@/lib/notes/state/save-indicator";
 import { toast } from "sonner";
 import NoteStudyLabels from "@/components/study-map/note-study-labels";
 
@@ -247,55 +249,65 @@ export default function NoteInspectorPanel({
   const [newTag, setNewTag] = useState("");
   const [isSavingTag, setIsSavingTag] = useState(false);
   const tagInputRef = useRef<HTMLInputElement>(null);
+  const activeFileId = activeFile?.fileId ?? "";
+  // tags rewrite the stored content, so an editor holding unsaved text for
+  // this note would overwrite the tag (or lose its own edits) on its next save
+  const editorHasUnsavedChanges = useSaveIndicatorStore((store) =>
+    [store.files[activeFileId], store.files[saveIndicatorKey(activeFileId, "B")]].some(
+      (indicator) => indicator && (indicator.ready === false || indicator.state !== "saved"),
+    ),
+  );
+  // after switching files the previous note stays in state until the new
+  // read lands; never write its content into the newly active note
+  const tagNote = note && note.id === activeFileId ? note : null;
+  const canEditTags = Boolean(tagNote) && !editorHasUnsavedChanges && !isSavingTag;
+
+  const saveTaggedContent = useCallback(async (fileId: string, content: string) => {
+    await useNoteStore.getState().mutateNote(fileId, { content });
+    setNote((prev) => (prev && prev.id === fileId ? { ...prev, content } : prev));
+    // clean editors showing this note adopt the tagged content
+    window.dispatchEvent(
+      new CustomEvent("note-content-sync", {
+        detail: { fileId, content, sourceId: "note-inspector" },
+      }),
+    );
+  }, []);
 
   const addTag = useCallback(async () => {
     const tag = newTag.trim().replace(/^#/, "");
-    if (!tag || !activeFile?.fileId) return;
+    if (!tag || !tagNote || !canEditTags) return;
     setIsSavingTag(true);
     try {
       const tagLine = `#${tag}`;
-      const updatedContent = note?.content
-        ? `${note.content.trimEnd()}\n${tagLine}\n`
+      const updatedContent = tagNote.content
+        ? `${tagNote.content.trimEnd()}\n${tagLine}\n`
         : `${tagLine}\n`;
-      const response = await fetch(`/api/notes/${activeFile.fileId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: updatedContent }),
-      });
-      if (!response.ok) throw new Error("Failed to save tag");
-      setNote((prev) =>
-        prev ? { ...prev, content: updatedContent } : prev,
-      );
+      await saveTaggedContent(tagNote.id, updatedContent);
       setNewTag("");
     } catch {
       toast.error(t("Failed to save note"));
     } finally {
       setIsSavingTag(false);
     }
-  }, [newTag, activeFile?.fileId, note?.content, t]);
+  }, [canEditTags, newTag, saveTaggedContent, t, tagNote]);
 
   const removeTag = useCallback(
     async (tagToRemove: string) => {
-      if (!activeFile?.fileId || !note?.content) return;
+      if (!tagNote?.content || !canEditTags) return;
+      setIsSavingTag(true);
       try {
-        const updatedContent = note.content
+        const updatedContent = tagNote.content
           .split("\n")
           .filter((line) => line.trim() !== `#${tagToRemove}`)
           .join("\n");
-        const response = await fetch(`/api/notes/${activeFile.fileId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content: updatedContent }),
-        });
-        if (!response.ok) throw new Error("Failed to save tag");
-        setNote((prev) =>
-          prev ? { ...prev, content: updatedContent } : prev,
-        );
+        await saveTaggedContent(tagNote.id, updatedContent);
       } catch {
         toast.error(t("Failed to save note"));
+      } finally {
+        setIsSavingTag(false);
       }
     },
-    [activeFile?.fileId, note?.content, t],
+    [canEditTags, saveTaggedContent, t, tagNote],
   );
 
   const tabClasses = (tab: RightPanelTab) => `
@@ -430,6 +442,7 @@ export default function NoteInspectorPanel({
                         <button
                           type="button"
                           onClick={() => void removeTag(tag)}
+                          disabled={!canEditTags}
                           className={`flex shrink-0 items-center justify-center rounded-full transition-opacity hover:text-error-400 ${presentation === "drawer" ? "h-11 w-11" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"}`}
                           title={t("Remove tag")}
                           aria-label={`${t("Remove tag")} #${tag}`}
@@ -449,7 +462,7 @@ export default function NoteInspectorPanel({
                       onKeyDown={(e) => {
                         if (e.key === "Enter") void addTag();
                       }}
-                      disabled={isSavingTag}
+                      disabled={!canEditTags}
                       placeholder={t("add tag")}
                       aria-label={t("add tag")}
                       className={`flex-1 bg-transparent text-text placeholder:text-text-tertiary/60 focus:outline-none disabled:opacity-50 min-w-0 ${presentation === "drawer" ? "text-base" : "text-xs"}`}
@@ -458,7 +471,7 @@ export default function NoteInspectorPanel({
                       type="button"
                       onClick={() => void addTag()}
                       aria-label={t("add tag")}
-                      disabled={!newTag.trim() || isSavingTag}
+                      disabled={!newTag.trim() || !canEditTags}
                       className={`flex shrink-0 items-center justify-center text-text-tertiary hover:text-text-secondary disabled:opacity-30 transition-colors ${presentation === "drawer" ? "h-11 w-11" : ""}`}
                     >
                       <PlusIcon className="w-3.5 h-3.5" />

@@ -11,19 +11,7 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock("@/database/pgsql", () => ({ default: mocks.sql }));
-vi.mock("@/lib/cache", () => ({
-  cacheInvalidate: vi.fn().mockResolvedValue(undefined),
-  cacheKeys: {
-    treeChildren: vi.fn(
-      (userId: string, parentId: string | null) =>
-        `tree:${userId}:${parentId ?? "root"}`,
-    ),
-    treeFull: vi.fn((userId: string) => `tree-full:${userId}`),
-    notesList: vi.fn((userId: string) => `notes:${userId}`),
-  },
-}));
 
-import { cacheInvalidate } from "@/lib/cache";
 import {
   extractionBundleTitle,
   findOrCreateExtractionBundle,
@@ -95,12 +83,6 @@ describe("extraction bundles", () => {
     expect(queryText(mocks.tx.mock.calls[5])).toContain(
       "INSERT INTO app.tree_items",
     );
-    expect(cacheInvalidate).toHaveBeenCalledWith(
-      "tree:user-1:module-1",
-      expect.stringMatching(/^tree:user-1:[0-9a-f-]{36}$/i),
-      "tree-full:user-1",
-      "notes:user-1",
-    );
   });
 
   it("reuses a source note's existing matching parent folder", async () => {
@@ -157,12 +139,6 @@ describe("extraction bundles", () => {
     expect(queryText(mocks.tx.mock.calls[1])).toContain("FOR UPDATE OF t");
     expect(queryText(mocks.tx.mock.calls[6])).toContain(
       "UPDATE app.tree_items",
-    );
-    expect(cacheInvalidate).toHaveBeenCalledWith(
-      "tree:user-1:root",
-      expect.stringMatching(/^tree:user-1:[0-9a-f-]{36}$/i),
-      "tree-full:user-1",
-      "notes:user-1",
     );
   });
 });

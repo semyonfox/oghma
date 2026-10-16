@@ -1,6 +1,6 @@
 import { Suspense, type ReactNode } from "react";
 import { SparklesIcon } from "@heroicons/react/24/outline";
-import ChatPageClient from "./chat-page-client";
+import ChatShell from "./chat-shell";
 
 export default function ChatLayout({ children }: { children: ReactNode }) {
   return (
@@ -12,7 +12,7 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
           </div>
         }
       >
-        <ChatPageClient />
+        <ChatShell />
       </Suspense>
       {children}
     </>

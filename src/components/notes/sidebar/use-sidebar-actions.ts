@@ -75,10 +75,15 @@ export function useSidebarActions(deps: {
         newExpandedIds.add(parentId);
         setExpandedIds(newExpandedIds);
         await mutateItem(parentId, { isExpanded: true });
+        // a collapsed folder that was never read only holds the new child;
+        // read the branch so its existing notes appear alongside it
+        if (!useNoteTreeStore.getState().tree.items[parentId]?.childrenLoaded) {
+          await loadChildren(parentId);
+        }
       }
       setRenamingId(itemId);
     },
-    [expandedIds, mutateItem, setExpandedIds, setRenamingId],
+    [expandedIds, loadChildren, mutateItem, setExpandedIds, setRenamingId],
   );
 
   const createNoteAndStartRename = useCallback(
@@ -311,17 +316,26 @@ export function useSidebarActions(deps: {
     tree,
   ]);
 
-  // duplicate a note
+  // duplicate a note next to the original
   const handleDuplicate = useCallback(
     async (id: string) => {
       try {
-        const original = tree.items[id];
-        if (!original?.data) return;
+        const original = useNoteTreeStore.getState().tree.items[id];
+        const noteAPI = useNoteStore.getState().noteAPI;
+        if (!original?.data || !noteAPI) throw new Error("Note unavailable");
+        // tree rows carry no content, so copy the stored note. its response
+        // has no parent, which is why placement comes from the tree row
+        const source = await noteAPI.find(id, { deduplicate: false });
+        // an uploaded file's object belongs to the original; an empty note
+        // with its name would not be a copy
+        if (!source || source.isFolder || source.s3Key) {
+          throw new Error("Note cannot be duplicated");
+        }
         const newId = genNewId();
         const newNote = await createNote({
           id: newId,
-          title: t("{title} (Copy)", { title: original.data.title }),
-          content: original.data.content || "\n",
+          title: t("{title} (Copy)", { title: source.title }),
+          content: source.content || "\n",
           pid: original.data.pid,
         });
         if (newNote) router.push(`/notes/${newId}`);
@@ -329,7 +343,7 @@ export function useSidebarActions(deps: {
         toast.error(t("Failed to duplicate"));
       }
     },
-    [tree.items, genNewId, createNote, router, t],
+    [genNewId, createNote, router, t],
   );
 
   // toggle pin/unpin

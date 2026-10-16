@@ -575,6 +575,38 @@ describe("study classifier cost controls", () => {
     expect(second.cost).toBe(0);
   });
 
+  it("asks again when a shared cached answer does not fit its question", async () => {
+    const entries = new Map<string, unknown>();
+    const cache: StudyDecisionCache = {
+      async get(keys) {
+        return new Map(
+          keys.flatMap((key) =>
+            entries.has(key) ? [[key, entries.get(key)] as const] : [],
+          ),
+        );
+      },
+      async set(values) {
+        for (const { key, value } of values) entries.set(key, value);
+      },
+    };
+    await classifyStudySource(slides, topics, undefined, cache);
+    // another writer stored a choice this question never offered
+    for (const key of entries.keys())
+      entries.set(key, {
+        answer: {
+          type: "choice",
+          choice: "MAYBE",
+          probabilities: null,
+          confidence: null,
+        },
+        raw: null,
+        model: "typesafe/jev-1.13",
+      });
+    fetchMock.mockClear();
+    await classifyStudySource(slides, topics, undefined, cache);
+    expect(questionsSent()).toHaveLength(9);
+  });
+
   it("asks only the questions whose topic meaning changed", async () => {
     const cache = memoryCache();
     await classifyStudySource(slides, topics, undefined, cache);

@@ -3,9 +3,16 @@ import sql from "@/database/pgsql";
 import { embedText } from "@/lib/rag/embeddings";
 import logger from "@/lib/logger";
 import { requireAuth, tracedError, withErrorHandler } from "@/lib/api-error";
-import { searchChunkVectors } from "@/lib/qdrant";
+import { searchChunkVectors, type ChunkVectorHit } from "@/lib/qdrant";
 import { canvasIdForBigintColumn } from "@/lib/canvas/id";
 import { hydrateOwnedNoteChunks } from "@/lib/rag/owned-note-chunks";
+import { checkRateLimit } from "@/lib/rate-limiter";
+import { isValidUUID } from "@/lib/utils/uuid";
+
+// the client sends ids it already shows. anything past this is ignored rather
+// than turned into an unbounded Qdrant filter
+const MAX_EXCLUDE_IDS = 100;
+const COURSE_NOTE_PAGE_SIZE = 500;
 
 interface ResultItem {
   note_id: string;
@@ -63,8 +70,8 @@ async function semanticSearch(
   limit = 10,
 ): Promise<ResultItem[]> {
   const vector = await embedText(query);
-  const candidateLimit = Math.max(limit * 3, limit);
-  let hits: Awaited<ReturnType<typeof searchChunkVectors>> = [];
+  const candidateLimit = limit * 3;
+  let hits: ChunkVectorHit[] = [];
   if (course) {
     // Scope before top-K retrieval. Page IDs to bound each vector filter and
     // merge each page's top-K; this preserves recall without a payload backfill.
@@ -73,22 +80,30 @@ async function semanticSearch(
       const notes: { note_id: string }[] = await sql<{ note_id: string }[]>`
         SELECT note_id FROM app.notes
         WHERE user_id = ${userId}::uuid AND canvas_course_id = ${course}::bigint
-          AND deleted_at IS NULL AND is_folder = false
+          AND deleted_at IS NULL AND COALESCE(is_folder, false) = false
           AND (${after}::uuid IS NULL OR note_id > ${after}::uuid)
-        ORDER BY note_id LIMIT 500
+        ORDER BY note_id LIMIT ${COURSE_NOTE_PAGE_SIZE}
       `;
       if (!notes.length) break;
       const pageHits = await searchChunkVectors({
-        userId, vector, excludeDocumentIds: excludeIds,
-        documentIds: notes.map((note) => note.note_id), limit: candidateLimit,
+        userId,
+        vector,
+        excludeDocumentIds: excludeIds,
+        documentIds: notes.map((note) => note.note_id),
+        limit: candidateLimit,
       });
-      hits = [...hits, ...pageHits].sort((a, b) => a.distance - b.distance).slice(0, candidateLimit);
-      if (notes.length < 500) break;
+      hits = [...hits, ...pageHits]
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, candidateLimit);
+      if (notes.length < COURSE_NOTE_PAGE_SIZE) break;
       after = notes[notes.length - 1].note_id;
     }
   } else {
     hits = await searchChunkVectors({
-      userId, vector, excludeDocumentIds: excludeIds, limit: candidateLimit,
+      userId,
+      vector,
+      excludeDocumentIds: excludeIds,
+      limit: candidateLimit,
     });
   }
   if (hits.length === 0) return [];
@@ -138,11 +153,17 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   }
 
   if (mode === "semantic") {
+    // each semantic query is a paid embedding call. agents drive this route,
+    // so it gets its own budget instead of eating the search palette's
+    const limited = await checkRateLimit("semantic-search", userId);
+    if (limited) return limited;
+
     // exclude note_ids the client already has from keyword/local results
-    const excludeParam = url.searchParams.get("exclude") || "";
-    const excludeIds = excludeParam
-      ? excludeParam.split(",").filter((id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id.trim()))
-      : [];
+    const excludeIds = (url.searchParams.get("exclude") || "")
+      .split(",")
+      .map((id) => id.trim())
+      .filter(isValidUUID)
+      .slice(0, MAX_EXCLUDE_IDS);
 
     try {
       const results = await semanticSearch(userId, query, excludeIds, course);

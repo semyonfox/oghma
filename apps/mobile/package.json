@@ -1,7 +1,7 @@
 {
   "name": "oghma-mobile",
   "description": "OghmaNotes Android alpha",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "main": "index.ts",
   "dependencies": {
     "@expo-google-fonts/source-sans-3": "^0.4.2",

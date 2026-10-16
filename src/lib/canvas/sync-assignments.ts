@@ -1,18 +1,18 @@
-import logger from "@/lib/logger";
-import { withCanvasPublication } from "./execution";
 /**
- * Canvas Assignment Metadata Sync
+ * Canvas assignment metadata sync
  *
- * Fetches assignment metadata (title, due dates, scores) from Canvas
- * and upserts into app.assignments. Does NOT download files — that's
- * handled separately by the import worker's processAssignments().
+ * Mirrors assignment metadata (title, due date, submission, score) from Canvas
+ * into app.assignments for the tracker. File downloads belong to the import
+ * pipeline, not this module.
  *
  * Called from:
  *   - Canvas course discovery/processing during background imports
- *   - /api/assignments/sync route for on-demand syncs
+ *   - /api/assignments/sync for on-demand syncs
  */
 
-import sql from "../../database/pgsql";
+import logger from "@/lib/logger";
+import sql from "@/database/pgsql";
+import { withCanvasPublication } from "./execution";
 import { canvasIdForBigintColumn } from "./id";
 import type { CanvasAssignment } from "./client";
 import { createAsyncLimiter } from "./async-limiter";
@@ -20,8 +20,15 @@ import { createAsyncLimiter } from "./async-limiter";
 interface AssignmentClient {
   getAssignments(courseId: string): Promise<{
     data: CanvasAssignment[];
+    forbidden?: boolean;
     error?: string;
   }>;
+}
+
+interface SyncAssignmentOptions {
+  // set when knownAssignments is the full Canvas list for the course, not a
+  // partial page set from a failed or restricted read
+  complete?: boolean;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -99,15 +106,20 @@ export async function syncAssignmentMetadata(
   courseTitle: string,
   client: AssignmentClient,
   knownAssignments?: CanvasAssignment[],
+  options: SyncAssignmentOptions = {},
 ) {
-  const { data: assignments, error } = knownAssignments
-    ? { data: knownAssignments, error: undefined }
+  const fetched = knownAssignments
+    ? { data: knownAssignments, forbidden: false, error: undefined }
     : await client.getAssignments(courseId);
 
-  if (error || !assignments) {
+  if (fetched.error || fetched.forbidden || !fetched.data) {
     logger.warn("worker_event");
-    return { synced: 0, errors: 1 };
+    return { synced: 0, errors: 1, removed: 0 };
   }
+  const assignments = fetched.data;
+  // a self-fetched list is complete because the client reports any failed page
+  const complete = knownAssignments ? options.complete === true : true;
+  const canvasCourseId = canvasIdForBigintColumn(courseId, "Canvas course ID");
 
   const courseColor =
     COURSE_COLORS[hashString(courseTitle) % COURSE_COLORS.length];
@@ -118,6 +130,8 @@ export async function syncAssignmentMetadata(
       const assignmentType = deriveAssignmentType(a);
       const submission = a.submission;
 
+      // tracker progress the user set (in progress, or done for work handed
+      // in outside Canvas) survives a sync unless Canvas itself says done
       await withCanvasPublication(() => sql`
         INSERT INTO app.assignments (
           user_id, canvas_course_id, canvas_assignment_id,
@@ -125,7 +139,7 @@ export async function syncAssignmentMetadata(
           due_at, status, source, assignment_type,
           submitted_at, score, points_possible
         ) VALUES (
-          ${userId}::uuid, ${canvasIdForBigintColumn(courseId, "Canvas course ID")}::bigint, ${canvasIdForBigintColumn(a.id, "Canvas assignment ID")}::bigint,
+          ${userId}::uuid, ${canvasCourseId}::bigint, ${canvasIdForBigintColumn(a.id, "Canvas assignment ID")}::bigint,
           ${a.name}, ${a.description ?? null}, ${courseTitle}, ${courseColor},
           ${a.due_at ?? null}, ${status}, 'canvas', ${assignmentType},
           ${submission?.submitted_at ?? null},
@@ -140,7 +154,8 @@ export async function syncAssignmentMetadata(
           course_color = EXCLUDED.course_color,
           due_at = EXCLUDED.due_at,
           status = CASE
-            WHEN app.assignments.status = 'in_progress' THEN app.assignments.status
+            WHEN EXCLUDED.status = 'done' THEN EXCLUDED.status
+            WHEN app.assignments.status IN ('in_progress', 'done') THEN app.assignments.status
             ELSE EXCLUDED.status
           END,
           submitted_at = EXCLUDED.submitted_at,
@@ -155,9 +170,26 @@ export async function syncAssignmentMetadata(
       return false;
     }
   })));
+  const errors = results.filter((ok) => !ok).length;
 
-  return {
-    synced: results.filter(Boolean).length,
-    errors: results.filter((ok) => !ok).length,
-  };
+  // Canvas never lists deleted or unpublished assignments to students, so a
+  // row missing from a complete list is gone. Locked or undated ones are
+  // still listed and only skipped above, so they are kept. Time blocks and
+  // focus sessions that pointed at a removed row fall back to unlinked.
+  let removed = 0;
+  if (complete && errors === 0) {
+    const listedIds = assignments.map((a) =>
+      canvasIdForBigintColumn(a.id, "Canvas assignment ID"));
+    const rows = await withCanvasPublication(() => sql`
+      DELETE FROM app.assignments
+      WHERE user_id = ${userId}::uuid
+        AND source = 'canvas'
+        AND canvas_course_id = ${canvasCourseId}::bigint
+        AND NOT (canvas_assignment_id = ANY(${listedIds}::bigint[]))
+      RETURNING id
+    `);
+    removed = rows.length;
+  }
+
+  return { synced: results.length - errors, errors, removed };
 }

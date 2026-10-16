@@ -5,7 +5,6 @@ export const Metrics = {
   rateLimitViolation: async (_endpoint: string): Promise<void> => {},
   llmLatency: async (_ms: number): Promise<void> => {},
   llmError: async (): Promise<void> => {},
-  cohereError: async (_type: "embed" | "rerank"): Promise<void> => {},
   chatSessionCreated: async (): Promise<void> => {},
   embeddingBatchSize: async (_count: number): Promise<void> => {},
   embeddingSuccess: async (_count: number): Promise<void> => {},

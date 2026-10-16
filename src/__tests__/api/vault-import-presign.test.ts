@@ -23,6 +23,7 @@ vi.mock("@/lib/storage/s3", () => ({
 }));
 
 import { requireAuth } from "@/lib/api-error";
+import { reserveVaultUpload } from "@/lib/vault/artifacts";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { POST } from "@/app/api/vault/import/route";
@@ -57,6 +58,17 @@ describe("POST /api/vault/import", () => {
       expiresIn: 900,
       signableHeaders: new Set(["content-length", "content-type", "x-amz-meta-expected-size"]),
       unhoistableHeaders: new Set(["x-amz-meta-expected-size"]),
+    });
+  });
+
+  it("returns the upload id of a reused reservation, not a fresh one", async () => {
+    vi.mocked(reserveVaultUpload).mockResolvedValueOnce("vault-uploads/u1/earlier-upload/import.zip");
+
+    const res = await POST(request({ filename: "import.zip", contentLength: 12 }));
+
+    await expect(res.json()).resolves.toMatchObject({
+      s3Key: "vault-uploads/u1/earlier-upload/import.zip",
+      uploadId: "earlier-upload",
     });
   });
 });

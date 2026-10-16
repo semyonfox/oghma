@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   prepare: vi.fn(),
   buildLlmCall: vi.fn(),
   requeue: vi.fn(),
+  resetEvents: vi.fn(),
 }));
 
 vi.mock("@/lib/logger", () => ({
@@ -39,7 +40,7 @@ vi.mock("@/lib/chat/generation-store", () => ({
   heartbeatChatGeneration: mocks.heartbeat,
   isChatGenerationCancelRequested: mocks.isCancelRequested,
   requeueChatGeneration: mocks.requeue,
-  resetChatGenerationEvents: vi.fn(),
+  resetChatGenerationEvents: mocks.resetEvents,
 }));
 vi.mock("@/lib/chat/prepare-generation", () => ({
   prepareChatGeneration: mocks.prepare,
@@ -412,5 +413,64 @@ describe("background chat durability", () => {
       "Background chat generation failed",
       expect.objectContaining({ error: failure }),
     );
+  });
+
+  it("clears the replay stream when recovery reruns a started generation", async () => {
+    const claim = await mocks.claim();
+    mocks.claim.mockResolvedValueOnce({ ...claim, resumed: true });
+
+    // recovery republishes under a fresh job, so BullMQ reports attempt 1
+    await processChatGeneration("11111111-1111-1111-1111-111111111111", 1, 2);
+
+    expect(mocks.resetEvents).toHaveBeenCalledWith(
+      "11111111-1111-1111-1111-111111111111",
+    );
+    expect(String(mocks.appendEvent.mock.calls[0]?.[1])).toContain(
+      "event: reset",
+    );
+  });
+
+  it("does not reset replay for a first claim", async () => {
+    const claim = await mocks.claim();
+    mocks.claim.mockResolvedValueOnce({ ...claim, resumed: false });
+
+    await processChatGeneration("11111111-1111-1111-1111-111111111111");
+
+    expect(mocks.resetEvents).not.toHaveBeenCalled();
+    expect(
+      mocks.appendEvent.mock.calls.some(([, sse]) =>
+        String(sse).includes("event: reset"),
+      ),
+    ).toBe(false);
+  });
+
+  it("fails a claimed row with no replay inputs instead of leaving it leased", async () => {
+    mocks.claim.mockResolvedValueOnce({
+      leaseToken: "44444444-4444-4444-4444-444444444444",
+      resumed: true,
+      generation: { request_payload: null },
+    });
+
+    await expect(
+      processChatGeneration("11111111-1111-1111-1111-111111111111"),
+    ).resolves.toBeUndefined();
+
+    expect(mocks.fail).toHaveBeenCalledWith(
+      "11111111-1111-1111-1111-111111111111",
+      expect.stringContaining("expired"),
+      "44444444-4444-4444-4444-444444444444",
+    );
+    expect(mocks.prepare).not.toHaveBeenCalled();
+  });
+
+  it("stops publishing replay events once another worker may own the lease", async () => {
+    mocks.heartbeat.mockResolvedValue(false);
+    mocks.finalize.mockResolvedValue(false);
+
+    await processChatGeneration("11111111-1111-1111-1111-111111111111");
+
+    expect(mocks.appendEvent).not.toHaveBeenCalled();
+    expect(mocks.fail).not.toHaveBeenCalled();
+    expect(mocks.requeue).not.toHaveBeenCalled();
   });
 });

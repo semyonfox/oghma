@@ -70,8 +70,8 @@ export const quizTools: ToolDef[] = [
         },
     }),
 
-    // Privileged tools remain in the standalone adapter. The hosted profile
-    // filters them in src/lib/canvas/mcp.ts.
+    // educator tools. the hosted profile disables these in src/lib/canvas/mcp.ts
+    // except the question listings, which canvas itself gates by role
     defineTool({
         name: "canvas_create_quiz",
         description: "Create a quiz in a course. Requires educator permissions.",
@@ -240,7 +240,8 @@ export const quizTools: ToolDef[] = [
     }),
     defineTool({
         name: "canvas_start_quiz_attempt",
-        description: "Start a new submission attempt for a quiz. Requires admin permissions.",
+        description:
+            "Start a new attempt at a quiz as the authenticated student. This uses up an allowed attempt and may start a timer.",
         inputSchema: z.object({
             course_id: canvasIdSchema,
             quiz_id: canvasIdSchema,

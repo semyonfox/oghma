@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAuth, tracedError, withErrorHandler } from "@/lib/api-error";
 import sql from "@/database/pgsql";
 import logger from "@/lib/logger";
+import { isValidUUID } from "@/lib/utils/uuid";
 
 interface CanvasImportLogRow {
   filename: string;
@@ -10,10 +11,6 @@ interface CanvasImportLogRow {
   mime_type: string | null;
   created_at: Date | string;
   updated_at: Date | string;
-}
-
-interface CanvasImportJobRow {
-  created_at: Date | string;
 }
 
 function formatLog(row: CanvasImportLogRow) {
@@ -27,43 +24,44 @@ function formatLog(row: CanvasImportLogRow) {
   };
 }
 
-async function fetchLogs(userId: string, jobStart: Date | string | null) {
-  if (jobStart) {
+// File rows are reused across imports and moved to a retry run, so their
+// created_at says nothing about which job they belong to. Filter by job_id.
+async function fetchLogs(userId: string, jobId: string | null) {
+  if (jobId) {
     return sql<CanvasImportLogRow[]>`
       SELECT filename, status, error_message, updated_at, mime_type, created_at
       FROM app.canvas_imports
-      WHERE user_id = ${userId} AND created_at >= ${jobStart}
+      WHERE user_id = ${userId}::uuid AND job_id = ${jobId}::uuid
       ORDER BY updated_at DESC LIMIT 1000`;
   }
 
   return sql<CanvasImportLogRow[]>`
     SELECT filename, status, error_message, updated_at, mime_type, created_at
     FROM app.canvas_imports
-    WHERE user_id = ${userId}
+    WHERE user_id = ${userId}::uuid
     ORDER BY updated_at DESC LIMIT 1000`;
 }
 
 export const GET = withErrorHandler(async (request) => {
   const user = await requireAuth();
 
-  try {
-    const { searchParams } = new URL(request.url);
-    const jobId = searchParams.get("jobId");
+  const jobId = new URL(request.url).searchParams.get("jobId");
+  if (jobId !== null && !isValidUUID(jobId)) {
+    return tracedError("Invalid import ID", 400);
+  }
 
-    // If a job is provided, verify ownership and get its start time in one query.
-    let jobStart: Date | string | null = null;
+  try {
     if (jobId) {
-      const rows = await sql<CanvasImportJobRow[]>`
-        SELECT created_at FROM app.canvas_import_jobs
-        WHERE id = ${jobId}::uuid AND user_id = ${user.user_id}
+      const [job] = await sql<{ id: string }[]>`
+        SELECT id FROM app.canvas_import_jobs
+        WHERE id = ${jobId}::uuid AND user_id = ${user.user_id}::uuid
       `;
-      if (!rows.length) {
+      if (!job) {
         return tracedError("Job not found", 404);
       }
-      jobStart = rows[0].created_at;
     }
 
-    const logs = await fetchLogs(user.user_id, jobStart);
+    const logs = await fetchLogs(user.user_id, jobId);
 
     return NextResponse.json({
       success: true,

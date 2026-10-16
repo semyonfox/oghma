@@ -13,11 +13,12 @@ import {
 } from "@/components/course-visibility/course-visibility-manager";
 import StatsRow from "./stats-row";
 import CourseList from "./course-list";
-import type { QuizSessionStartResponse } from "@/lib/quiz/types";
+import { browserTimeZone, DEFAULT_TIME_ZONE } from "@/lib/quiz/time-zone";
 import type {
   QuizDashboardCourse,
   QuizDashboardSummary,
-} from "@/app/quiz/server-data";
+  QuizSessionStartResponse,
+} from "@/lib/quiz/types";
 
 export default function QuizDashboard({
   initialDashboard,
@@ -48,23 +49,26 @@ export default function QuizDashboard({
     unarchiveCourse,
   } = useCourseStore();
 
+  const loadDashboard = useCallback(async () => {
+    const tz = encodeURIComponent(browserTimeZone());
+    const res = await fetch(`/api/quiz/dashboard?tz=${tz}`);
+    if (res.ok) setDashboard((await res.json()) as QuizDashboardSummary);
+  }, []);
+
   const loadServerData = useCallback(async () => {
     const courseQuery = showArchived ? "?includeArchived=1" : "";
-    const [dashRes, coursesRes] = await Promise.all([
-      fetch("/api/quiz/dashboard"),
+    const [, coursesRes] = await Promise.all([
+      loadDashboard(),
       fetch("/api/quiz/dashboard/courses" + courseQuery),
     ]);
 
-    if (dashRes.ok) {
-      setDashboard((await dashRes.json()) as QuizDashboardSummary);
-    }
     if (coursesRes.ok) {
       const data = (await coursesRes.json()) as {
         courses: QuizDashboardCourse[];
       };
       setCourses(data.courses);
     }
-  }, [showArchived]);
+  }, [loadDashboard, showArchived]);
 
   const refreshCourseData = async () => {
     await Promise.all([loadServerData(), fetchSettings()]);
@@ -77,13 +81,19 @@ export default function QuizDashboard({
   useEffect(() => {
     if (!skippedInitialLoad.current) {
       skippedInitialLoad.current = true;
-      if (!showArchived) return;
+      if (!showArchived) {
+        // the server render counted "reviewed today" in UTC
+        if (browserTimeZone() !== DEFAULT_TIME_ZONE) {
+          void loadDashboard().catch(() => {});
+        }
+        return;
+      }
     }
 
     void loadServerData().catch(() => {
       // Keep the last known server data visible when refresh fails.
     });
-  }, [initialCourses, initialDashboard, loadServerData, showArchived]);
+  }, [initialCourses, initialDashboard, loadDashboard, loadServerData, showArchived]);
 
   const visibilityItems = useMemo(
     () =>

@@ -25,13 +25,16 @@ export const messageTools: ToolDef[] = [
     }),
     defineTool({
         name: "canvas_get_conversation",
-        description: "Get full details for a single conversation by ID.",
+        description: "Get full details for a single conversation by ID. Does not mark it as read.",
         inputSchema: z.object({
             conversation_id: canvasIdSchema,
             include: z.array(z.string()).optional(),
         }),
         handler: async (args, { canvas }) => {
+            // canvas marks a conversation read on GET by default, which would
+            // make this read-only tool change inbox state
             const conversation = await canvas.get(`/api/v1/conversations/${args.conversation_id}`, {
+                auto_mark_as_read: false,
                 ...(args.include ? { include: args.include } : {}),
             });
             return jsonResult(conversation);
@@ -63,11 +66,10 @@ export const messageTools: ToolDef[] = [
         },
     }),
 
-    // Privileged tools remain in the standalone adapter. The hosted profile
-    // filters them in src/lib/canvas/mcp.ts.
     defineTool({
         name: "canvas_send_conversation",
-        description: "Send a new conversation (message) to one or more recipients. Requires educator permissions.",
+        description:
+            "Send a new Canvas inbox message to one or more recipients (user IDs or context codes like course_123_students where Canvas allows it).",
         inputSchema: z.object({
             recipients: z.array(z.string()),
             subject: z.string().optional(),
@@ -86,7 +88,7 @@ export const messageTools: ToolDef[] = [
     }),
     defineTool({
         name: "canvas_reply_to_conversation",
-        description: "Add a reply message to an existing conversation. Requires educator permissions.",
+        description: "Add a reply message to an existing conversation in the authenticated user's inbox.",
         inputSchema: z.object({
             conversation_id: canvasIdSchema,
             body: z.string(),
@@ -103,6 +105,19 @@ export const messageTools: ToolDef[] = [
             return jsonResult(result);
         },
     }),
+    defineTool({
+        name: "canvas_delete_conversation",
+        description: "Delete a conversation from the authenticated user's inbox. This cannot be undone.",
+        inputSchema: z.object({
+            conversation_id: canvasIdSchema,
+        }),
+        handler: async (args, { canvas }) => {
+            const result = await canvas.delete(`/api/v1/conversations/${args.conversation_id}`);
+            return jsonResult(result);
+        },
+    }),
+
+    // educator tools. the hosted profile disables these in src/lib/canvas/mcp.ts
     defineTool({
         name: "canvas_send_bulk_messages",
         description: "Send a message to multiple recipients at once. Requires educator permissions.",
@@ -121,17 +136,6 @@ export const messageTools: ToolDef[] = [
                 ...(args.subject ? { subject: args.subject } : {}),
                 ...(args.context_code ? { context_code: args.context_code } : {}),
             });
-            return jsonResult(result);
-        },
-    }),
-    defineTool({
-        name: "canvas_delete_conversation",
-        description: "Delete a conversation by ID. Requires educator permissions.",
-        inputSchema: z.object({
-            conversation_id: canvasIdSchema,
-        }),
-        handler: async (args, { canvas }) => {
-            const result = await canvas.delete(`/api/v1/conversations/${args.conversation_id}`);
             return jsonResult(result);
         },
     }),

@@ -1,6 +1,6 @@
 "use client";
 
-import { FC, useState, useCallback } from "react";
+import { FC, useState, useCallback, useEffect, useRef } from "react";
 import { FileSpec } from "@/lib/notes/state/layout";
 import {
   MagnifyingGlassMinusIcon,
@@ -59,14 +59,20 @@ const ImageViewer: FC<ImageViewerProps> = ({ file }) => {
     setIsDragging(false);
   };
 
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    if (e.deltaY < 0) {
-      handleZoomIn();
-    } else {
-      handleZoomOut();
-    }
-  };
+  // React registers wheel listeners as passive, so preventDefault there is
+  // ignored and the pane scrolls while it zooms
+  const containerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      if (e.deltaY < 0) handleZoomIn();
+      else handleZoomOut();
+    };
+    container.addEventListener("wheel", handleWheel, { passive: false });
+    return () => container.removeEventListener("wheel", handleWheel);
+  }, [handleZoomIn, handleZoomOut]);
 
   return (
     <div className="h-full flex flex-col bg-surface">
@@ -79,8 +85,11 @@ const ImageViewer: FC<ImageViewerProps> = ({ file }) => {
         <div className="flex items-center gap-2">
           {/* Zoom Controls */}
           <button
+            type="button"
             onClick={handleZoomOut}
             className="p-2 rounded hover:bg-subtle"
+            title={t("Zoom out")}
+            aria-label={t("Zoom out")}
           >
             <MagnifyingGlassMinusIcon className="w-4 h-4" />
           </button>
@@ -90,8 +99,11 @@ const ImageViewer: FC<ImageViewerProps> = ({ file }) => {
           </span>
 
           <button
+            type="button"
             onClick={handleZoomIn}
             className="p-2 rounded hover:bg-subtle"
+            title={t("Zoom in")}
+            aria-label={t("Zoom in")}
           >
             <MagnifyingGlassPlusIcon className="w-4 h-4" />
           </button>
@@ -99,9 +111,11 @@ const ImageViewer: FC<ImageViewerProps> = ({ file }) => {
           {/* Reset */}
           <div className="w-px h-4 bg-border mx-1" />
           <button
+            type="button"
             onClick={handleReset}
             className="p-2 rounded hover:bg-subtle"
             title={t("image_viewer.reset_zoom")}
+            aria-label={t("image_viewer.reset_zoom")}
           >
             <ArrowUturnLeftIcon className="w-4 h-4" />
           </button>
@@ -110,12 +124,12 @@ const ImageViewer: FC<ImageViewerProps> = ({ file }) => {
 
       {/* Image Container */}
       <div
+        ref={containerRef}
         className="flex-1 overflow-auto bg-surface flex items-center justify-center cursor-grab active:cursor-grabbing"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
-        onWheel={handleWheel}
       >
         <div
           style={{

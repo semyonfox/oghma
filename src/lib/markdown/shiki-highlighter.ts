@@ -8,6 +8,9 @@ export type HighlightedCode = {
 
 const MAX_CACHE_ENTRIES = 100;
 const DEFAULT_THEME = "github-dark";
+// the JS regex engine runs on the main thread; past this, a pasted log or data
+// dump would freeze the page, so it renders as plain text instead
+export const MAX_HIGHLIGHT_CHARS = 50_000;
 
 const LANGUAGE_ALIASES: Record<string, string> = {
   bash: "shellscript",
@@ -59,15 +62,6 @@ function isCuratedLanguage(lang: string): lang is CuratedLanguage {
   return lang in LANGUAGE_LOADERS;
 }
 
-function hashCode(code: string) {
-  let hash = 2166136261;
-  for (let index = 0; index < code.length; index += 1) {
-    hash ^= code.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0).toString(36);
-}
-
 function remember(key: string, value: Promise<HighlightedCode>) {
   if (cache.has(key)) cache.delete(key);
   cache.set(key, value);
@@ -80,6 +74,7 @@ function remember(key: string, value: Promise<HighlightedCode>) {
 }
 
 async function getHighlighter() {
+  // a failed chunk load must not disable highlighting for the whole session
   highlighterPromise ??= Promise.all([
     import("shiki/core"),
     import("shiki/engine/javascript"),
@@ -90,7 +85,10 @@ async function getHighlighter() {
       themes: [theme.default],
       langs: [],
     }),
-  );
+  ).catch((error: unknown) => {
+    highlighterPromise = undefined;
+    throw error;
+  });
 
   return highlighterPromise;
 }
@@ -110,8 +108,10 @@ export function highlightCode(
   language?: string,
   theme = DEFAULT_THEME,
 ): Promise<HighlightedCode> {
-  const requestedLang = normalizeLanguage(language);
-  const key = `${theme}:${requestedLang}:${hashCode(code)}`;
+  const oversized = code.length > MAX_HIGHLIGHT_CHARS;
+  const requestedLang = oversized ? "plaintext" : normalizeLanguage(language);
+  // keyed on the code itself: a hash collision would show another block's text
+  const key = `${theme}:${requestedLang}:${code}`;
   const cached = cache.get(key);
   if (cached) return cached;
 
@@ -119,6 +119,11 @@ export function highlightCode(
     const lang = await ensureLanguage(highlighter, requestedLang);
     const result = highlighter.codeToTokens(code, { lang, theme });
     return { tokens: result.tokens, lang, theme };
+  });
+  if (oversized) return highlighted;
+  // let the next render retry instead of replaying a transient failure
+  highlighted.catch(() => {
+    if (cache.get(key) === highlighted) cache.delete(key);
   });
 
   return remember(key, highlighted);

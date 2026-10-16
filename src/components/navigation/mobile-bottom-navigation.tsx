@@ -215,6 +215,7 @@ export default function MobileBottomNavigation({
           className={rowClass}
           href="/settings"
           onClick={() => setMoreOpen(false)}
+          aria-current={pathname?.startsWith("/settings") ? "page" : undefined}
         >
           <Cog6ToothIcon className="h-5 w-5" aria-hidden="true" />
           {t("Settings")}
@@ -248,6 +249,7 @@ export default function MobileBottomNavigation({
           className={rowClass}
           href="/notes/trash"
           onClick={() => setMoreOpen(false)}
+          aria-current={pathname === "/notes/trash" ? "page" : undefined}
         >
           <TrashIcon className="h-5 w-5" aria-hidden="true" />
           {t("Trash")}

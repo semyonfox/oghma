@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { withErrorHandler, requireAuth, ApiError } from "@/lib/api-error";
 import { CanvasClient } from "@/lib/canvas/client";
 import sql from "@/database/pgsql";
-import { enqueueCanvasJob } from "@/lib/queue";
+import { enqueueCanvasDiscoverJob } from "@/lib/queue";
 import logger from "@/lib/logger";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
 import {
@@ -10,7 +10,12 @@ import {
   discoverCanvasCourses,
   isCanvasCourseAvailabilityUnresolved,
 } from "@/lib/canvas/sync-courses";
-import { startCanvasRun } from "@/lib/canvas/import-runs";
+import {
+  canonicalCanvasCourses,
+  canvasRequestFingerprint,
+  lockCanvasRuns,
+  startCanvasRun,
+} from "@/lib/canvas/import-runs";
 import { isValidUUID } from "@/lib/utils/uuid";
 
 const ACTIVE_CANVAS_JOB_STATUSES = new Set([
@@ -148,36 +153,34 @@ export const POST = withErrorHandler(async (request) => {
       error: "The active import changed. Confirm the current import before replacing it.", activeJob: started.activeJob,
     }, { status: 409 });
     if (started.kind === "created") {
-      await enqueueCanvasJob("canvas-discover", { jobId: started.jobId, userId: user.user_id })
+      await enqueueCanvasDiscoverJob(started.jobId, user.user_id)
         .catch((error: unknown) => logger.warn("Sync publication deferred to recovery", { error: errorMessage(error) }));
     }
     return NextResponse.json({ queued: true, jobId: started.jobId, alreadyActive: started.kind === "existing" });
   }
 
+  // automatic syncs never replace work, and the cooldown must be checked under
+  // the same per-user lock startCanvasRun uses, so it cannot reuse that helper
   const result = await sql.begin(async (tx) => {
-    if (automatic) {
-      await tx`
-        SELECT pg_advisory_xact_lock(
-          hashtext(${`oghma-canvas-import:${user.user_id}`})
+    await lockCanvasRuns(tx, user.user_id);
+    const blockers = await tx<AutomaticSyncBlocker[]>`
+      SELECT id, status
+      FROM app.canvas_import_jobs
+      WHERE user_id = ${user.user_id}::uuid
+        AND type = 'canvas'
+        AND (
+          status IN ('queued', 'discovering', 'processing')
+          OR COALESCE(completed_at, created_at) >= NOW() - INTERVAL '6 hours'
         )
-      `;
-      const blockers = await tx<AutomaticSyncBlocker[]>`
-        SELECT id, status
-        FROM app.canvas_import_jobs
-        WHERE user_id = ${user.user_id}::uuid
-          AND type = 'canvas'
-          AND (
-            status IN ('queued', 'discovering', 'processing')
-            OR COALESCE(completed_at, created_at) >= NOW() - INTERVAL '6 hours'
-          )
-        ORDER BY created_at DESC
-        LIMIT 1
-      `;
-      if (blockers[0]) return { blocker: blockers[0], job: null };
-    }
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+    if (blockers[0]) return { blocker: blockers[0], job: null };
+    const syncCourses = canonicalCanvasCourses(courses);
     const [inserted] = await tx<{ id: string }[]>`
-      INSERT INTO app.canvas_import_jobs (user_id, course_ids, status, job_type)
-      VALUES (${user.user_id}::uuid, ${JSON.stringify(courses)}::text::jsonb, 'queued', 'sync')
+      INSERT INTO app.canvas_import_jobs (user_id, course_ids, status, job_type, request_fingerprint)
+      VALUES (${user.user_id}::uuid, ${JSON.stringify(syncCourses)}::text::jsonb, 'queued', 'sync',
+        ${canvasRequestFingerprint(syncCourses, "sync")})
       RETURNING id
     `;
     return { blocker: null, job: inserted };
@@ -189,7 +192,7 @@ export const POST = withErrorHandler(async (request) => {
   const jobId = result.job.id;
 
   try {
-    await enqueueCanvasJob("canvas-discover", { jobId, userId: user.user_id });
+    await enqueueCanvasDiscoverJob(jobId, user.user_id);
   } catch (queueErr) {
     logger.warn("queue enqueue failed for sync (job still queued in DB)", {
       error: errorMessage(queueErr),

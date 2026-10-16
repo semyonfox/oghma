@@ -140,6 +140,8 @@ export default function DataExportSection() {
       const result = await startImport();
       if (!result) return;
       const { jobId } = result;
+      // a confirmed replacement went through the 409 branch, which cleared the status
+      setImportStatus("processing");
       setImportJobId(jobId);
 
       toast.success(t("Import started! Processing your vault..."));
@@ -235,7 +237,12 @@ export default function DataExportSection() {
   const handleImportPollData = useCallback(
     (data: JobData) => {
       const { job, progress } = data;
-      if (!job) return false;
+      if (!job) {
+        // the job row is gone (Clear Vault deletes it), so there is nothing left to watch
+        setImportStatus(null);
+        setImportCancelRequested(false);
+        return true;
+      }
       if (job.status === "complete") {
         setImportStatus("complete");
         if (progress) setImportProgress(progress);
@@ -282,13 +289,18 @@ export default function DataExportSection() {
   const handleExportPollData = useCallback(
     (data: JobData) => {
       const { job, downloadUrl, progress } = data;
-      if (!job) return false;
-      if (job.status === "complete" && downloadUrl) {
-        setExportStatus("complete");
-        setExportDownloadUrl(downloadUrl);
+      if (!job) {
+        setExportStatus(null);
+        setExportCancelRequested(false);
+        return true;
+      }
+      if (job.status === "complete") {
+        // no link means the archive already expired, so there is nothing to offer
+        setExportStatus(downloadUrl ? "complete" : null);
+        setExportDownloadUrl(downloadUrl ?? null);
         if (progress) setExportProgress(progress);
         setExportCancelRequested(false);
-        toast.success(t("Vault export ready!"));
+        if (downloadUrl) toast.success(t("Vault export ready!"));
         return true;
       }
       if (job.status === "cancelled") {
@@ -333,10 +345,11 @@ export default function DataExportSection() {
           if (job && ["queued", "processing"].includes(job.status)) {
             setImportStatus("processing");
             setImportJobId(job.jobId);
-            setImportProgress(progress);
+            setImportProgress(progress ?? null);
+            setImportCancelRequested(Boolean(job.cancelRequested));
           } else if (job?.status === "complete") {
             setImportStatus("complete");
-            setImportProgress(progress);
+            setImportProgress(progress ?? null);
           } else if (job?.status === "failed") {
             setImportStatus("failed");
             setImportError(job.error || null);
@@ -347,11 +360,12 @@ export default function DataExportSection() {
           if (job && ["queued", "processing"].includes(job.status)) {
             setExportStatus("processing");
             setExportJobId(job.jobId);
-            setExportProgress(progress);
+            setExportProgress(progress ?? null);
+            setExportCancelRequested(Boolean(job.cancelRequested));
           } else if (job?.status === "complete" && downloadUrl) {
             setExportStatus("complete");
             setExportDownloadUrl(downloadUrl);
-            setExportProgress(progress);
+            setExportProgress(progress ?? null);
           } else if (job?.status === "failed") {
             setExportStatus("failed");
             setExportError(job.error || null);
@@ -408,7 +422,9 @@ export default function DataExportSection() {
                 <div className="flex items-center justify-between text-sm text-text-secondary mb-1">
                   <span>
                     {importProgress
-                      ? `${t("Processing")} ${importProgress.completed}/${importProgress.total} ${t("files")}...`
+                      ? importProgress.total > 0
+                        ? `${t("Processing")} ${importProgress.completed}/${importProgress.total} ${t("files")}...`
+                        : `${t("Processing")} ${importProgress.completed} ${t("files")}...`
                       : t("Processing...")}
                   </span>
                   {importProgress?.percent != null && (

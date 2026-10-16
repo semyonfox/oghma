@@ -5,7 +5,8 @@
 > Audience: Product, web, API, security, and growth maintainers
 >
 > Last verified: 2026-07-12 against `src/app`, `src/proxy.ts`, and
-> `src/lib/public/agent-content.ts`
+> `src/lib/public/agent-content.ts`. OpenAPI flags, the contract test and claim
+> polling rechecked 2026-10-16, after the domain audit fixes landed in #632.
 
 OghmaNotes should be inexpensive for assistants to understand and safe for
 user-delegated agents to operate. Those are separate goals:
@@ -69,10 +70,23 @@ confirmation metadata describes intended use, but discovery is not authority:
 agents must still follow normal authentication, ownership, and confirmation
 checks. Do not infer that an undocumented route is agent-safe.
 
+The OpenAPI safety flags are derived from the route shape rather than kept by
+hand: every session operation is `x-private-data`, and every non-GET session
+operation plus register and `/agent/identity` is `x-human-confirmation-required`.
+[`agent-openapi-contract.test.ts`](../../src/__tests__/lib/public/agent-openapi-contract.test.ts)
+checks that every documented path and method has a real handler and that
+request field names match the zod schemas for chat, notes, assignments, login,
+register and the agent identity routes.
+
+Registration claim polling is limited to 60 requests per hour per IP and fails
+closed, so `/auth.md` tells agents to poll at most once every 30 seconds and to
+honour `Retry-After` on a 429. An expired unfinished claim no longer blocks a
+new claim for the same email.
+
 ## Known Gaps
 
-- The hand-maintained OpenAPI document still needs stronger response schemas
-  and can drift from route validation or response behavior.
+- The OpenAPI document still needs stronger response schemas. The contract
+  test covers request fields and route existence, not response bodies.
 - There is no public remote MCP server with user OAuth, narrowed tools,
   confirmation boundaries, and audit logging.
 - There is no first-party, spam-resistant contact-intent API with sender

@@ -16,8 +16,7 @@ import ContactForm from "@/components/contact-form";
 import FadeIn from "@/components/public/fade-in";
 import FAQDisclosure from "@/components/public/faq-disclosure";
 import { getServerI18n } from "@/lib/i18n/server";
-
-type Translate = (key: string, params?: Record<string, unknown>) => string;
+import type { Translate } from "@/lib/i18n/translate";
 
 export const metadata = {
   title: "Your whole semester, already loaded",
@@ -281,21 +280,13 @@ export default async function Home() {
               <FadeIn delay={0.2}>
                 <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
                   <a
-                    href="/contact?utm_source=homepage&utm_medium=hero_cta&utm_campaign=launch_beta#contact-form"
-                    data-marketing-event="cta_click"
-                    data-marketing-page="home"
-                    data-marketing-location="hero"
-                    data-marketing-cta="request_beta_access"
+                    href="/contact#contact-form"
                     className="rounded-radius-md bg-primary-600 px-5 py-3 text-sm font-semibold text-text-on-primary shadow-xs transition-colors hover:bg-primary-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
                   >
                     {t("Join the beta")}
                   </a>
                   <a
                     href="#notebooklm"
-                    data-marketing-event="cta_click"
-                    data-marketing-page="home"
-                    data-marketing-location="hero"
-                    data-marketing-cta="compare_notebooklm"
                     className="text-sm/6 font-semibold text-text transition-colors hover:text-primary-400"
                   >
                     {t("Compare with NotebookLM")} <span aria-hidden="true">&rarr;</span>

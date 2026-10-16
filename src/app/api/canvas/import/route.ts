@@ -8,7 +8,7 @@ import {
 import { CanvasTrashConflictError } from "@/lib/canvas/trash-conflicts";
 import { CanvasClient } from "@/lib/canvas/client";
 import sql from "@/database/pgsql";
-import { enqueueCanvasJob } from "@/lib/queue";
+import { enqueueCanvasDiscoverJob } from "@/lib/queue";
 import logger from "@/lib/logger";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
 import { activeCanvasRun, canonicalCanvasCourses, lockCanvasRuns, startCanvasRun } from "@/lib/canvas/import-runs";
@@ -107,7 +107,7 @@ export const POST = withErrorHandler(async (request) => {
   }
 
   try {
-    await enqueueCanvasJob("canvas-discover", { jobId, userId: user.user_id });
+    await enqueueCanvasDiscoverJob(jobId, user.user_id);
   } catch (queueErr) {
     // non-fatal: worker DB safety-net poll catches it
     logger.warn("queue enqueue failed (job still queued in DB)", {
@@ -115,7 +115,6 @@ export const POST = withErrorHandler(async (request) => {
       error: errorMessage(queueErr),
     });
   }
-
 
   return NextResponse.json({ success: true, queued: true, jobId });
 });

@@ -6,7 +6,6 @@ interface ProgressBarProps {
   current: number;
   total: number;
   onBack: () => void;
-  streak: number;
   onSkip?: () => void;
 }
 
@@ -14,7 +13,6 @@ export default function ProgressBar({
   current,
   total,
   onBack,
-  streak: _streak,
   onSkip,
 }: ProgressBarProps) {
   const { t } = useI18n();

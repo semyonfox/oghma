@@ -1,4 +1,3 @@
-import logger from "@/lib/logger";
 import { withCanvasPublication } from "./execution";
 /**
  * Canvas folder deduplication and naming utilities.
@@ -171,8 +170,10 @@ export async function findOrCreateFolder(
       await invalidateTreeAfterPublish(userId, parentId);
       return folderId;
     }
-    logger.warn("worker_event");
-    return parentId;
+    // Falling back to the parent used to misplace a module's files, or drop a
+    // course's files entirely because their pending rows need a live parent.
+    // Let discovery fail and retry instead.
+    throw error;
   }
 
   });

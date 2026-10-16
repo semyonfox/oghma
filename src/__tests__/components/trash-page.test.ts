@@ -82,6 +82,29 @@ describe("TrashPage", () => {
     });
   });
 
+  it("drops a row that another tab already restored when restore fails", async () => {
+    const item = {
+      id: "8b9a3521-a2c8-4c21-9f33-a2f835f3e0e8",
+      title: "Week 1",
+      isFolder: false,
+      deletedAt: "2026-08-01T12:00:00.000Z",
+      purgeAt: "2099-08-31T12:00:00.000Z",
+      originalPath: [],
+      descendantCount: 0,
+    };
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [item] })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: "Trash item changed or was not found" }), { status: 404 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [] })));
+
+    render(React.createElement(TrashPage));
+    fireEvent.click(await screen.findByRole("button", { name: "Restore: Week 1" }));
+
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByText("Week 1")).toBeNull());
+    expect(fetch).toHaveBeenCalledTimes(3);
+  });
+
   it("names a folder and its descendants before permanently deleting it", async () => {
     const item = {
       id: "8b9a3521-a2c8-4c21-9f33-a2f835f3e0e8",

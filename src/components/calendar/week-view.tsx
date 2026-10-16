@@ -16,13 +16,17 @@ import {
 } from "@/lib/notes/utils/calendar-date";
 import AssignmentTypeIcon from "@/components/assignments/assignment-type-icon";
 import { getAssignmentTypeLabel, type AssignmentType } from "@/lib/notes/utils/assignment-type";
+import {
+  WEEK_END_HOUR,
+  WEEK_START_HOUR,
+  weekGridBlockPosition,
+  weekGridOffset,
+} from "@/components/calendar/week-view-utils";
 
 const MIN_HOUR_HEIGHT = 56;
-const START_HOUR = 6;
-const END_HOUR = 24;
 const HOURS = Array.from(
-  { length: END_HOUR - START_HOUR },
-  (_, i) => i + START_HOUR,
+  { length: WEEK_END_HOUR - WEEK_START_HOUR },
+  (_, i) => i + WEEK_START_HOUR,
 );
 
 function getWeekDays(
@@ -93,8 +97,17 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
     control: HTMLElement,
   ) => {
     const origin = completed ? undefined : getCelebrationOrigin(control);
-    if (!(await toggleTimeBlockCompleted(id))) return;
+    if (!(await toggleTimeBlockCompleted(id))) {
+      toast.error(t("Something went wrong"));
+      return;
+    }
     if (!completed) void triggerCelebration("assignment", origin);
+  };
+
+  const handleDeleteBlock = async (id: string) => {
+    if (!(await deleteTimeBlock(id))) {
+      toast.error(t("Something went wrong"));
+    }
   };
 
   const handleToggleAssignment = async (
@@ -156,10 +169,7 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
       const colIdx = weekDays.findIndex((d) => d.date === dateStr);
       if (colIdx === -1) continue;
 
-      const startHour = start.getHours() + start.getMinutes() / 60;
-      const endHour = end.getHours() + end.getMinutes() / 60;
-      const top = (startHour - START_HOUR) * hourHeight;
-      const height = Math.max((endHour - startHour) * hourHeight, 14);
+      const { top, height } = weekGridBlockPosition(start, end, hourHeight);
 
       blocks.push({
         id: tb.id,
@@ -192,11 +202,10 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
       const colIdx = weekDays.findIndex((wd) => wd.date === dateStr);
       if (colIdx === -1) continue;
 
-      const hour = d.getHours() + d.getMinutes() / 60;
       markers.push({
         assignment: a,
         col: colIdx,
-        top: (hour - START_HOUR) * hourHeight,
+        top: weekGridOffset(d, hourHeight),
         title: a.title,
         color: a.course_color ?? "#ef4444",
         type: a.assignment_type,
@@ -210,7 +219,7 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
   const todayCol = weekDays.findIndex((d) => d.isToday);
   const nowTop =
     todayCol >= 0
-      ? (now.getHours() + now.getMinutes() / 60 - START_HOUR) * hourHeight
+      ? (now.getHours() + now.getMinutes() / 60 - WEEK_START_HOUR) * hourHeight
       : -1;
 
   // Clicking a time slot starts the same task flow used elsewhere, prefilled
@@ -222,7 +231,7 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
     const rect = gridRef.current?.getBoundingClientRect();
     if (!rect) return;
     const y = e.clientY - rect.top;
-    const hour = Math.floor(y / hourHeight) + START_HOUR;
+    const hour = Math.floor(y / hourHeight) + WEEK_START_HOUR;
     const snappedMinute =
       Math.round((y % hourHeight) / (hourHeight / 2)) * 30;
 
@@ -295,7 +304,7 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
           <div className="sticky left-0 z-20 border-r border-border-subtle bg-surface">
             {HOURS.map((hour) => (
               <div key={hour} style={{ height: hourHeight }} className="relative">
-                <span className={`absolute right-2 text-xs tabular-nums text-text-tertiary ${hour === START_HOUR ? "top-1" : "-top-2.5"}`}>
+                <span className={`absolute right-2 text-xs tabular-nums text-text-tertiary ${hour === WEEK_START_HOUR ? "top-1" : "-top-2.5"}`}>
                   {timeFormatter.format(new Date(2024, 0, 1, hour))}
                 </span>
               </div>
@@ -335,7 +344,7 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
                       onClick={(event) => {
                         event.preventDefault();
                         event.stopPropagation();
-                        void deleteTimeBlock(block.id);
+                        void handleDeleteBlock(block.id);
                       }}
                       className="absolute right-0.5 top-0.5 rounded p-0.5 text-text-tertiary opacity-100 transition hover:bg-subtle hover:text-text-secondary md:opacity-0 md:group-hover/block:opacity-100"
                       aria-label={t("Delete study block")}
@@ -383,9 +392,9 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
 
               {dueMarkers
                 .filter((marker) => marker.col === colIdx)
-                .map((marker, index) => (
+                .map((marker) => (
                   <div
-                    key={`due-${index}`}
+                    key={`due-${marker.assignment.id}`}
                     className={`pointer-events-none absolute left-0 right-0 z-10 border-t-2 border-dashed ${marker.assignment.status === "done" ? "opacity-60" : ""}`}
                     style={{
                       top: marker.top,

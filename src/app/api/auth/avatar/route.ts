@@ -7,8 +7,10 @@ import {
   saveSettingsToS3,
 } from "@/lib/notes/storage/s3-storage";
 import logger from "@/lib/logger";
-import { assertTrustedOrigin } from "@/lib/api-error";
+import { assertTrustedOrigin, ApiError } from "@/lib/api-error";
 import { checkRateLimit } from "@/lib/rate-limiter";
+import { BodyTooLargeError, readBoundedBody } from "@/lib/http/bounded-body";
+import { detectMimeType } from "@/lib/ingestion/detect-mime";
 
 const ALLOWED_MIME: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -19,51 +21,8 @@ const ALLOWED_MIME: Record<string, string> = {
 };
 
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
-
-// magic byte signatures for allowed image formats
-const MAGIC_BYTES: [string, number[]][] = [
-  ["image/jpeg", [0xff, 0xd8, 0xff]],
-  ["image/png", [0x89, 0x50, 0x4e, 0x47]],
-  ["image/gif", [0x47, 0x49, 0x46]],
-  ["image/webp", [0x52, 0x49, 0x46, 0x46]], // RIFF header
-  ["image/avif", [0x00, 0x00, 0x00]], // ftyp box (checked with 'avif' at offset 8)
-];
-
-function detectMimeFromBytes(bytes: Uint8Array): string | null {
-  for (const [mime, sig] of MAGIC_BYTES) {
-    if (sig.every((b, i) => bytes[i] === b)) {
-      // WebP needs extra check: bytes 8-11 should be 'WEBP'
-      if (mime === "image/webp") {
-        const tag = String.fromCharCode(
-          bytes[8],
-          bytes[9],
-          bytes[10],
-          bytes[11],
-        );
-        if (tag !== "WEBP") continue;
-      }
-      // AVIF needs ftyp box check
-      if (mime === "image/avif") {
-        const ftyp = String.fromCharCode(
-          bytes[4],
-          bytes[5],
-          bytes[6],
-          bytes[7],
-        );
-        if (ftyp !== "ftyp") continue;
-        const brand = String.fromCharCode(
-          bytes[8],
-          bytes[9],
-          bytes[10],
-          bytes[11],
-        );
-        if (!brand.startsWith("avif") && !brand.startsWith("avis")) continue;
-      }
-      return mime;
-    }
-  }
-  return null;
-}
+// room for multipart boundaries and headers around the file
+const MAX_BODY_BYTES = MAX_BYTES + 64 * 1024;
 
 export async function GET() {
   try {
@@ -106,10 +65,22 @@ export async function POST(request: NextRequest) {
     const limited = await checkRateLimit("avatar-upload", String(userId));
     if (limited) return limited;
 
-    const formData = await request.formData();
-    const file = formData.get("avatar") as File | null;
+    // read a bounded body first: request.formData() would buffer any size
+    let formData: FormData;
+    try {
+      const body = await readBoundedBody(request, MAX_BODY_BYTES);
+      formData = await new Response(body, {
+        headers: { "content-type": request.headers.get("content-type") ?? "" },
+      }).formData();
+    } catch (error) {
+      if (error instanceof BodyTooLargeError) {
+        return NextResponse.json({ error: "File exceeds 5 MB limit" }, { status: 413 });
+      }
+      return NextResponse.json({ error: "Invalid upload" }, { status: 400 });
+    }
+    const file = formData.get("avatar");
 
-    if (!file) {
+    if (!(file instanceof File)) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
@@ -122,10 +93,10 @@ export async function POST(request: NextRequest) {
 
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    // validate actual file content, not client-controlled MIME type
-    const detectedMime = detectMimeFromBytes(new Uint8Array(buffer));
-    const ext = detectedMime ? ALLOWED_MIME[detectedMime] : null;
-    if (!ext) {
+    // the type comes from the bytes alone; the client-declared type is ignored
+    const detectedMime = detectMimeType(buffer, "");
+    const ext = detectedMime ? ALLOWED_MIME[detectedMime] : undefined;
+    if (!detectedMime || !ext) {
       return NextResponse.json(
         { error: "Unsupported file type. Use JPG, PNG, GIF, WebP, or AVIF." },
         { status: 415 },
@@ -135,7 +106,7 @@ export async function POST(request: NextRequest) {
     const timestamp = Date.now();
     const avatarKey = `avatars/${userId}/${timestamp}.${ext}`;
     const storage = getStorageProvider();
-    await storage.putObject(avatarKey, buffer, { contentType: detectedMime! });
+    await storage.putObject(avatarKey, buffer, { contentType: detectedMime });
 
     // persist key in settings JSON (merge with existing settings)
     const currentSettings = await getSettingsFromS3(userId);
@@ -150,8 +121,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true, avatarUrl: "/api/auth/avatar/image", avatarKey });
+    return NextResponse.json({ success: true, avatarUrl: "/api/auth/avatar/image" });
   } catch (error) {
+    if (error instanceof ApiError) {
+      return NextResponse.json({ error: error.userMessage }, { status: error.statusCode });
+    }
     logger.error("error uploading avatar", { error });
     return NextResponse.json({ error: "Upload failed" }, { status: 500 });
   }

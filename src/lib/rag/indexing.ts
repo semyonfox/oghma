@@ -6,6 +6,7 @@ import {
   upsertChunkVectors,
 } from "@/lib/qdrant";
 import { sanitizePostgresText } from "@/lib/text-sanitize";
+import { generateUUID } from "@/lib/utils/uuid";
 import logger from "@/lib/logger";
 
 interface ChunkRow {
@@ -35,7 +36,13 @@ export function normalizeChunksForIndexing(chunks: string[]): string[] {
   return normalized;
 }
 
-async function deleteVectorsOrJournal(chunkIds: string[], userId: string): Promise<void> {
+/**
+ * Delete vectors now, or journal their ids for the deletion collector when
+ * Qdrant is unreachable. A silently dropped delete leaves user-scoped orphans
+ * that still match the owner's filter and use up top-K recall.
+ */
+export async function deleteVectorsOrJournal(chunkIds: string[], userId: string): Promise<void> {
+  if (chunkIds.length === 0) return;
   try {
     await deleteChunkVectors(chunkIds);
   } catch {
@@ -52,24 +59,7 @@ async function deleteChunkSet(chunkIds: string[], userId: string): Promise<void>
   if (chunkIds.length === 0) return;
 
   await afterDatabaseCommit(() => deleteVectorsOrJournal(chunkIds, userId));
-  await deletePgEmbeddings(chunkIds);
   await sql`DELETE FROM app.chunks WHERE id = ANY(${chunkIds}::uuid[])`;
-}
-
-async function deletePgEmbeddings(chunkIds: string[]): Promise<void> {
-  if (chunkIds.length === 0) return;
-
-  try {
-    const [table] = await sql`SELECT to_regclass('app.embeddings') AS table_name`;
-    if (!table?.table_name) return;
-
-    await sql`
-      DELETE FROM app.embeddings
-      WHERE chunk_id = ANY(${chunkIds}::uuid[])
-    `;
-  } catch (error) {
-    logger.warn("pg embedding cleanup failed", { error });
-  }
 }
 
 export async function replaceNoteEmbeddings(
@@ -86,13 +76,14 @@ export async function replaceNoteEmbeddings(
     return 0;
   }
 
-  const embeddings = await embedChunks(normalizedChunks);
-  if (embeddings.length === 0) {
-    const oldChunkIds = await getActiveNoteChunkIds(noteId, userId);
-    if (!oldChunkIds) return 0;
-    await deleteChunkSet(oldChunkIds, userId);
-    return 0;
-  }
+  // ids are minted here rather than read back from RETURNING, whose row order
+  // Postgres does not promise, so each vector is pinned to its own chunk text.
+  // v7 ids also sort in document order within the note
+  const newChunks = (await embedChunks(normalizedChunks)).map((entry) => ({
+    id: generateUUID(),
+    text: entry.chunk,
+    vector: entry.vector,
+  }));
 
   let insertedChunkIds: string[] = [];
   let inserted: InsertedChunkSet | null;
@@ -118,25 +109,25 @@ export async function replaceNoteEmbeddings(
         WHERE document_id = ${noteId}::uuid
           AND user_id = ${userId}::uuid
       `;
-      const chunkRows = await tx<ChunkRow[]>`
-        INSERT INTO app.chunks (document_id, user_id, text)
+      const chunkIds = newChunks.map((chunk) => chunk.id);
+      await tx`
+        INSERT INTO app.chunks (id, document_id, user_id, text)
         SELECT * FROM UNNEST(
-          ${embeddings.map(() => noteId)}::uuid[],
-          ${embeddings.map(() => userId)}::uuid[],
-          ${embeddings.map((entry) => entry.chunk)}::text[]
+          ${chunkIds}::uuid[],
+          ${newChunks.map(() => noteId)}::uuid[],
+          ${newChunks.map(() => userId)}::uuid[],
+          ${newChunks.map((chunk) => chunk.text)}::text[]
         )
-        RETURNING id
       `;
-      insertedChunkIds = chunkRows.map((row) => row.id);
-      const publishedIds = insertedChunkIds;
-      afterDatabaseRollback(() => deleteVectorsOrJournal(publishedIds, userId));
+      insertedChunkIds = chunkIds;
+      afterDatabaseRollback(() => deleteVectorsOrJournal(chunkIds, userId));
 
       await upsertChunkVectors(
-        chunkRows.map((row, index) => ({
-          chunkId: row.id,
+        newChunks.map((chunk) => ({
+          chunkId: chunk.id,
           documentId: noteId,
           userId,
-          vector: embeddings[index].vector,
+          vector: chunk.vector,
         })),
       );
 

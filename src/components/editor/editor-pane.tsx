@@ -1,9 +1,8 @@
 "use client";
 
-
 import { FC, memo, useCallback, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { FileSpec, PaneId, type RightPanelTab } from "@/lib/notes/state/layout";
 import {
@@ -13,7 +12,6 @@ import {
   CheckCircleIcon,
   ClipboardDocumentCheckIcon,
   CloudArrowUpIcon,
-  DocumentIcon,
   ExclamationTriangleIcon,
   RectangleGroupIcon,
   XMarkIcon,
@@ -26,15 +24,13 @@ import useSaveIndicatorStore, {
 } from "@/lib/notes/state/save-indicator";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import useNoteTreeStore from "@/lib/notes/state/tree";
-import useNoteStore from "@/lib/notes/state/note";
 import {
-  buildFileSpec,
   FILE_DRAG_MIME,
   parseFileDragPayload,
 } from "@/lib/notes/utils/file-spec";
-import { toast } from "sonner";
 
 import SaveOfflineButton from "@/components/notes/save-offline-button";
+import PaneEmptyState from "./pane-empty-state";
 
 const MobileNoteActions = dynamic(
   () => import("@/components/notes/mobile-note-actions"),
@@ -62,7 +58,6 @@ const EditorPane: FC<EditorPaneProps> = ({
   hasSecondaryPane = false,
 }) => {
   const { t } = useI18n();
-  const router = useRouter();
   const searchParams = useSearchParams();
   const folderPath = searchParams.get("folder");
   const libraryHref = folderPath
@@ -93,18 +88,10 @@ const EditorPane: FC<EditorPaneProps> = ({
     setRightPanelTab(tab);
     setRightPanelOpen(!closing);
   };
-  const initLoaded = useNoteTreeStore((s) => s.initLoaded);
-  const rootChildCount = useNoteTreeStore(
-    (s) => s.tree.items.root?.children?.length ?? 0,
-  );
-  const genNewId = useNoteTreeStore((s) => s.genNewId);
-  const setRenamingId = useNoteTreeStore((s) => s.setRenamingId);
-  const createNote = useNoteStore((s) => s.createNote);
 
   const paneRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dropTarget, setDropTarget] = useState<PaneId | null>(null);
-  const [isCreatingFirstNote, setIsCreatingFirstNote] = useState(false);
 
   // all hooks must be called before any early returns
   const handleClose = useCallback(() => {
@@ -180,43 +167,6 @@ const EditorPane: FC<EditorPaneProps> = ({
     [dropTarget, pane, placeFileInPane, splitInteractionsEnabled],
   );
 
-  const handleCreateFirstNote = useCallback(async () => {
-    if (isCreatingFirstNote) return;
-    setIsCreatingFirstNote(true);
-
-    const id = genNewId();
-    try {
-      const note = await createNote({
-        id,
-        title: t("My first note"),
-        content: t("# Welcome to OghmaNotes\n\nStart typing here."),
-      });
-
-      if (!note) {
-        toast.error(t("Could not create your first note. Please try again."));
-        return;
-      }
-
-      setPaneA(buildFileSpec(note));
-      setRenamingId(id);
-      router.push(`/notes/${id}`);
-    } catch {
-      toast.error(t("Could not create your first note. Please try again."));
-    } finally {
-      setIsCreatingFirstNote(false);
-    }
-  }, [
-    createNote,
-    genNewId,
-    isCreatingFirstNote,
-    router,
-    setPaneA,
-    setRenamingId,
-    t,
-  ]);
-
-  const showFirstRunOnboarding =
-    pane === "A" && initLoaded && rootChildCount === 0;
   const aiChatIsOpen = activePane === pane && rightPanelOpen && rightPanelTab === "ai";
   const metadataIsOpen = activePane === pane && rightPanelOpen && rightPanelTab === "meta";
   const tasksAreOpen = rightPanelOpen && rightPanelTab === "tasks";
@@ -225,71 +175,7 @@ const EditorPane: FC<EditorPaneProps> = ({
     : t("Open AI chat");
 
   // empty state — no file assigned to this pane
-  if (!file || !file.fileId) {
-    if (showFirstRunOnboarding) {
-      return (
-        <div className="flex h-full flex-col overflow-y-auto p-6">
-          <div className="mx-auto my-auto w-full max-w-lg rounded-radius-lg border border-border-subtle bg-surface/70 p-6">
-            <h2 className="text-lg font-semibold text-text-secondary">
-              {t("Welcome to OghmaNotes")}
-            </h2>
-            <p className="mt-2 text-sm text-text-tertiary leading-relaxed">
-              {t(
-                "You are all set. Create your first note now, then import your Canvas files when you are ready.",
-              )}
-            </p>
-            <div className="mt-4 space-y-2 text-sm text-text-tertiary">
-              <p>{t("1. Create your first note.")}</p>
-              <p>{t("2. Import Canvas courses from Settings.")}</p>
-              <p>
-                {t("3. Open AI Chat when you want summaries or quick answers.")}
-              </p>
-            </div>
-            <div className="mt-5 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => void handleCreateFirstNote()}
-                disabled={isCreatingFirstNote}
-                className="rounded-md bg-primary-600 px-3 py-2 text-sm font-semibold text-text-on-primary hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isCreatingFirstNote
-                  ? t("Creating note...")
-                  : t("Create first note")}
-              </button>
-              <a
-                href="/settings#canvas"
-                className="rounded-radius-md glass-card-interactive px-3 py-2 text-sm font-semibold text-text-secondary"
-              >
-                {t("Open Canvas import")}
-              </a>
-              <a
-                href="/chat"
-                className="rounded-radius-md glass-card-interactive px-3 py-2 text-sm font-semibold text-text-secondary"
-              >
-                {t("Open AI chat")}
-              </a>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="h-full flex flex-col items-center justify-center px-6 text-text-tertiary gap-4">
-        <div className="rounded-radius-xl border border-border-subtle bg-subtle p-3">
-          <DocumentIcon className="w-7 h-7" aria-hidden="true" />
-        </div>
-        <div className="text-center">
-          <p className="text-base font-medium text-text-secondary">
-            {t("file_view_pane.select_file")}
-          </p>
-          <p className="text-sm text-text-tertiary mt-2 max-w-xs leading-relaxed">
-            {t("file_view_pane.select_file_hint")}
-          </p>
-        </div>
-      </div>
-    );
-  }
+  if (!file || !file.fileId) return <PaneEmptyState pane={pane} />;
 
   return (
     <div
@@ -425,7 +311,7 @@ const EditorPane: FC<EditorPaneProps> = ({
           <button
             type="button"
             data-inspector-toggle
-          onClick={() => openRightPanelTab("meta")}
+            onClick={() => openRightPanelTab("meta")}
             className={`ui-icon-button w-auto gap-1.5 px-2 lg:w-8 lg:px-0 ${
               metadataIsOpen
                 ? "bg-primary-500/10 text-primary-700 dark:text-primary-300"
@@ -441,7 +327,7 @@ const EditorPane: FC<EditorPaneProps> = ({
           <button
             type="button"
             data-inspector-toggle
-          onClick={() => openRightPanelTab("ai")}
+            onClick={() => openRightPanelTab("ai")}
             className={`ui-icon-button w-auto gap-1.5 px-2 lg:w-8 lg:px-0 ${
               aiChatIsOpen
                 ? "bg-primary-500/10 text-primary-700 dark:text-primary-300"
@@ -459,7 +345,7 @@ const EditorPane: FC<EditorPaneProps> = ({
           <button
             type="button"
             data-inspector-toggle
-          onClick={() => openRightPanelTab("tasks")}
+            onClick={() => openRightPanelTab("tasks")}
             className={`ui-icon-button w-auto gap-1.5 px-2 lg:w-8 lg:px-0 ${
               tasksAreOpen
                 ? "bg-primary-500/10 text-primary-700 dark:text-primary-300"

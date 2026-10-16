@@ -7,7 +7,7 @@ export async function loadCanvasAssignment(context: RouteParamsContext<{ id: str
   const user = await requireAuth();
   const { id } = await context.params;
   requireValidId(id);
-  const [row] = await sql`
+  const [row] = await sql<{ canvas_course_id: string | null; canvas_assignment_id: string | null }[]>`
     SELECT canvas_course_id::text, canvas_assignment_id::text FROM app.assignments
     WHERE id = ${id}::uuid AND user_id = ${user.user_id}::uuid AND source = 'canvas'
   `;
@@ -17,6 +17,7 @@ export async function loadCanvasAssignment(context: RouteParamsContext<{ id: str
   const client = new CanvasClient(credentials.domain, credentials.token);
   const path = `/courses/${encodeURIComponent(row.canvas_course_id)}/assignments/${encodeURIComponent(row.canvas_assignment_id)}`;
   const result = await client.getAssignment(row.canvas_course_id, row.canvas_assignment_id);
+  if (result.unauthorized) throw new ApiError(409, "Your Canvas token is invalid or expired. Reconnect Canvas in Settings");
   if (!result.data || result.error) throw new ApiError(result.forbidden ? 403 : 502, "Could not load this assignment from Canvas");
-  return { userId: user.user_id, courseId: String(row.canvas_course_id), assignmentId: String(row.canvas_assignment_id), assignment: result.data, client, path, url: `https://${credentials.domain}${path}` };
+  return { id, userId: user.user_id, courseId: row.canvas_course_id, assignmentId: row.canvas_assignment_id, assignment: result.data, client, path, url: `https://${credentials.domain}${path}` };
 }

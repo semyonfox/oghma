@@ -32,6 +32,16 @@ describe("tree operation coordination", () => {
     expect(state().renamingId).toBeNull();
   });
 
+  it("leaves a note created below an unloaded folder to that folder's next read", () => {
+    // the server already committed the note; throwing here would report a
+    // failed create for a note that exists
+    expect(() => state().addItem({
+      deleted: 0, shared: 0, pinned: 0, id: "new-note", title: "new", pid: "never-loaded",
+    })).not.toThrow();
+    expect(state().tree.items["new-note"]).toBeUndefined();
+    expect(state().tree.items.root.children).toEqual([]);
+  });
+
   it("persists rapid expansion changes in user order", async () => {
     const mutate = vi.fn().mockResolvedValue({ success: true });
     state().setDependencies({ fetch: vi.fn(), fetchChildren: vi.fn(), mutate }, vi.fn());

@@ -1,3 +1,5 @@
+import type postgres from "postgres";
+
 /**
  * Cancels active Canvas jobs and their downstream work inside the caller's
  * transaction. GPU work that has already begun cannot be unsent, but its
@@ -56,4 +58,3 @@ export async function cancelActiveCanvasImportJobs(
   `;
   return cancelled;
 }
-import type postgres from "postgres";

@@ -29,8 +29,9 @@ if (!databaseUrl) {
   process.exit(2);
 }
 
+// no ssl option: postgres.js reads sslmode from the URL, and forcing one
+// here would turn verify-full into plaintext
 const sql = postgres(databaseUrl, {
-  ssl: databaseUrl.includes("sslmode=require") ? { rejectUnauthorized: false } : false,
   max: 1,
   connect_timeout: 10,
   idle_timeout: 5,

@@ -6,8 +6,6 @@ import { NOTE_PINNED } from "@/lib/notes/types/meta";
 
 // ── shared schemas ──────────────────────────────────────────────────────────
 
-export const uuidParam = z.string().uuid();
-
 export const noteCreateSchema = z.object({
   id: z.string().uuid().optional(),
   title: z.string().max(500).optional(),
@@ -37,15 +35,6 @@ export const noteUpdateSchema = z
       message: "At least one supported note field is required",
     },
   );
-
-export const paginationSchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(50),
-});
-
-export const searchQuerySchema = z.object({
-  q: z.string().min(1).max(200).trim(),
-});
 
 export const loginSchema = z.object({
   email: z.string().trim().toLowerCase().email().max(255),

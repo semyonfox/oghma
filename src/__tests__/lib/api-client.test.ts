@@ -31,6 +31,7 @@ describe("browser auth API client", () => {
         password: "password",
         rememberMe: true,
       }),
+      signal: expect.any(AbortSignal),
     });
   });
 
@@ -99,4 +100,29 @@ describe("browser auth API client", () => {
       }
     },
   );
+
+  it("bounds a hung request with a timeout instead of spinning forever", async () => {
+    vi.mocked(global.fetch).mockRejectedValue(
+      new DOMException("The operation timed out.", "TimeoutError"),
+    );
+
+    await expect(login("student@example.com", "password")).rejects.toMatchObject({
+      name: "APIError",
+      status: 408,
+      message: "The server took too long to respond. Please try again.",
+    });
+    const init = vi.mocked(global.fetch).mock.calls[0]?.[1];
+    expect(init?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("does not leak a JSON parser message when a proxy returns HTML", async () => {
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response("<html>bad gateway</html>", { status: 200 }),
+    );
+
+    await expect(login("student@example.com", "password")).rejects.toMatchObject({
+      name: "APIError",
+      message: "Unexpected server response. Please try again.",
+    });
+  });
 });

@@ -56,9 +56,17 @@ export async function processChatGeneration(
   const claim = await claimChatGeneration(generationId);
   if (!claim) return;
 
-  const { generation: claimedGeneration, leaseToken } = claim;
+  const { generation: claimedGeneration, leaseToken, resumed } = claim;
   const payload = claimedGeneration.request_payload;
-  if (!payload) throw new Error("Chat generation replay inputs have expired");
+  if (!payload) {
+    // throwing here would leave the row leased, and recovery would claim it again forever
+    await failChatGeneration(
+      generationId,
+      "Chat generation replay inputs have expired",
+      leaseToken,
+    );
+    return;
+  }
   const { userId, sessionId, message, useRag, thinkingMode } = payload;
   const scope = payload.scope;
   const transport = createBufferedSseWriter((sse) =>
@@ -75,6 +83,12 @@ export async function processChatGeneration(
   const abortController = new AbortController();
   let abortReason: AbortReason = null;
   let leaseLost = false;
+  // another worker may already own the replay stream, so queued appends must not land on it
+  const loseLease = (): void => {
+    leaseLost = true;
+    transport.discard();
+    abortController.abort();
+  };
   let sawPresence = false;
   let firstAbsentAt: number | null = null;
   let watchdogBusy = false;
@@ -87,8 +101,7 @@ export async function processChatGeneration(
         leaseToken,
       );
       if (!leaseRenewed) {
-        leaseLost = true;
-        abortController.abort();
+        loseLease();
         return;
       }
       const cancelRequested = await isChatGenerationCancelRequested(generationId);
@@ -138,8 +151,7 @@ export async function processChatGeneration(
       output,
     );
     if (!settled) {
-      leaseLost = true;
-      abortController.abort();
+      loseLease();
       logger.warn("Chat generation lease was lost before finalization", {
         generationId,
         sessionId,
@@ -188,7 +200,9 @@ export async function processChatGeneration(
       await finishCancelled();
       return;
     }
-    if (attempt > 1) {
+    // a recovery rerun arrives as a fresh BullMQ job with attempt 1, so the
+    // attempt number cannot tell it apart from a first run; started_at can
+    if (resumed) {
       await resetChatGenerationEvents(generationId);
       await appendChatGenerationEvent(generationId, toSseEvent("reset", {}));
     }
@@ -325,7 +339,7 @@ export async function processChatGeneration(
           update.effect.detail,
           update.effect.status,
           update.effect.notes,
-                      update.effect.actionId,
+          update.effect.actionId,
         );
       } else if (update.effect.type === "abort") {
         if (!abortController.signal.aborted)

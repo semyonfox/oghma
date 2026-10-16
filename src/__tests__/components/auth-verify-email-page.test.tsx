@@ -35,3 +35,15 @@ it("requires an explicit owner password instead of verifying on navigation", asy
     }),
   );
 });
+
+it("names the unmet password rule before calling the server", async () => {
+  const fetch = vi.fn();
+  vi.stubGlobal("fetch", fetch);
+  render(<VerifyEmailPage />);
+  fireEvent.change(await screen.findByLabelText("New password"), {
+    target: { value: "nouppercase1" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Verify email" }));
+  await screen.findByText("Password must contain at least one uppercase letter");
+  expect(fetch).not.toHaveBeenCalled();
+});

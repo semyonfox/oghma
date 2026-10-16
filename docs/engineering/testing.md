@@ -2,8 +2,8 @@
 
 > **Status:** Active engineering workflow
 >
-> **Last verified:** 2026-09-15 against `package.json`, test configuration,
-> and GitHub Actions workflows
+> **Last verified:** 2026-10-16 against `package.json`, test configuration,
+> GitHub Actions workflows and the e2e reset guard
 
 Use this page to choose a check that proves the change you made. It describes
 local verification; a CI run provides check evidence but does not by itself prove
@@ -80,7 +80,12 @@ npm run e2e:smoke -- --workers=1
 npm run e2e:services:down
 ```
 
-`e2e:reset` intentionally clears the configured test database. The background
+`e2e:reset` intentionally clears the configured test database, flushes the
+Redis DB on `REDIS_HOST` and recreates `QDRANT_COLLECTION`. Before wiping
+anything it checks all three targets: the database must be a disposable test
+database, and Redis and Qdrant must be local hosts. `E2E_ALLOW_NONLOCAL_DB_RESET=1`
+is the single opt-in that allows non-local targets for all three, so a stray
+shell export can't wipe the shared homelab Redis or Qdrant. The background
 worker is required for streamed chat and other queued work. `e2e:worker` loads
 the same `.env.e2e` files as Playwright, which keeps its database, Redis, queue
 prefix, provider, and storage configuration identical to the app.
@@ -91,7 +96,7 @@ See the [chat runbook](../operations/chat.md) and
 
 The [test workflow](../../.github/workflows/test.yml) runs `npm run test:ci`,
 which executes the root and Canvas MCP Vitest suites. The build workflow runs
-ESLint, the i18n audit, and a Next.js build for pull requests to `dev` and
+ESLint, `npm run typecheck`, the i18n audit, and a Next.js build for pull requests to `dev` and
 `main`, plus pushes to those branches. The path-filtered mobile workflow
 installs the mobile lockfile and runs its type check and Node contract tests.
 The path-filtered Marker workflow installs only pinned Pydantic and Pillow

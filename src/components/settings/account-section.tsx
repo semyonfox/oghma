@@ -25,6 +25,15 @@ import {
   saveBtnClass,
 } from "./settings-utils";
 
+// the English label is the stored value, so a saved choice survives a language switch
+const TIMEZONE_OPTIONS = [
+  "UTC",
+  "Pacific Standard Time",
+  "Eastern Standard Time",
+  "Greenwich Mean Time",
+  "Central European Time",
+] as const;
+
 export type FormState = {
   firstName: string;
   lastName: string;
@@ -330,11 +339,11 @@ export default function AccountSection({
                 }
                 className="col-start-1 row-start-1 w-full appearance-none rounded-radius-md bg-surface border border-border-subtle py-1.5 pr-8 pl-3 text-sm text-text placeholder:text-text-tertiary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50 focus:outline-none"
               >
-                <option>{t("UTC")}</option>
-                <option>{t("Pacific Standard Time")}</option>
-                <option>{t("Eastern Standard Time")}</option>
-                <option>{t("Greenwich Mean Time")}</option>
-                <option>{t("Central European Time")}</option>
+                {TIMEZONE_OPTIONS.map((zone) => (
+                  <option key={zone} value={zone}>
+                    {t(zone)}
+                  </option>
+                ))}
               </select>
               <ChevronDownIcon
                 aria-hidden="true"

@@ -6,13 +6,14 @@ import sql from "@/database/pgsql";
 import { enqueueCanvasJob } from "@/lib/queue";
 import { HeadObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { createS3ClientConfig, createS3ConfigFromEnv } from "@/lib/storage/s3";
+import {
+  expireStaleVaultJobs,
+  findActiveVaultJob,
+  isUniqueViolation,
+} from "@/lib/vault/jobs";
 
 interface VaultJobIdRow {
   id: string;
-}
-
-function isUniqueViolation(error: unknown): boolean {
-  return typeof error === "object" && error !== null && (error as { code?: string }).code === "23505";
 }
 
 /**
@@ -72,17 +73,13 @@ export const POST = withErrorHandler(async (request) => {
     throw new ApiError(400, "Uploaded zip size does not match the authorized upload");
   }
 
-  const [existing] = await sql<VaultJobIdRow[]>`
-    SELECT id FROM app.canvas_import_jobs
-    WHERE user_id = ${user.user_id}
-      AND type = 'vault-import'
-      AND status IN ('queued', 'processing')
-    LIMIT 1
-  `;
+  // a job whose worker died must not hold the single active slot forever
+  await expireStaleVaultJobs(user.user_id);
+  const existing = await findActiveVaultJob(user.user_id, "vault-import");
 
   if (existing && !force) {
     return NextResponse.json(
-      { error: "Import already in progress", activeJobId: existing.id },
+      { error: "Import already in progress", activeJobId: existing },
       { status: 409 },
     );
   }
@@ -102,7 +99,7 @@ export const POST = withErrorHandler(async (request) => {
         await tx`
           UPDATE app.canvas_import_jobs
           SET status = 'cancelled', completed_at = NOW(), cancel_requested_at = NOW(), updated_at = NOW()
-          WHERE user_id = ${user.user_id}
+          WHERE user_id = ${user.user_id}::uuid
             AND type = 'vault-import'
             AND status IN ('queued', 'processing')
         `;
@@ -117,14 +114,9 @@ export const POST = withErrorHandler(async (request) => {
     });
   } catch (error) {
     if (!isUniqueViolation(error)) throw error;
-    const [active] = await sql<VaultJobIdRow[]>`
-      SELECT id FROM app.canvas_import_jobs
-      WHERE user_id = ${user.user_id} AND type = 'vault-import'
-        AND status IN ('queued', 'processing')
-      LIMIT 1
-    `;
+    const active = await findActiveVaultJob(user.user_id, "vault-import");
     return NextResponse.json(
-      { error: "Import already in progress", activeJobId: active?.id },
+      { error: "Import already in progress", activeJobId: active ?? undefined },
       { status: 409 },
     );
   }

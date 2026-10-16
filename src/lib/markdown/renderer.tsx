@@ -13,7 +13,7 @@ import type { Pluggable, PluggableList } from "unified";
 import CodeBlock from "./components/code-block";
 import { markdownSanitizeSchema } from "./sanitize-schema";
 import { parseInternalNoteHref } from "@/lib/notes/internal-links";
-import { DocumentTextIcon } from "@heroicons/react/24/outline";
+import { DocumentTextIcon, PhotoIcon } from "@heroicons/react/24/outline";
 
 export type MarkdownRendererVariant = "note" | "chat" | "quiz";
 
@@ -24,6 +24,12 @@ interface MarkdownVariantConfig {
   allowRawHtml: boolean;
   /** Runs rehype-sanitize with the shared markdown schema. */
   sanitize: boolean;
+  /**
+   * Loads images from other origins. Generated text can be steered by
+   * retrieved documents, and an auto-loading image URL can carry note content
+   * off-site without a click, so those variants show a link instead.
+   */
+  remoteImages: boolean;
 }
 
 export const markdownRendererVariants: Record<
@@ -34,18 +40,56 @@ export const markdownRendererVariants: Record<
     breaks: true,
     allowRawHtml: true,
     sanitize: true,
+    remoteImages: true,
   },
   chat: {
     breaks: true,
     allowRawHtml: false,
     sanitize: true,
+    remoteImages: false,
   },
   quiz: {
     breaks: false,
     allowRawHtml: false,
     sanitize: true,
+    remoteImages: false,
   },
 };
+
+// resolve against a placeholder origin so the URL parser, not a regex, decides
+// what leaves the site (browsers read "/\host" as "//host", for example)
+const SAME_ORIGIN_PROBE = "https://same-origin.invalid";
+
+function isSameOriginUrl(url: string): boolean {
+  try {
+    return new URL(url, `${SAME_ORIGIN_PROBE}/`).origin === SAME_ORIGIN_PROBE;
+  } catch {
+    return false;
+  }
+}
+
+function RemoteImageLink({
+  src,
+  alt,
+}: ComponentPropsWithoutRef<"img"> & ExtraProps) {
+  const source = typeof src === "string" ? src.trim() : "";
+  if (!source) return null;
+  if (isSameOriginUrl(source)) {
+    return <img src={source} alt={alt ?? ""} loading="lazy" />;
+  }
+  return (
+    <a
+      href={source}
+      target="_blank"
+      rel="noopener noreferrer nofollow"
+      title={source}
+      className="inline-flex items-center gap-1 text-[var(--md-link)] underline underline-offset-2 hover:text-[var(--md-link-hover)]"
+    >
+      <PhotoIcon aria-hidden="true" className="h-4 w-4 shrink-0" />
+      {alt || source}
+    </a>
+  );
+}
 
 type HastNode = {
   type?: string;
@@ -263,7 +307,9 @@ export default function MarkdownRenderer({
   rehypePlugins,
   components,
 }: MarkdownRendererProps) {
-  const merged = { ...baseComponents, ...components };
+  const merged: Partial<Components> = { ...baseComponents, ...components };
+  // applied last so a caller's img override cannot reopen the remote fetch
+  if (!markdownRendererVariants[variant].remoteImages) merged.img = RemoteImageLink;
   const wrapperClass = ["md-rendered", className].filter(Boolean).join(" ");
 
   return (

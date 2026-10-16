@@ -81,6 +81,17 @@ function sourceLines(text: string): SourceLine[] {
   return lines;
 }
 
+// snapshots check every stored anchor against the same document objects, so each is scanned once
+const linesByDocument = new WeakMap<SourceDocument, SourceLine[]>();
+
+function linesOf(source: SourceDocument): SourceLine[] {
+  const cached = linesByDocument.get(source);
+  if (cached) return cached;
+  const lines = sourceLines(source.text);
+  linesByDocument.set(source, lines);
+  return lines;
+}
+
 function locationAt(
   lines: SourceLine[],
   offset: number,
@@ -129,7 +140,7 @@ export function splitSourcePassages(
       "Choose a passage size between 2 and 8,000 characters so each passage can hold a complete Unicode character.",
     );
   }
-  const lines = sourceLines(source.text);
+  const lines = linesOf(source);
   const ranges: { start: number; end: number }[] = [];
   let blockStart = 0;
   const finishBlock = (end: number): void => {
@@ -224,12 +235,7 @@ export function anchorFromQuote(
     start = source.text.indexOf(quote, start + 1);
     if (start === -1) return null;
   }
-  return anchorAt(
-    source,
-    start,
-    start + quote.length,
-    sourceLines(source.text),
-  );
+  return anchorAt(source, start, start + quote.length, linesOf(source));
 }
 
 export function isCurrentAnchor(
@@ -250,7 +256,7 @@ export function isCurrentAnchor(
     source.text.slice(anchor.start, anchor.end) !== anchor.quote
   )
     return false;
-  const location = locationAt(sourceLines(source.text), anchor.start);
+  const location = locationAt(linesOf(source), anchor.start);
   return anchor.line === location.line && anchor.page === location.page;
 }
 

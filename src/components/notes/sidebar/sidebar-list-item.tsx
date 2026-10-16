@@ -1,20 +1,11 @@
 // extracted from Notea (MIT License)
-// rewritten for App Router + react-arborist v3.4.3 + Tailwind (no MUI)
+// rewritten for App Router + Tailwind (no MUI); now only renders Favorites rows
 import { NoteModel } from "@/lib/notes/types/note";
 import Link from "next/link";
-import React, {
-  FC,
-  memo,
-  useCallback,
-  useMemo,
-  useState,
-  useRef,
-  useEffect,
-} from "react";
+import React, { FC, memo, useCallback, useMemo } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import IconButton from "@/components/icon-button";
 import useNoteTreeStore from "@/lib/notes/state/tree";
-import usePortalStore from "@/lib/notes/state/portal";
 import useSyncStatusStore from "@/lib/notes/state/sync-status";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import useLayoutStore from "@/lib/notes/state/layout";
@@ -26,107 +17,24 @@ const TextSkeleton = () => (
 
 const SidebarListItem: FC<{
   item: NoteModel;
-  innerRef: (el: HTMLElement | null) => void;
   onToggle: () => void;
   isExpanded: boolean;
   hasChildren: boolean;
-  snapshot: {
-    isDragging: boolean;
-  };
-  style?: {
-    paddingLeft: number;
-  };
-  isRenaming?: boolean;
-  onRenameComplete?: (newTitle: string) => void;
-}> = ({
-  item,
-  innerRef,
-  onToggle,
-  isExpanded,
-  snapshot,
-  hasChildren,
-  isRenaming = false,
-  onRenameComplete,
-  ...attrs
-}) => {
+}> = ({ item, onToggle, isExpanded, hasChildren }) => {
   const { t } = useI18n();
   const router = useRouter();
   const pathname = usePathname();
-  const { initLoaded } = useNoteTreeStore();
-  const {
-    activePane: _activePane,
-    setPaneA,
-    setPaneB,
-    setActivePane,
-  } = useLayoutStore();
-  const {
-    menu: { open: _open, setData: _setData, setAnchor: _setAnchor },
-  } = usePortalStore();
+  const initLoaded = useNoteTreeStore((state) => state.initLoaded);
+  const setPaneA = useLayoutStore((state) => state.setPaneA);
+  const setActivePane = useLayoutStore((state) => state.setActivePane);
   const syncStatus = useSyncStatusStore((s) => s.status[item.id]);
-  const [renameValue, setRenameValue] = useState(item.title || "");
-  const renameInputRef = useRef<HTMLInputElement>(null);
-  const itemElementRef = useRef<HTMLDivElement>(null);
 
-  // derive active note id from pathname (e.g. "/abc123" -> "abc123")
-  const activeId: string | null = useMemo(() => {
-    if (!pathname || pathname === "/") return null;
-    const segments = pathname.split("/").filter(Boolean);
-    if (segments[0] === "notes") {
-      return segments[1] || null;
-    }
-    return segments[0] || null;
-  }, [pathname]);
-
-  // focus input when entering rename mode
-  useEffect(() => {
-    if (isRenaming && renameInputRef.current) {
-      renameInputRef.current.focus();
-      renameInputRef.current.select();
-    }
-  }, [isRenaming]);
-
-  // Determine if this item is a folder (use data field if available, fallback to hasChildren)
-  const isFolder = useMemo(() => {
-    return item.isFolder === true || hasChildren;
-  }, [item.isFolder, hasChildren]);
-
-  // Determine link href based on current page and item type
-  const linkHref = useMemo(() => {
-    if (isFolder) {
-      return "#";
-    }
-    // If on /notes page, stay within notes (e.g. /notes/note-id)
-    // Otherwise navigate to root note page (e.g. /note-id)
-    if (pathname?.startsWith("/notes")) {
-      return `/notes/${item.id}`;
-    }
-    return `/${item.id}`;
-  }, [pathname, item.id, isFolder]);
-
-  const handleClickMenu = useCallback(
-    (event: React.MouseEvent) => {
-      event.preventDefault();
-      event.stopPropagation();
-
-      // Get button position to show menu nearby
-      const button = event.currentTarget;
-      const rect = button.getBoundingClientRect();
-
-      // Create synthetic right-click event with button position
-      const syntheticEvent = new MouseEvent("contextmenu", {
-        bubbles: true,
-        cancelable: true,
-        clientX: rect.left,
-        clientY: rect.bottom + 4, // Position menu below button
-      });
-
-      // Dispatch on the wrapper element to trigger right-click menu
-      if (itemElementRef.current) {
-        itemElementRef.current.dispatchEvent(syntheticEvent);
-      }
-    },
-    [itemElementRef],
-  );
+  const activeId = pathname?.startsWith("/notes/")
+    ? pathname.split("/")[2] || null
+    : null;
+  const isActive = activeId === item.id;
+  const isFolder = item.isFolder === true || hasChildren;
+  const linkHref = isFolder ? "#" : `/notes/${item.id}`;
 
   const handleClickIcon = useCallback(
     (e: Pick<React.SyntheticEvent, "preventDefault" | "stopPropagation">) => {
@@ -139,19 +47,17 @@ const SidebarListItem: FC<{
 
   const handleClickItem = useCallback(
     (e: React.MouseEvent) => {
-      // only folders can be toggled on single click
+      // folders toggle; files navigate through the Link
       if (isFolder) {
         e.preventDefault();
         onToggle();
       }
-      // files require double click - Link handles single click navigation
     },
     [isFolder, onToggle],
   );
 
   const handleDoubleClick = useCallback(
     (e: React.MouseEvent) => {
-      // double click opens files, prevents default expand behavior
       if (!isFolder) {
         e.preventDefault();
         setPaneA(buildFileSpec(item));
@@ -160,43 +66,6 @@ const SidebarListItem: FC<{
       }
     },
     [isFolder, item, linkHref, router, setActivePane, setPaneA],
-  );
-
-  /**
-   * NOTE: Drag handling is managed by react-complex-tree for tree operations.
-   * Custom drag/drop for pane-to-pane transfers is handled by dataTransfer in file-view-pane.
-   * Removed custom drag handlers to avoid conflicts with react-complex-tree.
-   */
-
-  const _openInPane = useCallback(
-    (pane: "A" | "B") => (e: React.MouseEvent<HTMLButtonElement>) => {
-      e.preventDefault();
-      e.stopPropagation();
-
-      const spec = buildFileSpec(item);
-      if (pane === "A") {
-        setPaneA(spec);
-        setActivePane("A");
-        router.push(linkHref);
-        return;
-      }
-
-      setPaneB(spec);
-      setActivePane("B");
-    },
-    [item, linkHref, router, setActivePane, setPaneA, setPaneB],
-  );
-
-  // Memoize rename completion handler
-  const handleRenameCompleteMemoized = useCallback(
-    (newTitle: string) => {
-      if (newTitle.trim() && newTitle !== item.title) {
-        onRenameComplete?.(newTitle);
-      } else {
-        onRenameComplete?.(item.title || "");
-      }
-    },
-    [onRenameComplete, item.title],
   );
 
   const emoji = useMemo(() => {
@@ -208,20 +77,13 @@ const SidebarListItem: FC<{
   return (
     <>
       <div
-        {...attrs}
-        ref={(el) => {
-          itemElementRef.current = el;
-          innerRef(el);
-        }}
         className={`flex items-center pr-2 overflow-hidden text-text-tertiary hover:text-text-secondary hover:bg-subtle transition-colors duration-200 rounded-radius-sm px-2 py-1.5 cursor-pointer group ${
-          snapshot.isDragging
-            ? "opacity-60 bg-subtle-hover shadow-lg ring-1 ring-primary-400/30"
-            : ""
-        } ${activeId === item.id ? "bg-primary-500/10 text-primary-400" : ""}`}
+          isActive ? "bg-primary-500/10 text-primary-400" : ""
+        }`}
         role="treeitem"
         aria-expanded={isFolder ? isExpanded : undefined}
-        aria-selected={activeId === item.id}
-        aria-current={activeId === item.id ? "page" : undefined}
+        aria-selected={isActive}
+        aria-current={isActive ? "page" : undefined}
       >
         <Link
           href={linkHref}
@@ -231,7 +93,6 @@ const SidebarListItem: FC<{
           aria-label={item.title || t("Untitled")}
         >
           {isFolder ? (
-            // Folders: show expand/collapse icon
             emoji ? (
               <span
                 onClick={handleClickIcon}
@@ -258,7 +119,6 @@ const SidebarListItem: FC<{
               ></IconButton>
             )
           ) : (
-            // Files: just show the file icon, no click handler
             <IconButton
               className="flex-shrink-0 w-4 h-4 mr-1"
               icon={item.title ? "DocumentText" : "Document"}
@@ -267,76 +127,39 @@ const SidebarListItem: FC<{
             ></IconButton>
           )}
 
-          {isRenaming ? (
-            <input
-              ref={renameInputRef}
-              type="text"
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              onBlur={() => handleRenameCompleteMemoized(renameValue)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  if (renameValue.trim()) {
-                    handleRenameCompleteMemoized(renameValue);
-                  }
-                } else if (e.key === "Escape") {
-                  e.preventDefault();
-                  setRenameValue(item.title || "");
-                  handleRenameCompleteMemoized(item.title || "");
-                }
-              }}
-              className="flex-1 truncate bg-subtle border border-border rounded-radius-sm px-1 py-0.5 outline-none text-text-secondary focus:bg-subtle-hover focus:border-primary-500 transition-colors text-sm"
-              dir="auto"
-              onClick={(e) => e.stopPropagation()}
-              aria-label={t("Rename note")}
-            />
-          ) : (
-            <span
-              className={`flex-1 truncate text-sm ${
-                syncStatus === "modified"
-                  ? "text-amber-400"
-                  : syncStatus === "new"
-                    ? "text-green-400"
-                    : ""
-              }`}
-              dir="auto"
-            >
-              {(emoji
-                ? item.title.replace(emoji, "").trimLeft()
-                : item.title) ||
-                (initLoaded ? t("Untitled") : <TextSkeleton />)}
-              {syncStatus === "modified" && (
-                <span
-                  className="ml-1 text-amber-400 text-xs"
-                  title={t("Modified")}
-                >
-                  M
-                </span>
-              )}
-              {syncStatus === "new" && (
-                <span className="ml-1 text-green-400 text-xs" title={t("New")}>
-                  U
-                </span>
-              )}
-            </span>
-          )}
+          <span
+            className={`flex-1 truncate text-sm ${
+              syncStatus === "modified"
+                ? "text-amber-400"
+                : syncStatus === "new"
+                  ? "text-green-400"
+                  : ""
+            }`}
+            dir="auto"
+          >
+            {(emoji
+              ? item.title.replace(emoji, "").trimStart()
+              : item.title) ||
+              (initLoaded ? t("Untitled") : <TextSkeleton />)}
+            {syncStatus === "modified" && (
+              <span
+                className="ml-1 text-amber-400 text-xs"
+                title={t("Modified")}
+              >
+                M
+              </span>
+            )}
+            {syncStatus === "new" && (
+              <span className="ml-1 text-green-400 text-xs" title={t("New")}>
+                U
+              </span>
+            )}
+          </span>
         </Link>
-
-        <IconButton
-          icon="DotsHorizontal"
-          onClick={handleClickMenu}
-          className="p-1 text-text-tertiary hover:text-text-secondary rounded-radius-sm transition-colors hidden group-hover:block flex-shrink-0"
-          title={t("Remove, Copy Link, etc")}
-          aria-label={t("Note actions")}
-        ></IconButton>
-
       </div>
 
       {isFolder && !hasChildren && isExpanded && (
-        <div
-          className={`py-1.5 text-text-tertiary select-none ml-${Math.floor((attrs.style?.paddingLeft || 0) / 10)}`}
-        >
+        <div className="py-1.5 text-text-tertiary select-none">
           {initLoaded ? t("No notes inside") : <TextSkeleton />}
         </div>
       )}

@@ -3,7 +3,7 @@ import {
   DEFAULT_EDITOR_SIZE,
   getEditorSizeFromIndex,
   getEditorWidthIndex,
-  getEditorWidthStyle,
+  getEditorMaxWidth,
   normalizeEditorSize,
 } from "@/lib/notes/editor-width";
 
@@ -22,17 +22,11 @@ describe("editor width settings", () => {
   });
 
   it("uses the large width by default", () => {
-    expect(getEditorWidthStyle(undefined)).toMatchObject({
-      sourceMaxWidth: "62rem",
-      previewMaxWidth: "62rem",
-    });
+    expect(getEditorMaxWidth(undefined)).toBe("62rem");
   });
 
   it("removes the max width for full", () => {
-    expect(getEditorWidthStyle("full")).toMatchObject({
-      sourceMaxWidth: "none",
-      previewMaxWidth: "none",
-    });
+    expect(getEditorMaxWidth("full")).toBe("none");
   });
 
   it("maps slider stops to editor sizes", () => {

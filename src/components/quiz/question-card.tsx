@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { BLOOM_NAMES } from "@/lib/quiz/types";
 import type { QuizSessionQuestion } from "@/lib/quiz/types";
-import { isFillAnswerCorrect } from "@/lib/quiz/fill-answer";
+import { answersByTyping, gradeAnswer } from "@/lib/quiz/grade";
 import QuizMarkdown from "./quiz-markdown";
 
 interface QuestionCardProps {
@@ -34,7 +34,9 @@ export default function QuestionCard({
     () => (Array.isArray(question.options) ? question.options : []),
     [question.options],
   );
-  const hasOptions = options.length > 0;
+  // a choice question whose options could not be read is answered by typing
+  const typed = answersByTyping(question);
+  const hasOptions = !typed;
   const [selected, setSelected] = useState<number | null>(null);
   const [fillInAnswer, setFillInAnswer] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -46,18 +48,16 @@ export default function QuestionCard({
 
   const handleSubmit = useCallback(() => {
     if (submitted) return;
-    setSubmitted(true);
+    const answer = typed
+      ? fillInAnswer
+      : selected !== null
+        ? options[selected]?.text
+        : undefined;
+    if (answer === undefined || !answer.trim()) return;
 
-    if (question.question_type === "fill_in") {
-      onAnswer(
-        fillInAnswer,
-        isFillAnswerCorrect(fillInAnswer, question.correct_answer),
-      );
-    } else if (selected !== null && hasOptions) {
-      const isCorrect = options[selected].is_correct;
-      onAnswer(options[selected].text, isCorrect);
-    }
-  }, [submitted, question, fillInAnswer, selected, onAnswer, hasOptions, options]);
+    setSubmitted(true);
+    onAnswer(answer, gradeAnswer(question, answer));
+  }, [submitted, typed, fillInAnswer, selected, options, question, onAnswer]);
 
   // keyboard shortcuts for MCQ selection and submission
   useEffect(() => {
@@ -69,7 +69,11 @@ export default function QuestionCard({
       )
         return;
 
-      if (hasOptions) {
+      // only bare single characters pick options; otherwise keys like
+      // Backspace or Cmd+C would select B or C
+      const isOptionKey =
+        e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
+      if (hasOptions && isOptionKey) {
         const numKey = parseInt(e.key);
         if (numKey >= 1 && numKey <= options.length) {
           e.preventDefault();
@@ -172,7 +176,7 @@ export default function QuestionCard({
       )}
 
       {/* Fill-in-the-blank */}
-      {question.question_type === "fill_in" && (
+      {typed && (
         <div className="flex gap-2">
           <input
             type="text"
@@ -195,10 +199,7 @@ export default function QuestionCard({
       {!submitted && (
         <button
           onClick={handleSubmit}
-          disabled={
-            (hasOptions && selected === null) ||
-            (question.question_type === "fill_in" && !fillInAnswer.trim())
-          }
+          disabled={typed ? !fillInAnswer.trim() : selected === null}
           className="glass-card-interactive text-text px-6 py-2.5 rounded-radius-lg text-sm font-medium self-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {t("quiz.question.check_answer")}

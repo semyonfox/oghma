@@ -11,7 +11,13 @@ const mocks = vi.hoisted(() => ({
   sql: vi.fn(),
 }));
 
-vi.mock("@/lib/api-error", () => ({
+vi.mock("@/lib/api-error", async () => ({
+  requireValidId: (value: unknown) => {
+    if (typeof value === "string" && /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value)) {
+      return value;
+    }
+    throw Object.assign(new Error("Invalid ID"), { statusCode: 400 });
+  },
   requireAuth: mocks.requireAuth,
   withErrorHandler:
     (handler: TestRouteHandler) =>
@@ -66,6 +72,13 @@ describe("GET /api/tree/children", () => {
     await GET(new NextRequest("http://localhost/api/tree/children"));
 
     expect(mocks.sql).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects a malformed parent before it reaches the uuid cast", async () => {
+    await expect(
+      GET(new NextRequest("http://localhost/api/tree/children?parent_id=----")),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(mocks.sql).not.toHaveBeenCalled();
   });
 
   it("rejects a trashed parent before reading its children", async () => {

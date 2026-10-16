@@ -25,13 +25,15 @@ for the signing fingerprint and device verification gate. The dedicated native w
 
 An existing alpha session transfers to the WebView once. The old SecureStore session is removed only after successful transfer, preventing an old native session from signing the user back in after website logout. Previous native draft keys remain on the device; the web editor does not import those drafts. New edits use the website's existing save and recovery behaviour.
 
-Native cookie installation accepts only the exact production and development HTTPS origins. Native bridge messages are limited to Google/GitHub sign-in, the update screen and resolved light/dark theme. The shell checks each message's source origin and payload before acting. File/content/intent/JavaScript navigation is blocked.
+Native cookie installation accepts only the exact production and development HTTPS origins. Native bridge messages cover Google/GitHub sign-in, the update screen, the resolved light/dark theme, and the offline reader (`offline-open`, `offline-account`, `offline-save`). The shell checks each message's source origin, size (512 bytes, or 250 kB for `offline-save`) and payload against a strict schema before acting. File, content, intent, JavaScript, blob and data navigation is blocked, as are URLs with credentials. The website confirms the signed-in account for the offline reader once per page rather than on every navigation; an account switch goes through `/login`, a full reload or sign-out in settings, which all reset it.
 
 ## In-app updates
 
 Updates are available on login and in Settings inside the app. A quiet notice announces a newer Android version. Checks happen at startup and at most every 30 minutes on foregrounding. Downloading requires a tap and supports progress, cancellation and retry without interrupting the workspace.
 
 Updates always use the production HTTPS download endpoint. The native updater streams into private cache and checks size, SHA-256, package, versionCode and signing identity before offering installation through a read-only content URI. Android requires confirmation and may first require permission to install apps from OghmaNotes. Returning from permission settings never starts installation automatically. A cancelled installer can be reopened. Process death requires a fresh download.
+
+The release manifest must include a positive integer `versionCode`. The `/downloads` page and the in-app updater both reject a manifest without it, and the Docker build refuses a manifest with a bad `versionCode`, size or hash.
 
 Version 0.1.2 was the first build with the updater. Earlier installations need a manual APK update. The package and release signing identity stay the same. The downloads page remains linked only from the website footer.
 
@@ -74,7 +76,7 @@ online note. Storage is bounded to 100 notes, 200,000 characters per note and
 500,000 characters for the serialized library; hitting a limit asks the user to
 remove downloads rather than silently evicting them.
 
-The app advertises `OghmaNotesOffline/1` in its user agent. Older APKs do not get
+The app advertises `OghmaNotesAndroid/<version> OghmaNotesOffline/1` in its user agent. From the next JavaScript bundle the version is read from the installed APK; 0.1.6 bundles before that still report the hardcoded `0.1.5`. Older APKs do not get
 offline controls. The bridge accepts bounded snapshots only from the configured
 origin. `GET /api/notes/:id/offline` binds the snapshot to the authenticated owner,
 excludes deleted notes, folders and attachments, and returns `private, no-store`.
@@ -99,7 +101,7 @@ images. Keyboard, OAuth-return and APK-installer behaviour remain unverified on 
 
 ## 0.1.5 EAS Update preparation
 
-Status: unreleased source target as of 2026-09-25. Version 0.1.5 adds the
+Status: superseded by 0.1.6 and never released; notes from 2026-09-25. Version 0.1.5 adds the
 `expo-updates` native module to the existing signed APK build. It will use the
 public project ID of [foxscope/oghmanotes-alpha](https://expo.dev/accounts/foxscope/projects/oghmanotes-alpha), the `production` update channel
 for the production website origin, and the app version as its runtime version.

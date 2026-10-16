@@ -29,7 +29,7 @@ The `production` channel is linked to its branch. The `preview` channel is reser
 
 The script creates a dedicated private alpha signing identity on first use under `$XDG_DATA_HOME/oghmanotes-mobile`, falling back to `$HOME/.local/share/oghmanotes-mobile`. Keep that directory private and preserve it for future updates. Override its location with `OGHMA_ANDROID_SIGNING_DIR`. The build fails instead of replacing an incomplete signing identity. Never commit signing files or credentials.
 
-Output: `apps/mobile/dist/oghmanotes-alpha.apk`. It is a release APK with bundled JavaScript and does not need Metro. The package identifier is `ie.oghmanotes.alpha`. Increment `android.versionCode` and the version in `app.json` for each distributed update. Android native files are generated and ignored.
+Output: `apps/mobile/dist/oghmanotes-alpha.apk`. It is a release APK with bundled JavaScript and does not need Metro. The package identifier is `ie.oghmanotes.alpha`. Increment `android.versionCode` and the version in `app.json` for each distributed update, and keep `package.json` in step. The WebView user agent reads the installed version, so it needs no separate bump. Android native files are generated and ignored.
 
 ## Offline notes
 

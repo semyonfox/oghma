@@ -113,7 +113,7 @@ Infrastructure should scale from measured queue age, latency, and capacity. Prod
 
 These run alongside the phases above, each gated by its own owner document rather than by a phase boundary:
 
-- **Unified writing surface.** A feature-flagged Milkdown Crepe prototype is the candidate replacement for the CodeMirror live-preview editor; Markdown stays canonical. Requirements, spike scope, and release gates live in the [editor migration handover](../engineering/markdown-editor-migration-handover.md). CodeMirror remains production until those gates pass.
+- **Unified writing surface.** Done: Milkdown Crepe replaced the CodeMirror live-preview editor and Markdown stays canonical. The current contract is [markdown-rendering.md](../engineering/markdown-rendering.md); the original [migration handover](../history/2026-07-15-markdown-editor-migration-handover.md) is history.
 - **Extraction cost path.** OCR is a top margin risk in [pricing.md](pricing.md). Hosted Marker vision integration landed and was benchmarked in July 2026; the fork-versus-PyPI serving decision is owned by the Marker++ benchmark analysis in its separate repository. Decide the serving path before paid launch, from measured throughput and minimum-billing waste.
 - **Agent surfaces.** Close the gaps recorded in [agent-compatibility.md](../engineering/agent-compatibility.md): a public remote MCP server with user OAuth and narrowed tools, a spam-resistant contact-intent endpoint, and stronger OpenAPI response schemas. Discovery must never grant authority.
 

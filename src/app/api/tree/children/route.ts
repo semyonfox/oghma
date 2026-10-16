@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type postgres from "postgres";
-import { withErrorHandler, requireAuth, ApiError } from '@/lib/api-error';
+import { withErrorHandler, requireAuth, requireValidId, ApiError } from '@/lib/api-error';
 import sql from '@/database/pgsql';
 
 const database = sql as postgres.Sql;
@@ -43,16 +43,11 @@ export const GET = withErrorHandler(async (request) => {
     const user = await requireAuth();
 
     const url = new URL(request.url);
-    const parentId = url.searchParams.get('parent_id');
+    const rawParentId = url.searchParams.get('parent_id');
+    const parentId = rawParentId ? requireValidId(rawParentId, 'parent_id') : null;
 
-    // validate parent_id format if provided
-    if (parentId && !/^[0-9a-f-]+$/i.test(parentId)) {
-      throw new ApiError(400, 'Invalid parent_id format');
-    }
-
-    // Check a non-root parent before serving cache: a stale child-list cache
-    // must not expose content underneath a trashed or otherwise unavailable
-    // folder.
+    // a trashed or foreign folder is a 404, never an empty branch: the client
+    // treats an empty snapshot as "this folder has no children"
     if (parentId) {
       const parents = await database<{ note_id: string }[]>`
         SELECT note_id

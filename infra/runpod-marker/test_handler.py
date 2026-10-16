@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import importlib.util
 import os
 import sys
@@ -206,6 +207,31 @@ class MetricsAndUploadTest(unittest.TestCase):
         self.handler.WARM_TIMEOUT_SECONDS = 10
         self.handler.get_pool = lambda: Pool()
         self.handler.warm_pool()
+
+
+class BrokenPoolTest(unittest.TestCase):
+    def test_a_dead_conversion_child_does_not_poison_later_jobs(self) -> None:
+        from concurrent.futures.process import BrokenProcessPool
+
+        handler = load_handler_module()
+
+        class DeadPool:
+            shutdown_calls = 0
+
+            def submit(self, *_args: object) -> None:
+                raise BrokenProcessPool("child terminated abruptly")
+
+            def shutdown(self, wait: bool, cancel_futures: bool) -> None:
+                self.shutdown_calls += 1
+
+        dead = DeadPool()
+        handler._POOL = dead
+
+        with self.assertRaises(BrokenProcessPool):
+            asyncio.run(handler.run_conversion("/tmp/document.pdf", {}))
+
+        self.assertIsNone(handler._POOL)
+        self.assertEqual(dead.shutdown_calls, 1)
 
 
 if __name__ == "__main__":

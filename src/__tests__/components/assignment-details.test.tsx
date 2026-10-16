@@ -15,7 +15,7 @@ const details = { url: "https://school.instructure.com/courses/1/assignments/2",
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 describe("assignment details", () => {
   it("requires review before sending coursework", async () => {
-    const fetch = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify(details))).mockResolvedValueOnce(new Response('{"submitted":true}'));
+    const fetch = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify(details))).mockResolvedValueOnce(new Response('{"submitted":true}')).mockResolvedValueOnce(new Response("[]"));
     vi.stubGlobal("fetch", fetch);
     render(<AssignmentDetails assignment={assignment} onClose={vi.fn()} />);
     await screen.findByText("Write an essay");
@@ -24,8 +24,10 @@ describe("assignment details", () => {
     expect(fetch).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole("button", { name: "Confirm submission" }));
     await screen.findByText("Submitted to Canvas. Open Canvas to view your submission.");
-    expect(fetch).toHaveBeenCalledTimes(2);
     expect(fetch.mock.calls[1][1]).toMatchObject({ method: "POST", body: JSON.stringify({ type: "online_text_entry", content: "My essay" }) });
+    // the tracker reloads so the task shows as done without a manual refresh
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(3));
+    expect(fetch.mock.calls[2][0]).toMatch(/^\/api\/assignments/);
   });
   it("ignores swipe-to-dismiss while a submission is saving", async () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 390 });

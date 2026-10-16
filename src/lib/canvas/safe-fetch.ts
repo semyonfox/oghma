@@ -62,10 +62,50 @@ const publicIpv4Lookup: LookupFunction = (hostname, options, callback) => {
   );
 };
 
+// undici defaults both timeouts to five minutes, so a stalled Canvas could pin a
+// route or worker slot for that long on every retry. bodyTimeout is the idle gap
+// between chunks, not a total, so large file downloads are unaffected.
+const CANVAS_HEADERS_TIMEOUT_MS = 30_000;
+const CANVAS_BODY_IDLE_TIMEOUT_MS = 60_000;
+
 const publicAddressAgent = new Agent({
   connect: { lookup: publicIpv4Lookup, timeout: 15_000 },
   connections: 8,
+  headersTimeout: CANVAS_HEADERS_TIMEOUT_MS,
+  bodyTimeout: CANVAS_BODY_IDLE_TIMEOUT_MS,
 });
+
+// neither undici timeout bounds a whole exchange: a response that drips a byte
+// inside every idle window never ends. this deadline covers redirects and the
+// body too, because the signal stays attached to the response stream
+const CANVAS_REQUEST_DEADLINE_MS = 2 * 60_000;
+// downloads can be up to CANVAS_MAX_FILE_BYTES, so they get longer
+const CANVAS_DOWNLOAD_DEADLINE_MS = 10 * 60_000;
+
+export class CanvasRequestTimeoutError extends Error {
+  readonly code = "CANVAS_REQUEST_TIMEOUT";
+
+  constructor(timeoutMs: number) {
+    super(`Canvas request timed out after ${timeoutMs}ms`);
+    this.name = "CanvasRequestTimeoutError";
+  }
+}
+
+function deadlineMs(name: string, fallback: number): number {
+  const value = Number.parseInt(process.env[name] ?? "", 10);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function requestDeadline(timeoutMs: number, signal?: AbortSignal): AbortSignal {
+  const controller = new AbortController();
+  // unref so a pending deadline never holds the process open; aborting after
+  // the body has been read is a no-op
+  setTimeout(
+    () => controller.abort(new CanvasRequestTimeoutError(timeoutMs)),
+    timeoutMs,
+  ).unref();
+  return signal ? AbortSignal.any([controller.signal, signal]) : controller.signal;
+}
 
 function safeHttpsUrl(value: string): URL {
   const authority = value.match(/^https:\/\/([^/?#]+)/i)?.[1];
@@ -93,12 +133,19 @@ export async function safeCanvasFetch(
 ) {
   let url = safeHttpsUrl(value);
   let requestHeaders = headers;
+  const signal = requestDeadline(
+    followFileRedirects
+      ? deadlineMs("CANVAS_DOWNLOAD_TIMEOUT_MS", CANVAS_DOWNLOAD_DEADLINE_MS)
+      : deadlineMs("CANVAS_REQUEST_TIMEOUT_MS", CANVAS_REQUEST_DEADLINE_MS),
+    request?.signal,
+  );
 
   for (let redirects = 0; ; redirects++) {
     let response;
     try {
       response = await undiciFetch(url, {
         ...request,
+        signal,
         headers: requestHeaders,
         dispatcher: publicAddressAgent,
         redirect: "manual",

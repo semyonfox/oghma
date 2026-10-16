@@ -20,25 +20,53 @@ import sql from "@/database/pgsql";
 import { requireAuth } from "@/lib/api-error";
 import { DELETE } from "@/app/api/vault/jobs/[jobId]/cancel/route";
 
+const JOB_ID = "11111111-1111-4111-8111-111111111111";
+
+function cancel(jobId: string) {
+  const req = new NextRequest(`http://localhost/api/vault/jobs/${jobId}/cancel`, { method: "DELETE" });
+  return DELETE(req, { params: Promise.resolve({ jobId }) } as never);
+}
+
+function queryText(): string {
+  const [strings] = vi.mocked(sql).mock.calls[0];
+  return Array.isArray(strings) ? strings.join("?") : "";
+}
+
 describe("DELETE /api/vault/jobs/[jobId]/cancel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(requireAuth).mockResolvedValue({ user_id: "u1" } as never);
   });
 
-  it("sets cancel_requested_at and returns 200", async () => {
-    vi.mocked(sql).mockResolvedValueOnce([{ id: "j1" }] as never);
-    const req = new NextRequest("http://localhost/api/vault/jobs/j1/cancel", { method: "DELETE" });
-    const res = await DELETE(req, { params: Promise.resolve({ jobId: "j1" }) } as never);
+  it("requests cancellation for the caller's own vault job only", async () => {
+    vi.mocked(sql).mockResolvedValueOnce([{ id: JOB_ID, status: "processing" }] as never);
+
+    const res = await cancel(JOB_ID);
+
     expect(res.status).toBe(200);
-    expect(vi.mocked(sql)).toHaveBeenCalled();
+    await expect(res.json()).resolves.toMatchObject({ jobId: JOB_ID, status: "processing" });
+    const text = queryText();
+    expect(text).toContain("user_id = ?::uuid");
+    expect(text).toContain("type IN ('vault-import', 'vault-export')");
+    expect(vi.mocked(sql).mock.calls[0]).toContain("u1");
+  });
+
+  it("finishes a queued job immediately because no worker will ever claim it", async () => {
+    vi.mocked(sql).mockResolvedValueOnce([{ id: JOB_ID, status: "cancelled" }] as never);
+
+    const res = await cancel(JOB_ID);
+
+    await expect(res.json()).resolves.toMatchObject({ status: "cancelled" });
+    expect(queryText()).toContain("CASE WHEN status = 'queued' THEN 'cancelled'");
   });
 
   it("returns 404 when job not found or not owned by user", async () => {
     vi.mocked(sql).mockResolvedValueOnce([] as never);
-    const req = new NextRequest("http://localhost/api/vault/jobs/x/cancel", { method: "DELETE" });
-    await expect(
-      DELETE(req, { params: Promise.resolve({ jobId: "x" }) } as never)
-    ).rejects.toThrow(); // ApiError thrown — withErrorHandler converts to 404 response in production
+    await expect(cancel(JOB_ID)).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it("returns 404 for a malformed id instead of a uuid cast error", async () => {
+    await expect(cancel("not-a-job")).rejects.toMatchObject({ statusCode: 404 });
+    expect(sql).not.toHaveBeenCalled();
   });
 });

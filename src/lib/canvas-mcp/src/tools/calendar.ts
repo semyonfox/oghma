@@ -35,18 +35,19 @@ export const calendarTools: ToolDef[] = [
             limit: z.number().int().positive().optional(),
         }),
         handler: async (args, { canvas }) => {
-            const events = await canvas.get<Array<Record<string, unknown>>>(
-                "/api/v1/users/self/upcoming_events",
+            const events = await canvas.get<unknown>("/api/v1/users/self/upcoming_events");
+            if (!Array.isArray(events)) return jsonResult(events);
+            let filtered = events.filter(
+                (e): e is Record<string, unknown> => typeof e === "object" && e !== null,
             );
-            let filtered = events;
             if (args.type) {
                 filtered = filtered.filter((e) => e["type"] === args.type);
             }
             if (args.days !== undefined) {
                 const cutoff = Date.now() + args.days * 86_400_000;
                 filtered = filtered.filter((e) => {
-                    const when = (e["end_at"] ?? e["start_at"] ?? e["due_at"]) as string | undefined;
-                    if (!when) return true;
+                    const when = e["end_at"] ?? e["start_at"] ?? e["due_at"];
+                    if (typeof when !== "string") return true;
                     const t = Date.parse(when);
                     return Number.isNaN(t) ? true : t <= cutoff;
                 });
@@ -87,11 +88,10 @@ export const calendarTools: ToolDef[] = [
         },
     }),
 
-    // Privileged tools remain in the standalone adapter. The hosted profile
-    // filters them in src/lib/canvas/mcp.ts.
     defineTool({
         name: "canvas_create_calendar_event",
-        description: "Create a calendar event. Requires educator permissions.",
+        description:
+            "Create a calendar event. Use context_code user_<id> for a personal event; course or group contexts need Canvas permission there.",
         inputSchema: z.object({
             context_code: z.string(),
             title: z.string(),
@@ -116,7 +116,7 @@ export const calendarTools: ToolDef[] = [
     }),
     defineTool({
         name: "canvas_update_calendar_event",
-        description: "Update a calendar event. Requires educator permissions.",
+        description: "Update a calendar event the authenticated user can edit.",
         inputSchema: z.object({
             event_id: canvasIdSchema,
             title: z.string().optional(),
@@ -138,19 +138,22 @@ export const calendarTools: ToolDef[] = [
     }),
     defineTool({
         name: "canvas_delete_calendar_event",
-        description: "Delete a calendar event. Requires educator permissions.",
+        description: "Delete a calendar event the authenticated user can edit.",
         inputSchema: z.object({
             event_id: canvasIdSchema,
             cancel_reason: z.string().optional(),
         }),
         handler: async (args, { canvas }) => {
-            const result = await canvas.delete(`/api/v1/calendar_events/${args.event_id}`);
+            const result = await canvas.delete(
+                `/api/v1/calendar_events/${args.event_id}`,
+                args.cancel_reason !== undefined ? { cancel_reason: args.cancel_reason } : undefined,
+            );
             return jsonResult(result);
         },
     }),
     defineTool({
         name: "canvas_create_planner_note",
-        description: "Create a planner note. Requires educator permissions.",
+        description: "Create a personal planner note (to-do) for the authenticated user, optionally linked to a course.",
         inputSchema: z.object({
             title: z.string(),
             details: z.string().optional(),
@@ -169,7 +172,7 @@ export const calendarTools: ToolDef[] = [
     }),
     defineTool({
         name: "canvas_update_planner_note",
-        description: "Update a planner note. Requires educator permissions.",
+        description: "Update one of the authenticated user's planner notes.",
         inputSchema: z.object({
             note_id: canvasIdSchema,
             title: z.string().optional(),
@@ -187,7 +190,7 @@ export const calendarTools: ToolDef[] = [
     }),
     defineTool({
         name: "canvas_delete_planner_note",
-        description: "Delete a planner note. Requires educator permissions.",
+        description: "Delete one of the authenticated user's planner notes.",
         inputSchema: z.object({
             note_id: canvasIdSchema,
         }),
@@ -198,7 +201,7 @@ export const calendarTools: ToolDef[] = [
     }),
     defineTool({
         name: "canvas_mark_planner_item_complete",
-        description: "Mark a planner override item as complete. Requires educator permissions.",
+        description: "Mark one of the authenticated user's planner override items complete or incomplete.",
         inputSchema: z.object({
             override_id: canvasIdSchema,
             marked_complete: z.boolean(),

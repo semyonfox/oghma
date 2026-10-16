@@ -6,6 +6,15 @@ const DEFAULT_COLLECTION = "oghma_chunks";
 // default 32 MiB HTTP payload limit. A single imported text file can produce
 // hundreds of chunks, so point count must not map to one unbounded request.
 const UPSERT_BATCH_SIZE = 128;
+// id-only requests are tiny per point, but a vault wipe can journal thousands
+// of chunks. Bounding them keeps each request well inside the fetch deadline.
+const ID_BATCH_SIZE = 1_000;
+const REQUEST_TIMEOUT_MS = 10_000;
+const PAYLOAD_INDEXES = [
+  ["user_id", "keyword"],
+  ["document_id", "keyword"],
+  ["searchable", "bool"],
+] as const;
 
 interface QdrantPointPayload {
   chunk_id: string;
@@ -56,7 +65,12 @@ export interface SearchChunkVectorsParams {
   excludeChunkIds?: string[];
 }
 
+interface QdrantCollectionInfo {
+  result?: { config?: { params?: { vectors?: { size?: unknown } } } };
+}
+
 let ensuredCollectionSize: number | null = null;
+let ensuringCollection: { size: number; promise: Promise<void> } | null = null;
 
 function qdrantCollectionConfig(vectorSize: number) {
   return {
@@ -95,15 +109,18 @@ function qdrantHeaders(): HeadersInit {
   return headers;
 }
 
+function requestSignal(signal?: AbortSignal | null): AbortSignal {
+  const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
+}
+
 async function qdrantFetch<T>(
   path: string,
   init: RequestInit = {},
 ): Promise<T> {
   const res = await fetch(`${qdrantUrl()}${path}`, {
     ...init,
-    signal: init.signal
-      ? AbortSignal.any([init.signal, AbortSignal.timeout(10_000)])
-      : AbortSignal.timeout(10_000),
+    signal: requestSignal(init.signal),
     headers: {
       ...qdrantHeaders(),
       ...init.headers,
@@ -111,6 +128,9 @@ async function qdrantFetch<T>(
   });
 
   if (!res.ok) {
+    // a wiped or recreated Qdrant volume must not leave this process caching
+    // a collection that no longer exists until the next restart
+    if (res.status === 404) ensuredCollectionSize = null;
     const body = await res.text().catch(() => "");
     throw new Error(
       `Qdrant ${init.method || "GET"} ${path} failed: ${res.status} ${body}`,
@@ -123,7 +143,7 @@ async function qdrantFetch<T>(
 
 async function createPayloadIndex(
   fieldName: string,
-  fieldSchema: "keyword" | "bool" = "keyword",
+  fieldSchema: "keyword" | "bool",
   signal?: AbortSignal,
 ): Promise<void> {
   try {
@@ -145,13 +165,17 @@ async function createPayloadIndex(
   }
 }
 
-export async function ensureQdrantCollection(vectorSize: number, signal?: AbortSignal): Promise<void> {
-  if (ensuredCollectionSize === vectorSize) return;
+async function createPayloadIndexes(signal?: AbortSignal): Promise<void> {
+  for (const [fieldName, fieldSchema] of PAYLOAD_INDEXES) {
+    await createPayloadIndex(fieldName, fieldSchema, signal);
+  }
+}
 
+async function setUpCollection(vectorSize: number, signal?: AbortSignal): Promise<void> {
   const collection = qdrantCollection();
   const existing = await fetch(`${qdrantUrl()}/collections/${collection}`, {
     headers: qdrantHeaders(),
-    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(10_000)]) : AbortSignal.timeout(10_000),
+    signal: requestSignal(signal),
   });
 
   if (existing.status === 404) {
@@ -160,10 +184,7 @@ export async function ensureQdrantCollection(vectorSize: number, signal?: AbortS
       signal,
       body: JSON.stringify(qdrantCollectionConfig(vectorSize)),
     });
-    await createPayloadIndex("user_id", "keyword", signal);
-    await createPayloadIndex("document_id", "keyword", signal);
-    await createPayloadIndex("searchable", "bool", signal);
-    ensuredCollectionSize = vectorSize;
+    await createPayloadIndexes(signal);
     return;
   }
 
@@ -174,7 +195,9 @@ export async function ensureQdrantCollection(vectorSize: number, signal?: AbortS
     );
   }
 
-  const json = await existing.json();
+  // every level is optional and the leaf is checked below, so a malformed
+  // body reads as an unknown size rather than throwing here
+  const json = (await existing.json()) as QdrantCollectionInfo | null;
   const size = json?.result?.config?.params?.vectors?.size;
   if (typeof size === "number" && size !== vectorSize) {
     throw new Error(
@@ -182,13 +205,11 @@ export async function ensureQdrantCollection(vectorSize: number, signal?: AbortS
     );
   }
 
+  const { hnsw_config, optimizers_config } = qdrantCollectionConfig(vectorSize);
   await qdrantFetch(`/collections/${collection}`, {
     method: "PATCH",
     signal,
-    body: JSON.stringify({
-      hnsw_config: qdrantCollectionConfig(vectorSize).hnsw_config,
-      optimizers_config: qdrantCollectionConfig(vectorSize).optimizers_config,
-    }),
+    body: JSON.stringify({ hnsw_config, optimizers_config }),
   }).catch((error) => {
     signal?.throwIfAborted();
     logger.warn("qdrant collection index config update failed", {
@@ -196,11 +217,25 @@ export async function ensureQdrantCollection(vectorSize: number, signal?: AbortS
       error,
     });
   });
-  await createPayloadIndex("user_id", "keyword", signal);
-  await createPayloadIndex("document_id", "keyword", signal);
-  await createPayloadIndex("searchable", "bool", signal);
+  await createPayloadIndexes(signal);
+}
 
-  ensuredCollectionSize = vectorSize;
+export async function ensureQdrantCollection(vectorSize: number, signal?: AbortSignal): Promise<void> {
+  if (ensuredCollectionSize === vectorSize) return;
+
+  // concurrent first requests share one setup instead of racing two PUTs,
+  // where the loser fails with a conflict and drops its index write
+  if (ensuringCollection?.size !== vectorSize) {
+    const promise = setUpCollection(vectorSize, signal)
+      .then(() => {
+        ensuredCollectionSize = vectorSize;
+      })
+      .finally(() => {
+        if (ensuringCollection?.promise === promise) ensuringCollection = null;
+      });
+    ensuringCollection = { size: vectorSize, promise };
+  }
+  await ensuringCollection.promise;
 }
 
 export async function upsertChunkVectors(
@@ -233,14 +268,27 @@ export async function upsertChunkVectors(
   }
 }
 
-export async function deleteChunkVectors(chunkIds: string[]): Promise<void> {
+function idBatches(chunkIds: string[]): string[][] {
   const ids = [...new Set(chunkIds)].filter(Boolean);
-  if (ids.length === 0) return;
+  const batches: string[][] = [];
+  for (let offset = 0; offset < ids.length; offset += ID_BATCH_SIZE) {
+    batches.push(ids.slice(offset, offset + ID_BATCH_SIZE));
+  }
+  return batches;
+}
 
-  await qdrantFetch(`/collections/${qdrantCollection()}/points/delete?wait=true`, {
-    method: "POST",
-    body: JSON.stringify({ points: ids }),
-  });
+/**
+ * Deletes by point id. Ids always come from server-side chunk rows that were
+ * already scoped to their owner, so no user filter is needed here. Callers
+ * rely on this being idempotent when they retry journaled cleanup.
+ */
+export async function deleteChunkVectors(chunkIds: string[]): Promise<void> {
+  for (const ids of idBatches(chunkIds)) {
+    await qdrantFetch(`/collections/${qdrantCollection()}/points/delete?wait=true`, {
+      method: "POST",
+      body: JSON.stringify({ points: ids }),
+    });
+  }
 }
 
 /**
@@ -253,21 +301,20 @@ export async function setChunkVectorsSearchable(
   chunkIds: string[],
   searchable: boolean,
 ): Promise<void> {
-  const ids = [...new Set(chunkIds)].filter(Boolean);
-  if (ids.length === 0) return;
-
-  await qdrantFetch(
-    `/collections/${qdrantCollection()}/points/payload?wait=true`,
-    {
-      // POST sets only this key; PUT would overwrite user_id/document_id and
-      // make the point unreachable after a Trash transition.
-      method: "POST",
-      body: JSON.stringify({
-        payload: { searchable },
-        points: ids,
-      }),
-    },
-  );
+  for (const ids of idBatches(chunkIds)) {
+    await qdrantFetch(
+      `/collections/${qdrantCollection()}/points/payload?wait=true`,
+      {
+        // POST sets only this key; PUT would overwrite user_id/document_id and
+        // make the point unreachable after a Trash transition.
+        method: "POST",
+        body: JSON.stringify({
+          payload: { searchable },
+          points: ids,
+        }),
+      },
+    );
+  }
 }
 
 function buildFilter({
@@ -361,21 +408,8 @@ export async function searchChunkVectors({
 }
 
 export async function getChunkVector(chunkId: string): Promise<number[] | null> {
-  const response = await qdrantFetch<{ result: QdrantPointRecord[] }>(
-    `/collections/${qdrantCollection()}/points`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        ids: [chunkId],
-        with_payload: false,
-        with_vector: true,
-      }),
-    },
-  );
-
-  const vector = response.result?.[0]?.vector;
-  if (Array.isArray(vector)) return vector;
-  return null;
+  const [record] = await getChunkVectors([chunkId]);
+  return record?.vector ?? null;
 }
 
 export async function getChunkVectors(chunkIds: string[]): Promise<ChunkVectorRecord[]> {

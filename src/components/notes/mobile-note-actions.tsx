@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   ArrowLeftIcon,
   ChevronRightIcon,
@@ -42,7 +42,6 @@ export default function MobileNoteActions({
   children?: ReactNode;
 }) {
   const { t } = useI18n();
-  const router = useRouter();
   const pathname = usePathname();
   const tree = useNoteTreeStore((s) => s.tree);
   const item = noteId ? tree.items[noteId] : undefined;
@@ -57,6 +56,7 @@ export default function MobileNoteActions({
     handleDeleteConfirm,
     handleTogglePin,
     handleOpenInAIChat,
+    handleDuplicate,
   } = useSidebarActions({
     activeId: pathname?.startsWith("/notes/") ? pathname.split("/")[2] : null,
     deleteConfirmTarget: deleteTarget,
@@ -298,20 +298,7 @@ export default function MobileNoteActions({
               className={mobileActionClass}
               disabled={busy}
               onClick={() => {
-                if (noteId)
-                  void run(async () => {
-                    const state = useNoteStore.getState();
-                    const source = await state.fetchNote(noteId);
-                    if (!source) throw new Error("Note unavailable");
-                    const copy = await state.createNote({
-                      id: useNoteTreeStore.getState().genNewId(),
-                      title: t("{title} (Copy)", { title: source.title }),
-                      content: source.content || "\n",
-                      pid: source.pid,
-                    });
-                    if (!copy) throw new Error("Copy failed");
-                    router.push(`/notes/${copy.id}`);
-                  });
+                if (noteId) void run(() => handleDuplicate(noteId));
               }}
             >
               <DocumentDuplicateIcon className="h-5 w-5" aria-hidden="true" />

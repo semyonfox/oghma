@@ -3,20 +3,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const redisState = vi.hoisted(() => ({
   ready: false,
   ensureReady: vi.fn(async () => false),
+  eval: vi.fn(),
   get: vi.fn(),
-  mget: vi.fn(),
   del: vi.fn(),
-  set: vi.fn(),
-  incr: vi.fn(),
-  pipeline: vi.fn(),
 }));
 
-const logger = {
+const logger = vi.hoisted(() => ({
   info: vi.fn(),
   warn: vi.fn(),
   error: vi.fn(),
   debug: vi.fn(),
-};
+}));
 
 vi.mock("@/lib/logger", () => ({ default: logger }));
 
@@ -26,97 +23,83 @@ vi.mock("@/lib/redis", () => ({
   },
   ensureRedisReady: redisState.ensureReady,
   redis: {
+    eval: redisState.eval,
     get: redisState.get,
-    mget: redisState.mget,
     del: redisState.del,
-    set: redisState.set,
-    incr: redisState.incr,
-    pipeline: redisState.pipeline,
   },
 }));
 
-describe("login lockout fail-closed mode", () => {
+import {
+  AuthLockoutStoreUnavailableError,
+  clearFailedAttempts,
+  getLockoutMinutesRemaining,
+  reserveLoginAttempt,
+} from "@/lib/auth/login-lockout";
+
+describe("login lockout with the shared redis store", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.resetModules();
     delete process.env.AUTH_LOCKOUT_FAIL_OPEN;
     redisState.ready = false;
     redisState.ensureReady.mockResolvedValue(false);
+    redisState.eval.mockResolvedValue(1);
     redisState.get.mockResolvedValue(null);
-    redisState.mget.mockResolvedValue([null, null]);
     redisState.del.mockResolvedValue(0);
-    redisState.set.mockResolvedValue("OK");
-    redisState.incr.mockResolvedValue(1);
-    redisState.pipeline.mockReturnValue({
-      set: vi.fn().mockReturnThis(),
-      exec: vi.fn().mockResolvedValue([]),
-    });
   });
 
-  it("blocks login rate checks when the store is unavailable", async () => {
-    const { isRateLimited } = await import("@/lib/auth/login-lockout");
-
-    await expect(isRateLimited("user@example.com")).resolves.toBe(true);
-    expect(redisState.ensureReady).toHaveBeenCalled();
+  it("blocks password login when redis is unavailable", async () => {
+    await expect(reserveLoginAttempt("user@example.com")).rejects.toBeInstanceOf(
+      AuthLockoutStoreUnavailableError,
+    );
     expect(logger.error).toHaveBeenCalledWith(
       "redis auth lockout store unavailable",
-      expect.objectContaining({
-        fn: "isRateLimited",
-        message: "redis not ready after initialization",
-      }),
+      expect.objectContaining({ fn: "reserveLoginAttempt" }),
     );
   });
 
-  it("throws a typed error when failed-attempt writes cannot be recorded", async () => {
-    const {
-      AuthLockoutStoreUnavailableError,
-      recordFailedAttempt,
-    } = await import("@/lib/auth/login-lockout");
-
-    await expect(recordFailedAttempt("user@example.com")).rejects.toBeInstanceOf(
-      AuthLockoutStoreUnavailableError,
-    );
-    expect(redisState.ensureReady).toHaveBeenCalled();
-    expect(redisState.mget).not.toHaveBeenCalled();
-  });
-
-  it("throws a typed error when first-attempt pipeline writes return command errors", async () => {
+  it("blocks password login when the reservation script fails", async () => {
     redisState.ready = true;
-    redisState.get.mockResolvedValue(null);
-    redisState.pipeline.mockReturnValue({
-      set: vi.fn().mockReturnThis(),
-      exec: vi.fn().mockResolvedValue([
-        [new Error("READONLY"), null],
-        [null, "OK"],
-      ]),
-    });
-    const {
+    redisState.eval.mockRejectedValue(new Error("READONLY"));
+    await expect(reserveLoginAttempt("user@example.com")).rejects.toBeInstanceOf(
       AuthLockoutStoreUnavailableError,
-      recordFailedAttempt,
-    } = await import("@/lib/auth/login-lockout");
-
-    await expect(recordFailedAttempt("user@example.com")).rejects.toBeInstanceOf(
-      AuthLockoutStoreUnavailableError,
-    );
-    expect(logger.error).toHaveBeenCalledWith(
-      "redis auth lockout store unavailable",
-      expect.objectContaining({
-        fn: "recordFailedAttempt",
-        message: "READONLY",
-      }),
     );
   });
 
-  it("uses Redis when lazy readiness succeeds", async () => {
+  it("does not fall back to per-process memory unless fail-open is configured", async () => {
+    redisState.ready = true;
+    redisState.eval.mockRejectedValue(new Error("READONLY"));
+    process.env.AUTH_LOCKOUT_FAIL_OPEN = "true";
+    await expect(reserveLoginAttempt("user@example.com")).resolves.toBe(true);
+    expect(logger.warn).toHaveBeenCalled();
+  });
+
+  it("reserves against normalized keys once redis is lazily ready", async () => {
     redisState.ensureReady.mockResolvedValueOnce(true);
-
-    const { isRateLimited } = await import("@/lib/auth/login-lockout");
-
-    await expect(isRateLimited("user@example.com")).resolves.toBe(false);
-    expect(redisState.ensureReady).toHaveBeenCalled();
-    expect(redisState.mget).toHaveBeenCalledWith(
+    redisState.eval.mockResolvedValueOnce(0);
+    await expect(reserveLoginAttempt("  User@Example.com ")).resolves.toBe(false);
+    expect(redisState.eval).toHaveBeenCalledWith(
+      expect.any(String),
+      3,
       "ratelimit:attempts:user@example.com",
       "ratelimit:window:user@example.com",
+      "ratelimit:lockout:user@example.com",
+      expect.any(Number),
+      900,
+      5,
+      1800,
     );
+  });
+
+  it("reports the remaining lock in whole minutes", async () => {
+    redisState.ready = true;
+    redisState.get.mockResolvedValue(String(Date.now() + 90_000));
+    await expect(getLockoutMinutesRemaining("user@example.com")).resolves.toBe(2);
+  });
+
+  it("does not fail a valid login when clearing the count fails", async () => {
+    await expect(clearFailedAttempts("user@example.com")).resolves.toBeUndefined();
+    redisState.ready = true;
+    redisState.del.mockRejectedValue(new Error("READONLY"));
+    await expect(clearFailedAttempts("user@example.com")).resolves.toBeUndefined();
   });
 });

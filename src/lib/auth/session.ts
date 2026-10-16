@@ -3,7 +3,7 @@
 import { readBoundedBody, BodyTooLargeError } from "@/lib/http/bounded-body";
 import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import sql from "@/database/pgsql";
 import { auth } from "@/auth";
 import { ApiError } from "@/lib/api-errors";
@@ -43,7 +43,7 @@ export function generateJWTToken(
 export function verifyJWTToken(token: string): JWTPayload | null {
   const secret = requireJWTSecret();
   try {
-    const decoded = jwt.verify(token, secret);
+    const decoded = jwt.verify(token, secret, { algorithms: ["HS256"] });
     return typeof decoded === "string" ? null : (decoded as JWTPayload);
   } catch (_error) {
     return null;
@@ -67,6 +67,40 @@ async function createSessionCookie(
     sameSite: "lax",
     path: "/",
   });
+}
+
+const SESSION_COOKIE_NAMES = [
+  "session",
+  "authjs.session-token",
+  "__Secure-authjs.session-token",
+];
+// Auth.js splits a large session JWT into numbered chunks
+const CHUNKED_SESSION_COOKIE = /^(?:__Secure-)?authjs\.session-token\.\d+$/;
+
+/**
+ * Expire every cookie that can carry a session, including Auth.js chunks the
+ * request actually sent. extraNames covers Auth.js flow state on logout; don't
+ * clear csrf on other paths or a sign-in running in another tab breaks.
+ */
+export function clearSessionCookies(
+  response: NextResponse,
+  request: NextRequest,
+  extraNames: readonly string[] = [],
+): NextResponse {
+  const names = new Set([...SESSION_COOKIE_NAMES, ...extraNames]);
+  for (const cookie of request.cookies.getAll()) {
+    if (CHUNKED_SESSION_COOKIE.test(cookie.name)) names.add(cookie.name);
+  }
+  for (const name of names) {
+    response.cookies.set(name, "", {
+      path: "/",
+      maxAge: 0,
+      httpOnly: true,
+      sameSite: "lax",
+      secure: name.startsWith("__") || request.nextUrl.protocol === "https:",
+    });
+  }
+  return response;
 }
 
 async function getSessionCookie(): Promise<string | undefined> {

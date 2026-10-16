@@ -1,5 +1,8 @@
 // validates required environment variables at server startup
 // called from instrumentation.ts so missing vars surface immediately, not at request time
+// importing config here also parses the numeric settings, so a malformed value
+// fails startup instead of the first database query or upload
+import "./config";
 
 const REQUIRED = [
   'DATABASE_URL',

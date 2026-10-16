@@ -157,8 +157,11 @@ export default function CodeBlock({
     [children, rawContent],
   );
 
+  const isMermaid = languageInfo.normalized === "mermaid";
+
   useEffect(() => {
-    if (!code) {
+    // mermaid blocks render as diagrams, so their source is never tokenized
+    if (!code || isMermaid) {
       setHighlighted(null);
       setHighlightError(false);
       return;
@@ -180,17 +183,22 @@ export default function CodeBlock({
     return () => {
       active = false;
     };
-  }, [code, languageInfo.normalized]);
+  }, [code, isMermaid, languageInfo.normalized]);
 
   const handleCopy = async () => {
     if (!code || !navigator.clipboard?.writeText) return;
 
-    await navigator.clipboard.writeText(code);
+    try {
+      await navigator.clipboard.writeText(code);
+    } catch {
+      // permission denied or document not focused; leave the button as is
+      return;
+    }
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1500);
   };
 
-  if (languageInfo.normalized === "mermaid") {
+  if (isMermaid) {
     return <MermaidBlock code={code} title={title} />;
   }
 

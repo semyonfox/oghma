@@ -48,12 +48,16 @@ function queryText(call: unknown[]): string {
   return Array.isArray(strings) ? strings.join("?") : "";
 }
 
+let activeJobs: Array<{ id: string }>[] = [];
+
 describe("POST /api/vault/import/start", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    activeJobs = [];
     vi.mocked(sql).mockReset().mockImplementation(async (strings) => {
       const text = Array.isArray(strings) ? strings.join('') : '';
       if (text.includes('SELECT reserved_bytes')) return [{ reserved_bytes: '12' }];
+      if (text.includes('SELECT id FROM app.canvas_import_jobs')) return activeJobs.shift() ?? [];
       if (text.includes('SELECT id FROM app.vault_artifacts')) return [{ id: 'reservation' }];
       if (text.includes('INSERT INTO app.canvas_import_jobs')) return [{ id: 'new' }];
       return [];
@@ -78,7 +82,6 @@ describe("POST /api/vault/import/start", () => {
 
   afterEach(() => {
     delete process.env.STORAGE_BUCKET;
-    delete process.env.STORAGE_PREFIX;
   });
 
   it("rejects an object whose final size differs from the authorized upload", async () => {
@@ -90,20 +93,34 @@ describe("POST /api/vault/import/start", () => {
     expect(sql.begin).not.toHaveBeenCalled();
   });
 
+  it("treats an object it cannot read as not uploaded", async () => {
+    s3Send.mockRejectedValueOnce(new Error("NotFound"));
+    await expect(POST(body({ s3Key: "vault-uploads/u1/abc/x.zip" }))).rejects.toMatchObject({
+      statusCode: 400,
+      userMessage: "Uploaded zip was not found",
+    });
+    expect(sql.begin).not.toHaveBeenCalled();
+  });
+
+  it("frees the active slot from a job whose worker stopped before checking it", async () => {
+    await POST(body({ s3Key: "vault-uploads/u1/abc/x.zip" }));
+
+    const texts = vi.mocked(sql).mock.calls.map(queryText);
+    const expire = texts.findIndex((text) => text.includes("INTERVAL '30 minutes'"));
+    const active = texts.findIndex((text) => text.includes("SELECT id FROM app.canvas_import_jobs"));
+    expect(expire).toBeGreaterThanOrEqual(0);
+    expect(expire).toBeLessThan(active);
+  });
+
   it("returns 409 when active import exists", async () => {
-    vi.mocked(sql)
-      .mockResolvedValueOnce([{ reserved_bytes: "12" }] as never)
-      .mockResolvedValueOnce([{ id: "existing" }] as never);
+    activeJobs = [[{ id: "existing" }]];
     const res = await POST(body({ s3Key: "vault-uploads/u1/abc/x.zip" }));
     expect(res.status).toBe(409);
     expect(await res.json()).toMatchObject({ activeJobId: "existing" });
   });
 
   it("returns the active job after a concurrent insert hits the unique constraint", async () => {
-    vi.mocked(sql)
-      .mockResolvedValueOnce([{ reserved_bytes: "12" }] as never)
-      .mockResolvedValueOnce([] as never)
-      .mockResolvedValueOnce([{ id: "concurrent" }] as never);
+    activeJobs = [[], [{ id: "concurrent" }]];
     (sql as unknown as { begin: ReturnType<typeof vi.fn> }).begin.mockRejectedValueOnce({ code: "23505" });
 
     const res = await POST(body({ s3Key: "vault-uploads/u1/abc/x.zip" }));
@@ -128,12 +145,18 @@ describe("POST /api/vault/import/start", () => {
   });
 
   it("starts when force=true even if active job exists", async () => {
-    vi.mocked(sql)
-      .mockResolvedValueOnce([{ reserved_bytes: "12" }] as never)
-      .mockResolvedValueOnce([{ id: "existing" }] as never);
+    activeJobs = [[{ id: "existing" }]];
     const res = await POST(body({ s3Key: "vault-uploads/u1/abc/x.zip", force: true }));
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ jobId: "new" });
+  });
+
+  it("does not start an import for another user's upload prefix", async () => {
+    await expect(
+      POST(body({ s3Key: "vault-uploads/u2/abc/x.zip" })),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(s3Send).not.toHaveBeenCalled();
+    expect(enqueueCanvasJob).not.toHaveBeenCalled();
   });
 
   it("marks the durable job failed when queue publication fails", async () => {

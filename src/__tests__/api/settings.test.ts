@@ -208,4 +208,32 @@ describe("POST /api/settings", () => {
     });
     expect(body.ai_model).toBe("deepseek/deepseek-v4-flash");
   });
+
+  it.each([
+    ["theme", "url(javascript:alert(1))"],
+    ["ai_canvas_access", "false"],
+    ["split_sizes", [200, "800"]],
+    ["firstName", "x".repeat(101)],
+  ])("rejects a malformed %s without saving", async (key, value) => {
+    const response = await POST(
+      new NextRequest("http://localhost/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [key]: value }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(saveSettingsToS3).not.toHaveBeenCalled();
+  });
+});
+
+describe("GET /api/settings theme cookie", () => {
+  it("does not mirror a stored theme the init script can't use", async () => {
+    vi.mocked(getSettingsFromS3).mockResolvedValueOnce({ theme: "neon" as never });
+
+    const response = await GET(new NextRequest("http://localhost/api/settings"));
+
+    expect(response.cookies.get("ogma-theme")).toBeUndefined();
+  });
 });

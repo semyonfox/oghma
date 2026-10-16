@@ -196,7 +196,7 @@ export default function MermaidInlineViewer({
     return () => observer.disconnect();
   }, [layout]);
 
-  const changeZoom = (next: number) => {
+  const changeZoom = useCallback((next: number) => {
     const bounded = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, next));
     const viewport = viewportRef.current;
     const dimensions = dimensionsRef.current;
@@ -214,7 +214,29 @@ export default function MermaidInlineViewer({
       x: center.x - ((center.x - previous.x) * nextScale) / previousScale,
       y: center.y - ((center.y - previous.y) * nextScale) / previousScale,
     });
-  };
+  }, [clampAndPaint]);
+
+  // React's wheel listeners are passive, so preventDefault there cannot stop
+  // ctrl+wheel from zooming the whole page or a pan from scrolling the note
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const handleWheel = (event: WheelEvent) => {
+      if (event.ctrlKey || event.metaKey) {
+        event.preventDefault();
+        changeZoom(zoomRef.current + (event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP));
+        return;
+      }
+      if (zoomRef.current <= 100) return;
+      event.preventDefault();
+      clampAndPaint({
+        x: translationRef.current.x - event.deltaX,
+        y: translationRef.current.y - event.deltaY,
+      });
+    };
+    viewport.addEventListener("wheel", handleWheel, { passive: false });
+    return () => viewport.removeEventListener("wheel", handleWheel);
+  }, [changeZoom, clampAndPaint]);
 
   const stopDragging = (event: React.PointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current;
@@ -349,19 +371,6 @@ export default function MermaidInlineViewer({
         }}
         onPointerUp={stopDragging}
         onPointerCancel={stopDragging}
-        onWheel={(event) => {
-          if (event.ctrlKey || event.metaKey) {
-            event.preventDefault();
-            changeZoom(zoom + (event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP));
-            return;
-          }
-          if (zoom <= 100) return;
-          event.preventDefault();
-          clampAndPaint({
-            x: translationRef.current.x - event.deltaX,
-            y: translationRef.current.y - event.deltaY,
-          });
-        }}
       >
         <div ref={canvasRef} className="oghma-mermaid-inline-canvas">
           <div ref={diagramRef} />

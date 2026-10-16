@@ -53,11 +53,6 @@ export function createEmptyTree(): TreeModel {
 
 export const DEFAULT_TREE = createEmptyTree();
 
-interface TreeMovePosition {
-  parentId: string;
-  index: number;
-}
-
 export interface TreeMoveRequest {
   noteId: string;
   expectedParentId: string | null;
@@ -145,59 +140,6 @@ function removeItem(tree: TreeModel, id: string) {
   return newTree;
 }
 
-function moveItem(
-  tree: TreeModel,
-  source: TreeMovePosition,
-  destination?: TreeMovePosition,
-) {
-  if (!destination) {
-    return tree;
-  }
-
-  const newTree = { ...tree, items: { ...tree.items } };
-  const sourceParent = newTree.items[source.parentId];
-  const destParent = newTree.items[destination.parentId];
-
-  if (!sourceParent || !destParent) {
-    return tree;
-  }
-
-  const itemId = sourceParent.children[source.index];
-  if (!itemId) {
-    return tree;
-  }
-
-  // remove from source using ID (not index) to avoid stale-index bugs
-  const filteredSourceChildren = sourceParent.children.filter(
-    (id) => id !== itemId,
-  );
-  newTree.items[source.parentId] = {
-    ...sourceParent,
-    children: filteredSourceChildren,
-  };
-
-  // for same-parent moves, read from the already-updated parent
-  const updatedDestParent = newTree.items[destination.parentId];
-  const baseChildren = [...updatedDestParent.children];
-
-  // adjust destination index for same-parent reorder since we already removed the item
-  let destIdx = destination.index;
-  if (
-    source.parentId === destination.parentId &&
-    source.index < destination.index
-  ) {
-    destIdx = Math.max(0, destIdx - 1);
-  }
-
-  baseChildren.splice(destIdx, 0, itemId);
-  newTree.items[destination.parentId] = {
-    ...updatedDestParent,
-    children: baseChildren,
-  };
-
-  return newTree;
-}
-
 function deleteItem(tree: TreeModel, id: string) {
   const newTree = { ...tree, items: { ...tree.items } };
   delete newTree.items[id];
@@ -205,109 +147,11 @@ function deleteItem(tree: TreeModel, id: string) {
   return newTree;
 }
 
-const flattenTree = (
-  tree: TreeModel,
-  rootId = tree.rootId,
-): TreeItemModel[] => {
-  if (!tree.items[rootId]) {
-    return [];
-  }
-
-  const result: TreeItemModel[] = [];
-
-  for (const itemId of tree.items[rootId].children) {
-    const item = tree.items[itemId];
-    if (item) {
-      result.push(item);
-      const children = flattenTree({
-        rootId: item.id,
-        items: tree.items,
-      });
-      result.push(...children);
-    }
-  }
-
-  return result;
-};
-
-export type HierarchicalTreeItemModel = Omit<TreeItemModel, "children"> & {
-  children: HierarchicalTreeItemModel[];
-};
-
-export function makeHierarchy(
-  tree: TreeModel,
-  rootId = tree.rootId,
-): HierarchicalTreeItemModel | false {
-  if (!tree.items[rootId]) {
-    return false;
-  }
-
-  const root = tree.items[rootId];
-
-  return {
-    ...root,
-    children: root.children
-      .map((v) => makeHierarchy(tree, v))
-      .filter((v) => !!v) as HierarchicalTreeItemModel[],
-  };
-}
-
-export function cleanItemModel(model: Partial<TreeItemModel>): TreeItemModel {
-  if (!model.id) throw new Error("Missing id on tree model");
-
-  const children = model.children ?? [];
-
-  return {
-    ...model,
-    id: model.id,
-    children,
-    hasChildren: children.length > 0,
-    data: model.data,
-    isExpanded: model.isExpanded ?? false,
-  };
-}
-
-export function cleanTreeModel(model: Partial<TreeModel>): TreeModel {
-  const items: TreeModel["items"] = {};
-  if (model.items) {
-    for (const itemId in model.items) {
-      const item = model.items[itemId];
-      if (!item) {
-        continue;
-      }
-
-      const cleanedItem = cleanItemModel(item);
-      const children: string[] = [];
-      for (const child of cleanedItem.children) {
-        if (child && model.items[child]) {
-          children.push(child);
-        }
-      }
-
-      items[itemId] = {
-        ...cleanedItem,
-        children,
-      };
-    }
-  }
-
-  return {
-    ...model,
-    rootId: model.rootId ?? ROOT_ID,
-    items: items,
-  };
-}
-
 const TreeActions = {
   addItem,
   mutateItem,
   removeItem,
-  moveItem,
   deleteItem,
-  flattenTree,
-  makeHierarchy,
-  cleanTreeModel,
-  cleanItemModel,
 };
 
 export default TreeActions;

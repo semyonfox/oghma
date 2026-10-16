@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from "react";
-import usePomodoroStore from '@/lib/notes/state/pomodoro'
+import usePomodoroStore, { restorePomodoro } from '@/lib/notes/state/pomodoro'
 import { triggerCelebration } from "@/lib/celebration";
 import PomodoroStatusBar from "./pomodoro-status-bar";
 
@@ -35,6 +35,19 @@ export default function PomodoroTimerController() {
     }
     prevCompletedRef.current = completedFocusSessions;
   }, [completedFocusSessions]);
+
+  useEffect(() => {
+    void restorePomodoro();
+    // declared after the celebration effect: session storage hydrates
+    // synchronously and restored progress isn't a new pomodoro
+    prevCompletedRef.current = usePomodoroStore.getState().completedFocusSessions;
+    // background tabs throttle intervals, so catch up as soon as the tab is back
+    const catchUp = () => {
+      if (document.visibilityState === 'visible') tick();
+    };
+    document.addEventListener('visibilitychange', catchUp);
+    return () => document.removeEventListener('visibilitychange', catchUp);
+  }, [tick]);
 
   if (phase === 'idle') return null
 

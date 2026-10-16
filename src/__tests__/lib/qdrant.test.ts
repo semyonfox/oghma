@@ -250,6 +250,85 @@ describe("qdrant vector store", () => {
   });
 });
 
+describe("qdrant collection lifecycle", () => {
+  const point = {
+    chunkId: "33333333-3333-4333-8333-333333333333",
+    documentId: "22222222-2222-4222-8222-222222222222",
+    userId: "11111111-1111-4111-8111-111111111111",
+    vector: [0.1, 0.2, 0.3],
+  };
+
+  it("creates a missing collection once when first requests race", async () => {
+    let created = false;
+    const fetchMock = vi.fn(async (input: string, init?: RequestInit) => {
+      if (input === "http://qdrant.test/collections/test_chunks") {
+        if (init?.method === "PUT") {
+          // a second create would be a 409 from a real server
+          if (created) return jsonResponse({ status: "exists" }, 409);
+          created = true;
+          return jsonResponse({ result: true });
+        }
+        return jsonResponse({}, created ? 200 : 404);
+      }
+      return jsonResponse({ result: true });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { upsertChunkVectors } = await loadQdrant();
+    await Promise.all([upsertChunkVectors([point]), upsertChunkVectors([point])]);
+
+    const creates = fetchMock.mock.calls.filter(
+      ([url, init]) =>
+        url === "http://qdrant.test/collections/test_chunks" && init?.method === "PUT",
+    );
+    expect(creates).toHaveLength(1);
+  });
+
+  it("re-runs collection setup after Qdrant reports the collection gone", async () => {
+    let exists = true;
+    const fetchMock = vi.fn(async (input: string, init?: RequestInit) => {
+      if (input === "http://qdrant.test/collections/test_chunks") {
+        if (init?.method === "PUT") {
+          exists = true;
+          return jsonResponse({ result: true });
+        }
+        if (!init?.method) return jsonResponse({}, exists ? 200 : 404);
+      }
+      if (input.endsWith("/points?wait=true") && !exists) {
+        return jsonResponse({ status: { error: "Collection not found" } }, 404);
+      }
+      return jsonResponse({ result: true });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { upsertChunkVectors } = await loadQdrant();
+    await upsertChunkVectors([point]);
+    // the volume is wiped while the process keeps running
+    exists = false;
+    await expect(upsertChunkVectors([point])).rejects.toThrow("404");
+    await upsertChunkVectors([point]);
+
+    const creates = fetchMock.mock.calls.filter(
+      ([url, init]) =>
+        url === "http://qdrant.test/collections/test_chunks" && init?.method === "PUT",
+    );
+    expect(creates).toHaveLength(1);
+  });
+
+  it("splits large id deletes into bounded requests", async () => {
+    const sizes: number[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init: RequestInit) => {
+      sizes.push(JSON.parse(String(init.body)).points.length);
+      return jsonResponse({ result: true });
+    }));
+
+    const { deleteChunkVectors } = await loadQdrant();
+    await deleteChunkVectors(Array.from({ length: 2_001 }, (_, index) => `chunk-${index}`));
+
+    expect(sizes).toEqual([1_000, 1_000, 1]);
+  });
+});
+
 describe('vector request bounds', () => {
   it('does not broaden an explicitly empty document scope', async () => {
     const fetchMock = vi.fn();

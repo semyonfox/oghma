@@ -153,11 +153,13 @@ export default function TrashPage() {
       } catch (restoreError) {
         console.error("Failed to restore trash item:", restoreError);
         toast.error(t("Could not complete that action. Please try again."));
+        // another tab may have restored or purged it; show what is left
+        void loadItems();
       } finally {
         setBusyId(null);
       }
     },
-    [focusAfterRemoval, refreshTree, t],
+    [focusAfterRemoval, loadItems, refreshTree, t],
   );
 
   const confirmPendingAction = useCallback(async () => {
@@ -175,6 +177,7 @@ export default function TrashPage() {
       } catch (emptyError) {
         console.error("Failed to empty trash:", emptyError);
         toast.error(t("Could not complete that action. Please try again."));
+        void loadItems();
       } finally {
         setBusyId(null);
         setPendingAction(null);
@@ -195,11 +198,12 @@ export default function TrashPage() {
     } catch (deleteError) {
       console.error("Failed to permanently delete trash item:", deleteError);
       toast.error(t("Could not complete that action. Please try again."));
+      void loadItems();
     } finally {
       setBusyId(null);
       setPendingAction(null);
     }
-  }, [focusAfterRemoval, pendingAction, t]);
+  }, [focusAfterRemoval, loadItems, pendingAction, t]);
 
   const isMutating = busyId !== null;
   const pendingItem = pendingAction?.kind === "delete" ? pendingAction.item : null;

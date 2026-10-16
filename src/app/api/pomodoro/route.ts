@@ -3,11 +3,14 @@ import type postgres from 'postgres';
 import { withErrorHandler, requireAuth, ApiError, parseJsonObject, tracedError } from '@/lib/api-error';
 import { pomodoroEndSchema, pomodoroStartSchema, validateBody } from '@/lib/validations/schemas';
 import sql from '@/database/pgsql';
+import { creditedFocusMinutes } from '@/lib/calendar/pomodoro';
 
 interface PomodoroSessionRow {
   assignment_id: string | null;
-  duration_mins: number | null;
+  duration_mins: number;
   type: string;
+  started_at: Date | string;
+  ended_at: Date | string | null;
 }
 
 /**
@@ -55,7 +58,9 @@ export const POST = withErrorHandler(async (request) => {
 
 /**
  * PATCH /api/pomodoro
- * Complete/end a Pomodoro session. Increments assignment logged_hours if completed.
+ * End a Pomodoro session. A completed focus session adds its time to the
+ * linked assignment's logged_hours. Ending an already-ended session is a no-op,
+ * so retries and duplicate tabs can't log the same pomodoro twice.
  */
 export const PATCH = withErrorHandler(async (request) => {
   const user = await requireAuth();
@@ -65,28 +70,36 @@ export const PATCH = withErrorHandler(async (request) => {
   const { id, completed } = parsed.data;
 
   const result = await sql.begin(async (tx: postgres.TransactionSql) => {
-    const [session] = await tx<PomodoroSessionRow[]>`
+    const [ended] = await tx<PomodoroSessionRow[]>`
       UPDATE app.pomodoro_sessions SET
         ended_at = NOW(),
         completed = ${completed ?? false}
       WHERE id = ${id}::uuid AND user_id = ${user.user_id}::uuid
+        AND ended_at IS NULL
       RETURNING *
     `;
 
-    if (!session) return null;
-
-    // increment logged hours on the assignment if this was a completed focus session
-    // scope the UPDATE to user_id to prevent cross-user write (C1 class)
-    if (completed && session.type === 'focus' && session.assignment_id) {
-      const hoursToAdd = (session.duration_mins || 25) / 60;
-      await tx`
-        UPDATE app.assignments
-        SET logged_hours = logged_hours + ${hoursToAdd}
-        WHERE id = ${session.assignment_id}::uuid AND user_id = ${user.user_id}::uuid
+    if (!ended) {
+      const [existing] = await tx<PomodoroSessionRow[]>`
+        SELECT * FROM app.pomodoro_sessions
+        WHERE id = ${id}::uuid AND user_id = ${user.user_id}::uuid
       `;
+      return existing ?? null;
     }
 
-    return session;
+    // scope the UPDATE to user_id to prevent cross-user write (C1 class)
+    if (completed && ended.type === 'focus' && ended.assignment_id && ended.ended_at) {
+      const minutes = creditedFocusMinutes(ended.started_at, ended.ended_at, ended.duration_mins);
+      if (minutes > 0) {
+        await tx`
+          UPDATE app.assignments
+          SET logged_hours = logged_hours + ${minutes / 60}
+          WHERE id = ${ended.assignment_id}::uuid AND user_id = ${user.user_id}::uuid
+        `;
+      }
+    }
+
+    return ended;
   });
 
   if (!result) return tracedError('Session not found', 404);

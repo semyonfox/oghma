@@ -1,9 +1,9 @@
 import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
-import bcrypt from "bcryptjs";
 import { loginSchema } from "@/lib/validations/schemas";
-import { reserveLoginAttempt, clearFailedAttempts } from "@/lib/auth/login-lockout";
+import { authenticatePassword } from "@/lib/auth/password-login";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
 import type { NextAuthConfig } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import sql from "@/database/pgsql";
@@ -23,14 +23,6 @@ const providers: NextAuthConfig["providers"] = [];
 const AUTH_ERROR_PAGE = "/auth/error";
 const NO_VERIFIED_EMAIL_PAGE = `${AUTH_ERROR_PAGE}?error=NoVerifiedEmail`;
 const ACCOUNT_DELETED_PAGE = `${AUTH_ERROR_PAGE}?error=AccountDeleted`;
-
-interface LoginCredentialsUser {
-  user_id: string;
-  email: string;
-  hashed_password: string;
-  email_verified: boolean;
-  session_version: number;
-}
 
 interface LoginProfileRow {
   session_version: number;
@@ -95,38 +87,21 @@ if (process.env.ENABLE_CREDENTIALS_AUTH !== "false") {
           email: { label: "Email", type: "text" },
           password: { label: "Password", type: "password" },
         },
-        async authorize(credentials) {
-          const parsed = loginSchema.safeParse(credentials);
-          if (!parsed.success) return null;
-          const email = parsed.data.email.toLowerCase();
-          const password = parsed.data.password;
-
+        async authorize(credentials, request) {
           try {
-            if (!(await reserveLoginAttempt(email))) return null;
-            const users = await sql<LoginCredentialsUser[]>`
-                            SELECT user_id, email, hashed_password, email_verified, session_version
-                            FROM app.login
-                            WHERE lower(btrim(email)) = ${email}
-                              AND is_active = true
-                              AND deleted_at IS NULL
-                        `;
+            // shares the /api/auth/login budget so this endpoint isn't a way around it
+            const limited = await checkRateLimit("login", getClientIp(request));
+            if (limited) return null;
 
-            if (users.length !== 1) {
-              return null;
-            }
+            const parsed = loginSchema.safeParse(credentials);
+            if (!parsed.success) return null;
 
-            const user = users[0];
-            const isPasswordValid = await bcrypt.compare(
-              password,
-              user.hashed_password,
+            const result = await authenticatePassword(
+              parsed.data.email,
+              parsed.data.password,
             );
-
-            if (!isPasswordValid) {
-              return null;
-            }
-
-            if (user.email_verified !== true) return null;
-            await clearFailedAttempts(email);
+            if (result.status !== "ok") return null;
+            const { user } = result;
             return { id: user.user_id, email: user.email, session_version: user.session_version };
           } catch (error) {
             logger.error("credentials auth error", authErrorDetails(error));
