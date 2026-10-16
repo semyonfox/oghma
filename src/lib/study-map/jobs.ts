@@ -1,13 +1,24 @@
 import { monitorOperation } from "@/lib/monitoring/operations";
 import { randomUUID } from "node:crypto";
 import type postgres from "postgres";
-import { z } from "zod";
+import type { z } from "zod";
 import sql from "@/database/pgsql";
 import { ApiError } from "@/lib/api-errors";
+import logger from "@/lib/logger";
 import { classifyStudySource } from "./classification";
 import { studyProviderStatus } from "./config";
-import { isCurrentAnchor } from "./evidence";
 import { extractStudyPaper, proposeStudyTopics } from "./generation";
+import {
+  MAX_TAXONOMY_SOURCES,
+  StudyJobError,
+  failureMessage,
+  mapChangedSince,
+  messages,
+  taxonomyPreview,
+  validateClassification,
+  validatePaper,
+  type JobInput,
+} from "./job-policy";
 import { chooseSyllabus } from "./syllabus";
 import { decisionCache, generationCache } from "./cache";
 import {
@@ -31,7 +42,7 @@ import {
   classificationSchema,
   examStructureSchema,
   jobCreateSchema,
-  sourceAnchorSchema,
+  taxonomyMeaning,
   topicSchema,
   type ClassificationResult,
   type ExamStructure,
@@ -50,45 +61,6 @@ interface ClaimedJob {
   kind: StudyJobKind;
   lease_token: string;
 }
-
-interface JobInput {
-  source: SourceDocument;
-  /** topic proposals read the syllabus in full plus the opening of each other material */
-  sources: SourceDocument[];
-  syllabusNoteId: string | null;
-  topics: StudyTopic[];
-  version: number;
-  taxonomyVersion: number;
-  academicYear: string;
-  noteId: string;
-}
-
-const messages = {
-  configuration:
-    "The study provider is not configured. Configure it before trying again.",
-  topics: "Review at least one topic before processing study materials.",
-  topicSources:
-    "A topic source changed. Refresh and review the topic definitions before processing materials.",
-  source:
-    "The source note is no longer available. Choose a current source and try again.",
-  material:
-    "This note is no longer in the study map. Add it again before retrying.",
-  map: "This study map is no longer available.",
-  changed:
-    "The source changed while this job was running. Retry using the current source.",
-  mapChanged:
-    "The map or topics changed while this job was running. Review them and retry.",
-  text: "This material has no readable text. Extract its text first, then try again.",
-  size: "This material exceeds the study map limits. Split it into smaller notes and try again.",
-  invalid:
-    "The result could not be verified against the source. Review the material manually or retry.",
-  provider:
-    "Study processing failed. Check the provider configuration or review the material, then retry.",
-  expired: "This job lost its worker three times. Retry it manually.",
-  lease: "This job no longer has an active worker lease.",
-} as const;
-
-class StudyJobError extends Error {}
 
 function requireProvider(kind: StudyJobKind): void {
   try {
@@ -138,14 +110,6 @@ async function readSource(
       throw new StudyJobError(messages.source);
     if (error instanceof ApiError && error.statusCode === 422)
       throw new StudyJobError(messages.size);
-    if (
-      error instanceof Error &&
-      error.message.endsWith(
-        "exceeds the 320,000-character study map limit. Split this material into smaller notes or files and try again.",
-      )
-    ) {
-      throw new StudyJobError(messages.size);
-    }
     throw error;
   }
 }
@@ -339,10 +303,15 @@ async function readJobInput(job: ClaimedJob): Promise<JobInput> {
         LIMIT ${MAX_TAXONOMY_SOURCES}
       `;
       const sources: SourceDocument[] = [];
+      let syllabusIncluded = false;
       for (const row of rows) {
         try {
           const source = await readSource(tx, job.user_id, row.note_id);
-          if (source.text.trim()) sources.push(source);
+          if (!source.text.trim()) continue;
+          // the syllabus sorts first; a removed, empty or oversized one must not promote a lecture in its place
+          if (!sources.length && row.note_id === map.syllabus_note_id)
+            syllabusIncluded = true;
+          sources.push(source);
         } catch (error) {
           // an unreadable or oversized material is left out of the proposal, not fatal
           if (!(error instanceof StudyJobError)) throw error;
@@ -353,6 +322,7 @@ async function readJobInput(job: ClaimedJob): Promise<JobInput> {
         source: sources[0],
         sources,
         syllabusNoteId: map.syllabus_note_id,
+        syllabusIncluded,
         topics,
         noteId: sources[0].noteId,
         version: map.version,
@@ -375,6 +345,7 @@ async function readJobInput(job: ClaimedJob): Promise<JobInput> {
       source,
       sources: [source],
       syllabusNoteId: map.syllabus_note_id,
+      syllabusIncluded: false,
       topics,
       noteId,
       version: map.version,
@@ -382,92 +353,6 @@ async function readJobInput(job: ClaimedJob): Promise<JobInput> {
       academicYear: map.academic_year,
     };
   });
-}
-
-function validateClassification(
-  result: ClassificationResult,
-  source: SourceDocument,
-  topics: StudyTopic[],
-): ClassificationResult {
-  const parsed = classificationSchema.parse(result);
-  const ids = new Set(
-    topics.filter((topic) => topic.reviewed).map((topic) => topic.id),
-  );
-  if (
-    new Set(parsed.associations.map((item) => item.topicId)).size !==
-      parsed.associations.length ||
-    parsed.associations.some(
-      (item) =>
-        !ids.has(item.topicId) ||
-        !item.evidence.length ||
-        item.evidence.some(
-          (evidence) => !isCurrentAnchor(evidence.anchor, source),
-        ),
-    )
-  ) {
-    throw new StudyJobError(messages.invalid);
-  }
-  const raw = z
-    .array(
-      z.object({
-        passageId: z.string(),
-        anchor: sourceAnchorSchema,
-        judgements: z.array(
-          z.object({
-            questionId: z.string(),
-            answer: z.unknown(),
-            model: z.string(),
-          }),
-        ),
-      }),
-    )
-    .max(500)
-    .parse(parsed.rawDecisions);
-  if (raw.some((decision) => !isCurrentAnchor(decision.anchor, source)))
-    throw new StudyJobError(messages.invalid);
-  return { ...parsed, rawDecisions: raw };
-}
-
-function validatePaper(
-  result: ExamStructure,
-  source: SourceDocument,
-  topics: StudyTopic[],
-): ExamStructure {
-  const structure = examStructureSchema.parse(result);
-  const ids = new Set(topics.map((topic) => topic.id));
-  if (
-    structure.questions.some(
-      (question) =>
-        question.topicIds.some((id) => !ids.has(id)) ||
-        !isCurrentAnchor(question.source, source) ||
-        !question.source.quote.includes(question.text),
-    ) ||
-    structure.sections.some(
-      (section) =>
-        section.source !== null &&
-        (!isCurrentAnchor(section.source, source) ||
-          section.instructions !== section.source.quote),
-    )
-  ) {
-    throw new StudyJobError(messages.invalid);
-  }
-  // generation validates question parents, marks and choice rules before returning
-  return structure;
-}
-
-function taxonomyMeaning(topics: StudyTopic[]): string {
-  return JSON.stringify(
-    topics
-      .map(({ id, definition, includes, excludes, aliases, reviewed }) => ({
-        id,
-        definition,
-        includes,
-        excludes,
-        aliases: [...aliases].sort(),
-        reviewed,
-      }))
-      .sort((left, right) => left.id.localeCompare(right.id)),
-  );
 }
 
 async function currentSource(
@@ -501,11 +386,7 @@ async function publishJob(
   await sql.begin(async (tx) => {
     signal.throwIfAborted();
     const map = await lockStudyMap(tx, job.user_id, job.map_id);
-    if (
-      map.version !== input.version ||
-      map.taxonomy_version !== input.taxonomyVersion ||
-      (job.kind === "taxonomy" && map.syllabus_note_id !== input.syllabusNoteId)
-    )
+    if (mapChangedSince(job.kind, map, input))
       throw new StudyJobError(messages.mapChanged);
     await requireCurrentTopicSources(
       tx,
@@ -576,41 +457,6 @@ async function publishJob(
   });
 }
 
-const MAX_TAXONOMY_SOURCES = 60;
-const TAXONOMY_BUDGET_CHARS = 80_000;
-const MIN_PREVIEW_CHARS = 600;
-const RICH_SYLLABUS_CHARS = 1_500;
-
-/** fits every material's opening into one generation call; the syllabus, when chosen, stays whole */
-function taxonomyPreview(input: JobInput): {
-  sources: SourceDocument[];
-  previewChars: number;
-  fullSources: number;
-} {
-  const fullSources = input.syllabusNoteId ? 1 : 0;
-  const whole = fullSources ? input.sources[0].text.length : 0;
-  // a substantial outline already names the teaching units, so lectures would only add cost
-  if (whole >= RICH_SYLLABUS_CHARS)
-    return { sources: input.sources.slice(0, 1), fullSources, previewChars: 0 };
-  const room = Math.max(0, TAXONOMY_BUDGET_CHARS - whole);
-  // past the budget, later materials are left out rather than shrinking every preview to nothing
-  const previews = Math.min(
-    input.sources.length - fullSources,
-    Math.floor(room / MIN_PREVIEW_CHARS),
-  );
-  return {
-    sources: input.sources.slice(
-      0,
-      fullSources + Math.max(previews, fullSources ? 0 : 1),
-    ),
-    fullSources,
-    previewChars: Math.min(
-      3_000,
-      Math.max(MIN_PREVIEW_CHARS, Math.floor(room / Math.max(previews, 1))),
-    ),
-  };
-}
-
 let processing = false;
 
 export async function processNextStudyJob(): Promise<boolean> {
@@ -676,20 +522,7 @@ export async function processNextStudyJob(): Promise<boolean> {
           await classifyAutomatically(job.user_id, job.map_id);
       });
     } catch (error) {
-      const safeMessage = controller.signal.aborted
-        ? messages.lease
-        : error instanceof StudyJobError
-          ? error.message
-          : error instanceof ApiError &&
-              (error.userMessage === messages.configuration ||
-                error.userMessage === messages.topics ||
-                error.userMessage === messages.topicSources)
-            ? error.userMessage
-            : error instanceof ApiError && error.statusCode === 404
-              ? messages.map
-              : error instanceof z.ZodError
-                ? messages.invalid
-                : messages.provider;
+      const safeMessage = failureMessage(error, controller.signal.aborted);
       await sql`
         UPDATE app.study_jobs SET state = 'failed', error = ${safeMessage}, lease_until = NULL, lease_token = NULL, updated_at = NOW()
         WHERE id = ${job.id}::uuid AND state = 'running' AND lease_token = ${job.lease_token}::uuid
@@ -718,6 +551,11 @@ async function classifyAutomatically(userId: string, mapId: string) {
   }
 }
 
+// a course with nothing to outline would otherwise call Canvas every reconciliation pass;
+// retrying every few minutes still picks up module folders while an import is running
+const OUTLINE_RETRY_MS = 10 * 60_000;
+const outlineMisses = new Map<string, number>();
+
 /**
  * a course outline from free sources, gathered before any lock is held: the public module
  * descriptor for Galway courses, the Canvas syllabus and home page, and the imported module folders
@@ -740,8 +578,12 @@ async function outlineFor(
     JOIN app.notes folder ON folder.note_id = map.root_note_id AND folder.user_id = map.user_id
     WHERE map.id = ${mapId}::uuid AND map.user_id = ${userId}::uuid
       AND map.auto_classify AND map.syllabus_note_id IS NULL AND map.canvas_course_id IS NOT NULL
+      AND folder.deleted_at IS NULL
   `;
   if (!row) return null;
+  const missed = outlineMisses.get(mapId);
+  if (missed !== undefined && Date.now() - missed < OUTLINE_RETRY_MS)
+    return null;
   const code = moduleCode(row.title);
   const modules = await sql<{ title: string }[]>`
     SELECT n.title FROM app.notes n JOIN app.tree_items t ON t.note_id = n.note_id AND t.user_id = n.user_id
@@ -770,7 +612,12 @@ async function outlineFor(
     frontPage: canvas?.frontPage ?? null,
     modules: modules.map((module) => module.title),
   });
-  return body ? { title: `${title} course outline`, body } : null;
+  if (!body) {
+    outlineMisses.set(mapId, Date.now());
+    return null;
+  }
+  outlineMisses.delete(mapId);
+  return { title: `${title} course outline`, body };
 }
 
 /**
@@ -866,26 +713,43 @@ export async function autoConfigureStudyMap(
 let reconciliationCursor = "00000000-0000-0000-0000-000000000000";
 let reconciling = false;
 
+/**
+ * runs automatic setup after the student's own change has already been saved, so a failure
+ * here must not fail that request. the worker retries within a minute. returns the
+ * student-facing reason when setup was refused, such as an oversized folder
+ */
+export async function autoConfigureStudyMapSafely(
+  userId: string,
+  mapId: string,
+): Promise<string | null> {
+  try {
+    await autoConfigureStudyMap(userId, mapId);
+    return null;
+  } catch (error) {
+    if (error instanceof ApiError) return error.userMessage;
+    logger.warn("study map automatic setup failed");
+    return null;
+  }
+}
+
 export async function reconcileStudyMaps(): Promise<void> {
   if (reconciling) return;
   reconciling = true;
   try {
+    // deactivated accounts would otherwise keep queueing classification work
     const maps = await sql<Array<{ id: string; user_id: string }>>`
-      SELECT id, user_id FROM app.study_maps WHERE auto_classify AND id > ${reconciliationCursor}::uuid
-      ORDER BY id LIMIT 50
+      SELECT map.id, map.user_id FROM app.study_maps map
+      JOIN app.login l ON l.user_id = map.user_id AND l.is_active AND l.deleted_at IS NULL
+      WHERE map.auto_classify AND map.id > ${reconciliationCursor}::uuid
+      ORDER BY map.id LIMIT 50
     `;
     reconciliationCursor =
       maps.length === 50
         ? maps[maps.length - 1].id
         : "00000000-0000-0000-0000-000000000000";
-    for (const map of maps) {
-      try {
-        await autoConfigureStudyMap(map.user_id, map.id);
-      } catch (error) {
-        // deleted maps and oversized roots do not stop other maps
-        if (!(error instanceof ApiError)) throw error;
-      }
-    }
+    // one broken map, or a database blip on it, must not skip the rest of the batch
+    for (const map of maps)
+      await autoConfigureStudyMapSafely(map.user_id, map.id);
   } finally {
     reconciling = false;
   }

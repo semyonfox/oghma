@@ -313,6 +313,16 @@ function validateAnswers(
   }
 }
 
+// the shared cache is written by every user's jobs, so a stored answer is checked like a fresh one
+function fitsTask(task: Task, answer: Decision): boolean {
+  try {
+    validateAnswers([task], { [task.id]: answer });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function requestSignal(signal?: AbortSignal): AbortSignal {
   const timeout = AbortSignal.timeout(60_000);
   return signal ? AbortSignal.any([signal, timeout]) : timeout;
@@ -658,7 +668,8 @@ export async function classifyStudySource(
       const hit = cachedDecisionSchema.safeParse(
         stored.get(keys.get(task.id) ?? ""),
       );
-      if (hit.success) decided.set(task.id, hit.data);
+      if (hit.success && fitsTask(task, hit.data.answer))
+        decided.set(task.id, hit.data);
     }
   }
   const batches = batchesFor(

@@ -59,6 +59,22 @@ export const topicSchema = z.object({
 });
 export type StudyTopic = z.infer<typeof topicSchema>;
 
+/** what classification depends on; names and parents are presentation, so renaming keeps results current */
+export function taxonomyMeaning(topics: StudyTopic[]): string {
+  return JSON.stringify(
+    topics
+      .map(({ id, definition, includes, excludes, aliases, reviewed }) => ({
+        id,
+        definition,
+        includes,
+        excludes,
+        aliases: [...aliases].sort(),
+        reviewed,
+      }))
+      .sort((left, right) => left.id.localeCompare(right.id)),
+  );
+}
+
 const topicEvidenceSchema = z.object({
   anchor: sourceAnchorSchema,
   relevance: relevanceSchema,
