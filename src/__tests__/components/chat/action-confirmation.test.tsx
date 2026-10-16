@@ -60,4 +60,32 @@ describe("reviewing canonical tool proposals", () => {
     expect(screen.queryByRole("button", { name: "Approve action" })).toBeNull();
     expect(screen.queryByText("renameNote")).toBeNull();
   });
+  it("refreshes an open calendar only after an approved calendar action completes", async () => {
+    const calendarAction = {
+      id,
+      tool_name: "addTimeBlock",
+      input: { title: "Study", startsAt: "2026-10-06T10:00:00Z", endsAt: "2026-10-06T11:00:00Z" },
+      status: "pending",
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(Response.json(calendarAction))
+        .mockResolvedValueOnce(Response.json({ status: "completed" })),
+    );
+    const changed = vi.fn();
+    window.addEventListener("oghma:time-block-changed", changed);
+    try {
+      render(<ActionConfirmation actionId={id} />);
+      const approve = await screen.findByRole("button", { name: "Approve action" });
+      expect(changed).not.toHaveBeenCalled();
+      fireEvent.click(approve);
+      await screen.findByText("Action completed");
+      expect(changed).toHaveBeenCalledOnce();
+    } finally {
+      window.removeEventListener("oghma:time-block-changed", changed);
+    }
+  });
 });
+

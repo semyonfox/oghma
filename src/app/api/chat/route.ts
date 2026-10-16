@@ -284,6 +284,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
               lastEvent = "meta";
 
               if (!llmAvailable) {
+                await canvasMcpClient?.close().catch(() => {});
                 sendToken(writer, fallbackReply);
                 await persistMessage(
                   scope.sessionId,
@@ -420,6 +421,18 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                         : String(persistError),
                   });
                 });
+                // persisting the user message marked the session generating;
+                // with nothing (or only a partial) saved it would stay busy
+                await markChatGenerationFailed(scope.sessionId).catch(
+                  (statusError) =>
+                    logger.error("Failed to mark chat generation as failed", {
+                      chatStreamId,
+                      error:
+                        statusError instanceof Error
+                          ? statusError.message
+                          : String(statusError),
+                    }),
+                );
                 sendError(writer, interrupted);
                 lastEvent = "error";
                 writer.close();
@@ -654,7 +667,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     const t0 = Date.now();
     const result = await (async () => {
       try {
-        return await generateText({ model, ...llmCallOptions });
+        // a client that hangs up stops the provider call instead of billing on
+        return await generateText({
+          model,
+          abortSignal: request.signal,
+          ...llmCallOptions,
+        });
       } finally {
         await canvasMcpClient?.close().catch(() => {});
       }
@@ -665,6 +683,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     if (finalization.kind === "synthesize-final-answer") {
       const finalAnswer = await streamFinalAnswer({
         model,
+        abortSignal: request.signal,
         instructions: llmCallOptions.instructions,
         messages: [...llmCallOptions.messages, ...result.response.messages],
         maxOutputTokens: llmCallOptions.maxOutputTokens,

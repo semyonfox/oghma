@@ -3,6 +3,7 @@ import { Metrics } from "@/lib/metrics";
 import sql from "@/database/pgsql";
 import type postgres from "postgres";
 import type { MessageMetadata, MessagePart } from "@/lib/chat/types";
+import { boundedChatHistory } from "@/lib/chat/request-history";
 
 const MAX_HISTORY_MESSAGES = 20;
 const MAX_RECENT_ACCESSES = 12;
@@ -301,18 +302,20 @@ export async function resolveSession(
   return sessionId;
 }
 
-/** Load the latest conversation window, in chronological order. */
+/**
+ * Load the latest conversation window, in chronological order. Stored answers
+ * have no length limit, so the window is bounded by size as well as count
+ * before it reaches the prompt or the queued generation payload.
+ */
 export async function loadHistory(
   sessionId: string,
   requestedSessionId: string | undefined,
   requestHistory: ChatMessage[],
 ): Promise<ChatMessage[]> {
-  let history = requestHistory
-    .filter((m) => !!m?.content?.trim())
-    .slice(-MAX_HISTORY_MESSAGES);
+  let history: readonly { role: string; content: string }[] = requestHistory;
 
   if (requestedSessionId && isValidUUID(requestedSessionId)) {
-    const dbMessages = await sql<Array<{ role: string; content: string }>>`
+    history = await sql<Array<{ role: string; content: string }>>`
       SELECT role, content
       FROM (
         SELECT role, content, created_at, id
@@ -323,14 +326,9 @@ export async function loadHistory(
       ) recent
       ORDER BY created_at ASC, id ASC
     `;
-    history = dbMessages
-      .map((m) => ({
-        role: m.role as "user" | "assistant",
-        content: m.content,
-      }))
-      .filter((m: ChatMessage) => !!m.content?.trim())
-      .slice(-MAX_HISTORY_MESSAGES);
   }
 
-  return history;
+  return boundedChatHistory(
+    history.filter((m) => !!m?.content?.trim()),
+  );
 }

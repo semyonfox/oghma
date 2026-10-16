@@ -378,14 +378,14 @@ describe("chat event stream consumption", () => {
     });
   }
 
-  it("applies events, records the session, and reports calendar changes", async () => {
+  it("applies events and records the session", async () => {
     let messages = [baseMsg()];
     const onSession = vi.fn();
     const setMessages = (update: React.SetStateAction<Message[]>) => {
       messages = typeof update === "function" ? update(messages) : update;
     };
 
-    const result = await consumeChatStream({
+    await consumeChatStream({
       body: streamOf(
         'event: meta\ndata: {"sessionId":"session-1"}\n\n' +
           'event: tool-call\ndata: {"toolName":"addTimeBlock"}\n\n' +
@@ -400,7 +400,6 @@ describe("chat event stream consumption", () => {
       translate: (key) => key,
     });
 
-    expect(result.timeBlockChanged).toBe(true);
     expect(onSession).toHaveBeenCalledWith("session-1", "Plan study");
     expect(messages[0]?.content).toBe("Scheduled");
   });
@@ -439,7 +438,7 @@ describe("chat event stream consumption", () => {
         onSession: () => undefined,
         translate: (key) => key,
       }),
-    ).resolves.toEqual({ timeBlockChanged: false });
+    ).resolves.toBeUndefined();
     expect(cancel).toHaveBeenCalledOnce();
   });
 
@@ -500,6 +499,85 @@ describe("chat failure recovery", () => {
         { type: "tool", name: "readNote", label: "Reading note" },
       ],
     });
+  });
+
+  it("keeps reconnecting while each dropped connection delivered new events", async () => {
+    let messages = [baseMsg()];
+    const requested: string[] = [];
+    // five drops in a row, each after one new event, then the final event
+    const fetchMock = vi.fn(async (url: string) => {
+      requested.push(new URL(url, "http://localhost").searchParams.get("after") ?? "");
+      const index = requested.length;
+      return new Response(
+        index <= 5
+          ? `id: ${index}-0\nevent: token\ndata: {"text":"${index}"}\n\n`
+          : "id: 6-0\nevent: done\ndata: {}\n\n",
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.useFakeTimers();
+    try {
+      const consuming = consumeBackgroundGeneration({
+        generationId: "generation",
+        assistantId: "msg-1",
+        userText: "Question",
+        signal: new AbortController().signal,
+        activeGenerationRef: { current: null },
+        consumeStream: (body, assistantId, userText, onEventId) =>
+          consumeChatStream({
+            body,
+            assistantId,
+            userText,
+            onEventId,
+            thinkingStartRef: ref(),
+            setMessages: (update) => {
+              messages = typeof update === "function" ? update(messages) : update;
+            },
+            onSession: () => {},
+            translate: (key) => key,
+          }),
+      });
+      await vi.runAllTimersAsync();
+      await expect(consuming).resolves.toBeUndefined();
+      expect(requested).toEqual(["0-0", "1-0", "2-0", "3-0", "4-0", "5-0"]);
+      expect(messages[0].content).toBe("12345");
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("gives up after repeated reconnects that deliver nothing", async () => {
+    const fetchMock = vi.fn(async () => new Response(": heartbeat\n\n"));
+    vi.stubGlobal("fetch", fetchMock);
+    vi.useFakeTimers();
+    try {
+      const consuming = consumeBackgroundGeneration({
+        generationId: "generation",
+        assistantId: "msg-1",
+        userText: "Question",
+        signal: new AbortController().signal,
+        activeGenerationRef: { current: null },
+        consumeStream: (body, assistantId, userText, onEventId) =>
+          consumeChatStream({
+            body,
+            assistantId,
+            userText,
+            onEventId,
+            thinkingStartRef: ref(),
+            setMessages: () => {},
+            onSession: () => {},
+            translate: (key) => key,
+          }),
+      });
+      const settled = expect(consuming).rejects.toThrow("before completion");
+      await vi.runAllTimersAsync();
+      await settled;
+      expect(fetchMock).toHaveBeenCalledTimes(4);
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
   });
 
   it("does not reconnect to a terminal provider failure or append duplicate error rows", async () => {

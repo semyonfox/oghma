@@ -53,6 +53,19 @@ function inferNoteTitle(content: string): string {
   return "AI Note";
 }
 
+// model-supplied times reach PostgreSQL as normalized UTC, never as raw text
+export function parseTimeRange(startValue: string, endValue: string) {
+  const start = new Date(startValue);
+  const end = new Date(endValue);
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) {
+    throw new Error("Start and end must be valid ISO 8601 timestamps");
+  }
+  if (end.getTime() <= start.getTime()) {
+    throw new Error("End must be after start");
+  }
+  return { start, end };
+}
+
 function sanitizeFileName(raw: string): string {
   return raw
     .replace(/^\.+/, "")
@@ -521,10 +534,13 @@ export function createChatTools(
     description:
       "List the user's scheduled time blocks. Use to check what's already on the calendar before adding new blocks, or to confirm a block was created.",
     inputSchema: z.object({
-      start: z.string().describe("ISO 8601 start of range"),
-      end: z.string().describe("ISO 8601 end of range"),
+      start: z.string().max(64).describe("ISO 8601 start of range"),
+      end: z.string().max(64).describe("ISO 8601 end of range"),
     }),
-    execute: async ({ start, end }) => {
+    execute: async (input) => {
+      const range = parseTimeRange(input.start, input.end);
+      const start = range.start.toISOString();
+      const end = range.end.toISOString();
       const rows = await sql`
         SELECT tb.id, tb.title, tb.starts_at, tb.ends_at, tb.pomodoro_count, tb.completed,
                a.title AS assignment_title
@@ -547,21 +563,13 @@ export function createChatTools(
       "Times: ISO 8601 (e.g. '2026-04-17T15:00:00Z').",
     inputSchema: z.object({
       title: z.string().min(1).max(200),
-      startsAt: z.string(),
-      endsAt: z.string(),
+      startsAt: z.string().max(64),
+      endsAt: z.string().max(64),
       assignmentId: z.string().uuid().optional(),
     }),
     execute: async ({ title: blockTitle, startsAt, endsAt, assignmentId }) => {
-      const start = new Date(startsAt);
-      const end = new Date(endsAt);
-      if (
-        !Number.isFinite(start.getTime()) ||
-        !Number.isFinite(end.getTime())
-      ) {
-        throw new Error("Start and end must be valid ISO 8601 timestamps");
-      }
+      const { start, end } = parseTimeRange(startsAt, endsAt);
       const durationMins = (end.getTime() - start.getTime()) / 60000;
-      if (durationMins <= 0) throw new Error("End must be after start");
 
       if (assignmentId) {
         const [owned] = await sql`
@@ -578,7 +586,7 @@ export function createChatTools(
           user_id, assignment_id, title, starts_at, ends_at, pomodoro_count
         ) VALUES (
           ${userId}::uuid, ${assignmentId ?? null},
-          ${blockTitle}, ${startsAt}, ${endsAt}, ${pomodoroCount}
+          ${blockTitle}, ${start.toISOString()}, ${end.toISOString()}, ${pomodoroCount}
         )
         RETURNING id, title, starts_at, ends_at, pomodoro_count
       `;

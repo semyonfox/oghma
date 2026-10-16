@@ -4,6 +4,8 @@ import { NextRequest } from "next/server";
 const sqlMock = vi.hoisted(() => vi.fn());
 const loadGenerationMock = vi.hoisted(() => vi.fn());
 const requestCancelMock = vi.hoisted(() => vi.fn());
+const cancelMock = vi.hoisted(() => vi.fn());
+const revokeMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/database/pgsql", () => ({ default: sqlMock }));
 vi.mock("@/lib/api-error", () => ({
@@ -17,8 +19,10 @@ vi.mock("@/lib/api-error", () => ({
     Response.json({ error: message }, { status }),
 }));
 vi.mock("@/lib/chat/generation-store", () => ({
+  cancelChatGeneration: cancelMock,
   loadOwnedChatGeneration: loadGenerationMock,
   requestChatGenerationCancel: requestCancelMock,
+  revokeChatGeneration: revokeMock,
 }));
 
 import { DELETE } from "@/app/api/chat/sessions/[id]/route";
@@ -29,6 +33,7 @@ describe("DELETE /api/chat/sessions/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     sqlMock.mockResolvedValue([]);
+    cancelMock.mockResolvedValue(false);
   });
 
   it("deletes an idle session immediately", async () => {
@@ -75,5 +80,47 @@ describe("DELETE /api/chat/sessions/[id]", () => {
       generationId,
       "22222222-2222-2222-2222-222222222222",
     );
+  });
+
+  it("settles queued or orphaned generations without waiting on a worker", async () => {
+    const generationId = "33333333-3333-3333-3333-333333333333";
+    sqlMock
+      .mockResolvedValueOnce([{ id: generationId }])
+      .mockResolvedValueOnce([{ id: sessionId }]);
+    cancelMock.mockResolvedValueOnce(true);
+
+    const response = await DELETE(
+      new NextRequest(`http://localhost/api/chat/sessions/${sessionId}`, {
+        method: "DELETE",
+      }),
+      { params: Promise.resolve({ id: sessionId }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(cancelMock).toHaveBeenCalledWith(generationId);
+    expect(requestCancelMock).not.toHaveBeenCalled();
+    expect(loadGenerationMock).not.toHaveBeenCalled();
+  });
+
+  it("still deletes when Redis cannot carry the stop flag to a live worker", async () => {
+    const generationId = "33333333-3333-3333-3333-333333333333";
+    sqlMock
+      .mockResolvedValueOnce([{ id: generationId }])
+      .mockResolvedValueOnce([{ id: sessionId }]);
+    requestCancelMock.mockRejectedValueOnce(new Error("Redis unavailable"));
+    revokeMock.mockResolvedValueOnce(true);
+
+    const response = await DELETE(
+      new NextRequest(`http://localhost/api/chat/sessions/${sessionId}`, {
+        method: "DELETE",
+      }),
+      { params: Promise.resolve({ id: sessionId }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(revokeMock).toHaveBeenCalledWith(generationId);
+    expect(loadGenerationMock).not.toHaveBeenCalled();
+    const deleteQuery = (sqlMock.mock.calls[1]?.[0] as readonly string[]).join("?");
+    expect(deleteQuery).toContain("DELETE FROM app.chat_sessions");
   });
 });

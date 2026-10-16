@@ -11,8 +11,10 @@ import {
 import { normalizeChatSessionContext } from "@/lib/chat/session";
 import sql from "@/database/pgsql";
 import {
+  cancelChatGeneration,
   loadOwnedChatGeneration,
   requestChatGenerationCancel,
+  revokeChatGeneration,
 } from "@/lib/chat/generation-store";
 
 const GENERATION_STOP_TIMEOUT_MS = 6_000;
@@ -40,14 +42,27 @@ async function stopActiveSessionGenerations(
       AND user_id = ${userId}::uuid
       AND status IN ('queued', 'generating')
   `;
-  const generationIds = active.map((row) => row.id);
+  // queued and orphaned rows settle here, so only live workers are waited on
+  const settled = await Promise.all(
+    active.map((row) => cancelChatGeneration(row.id)),
+  );
+  const generationIds = active
+    .filter((_, index) => !settled[index])
+    .map((row) => row.id);
   if (generationIds.length === 0) return true;
 
-  await Promise.all(
-    generationIds.map((generationId: string) =>
-      requestChatGenerationCancel(generationId),
-    ),
-  );
+  try {
+    await Promise.all(
+      generationIds.map((generationId: string) =>
+        requestChatGenerationCancel(generationId),
+      ),
+    );
+  } catch {
+    // without Redis no worker can see the flag. revoking the lease stops each
+    // one at its next heartbeat, and the session is being deleted anyway
+    await Promise.all(generationIds.map((id) => revokeChatGeneration(id)));
+    return true;
+  }
   const deadline = Date.now() + GENERATION_STOP_TIMEOUT_MS;
 
   while (Date.now() < deadline) {

@@ -164,3 +164,23 @@ it("keeps private stream messages and details out of development diagnostics", a
     vi.unstubAllEnvs();
   }
 });
+
+describe("parseSseFrame — meta events", () => {
+  it("keeps only well-formed sources and retrieval details", () => {
+    expect(
+      parseSseFrame({
+        event: "meta",
+        data: JSON.stringify({
+          sessionId: "session-1",
+          sources: [{ id: "a", title: "Notes" }, { id: 4 }, "bad"],
+          retrieval: { scopeMode: "global", usedFiles: "not a list" },
+        }),
+      }),
+    ).toEqual({
+      type: "meta",
+      sessionId: "session-1",
+      sources: [{ id: "a", title: "Notes" }],
+      retrieval: undefined,
+    });
+  });
+});

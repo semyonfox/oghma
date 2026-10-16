@@ -10,12 +10,14 @@ import {
   loadOwnedChatGeneration,
   readChatGenerationEvents,
   type ChatGenerationRecord,
+  type StoredChatEvent,
 } from "@/lib/chat/generation-store";
 import {
   createBlockingRedisConnection,
   type RedisConnection,
 } from "@/lib/redis";
 import { toSseEvent } from "@/lib/chat/sse";
+import logger from "@/lib/logger";
 
 const encoder = new TextEncoder();
 const REDIS_STREAM_ID = /^\d+-\d+$/;
@@ -23,6 +25,8 @@ const ACTIVE_READ_BLOCK_MS = 15_000;
 // Redis treats BLOCK 0 as an indefinite wait. One millisecond gives terminal
 // generations an effectively non-blocking pass to drain any remaining replay.
 const TERMINAL_READ_BLOCK_MS = 1;
+// without Redis replay the route only waits for PostgreSQL to settle the row
+const DURABLE_POLL_MS = 2_000;
 
 function isTerminalEvent(sse: string): boolean {
   return /^event:\s*(?:done|error)\s*$/m.test(sse);
@@ -70,18 +74,36 @@ export const GET = withErrorHandler(
           void (async () => {
             let afterId = initialAfter;
             let latest = generation;
+            let replayAvailable = true;
             try {
               reader = createBlockingRedisConnection();
               controller.enqueue(encoder.encode(": connected\n\n"));
               while (!cancelled) {
-                const events = await readChatGenerationEvents(
-                  id,
-                  afterId,
-                  isDurablyTerminal(latest)
-                    ? TERMINAL_READ_BLOCK_MS
-                    : ACTIVE_READ_BLOCK_MS,
-                  reader,
-                );
+                let events: StoredChatEvent[] = [];
+                if (replayAvailable) {
+                  try {
+                    events = await readChatGenerationEvents(
+                      id,
+                      afterId,
+                      isDurablyTerminal(latest)
+                        ? TERMINAL_READ_BLOCK_MS
+                        : ACTIVE_READ_BLOCK_MS,
+                      reader,
+                    );
+                  } catch (error) {
+                    if (cancelled) break;
+                    // the answer is still saved in PostgreSQL, so keep the
+                    // client attached and send the terminal event from there
+                    replayAvailable = false;
+                    logger.warn("Chat replay unavailable; waiting for durable state", {
+                      generationId: id,
+                      error: error instanceof Error ? error.message : String(error),
+                    });
+                  }
+                } else {
+                  await new Promise((resolve) => setTimeout(resolve, DURABLE_POLL_MS));
+                  if (cancelled) break;
+                }
                 for (const event of events) {
                   afterId = event.id;
                   controller.enqueue(
