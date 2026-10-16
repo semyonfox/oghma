@@ -1,5 +1,6 @@
-// splits text into sentence-aligned chunks of ~500 characters for embedding
-// no overlap — chunks split at sentence boundaries to preserve coherence
+// splits text into sentence-aligned chunks of about RAG_CHUNK_SIZE characters
+// (500 by default) for embedding. no overlap. a single sentence longer than
+// that is cut at the last clause boundary, and no chunk exceeds twice the size
 
 import { getRagChunkSize } from "@/lib/ai-config";
 
@@ -37,12 +38,9 @@ export const chunkText = (
   text: string,
   chunkSize = getRagChunkSize(),
 ): string[] => {
-    // Handle empty or whitespace-only text
-    if (!text || text.trim().length === 0) {
-        return [];
-    }
+  if (!text || text.trim().length === 0) return [];
 
-    const sentences = text.split(/(?<=[.?!])\s+/);
+  const sentences = text.split(/(?<=[.?!])\s+/);
   const chunks: string[] = [];
   let current = "";
 

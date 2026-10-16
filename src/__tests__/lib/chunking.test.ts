@@ -95,4 +95,20 @@ describe('chunkText', () => {
         expect(Math.max(...result.map((chunk) => chunk.length))).toBeLessThanOrEqual(200);
         expect(result.join('\n')).toContain('word199');
     });
+
+    it('never emits a chunk longer than twice the chunk size', () => {
+        // run-on text with few boundaries, the shape of OCR output and code
+        const text = [
+            'word '.repeat(400),
+            'a,b;c:d '.repeat(150),
+            'x'.repeat(1_000),
+            'Short sentence. '.repeat(30),
+        ].join('\n');
+        const chunks = chunkText(text, 100);
+
+        expect(chunks.length).toBeGreaterThan(10);
+        for (const chunk of chunks) {
+            expect(chunk.length).toBeLessThanOrEqual(200);
+        }
+    });
 });

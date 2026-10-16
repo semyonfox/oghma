@@ -49,7 +49,11 @@ interface QuizCourseRow {
 
 const LIKE_ESCAPE = "\\";
 const MAX_NOTE_RESULTS = 12;
-type SemanticVector = Awaited<ReturnType<typeof embedText>>;
+// cosine distance above this is noise for a short typed query
+const SEMANTIC_MAX_DISTANCE = 0.82;
+// resolves to null when embedding is unavailable, so semantic sections drop
+// out and keyword results still return
+type PendingQueryVector = Promise<number[] | null>;
 
 function cleanSnippet(value: string | null | undefined): string {
   return (value || "")
@@ -123,10 +127,11 @@ async function keywordNotes(
 
 async function semanticNotes(
   userId: string,
-  vector: SemanticVector | null,
+  semanticVector: PendingQueryVector,
   excludeNoteIds: string[],
   limit = 6,
 ): Promise<GlobalSearchResult[]> {
+  const vector = await semanticVector;
   if (!vector) return [];
 
   try {
@@ -134,8 +139,8 @@ async function semanticNotes(
       userId,
       vector,
       excludeDocumentIds: excludeNoteIds,
-      limit: Math.max(limit * 3, limit),
-      maxDistance: 0.82,
+      limit: limit * 3,
+      maxDistance: SEMANTIC_MAX_DISTANCE,
     });
 
     if (hits.length === 0) return [];
@@ -161,7 +166,7 @@ async function semanticNotes(
 async function searchNotes(
   userId: string,
   query: string | null,
-  semanticVector: SemanticVector | null,
+  semanticVector: PendingQueryVector,
 ): Promise<GlobalSearchResult[]> {
   if (!query) return recentNotes(userId);
 
@@ -200,8 +205,8 @@ async function studyNotes(
       href: `/notes/${material.noteId}`,
       source: "keyword" as const,
     }));
-  } catch {
-    logger.warn("global study material search failed");
+  } catch (error) {
+    logger.warn("global study material search failed", { error });
     return [];
   }
 }
@@ -299,17 +304,26 @@ async function searchChats(
   }));
 }
 
-async function searchQuizzes(
+interface QuizCourseScope {
+  nameQuery?: string;
+  courseIds?: string[];
+}
+
+// one definition of a course's quiz stats, shared by the name match and the
+// semantic match so both report the same numbers for the same course
+async function quizCourseRows(
   userId: string,
-  query: string | null,
-  semanticVector: SemanticVector | null,
-  limit = 5,
-): Promise<GlobalSearchResult[]> {
-  const filter = query
-    ? sql`WHERE course_name ILIKE ${likePattern(query)} ESCAPE ${LIKE_ESCAPE}`
+  { nameQuery, courseIds }: QuizCourseScope,
+  limit: number,
+): Promise<QuizCourseRow[]> {
+  const courseScope = courseIds
+    ? sql`AND n.canvas_course_id = ANY(${courseIds}::bigint[])`
+    : sql``;
+  const nameFilter = nameQuery
+    ? sql`WHERE course_name ILIKE ${likePattern(nameQuery)} ESCAPE ${LIKE_ESCAPE}`
     : sql``;
 
-  const rows = await sql<QuizCourseRow[]>`
+  return sql<QuizCourseRow[]>`
     WITH course_stats AS (
       SELECT
         n.canvas_course_id,
@@ -336,6 +350,7 @@ async function searchQuizzes(
         AND ucs.canvas_course_id = n.canvas_course_id
       WHERE n.user_id = ${userId}::uuid
         AND n.canvas_course_id IS NOT NULL
+        ${courseScope}
         AND n.deleted_at IS NULL
         AND (ucs.is_active IS NULL OR ucs.is_active = true)
         AND EXISTS (
@@ -346,11 +361,19 @@ async function searchQuizzes(
     )
     SELECT *
     FROM course_stats
-    ${filter}
+    ${nameFilter}
     ORDER BY due_count DESC, total_cards DESC, course_name ASC
     LIMIT ${limit}
   `;
+}
 
+async function searchQuizzes(
+  userId: string,
+  query: string | null,
+  semanticVector: PendingQueryVector,
+  limit = 5,
+): Promise<GlobalSearchResult[]> {
+  const rows = await quizCourseRows(userId, { nameQuery: query ?? undefined }, limit);
   const keywordResults: GlobalSearchResult[] = rows.map((row) =>
     formatQuizResult(row, query ? "keyword" : "recent"),
   );
@@ -390,82 +413,50 @@ function formatQuizResult(
 
 async function semanticQuizzes(
   userId: string,
-  vector: SemanticVector | null,
+  semanticVector: PendingQueryVector,
   excludeCourseIds: string[],
   limit: number,
 ): Promise<GlobalSearchResult[]> {
+  const vector = await semanticVector;
   if (!vector) return [];
 
   try {
     const hits = await searchChunkVectors({
       userId,
       vector,
-      limit: Math.max(limit * 4, limit),
-      maxDistance: 0.82,
+      limit: limit * 4,
+      maxDistance: SEMANTIC_MAX_DISTANCE,
     });
 
     if (hits.length === 0) return [];
 
-    const chunkIds = hits.map((hit) => hit.chunkId);
-    const rows = await sql<QuizCourseRow[]>`
-      WITH hit_courses AS (
-        SELECT DISTINCT n.canvas_course_id
-        FROM app.chunks c
-        JOIN app.notes n ON n.note_id = c.document_id
-        WHERE c.user_id = ${userId}::uuid
-          AND n.user_id = ${userId}::uuid
-          AND c.id = ANY(${chunkIds}::uuid[])
-          AND n.canvas_course_id IS NOT NULL
-          AND n.deleted_at IS NULL
-      ),
-      course_stats AS (
-        SELECT
-          n.canvas_course_id,
-          COALESCE(
-            (SELECT f.title FROM app.notes f
-             WHERE f.user_id = ${userId}::uuid
-               AND f.canvas_course_id = n.canvas_course_id
-               AND f.is_folder = true
-               AND f.canvas_module_id IS NULL
-               AND f.canvas_assignment_id IS NULL
-               AND f.deleted_at IS NULL
-             ORDER BY f.created_at ASC
-             LIMIT 1),
-            MAX(n.title)
-          ) AS course_name,
-          COUNT(DISTINCT qc.id)::int AS total_cards,
-          COUNT(DISTINCT qc.id) FILTER (WHERE qc.due <= now())::int AS due_count,
-          COUNT(DISTINCT qc.id) FILTER (WHERE qc.state = 'review' AND qc.stability > 7)::int AS mastered_count
-        FROM app.notes n
-        JOIN hit_courses hc ON hc.canvas_course_id = n.canvas_course_id
-        LEFT JOIN app.quiz_questions qq ON qq.note_id = n.note_id AND qq.user_id = ${userId}::uuid
-        LEFT JOIN app.quiz_cards qc ON qc.question_id = qq.id AND qc.user_id = ${userId}::uuid
-        LEFT JOIN app.user_course_settings ucs
-          ON ucs.user_id = ${userId}::uuid
-          AND ucs.canvas_course_id = n.canvas_course_id
-        WHERE n.user_id = ${userId}::uuid
-          AND n.deleted_at IS NULL
-          AND (ucs.is_active IS NULL OR ucs.is_active = true)
-        GROUP BY n.canvas_course_id
-      )
-      SELECT *
-      FROM course_stats
-      ORDER BY due_count DESC, total_cards DESC, course_name ASC
-      LIMIT ${limit}
+    const hitCourses = await sql<{ canvas_course_id: string }[]>`
+      SELECT DISTINCT n.canvas_course_id::text AS canvas_course_id
+      FROM app.chunks c
+      JOIN app.notes n ON n.note_id = c.document_id
+      WHERE c.user_id = ${userId}::uuid
+        AND n.user_id = ${userId}::uuid
+        AND c.id = ANY(${hits.map((hit) => hit.chunkId)}::uuid[])
+        AND n.canvas_course_id IS NOT NULL
+        AND n.deleted_at IS NULL
     `;
-
+    // drop the courses the name match already returned before the limit, so
+    // they cannot crowd out new ones
     const excluded = new Set(excludeCourseIds);
-    return rows
-      .map((row) => formatQuizResult(row, "semantic"))
-      .filter((result: GlobalSearchResult) => !excluded.has(result.id))
-      .slice(0, limit);
+    const courseIds = hitCourses
+      .map((row) => row.canvas_course_id)
+      .filter((id) => !excluded.has(id));
+    if (courseIds.length === 0) return [];
+
+    const rows = await quizCourseRows(userId, { courseIds }, limit);
+    return rows.map((row) => formatQuizResult(row, "semantic"));
   } catch (error) {
     logger.warn("global semantic quiz search failed", { error });
     return [];
   }
 }
 
-async function embedGlobalQuery(query: string): Promise<SemanticVector | null> {
+async function embedGlobalQuery(query: string): Promise<number[] | null> {
   try {
     return await embedText(query);
   } catch (error) {
@@ -496,7 +487,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const limited = await checkRateLimit("global-search", userId);
   if (limited) return limited;
 
-  const semanticVector = query ? await embedGlobalQuery(query) : null;
+  // the embedding call is the slowest step, so start it now and let the
+  // keyword queries run while it is in flight
+  const semanticVector: PendingQueryVector = query
+    ? embedGlobalQuery(query)
+    : Promise.resolve(null);
   const [notes, chats, quizzes, study] = await Promise.all([
     searchNotes(userId, query, semanticVector),
     searchChats(userId, query),

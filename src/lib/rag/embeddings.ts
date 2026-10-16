@@ -6,10 +6,15 @@ import { defaultEmbeddingProvider } from "@/lib/rag/embedding-provider";
 import { getEmbeddingBatchSize } from "@/lib/ai-config";
 import { Metrics } from "@/lib/metrics";
 
+// a person or a chat tool call is waiting on this, so it gets one short try
+// per endpoint instead of the indexing budget of minutes. search callers fall
+// back to keyword results, so failing fast beats hanging the request
+const QUERY_EMBED_OPTIONS = { timeoutMs: 10_000, maxAttempts: 1 };
+
 // embeds a single query string for semantic search
 export async function embedText(text: string): Promise<number[]> {
   const prefixed = `Instruct: Represent this query for retrieval\nQuery: ${text}`;
-  return defaultEmbeddingProvider.embedSingle(prefixed);
+  return defaultEmbeddingProvider.embedSingle(prefixed, QUERY_EMBED_OPTIONS);
 }
 
 // batch-embeds chunks, stripping markdown first because ###, ---, ** etc. are noise in

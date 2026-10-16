@@ -14,9 +14,10 @@ export function stripMarkdown(md: string): string {
       // horizontal rules
       .replace(/^-{3,}$/gm, "")
       .replace(/^\*{3,}$/gm, "")
-      // bold/italic
-      .replace(/\*{1,3}([^*]+)\*{1,3}/g, "$1")
-      .replace(/_{1,3}([^_]+)_{1,3}/g, "$1")
+      // bold/italic. markers must hug the text, so `2 * 3 * 4` survives, and
+      // underscores only count at word edges so snake_case stays intact
+      .replace(/(\*{1,3})(?=\S)([^*\n]+?)(?<=\S)\1/g, "$2")
+      .replace(/(^|\W)(_{1,3})(?=\S)([^_\n]+?)(?<=\S)\2(?!\w)/gm, "$1$3")
       // strikethrough
       .replace(/~~([^~]+)~~/g, "$1")
       // images — keep alt text
@@ -29,8 +30,9 @@ export function stripMarkdown(md: string): string {
       .replace(/^[\s]*[-*+]\s+/gm, "")
       // ordered list markers
       .replace(/^[\s]*\d+\.\s+/gm, "")
-      // HTML tags
-      .replace(/<[^>]+>/g, "")
+      // HTML tags. a tag name must follow `<` directly so `x < 5 and y > 3`
+      // is kept as text
+      .replace(/<\/?[a-zA-Z][\w:-]*(?:\s[^<>]*)?\/?>/g, "")
       // collapse blank lines
       .replace(/\n{3,}/g, "\n\n")
       .trim()
