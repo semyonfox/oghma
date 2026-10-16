@@ -2,12 +2,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import postgres from "postgres";
 import { requireE2EDatabaseUrl } from "../helpers/env";
 
-const sql = postgres(requireE2EDatabaseUrl(), {
-  ssl: (process.env.DATABASE_URL || "").includes("sslmode=require")
-    ? { rejectUnauthorized: false }
-    : false,
-  max: 1,
-});
+const sql = postgres(requireE2EDatabaseUrl(), { max: 1 });
 
 afterAll(async () => {
   await sql.end();

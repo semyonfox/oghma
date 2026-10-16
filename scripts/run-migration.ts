@@ -1,19 +1,22 @@
 #!/usr/bin/env node
 
-// migration runner with --dry-run, --status, and optional file argument
+// migration runner
 // usage:
-//   node --experimental-strip-types scripts/run-migration.ts                    # runs 017 user course settings
-//   node --experimental-strip-types scripts/run-migration.ts 015-oauth-accounts.sql
-//   node --experimental-strip-types scripts/run-migration.ts --dry-run          # shows SQL without executing
-//   node --experimental-strip-types scripts/run-migration.ts --status           # shows applied vs pending
+//   node --experimental-strip-types scripts/run-migration.ts --all                 # apply every pending migration
+//   node --experimental-strip-types scripts/run-migration.ts --status              # show applied, pending and changed
+//   node --experimental-strip-types scripts/run-migration.ts 078_example.sql       # apply one pending migration
+//   node --experimental-strip-types scripts/run-migration.ts --all --dry-run       # print pending SQL without executing
 
 import { readFileSync } from 'node:fs';
-import { resolve } from 'path';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import postgres from 'postgres';
 import {
   type AppliedMigration,
+  findAppliedMigration,
+  findChangedMigrations,
+  migrationChecksum,
   migrationId,
-  isMigrationApplied,
   readMigrationFiles,
 } from './migration-catalog.ts';
 
@@ -22,55 +25,52 @@ const dryRun = args.includes('--dry-run');
 const showStatus = args.includes('--status');
 const runAll = args.includes('--all');
 const help = args.includes('--help') || args.includes('-h');
-const target = args.find(a => !a.startsWith('--'));
+const target = args.find(a => !a.startsWith('-'));
 
-const migrationsDir = resolve('./database/migrations');
-const defaultMigration = '017_user_course_settings.sql';
+const migrationsDir = fileURLToPath(new URL('../database/migrations/', import.meta.url));
 
-if (help) {
-  console.log(`OghmaNotes migration runner
+// every runner (Jenkins prod, Jenkins dev, a manual run) serialises on this key
+// so two deploys never apply the same migration at once
+const lockName = 'oghmanotes:schema_migrations';
+
+const usage = `OghmaNotes migration runner
 
 usage:
   node --experimental-strip-types scripts/run-migration.ts [options] [migration-file]
 
 options:
-  --status     show applied and pending migrations
+  --all        apply every pending migration in order
+  --status     show applied, pending and changed migrations
   --dry-run    print SQL without executing
   --help       show this message
 
-examples:
-  node --experimental-strip-types scripts/run-migration.ts                           # run 017 user course settings
-  node --experimental-strip-types scripts/run-migration.ts --all                     # run all pending migrations
-  node --experimental-strip-types scripts/run-migration.ts --status                  # check migration state
-  node --experimental-strip-types scripts/run-migration.ts --dry-run                 # preview 017 SQL
-  node --experimental-strip-types scripts/run-migration.ts 015-oauth-accounts.sql    # run a specific migration`);
-  process.exit(0);
+a single migration file only runs when it is still pending`;
+
+class MigrationError extends Error {}
+
+if (help || (!showStatus && !runAll && !target)) {
+  console.log(usage);
+  process.exit(help ? 0 : 1);
 }
 
-const ENV = process.env;
-
-if (!ENV.DATABASE_URL) {
+if (!process.env.DATABASE_URL) {
   console.error('error: DATABASE_URL not set');
   console.error('hint: source .env or run with DATABASE_URL=... node --experimental-strip-types scripts/run-migration.ts');
   process.exit(1);
 }
 
-const dbUrl = ENV.DATABASE_URL;
+const dbUrl = process.env.DATABASE_URL;
 const masked = dbUrl.replace(/:[^@]*@/, ':***@');
-const sql = postgres(dbUrl, {
-  ssl: dbUrl.includes('sslmode=require') ? { rejectUnauthorized: false } : false,
-});
-
-interface MigrationRow extends AppliedMigration {
-  applied_at: Date;
-}
+// one connection, so the session advisory lock covers every statement below.
+// postgres.js reads sslmode from the URL itself
+const sql = postgres(dbUrl, { max: 1, onnotice: () => {} });
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
 function errorProperty(error: unknown, key: string): unknown {
-  return typeof error === "object" && error !== null && key in error
+  return typeof error === 'object' && error !== null && key in error
     ? Reflect.get(error, key)
     : undefined;
 }
@@ -86,11 +86,63 @@ function isLockConflict(error: unknown): boolean {
   return typeof code === 'string' && LOCK_CONFLICT_CODES.has(code);
 }
 
+interface MigrationRow extends AppliedMigration {
+  applied_at: Date;
+}
+
+function parseMigrationRow(row: Record<string, unknown>): MigrationRow {
+  const { version, name, applied_at: appliedAt, checksum } = row;
+  if (typeof version !== 'string' || typeof name !== 'string' || !(appliedAt instanceof Date)) {
+    throw new MigrationError('app.schema_migrations has an unexpected row shape');
+  }
+  return {
+    version,
+    name,
+    applied_at: appliedAt,
+    checksum: typeof checksum === 'string' ? checksum : null,
+  };
+}
+
 async function getApplied(): Promise<MigrationRow[]> {
-  return await sql<MigrationRow[]>`
-    SELECT version, name, applied_at
-    FROM app.schema_migrations
-    ORDER BY version`;
+  // SELECT * keeps --status read-only on databases that predate the checksum column
+  const rows = await sql<Record<string, unknown>[]>`
+    SELECT * FROM app.schema_migrations ORDER BY version`;
+  return rows.map(parseMigrationRow);
+}
+
+function readMigration(filename: string): { name: string; contents: string; checksum: string } {
+  const contents = readFileSync(resolve(migrationsDir, filename), 'utf-8');
+  return { name: filename, contents, checksum: migrationChecksum(contents) };
+}
+
+async function ensureTrackingTable(): Promise<void> {
+  await sql`
+    CREATE TABLE IF NOT EXISTS app.schema_migrations (
+      version  TEXT PRIMARY KEY,
+      name     TEXT NOT NULL,
+      applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`;
+  await sql`ALTER TABLE app.schema_migrations ADD COLUMN IF NOT EXISTS checksum TEXT`;
+}
+
+// rows recorded before checksums existed adopt the current file, so later
+// edits to an applied migration are reported instead of silently ignored
+async function backfillChecksums(files: string[], applied: MigrationRow[]): Promise<void> {
+  for (const filename of files) {
+    const row = findAppliedMigration(filename, applied);
+    if (!row || row.checksum) continue;
+    const { checksum } = readMigration(filename);
+    await sql`
+      UPDATE app.schema_migrations SET checksum = ${checksum}
+      WHERE version = ${row.version} AND checksum IS NULL`;
+  }
+}
+
+function warnChangedMigrations(files: string[], applied: MigrationRow[]): void {
+  const changed = findChangedMigrations(files.map(readMigration), applied);
+  for (const name of changed) {
+    console.warn(`warning: ${name} changed after it was applied; ship the change as a new migration`);
+  }
 }
 
 async function status(): Promise<void> {
@@ -107,7 +159,7 @@ async function status(): Promise<void> {
 
   if (applied.length === 0) {
     console.log('\nno migration tracking table found');
-    console.log('run migration 017 to create it and bring the schema up to date\n');
+    console.log('run scripts/prebuild-migrate.ts to adopt the legacy schema and apply migrations\n');
   } else {
     console.log('\napplied:');
     for (const m of applied) {
@@ -116,73 +168,50 @@ async function status(): Promise<void> {
     }
   }
 
-  const pending = files.filter(f => !isMigrationApplied(f, applied));
-
+  const pending = files.filter(f => !findAppliedMigration(f, applied));
   if (pending.length > 0) {
     console.log('\npending:');
     for (const f of pending) console.log(`  ${f}`);
   } else if (applied.length > 0) {
     console.log('\nall migrations applied');
   }
-}
 
-async function applyMigration(filename: string, migrationSQL: string): Promise<void> {
-  // wrap in a transaction via postgres.js API
-  // (sql.unsafe() rejects explicit BEGIN/COMMIT — use sql.begin() instead)
-  await sql.begin(async (tx) => {
-    // a migration blocked behind a live query also blocks every query queued after
-    // it, so fail fast and retry. a migration's own SET LOCAL overrides this
-    await tx.unsafe("SET LOCAL lock_timeout = '3s'");
-    await tx.unsafe(migrationSQL);
-
-    // record migration in tracking table (create table if needed)
-    await tx.unsafe(`
-      CREATE TABLE IF NOT EXISTS app.schema_migrations (
-        version  TEXT PRIMARY KEY,
-        name     TEXT NOT NULL,
-        applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `);
-    const version = migrationId(filename);
-    await tx`
-      INSERT INTO app.schema_migrations (version, name)
-      VALUES (${version}, ${filename})
-      ON CONFLICT (version) DO NOTHING
-    `;
-  });
-}
-
-async function run(filename: string): Promise<void> {
-  const filepath = resolve(migrationsDir, filename);
-  let migrationSQL: string;
-
-  try {
-    migrationSQL = readFileSync(filepath, 'utf-8');
-  } catch (error) {
-    console.error(`failed to read ${filepath}: ${errorMessage(error)}`);
-    process.exit(1);
+  const changed = findChangedMigrations(files.map(readMigration), applied);
+  if (changed.length > 0) {
+    console.log('\nchanged after being applied:');
+    for (const name of changed) console.log(`  ${name}`);
   }
+}
 
-  console.log('OghmaNotes migration runner');
-  console.log('='.repeat(40));
-  console.log('database:', masked);
+async function apply(filename: string): Promise<void> {
+  const migration = readMigration(filename);
+
   console.log('migration:', filename);
-  console.log('size:', (migrationSQL.length / 1024).toFixed(1), 'KB\n');
+  console.log('size:', (migration.contents.length / 1024).toFixed(1), 'KB');
 
   if (dryRun) {
     console.log('-- DRY RUN: showing SQL that would execute --\n');
-    console.log(migrationSQL);
+    console.log(migration.contents);
     console.log('\n-- DRY RUN: no changes made --');
     return;
   }
 
   const start = Date.now();
-  console.log('running migration...\n');
-
   try {
     for (let attempt = 1; ; attempt++) {
       try {
-        await applyMigration(filename, migrationSQL);
+        // sql.unsafe() rejects explicit BEGIN/COMMIT, so the runner owns the
+        // transaction: the migration and its tracking row commit together
+        await sql.begin(async (tx) => {
+          // a migration blocked behind a live query also blocks every query queued after
+          // it, so fail fast and retry. a migration's own SET LOCAL overrides this
+          await tx.unsafe("SET LOCAL lock_timeout = '3s'");
+          await tx.unsafe(migration.contents);
+          await tx`
+            INSERT INTO app.schema_migrations (version, name, checksum)
+            VALUES (${migrationId(filename)}, ${filename}, ${migration.checksum})
+          `;
+        });
         break;
       } catch (error) {
         if (!isLockConflict(error) || attempt === LOCK_CONFLICT_ATTEMPTS) throw error;
@@ -191,38 +220,54 @@ async function run(filename: string): Promise<void> {
         await new Promise(resolveDelay => setTimeout(resolveDelay, delaySeconds * 1000));
       }
     }
-
-    const elapsed = ((Date.now() - start) / 1000).toFixed(1);
-    console.log(`\nmigration completed and recorded in ${elapsed}s`);
-
-    // show post-migration state
-    const tables = await sql<Array<{ tablename: string }>>`
-      SELECT tablename FROM pg_tables
-      WHERE schemaname = 'app' ORDER BY tablename`;
-    console.log('\napp schema tables:', tables.map(t => t.tablename).join(', '));
-
   } catch (error) {
-    console.error('\nmigration failed:');
-    console.error(errorMessage(error));
-    for (const key of ["detail", "hint", "where"]) {
-      const value = errorProperty(error, key);
-      if (value) console.error(`${key}:`, value);
-    }
-    process.exit(1);
+    const details = ['detail', 'hint', 'where']
+      .map(key => [key, errorProperty(error, key)] as const)
+      .filter(([, value]) => value)
+      .map(([key, value]) => `\n${key}: ${String(value)}`)
+      .join('');
+    throw new MigrationError(`${filename} failed and was rolled back: ${errorMessage(error)}${details}`);
   }
+  console.log(`applied in ${((Date.now() - start) / 1000).toFixed(1)}s\n`);
 }
 
-async function runAllPending(): Promise<void> {
-  let files: string[];
-  try {
-    files = readMigrationFiles(migrationsDir);
-  } catch (error) {
-    console.error('failed to read migration catalog:', errorMessage(error));
-    process.exit(1);
+async function migrate(): Promise<void> {
+  console.log('OghmaNotes migration runner');
+  console.log('database:', masked);
+
+  const files = readMigrationFiles(migrationsDir);
+  if (target && !files.includes(target)) {
+    throw new MigrationError(`unknown migration ${target}; expected a file in database/migrations`);
   }
 
-  const applied = await getApplied();
-  const pending = files.filter(f => !isMigrationApplied(f, applied));
+  if (!dryRun) {
+    await sql`SELECT pg_advisory_lock(hashtext(${lockName}))`;
+    await ensureTrackingTable();
+  }
+
+  // read after taking the lock so a runner that waited sees what the other applied
+  let applied: MigrationRow[];
+  try {
+    applied = await getApplied();
+  } catch (error) {
+    if (!dryRun || errorProperty(error, 'code') !== '42P01') throw error;
+    applied = [];
+  }
+
+  if (!dryRun) {
+    await backfillChecksums(files, applied);
+    applied = await getApplied();
+  }
+  warnChangedMigrations(files, applied);
+
+  const pending = files.filter(f => !findAppliedMigration(f, applied));
+  if (target) {
+    if (!pending.includes(target)) {
+      throw new MigrationError(`${target} is already applied; ship schema changes as a new migration`);
+    }
+    await apply(target);
+    return;
+  }
 
   if (pending.length === 0) {
     console.log('all migrations already applied');
@@ -230,24 +275,16 @@ async function runAllPending(): Promise<void> {
   }
 
   console.log(`running ${pending.length} pending migration(s)...\n`);
-  for (const f of pending) {
-    await run(f);
-    console.log('');
-  }
+  for (const f of pending) await apply(f);
 }
 
-async function main(): Promise<void> {
-  try {
-    if (showStatus) {
-      await status();
-    } else if (runAll) {
-      await runAllPending();
-    } else {
-      await run(target || defaultMigration);
-    }
-  } finally {
-    await sql.end();
-  }
+try {
+  if (showStatus) await status();
+  else await migrate();
+} catch (error) {
+  console.error(`\nmigration failed: ${errorMessage(error)}`);
+  process.exitCode = 1;
+} finally {
+  // closing the session also releases the advisory lock
+  await sql.end();
 }
-
-main();

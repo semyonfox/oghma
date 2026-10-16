@@ -43,6 +43,13 @@ jobs:
         run: npm run lint
         continue-on-error: false
 
+      # next build checks types with the TypeScript 6 API only; this is the
+      # repository gate (TypeScript 7, plus the separately compiled Canvas MCP)
+      - name: Typecheck
+        if: contains(fromJSON(steps.changes.outputs.checks), 'web')
+        run: npm run typecheck
+        continue-on-error: false
+
       - name: i18n audit
         if: contains(fromJSON(steps.changes.outputs.checks), 'web')
         run: npm run i18n:audit

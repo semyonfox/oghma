@@ -43,15 +43,17 @@ ENV HOSTNAME=0.0.0.0
 RUN groupadd --system --gid 1001 nodejs \
     && useradd --system --uid 1001 --gid nodejs --create-home nextjs
 
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public
+# --chown on each copy instead of a recursive chown afterwards, which duplicated
+# every copied file into another layer. /app itself stays writable for logs/
+RUN chown nextjs:nodejs /app
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 # scripts/ and database/migrations/ are needed at startup for the prebuild-migrate
 # step in the Jenkins pipeline (runs against a live DB before app deploy).
-COPY --from=builder /app/scripts ./scripts
-COPY --from=builder /app/database/migrations ./database/migrations
-COPY --from=builder /app/node_modules/postgres ./node_modules/postgres
-RUN chown -R nextjs:nodejs /app
+COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
+COPY --from=builder --chown=nextjs:nodejs /app/database/migrations ./database/migrations
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/postgres ./node_modules/postgres
 USER nextjs
 
 EXPOSE 3000
