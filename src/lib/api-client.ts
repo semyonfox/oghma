@@ -1,4 +1,6 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
+// auth routes live on the same origin as the page. a build-time base URL would
+// break login whenever the app is reached through another hostname
+const REQUEST_TIMEOUT_MS = 20_000;
 
 class APIError extends Error {
   constructor(
@@ -25,11 +27,12 @@ interface LoginResponse {
   message?: string;
 }
 
+// the server answers every accepted registration the same way so the response
+// can't reveal whether the address already had an account
 interface RegisterResponse {
-  success?: boolean;
-  requiresVerification: boolean;
-  emailDelivery: "delivered" | "queued" | "failed";
-  message?: string;
+  success: boolean;
+  requiresVerification: true;
+  message: string;
 }
 
 interface AgentRegistrationClaim {
@@ -68,11 +71,12 @@ async function parseErrorResponse(response: Response): Promise<unknown> {
 
 async function postJson<T>(url: string, data: unknown): Promise<T> {
   try {
-    const response = await fetch(`${API_BASE_URL}${url}`, {
+    const response = await fetch(url, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
 
     if (!response.ok) {
@@ -85,7 +89,12 @@ async function postJson<T>(url: string, data: unknown): Promise<T> {
       );
     }
 
-    return (await response.json()) as T;
+    try {
+      return (await response.json()) as T;
+    } catch {
+      // a proxy error page or an empty body would otherwise surface a parser message
+      throw new APIError("Unexpected server response. Please try again.", response.status);
+    }
   } catch (error) {
     if (error instanceof APIError) throw error;
 
@@ -95,8 +104,11 @@ async function postJson<T>(url: string, data: unknown): Promise<T> {
         0,
       );
     }
-    if (error instanceof Error && error.name === "AbortError") {
-      throw new APIError("Request timeout", 408);
+    if (
+      error instanceof Error &&
+      (error.name === "TimeoutError" || error.name === "AbortError")
+    ) {
+      throw new APIError("The server took too long to respond. Please try again.", 408);
     }
 
     throw new APIError(

@@ -1,10 +1,17 @@
+import { createHash } from "node:crypto";
 import { readdirSync, type PathLike } from "node:fs";
 
 const migrationPattern = /^(\d+)_.*\.sql$/;
 
+// 001-017 predate app.schema_migrations. Adoption records them without running
+// them, so a fresh database must come from the baseline snapshot instead.
+const legacyMaxVersion = 17;
+
 export interface AppliedMigration {
   name: string;
   version: string;
+  // null for rows recorded before the runner stored checksums
+  checksum?: string | null;
 }
 
 export function migrationId(filename: string): string {
@@ -13,6 +20,14 @@ export function migrationId(filename: string): string {
 
 export function migrationVersion(filename: string): string | undefined {
   return filename.match(migrationPattern)?.[1];
+}
+
+export function isLegacyMigration(filename: string): boolean {
+  return Number(migrationVersion(filename)) <= legacyMaxVersion;
+}
+
+export function migrationChecksum(contents: string): string {
+  return createHash("sha256").update(contents).digest("hex");
 }
 
 export function sortMigrationFiles(files: readonly string[]): string[] {
@@ -38,14 +53,14 @@ export function assertUniqueMigrationVersions(files: readonly string[]): void {
   }
 }
 
-export function isMigrationApplied(
+export function findAppliedMigration(
   filename: string,
   applied: readonly AppliedMigration[],
-): boolean {
+): AppliedMigration | undefined {
   const identity = migrationId(filename);
   const legacyVersion = migrationVersion(filename);
 
-  return applied.some(
+  return applied.find(
     (migration) =>
       migration.name === filename ||
       migration.version === identity ||
@@ -53,6 +68,30 @@ export function isMigrationApplied(
       // duplicate prefixes, so this compatibility path is unambiguous.
       migration.version === legacyVersion,
   );
+}
+
+export function isMigrationApplied(
+  filename: string,
+  applied: readonly AppliedMigration[],
+): boolean {
+  return findAppliedMigration(filename, applied) !== undefined;
+}
+
+/**
+ * Applied migrations whose checked-in SQL no longer matches what was recorded.
+ * Editing an applied file never reaches databases that already ran it, so the
+ * change has to ship as a new migration instead.
+ */
+export function findChangedMigrations(
+  files: ReadonlyArray<{ name: string; checksum: string }>,
+  applied: readonly AppliedMigration[],
+): string[] {
+  return files
+    .filter((file) => {
+      const recorded = findAppliedMigration(file.name, applied)?.checksum;
+      return typeof recorded === "string" && recorded !== file.checksum;
+    })
+    .map((file) => file.name);
 }
 
 export function readMigrationFiles(migrationsDir: PathLike): string[] {

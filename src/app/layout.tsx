@@ -11,7 +11,7 @@ import MarketingTracker from "@/components/marketing-tracker";
 import GlobalSearchRoot from "@/components/search/global-search-root";
 import { getRequestLocale } from "@/lib/i18n/server";
 import { loadLocaleData } from "@/lib/i18n/locale-data";
-import { Locale } from "@/locales";
+import { isRtlLocale } from "@/locales";
 import { Toaster } from "sonner";
 import type { ReactNode } from "react";
 import type { Viewport } from "next";
@@ -121,7 +121,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   return (
     <html
       lang={locale}
-      dir={locale === Locale.ar ? "rtl" : "ltr"}
+      dir={isRtlLocale(locale) ? "rtl" : "ltr"}
       className={`${sourceSans.variable} ${sourceSerif.variable}`}
       suppressHydrationWarning
     >

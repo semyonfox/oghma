@@ -53,6 +53,27 @@ describe("CanvasClient.getPaginated", () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
+  it("follows same-origin links when the stored domain differs only in case", async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(page([1], "https://x.instructure.com/api/v1/things?page=2"))
+      .mockResolvedValueOnce(page([2]));
+    const client = new CanvasClient({ domain: "X.Instructure.com", token: "t", fetch });
+
+    await expect(client.collectPaginated<number>("/api/v1/things")).resolves.toEqual([1, 2]);
+  });
+
+  it("stops after maxPages so one call cannot walk an unbounded list", async () => {
+    const fetch = vi.fn((url: string) => {
+      const n = Number(new URL(url).searchParams.get("page") ?? "1");
+      return Promise.resolve(page([n], `https://x.instructure.com/api/v1/things?page=${n + 1}`));
+    });
+    const client = new CanvasClient({ domain: "x.instructure.com", token: "t", fetch, maxPages: 3 });
+
+    await expect(client.collectPaginated<number>("/api/v1/things")).resolves.toEqual([1, 2, 3]);
+    expect(fetch).toHaveBeenCalledTimes(3);
+  });
+
   it("rejects a protocol-relative API path before fetching", async () => {
     const fetch = vi.fn();
     const client = new CanvasClient({ domain: "x.instructure.com", token: "t", fetch });

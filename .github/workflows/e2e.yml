@@ -36,7 +36,6 @@ env:
   E2E_BASE_URL: http://localhost:3310
   PLAYWRIGHT_BASE_URL: http://localhost:3310
   NEXT_PUBLIC_APP_URL: http://localhost:3310
-  NEXT_PUBLIC_API_URL: http://localhost:3310
   NEXTAUTH_URL: http://localhost:3310
   APP_BASE_URL: http://localhost:3310
   CORS_ORIGINS: http://localhost:3310

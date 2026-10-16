@@ -1,32 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const { mockSql, mockRateLimit, mockRecordMarketingEvent } = vi.hoisted(() => {
+const { mockSql, mockRateLimit } = vi.hoisted(() => {
   const sql = vi.fn();
   Object.assign(sql, { json: vi.fn((value) => value) });
   return {
     mockSql: sql,
     mockRateLimit: vi.fn(),
-    mockRecordMarketingEvent: vi.fn(),
   };
 });
 
 vi.mock("@/database/pgsql", () => ({ default: mockSql }));
-vi.mock("@/lib/api-error", () => ({
-  withErrorHandler:
-    (handler: (request: NextRequest) => Promise<Response>) =>
-    (request: NextRequest) =>
-      handler(request),
-}));
+vi.mock("@/auth", () => ({ auth: vi.fn() }));
 vi.mock("@/lib/rate-limiter", () => ({
   checkRateLimit: mockRateLimit,
   getClientIp: vi.fn(() => "127.0.0.1"),
 }));
-vi.mock("@/lib/marketing/events", () => ({
-  recordMarketingEvent: mockRecordMarketingEvent,
-}));
 vi.mock("@/lib/logger", () => ({
-  default: { warn: vi.fn() },
+  default: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
 import { POST } from "@/app/api/contact/route";
@@ -51,7 +42,6 @@ describe("POST /api/contact", () => {
     vi.clearAllMocks();
     mockSql.mockReset();
     mockRateLimit.mockResolvedValue(null);
-    mockRecordMarketingEvent.mockResolvedValue(true);
     mockSql.mockResolvedValueOnce([
       { id: "00000000-0000-4000-8000-000000000001" },
     ]);
@@ -110,7 +100,6 @@ describe("POST /api/contact", () => {
         reply_to: "ada@example.com",
       }),
     );
-    expect(mockRecordMarketingEvent).not.toHaveBeenCalled();
     expect(mockSql.mock.calls.map((call) => String(call[0])).join(" ")).not.toContain("app.marketing_events");
 
   });
@@ -138,14 +127,33 @@ describe("POST /api/contact", () => {
     expect(response.status).toBe(200);
     expect(mockSql).not.toHaveBeenCalled();
     expect(fetch).not.toHaveBeenCalled();
-    expect(mockRecordMarketingEvent).not.toHaveBeenCalled();
   });
 
-  it("accepts the Other reason offered by the contact form without analytics writes", async () => {
+  it("accepts the Other reason offered by the contact form", async () => {
     const response = await POST(request({ ...validBody, interest: "other" }));
     expect(response.status).toBe(200);
     expect(mockSql).toHaveBeenCalledTimes(2);
-    expect(mockRecordMarketingEvent).not.toHaveBeenCalled();
+  });
+
+  it("records which form a lead came from", async () => {
+    await POST(request({ ...validBody, source: "home" }));
+    expect(mockSql.mock.calls[0]).toContain("home_form");
+
+    mockSql.mockReset();
+    mockSql.mockResolvedValueOnce([{ id: "00000000-0000-4000-8000-000000000002" }]);
+    mockSql.mockResolvedValueOnce([]);
+    await POST(request(validBody));
+    expect(mockSql.mock.calls[0]).toContain("contact_form");
+  });
+
+  it("refuses an oversized body before parsing or storing it", async () => {
+    const response = await POST(
+      request({ ...validBody, message: "x".repeat(70 * 1024) }),
+    );
+
+    expect(response.status).toBe(413);
+    expect(mockSql).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it("rejects submissions without a recognised reason for contact", async () => {

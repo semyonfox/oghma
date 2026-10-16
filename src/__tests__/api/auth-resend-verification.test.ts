@@ -1,5 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+
+const deferred = vi.hoisted(() => [] as Array<() => Promise<void>>);
+vi.mock("next/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/server")>()),
+  after: (callback: () => Promise<void>) => {
+    deferred.push(callback);
+  },
+}));
+
+async function runDeferred() {
+  for (const callback of deferred.splice(0)) await callback();
+}
 
 vi.mock("@/database/pgsql", () => ({ default: vi.fn() }));
 vi.mock("@/lib/auth/session", () => ({
@@ -12,6 +24,7 @@ vi.mock("@/lib/auth/session", () => ({
 }));
 vi.mock("@/lib/rate-limiter", () => ({
   checkRateLimit: vi.fn().mockResolvedValue(null),
+  getClientIp: () => "198.51.100.4",
 }));
 vi.mock("@/lib/email", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/email")>()),
@@ -35,6 +48,7 @@ vi.mock("@/lib/logger", () => ({
 import sql from "@/database/pgsql";
 import { EmailSendError, sendVerificationEmail } from "@/lib/email";
 import logger from "@/lib/logger";
+import { checkRateLimit } from "@/lib/rate-limiter";
 import { POST } from "@/app/api/auth/resend-verification/route";
 
 const mockSql = vi.mocked(sql);
@@ -49,7 +63,9 @@ function request() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  deferred.length = 0;
   mockSql.mockResolvedValue([]);
+  vi.mocked(checkRateLimit).mockResolvedValue(null);
   vi.mocked(sendVerificationEmail).mockResolvedValue("delivered");
 });
 
@@ -67,8 +83,11 @@ describe("verification resend", () => {
     ]).mockResolvedValueOnce([{ user_id: "user-1" }]);
 
     const response = await POST(request());
-
     expect(response.status).toBe(200);
+    // delivery happens after the response so its latency can't reveal the account
+    expect(sendVerificationEmail).not.toHaveBeenCalled();
+    await runDeferred();
+
     expect(sendVerificationEmail).toHaveBeenCalledTimes(1);
     expect(sendVerificationEmail).toHaveBeenCalledWith(
       "student@example.com",
@@ -97,6 +116,7 @@ describe("verification resend", () => {
     );
 
     const response = await POST(request());
+    await runDeferred();
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
@@ -151,8 +171,28 @@ describe("verification resend", () => {
     ]).mockResolvedValueOnce([]);
 
     const response = await POST(request());
+    await runDeferred();
 
     expect(response.status).toBe(200);
     expect(sendVerificationEmail).not.toHaveBeenCalled();
+  });
+
+  it("caps resends per ip before looking up any address", async () => {
+    vi.mocked(checkRateLimit).mockImplementation(async (category) =>
+      category === "resend-verification-ip"
+        ? NextResponse.json({ error: "Too many requests" }, { status: 429 })
+        : null,
+    );
+    const response = await POST(request());
+    expect(response.status).toBe(429);
+    expect(checkRateLimit).toHaveBeenCalledWith("resend-verification-ip", "198.51.100.4");
+    expect(mockSql).not.toHaveBeenCalled();
+  });
+
+  it("only looks up live unverified accounts", async () => {
+    await POST(request());
+    const [lookup] = mockSql.mock.calls[0];
+    expect(String(lookup)).toContain("email_verified = false");
+    expect(String(lookup)).toContain("deleted_at IS NULL");
   });
 });

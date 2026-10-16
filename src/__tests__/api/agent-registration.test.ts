@@ -36,6 +36,7 @@ import {
   findOpenAgentRegistrationByEmail,
 } from "@/lib/auth/agent-registration";
 import { validateSession } from "@/lib/auth/session";
+import { assertTrustedOrigin } from "@/lib/api-error";
 import { POST as startRegistration } from "@/app/agent/identity/route";
 import { POST as readClaim } from "@/app/agent/identity/claim/route";
 import { POST as completeClaim } from "@/app/agent/identity/claim/complete/route";
@@ -94,6 +95,51 @@ describe("auth.md new-user registration", () => {
     expect(createAgentRegistrationClaim).toHaveBeenCalledWith(
       "student@example.com",
     );
+  });
+
+  it("clears an expired unfinished claim before starting a new one", async () => {
+    vi.mocked(createAgentRegistrationClaim).mockResolvedValue({
+      claim: {
+        id: "claim-2",
+        email: "student@example.com",
+        status: "pending",
+        expires_at: new Date("2026-07-14T12:30:00.000Z"),
+        created_user_id: null,
+        created_at: new Date("2026-07-14T12:15:00.000Z"),
+      },
+      claimToken: CLAIM_TOKEN,
+      userCode: "654321",
+    });
+
+    const response = await startRegistration(
+      request("https://oghmanotes.ie/agent/identity", {
+        type: "service_auth",
+        login_hint: "student@example.com",
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    const statements = vi.mocked(sql).mock.calls.map((call) => String(call[0]));
+    expect(statements.some((text) =>
+      text.includes("DELETE FROM app.agent_registration_claims") &&
+      text.includes("status = 'pending'") &&
+      text.includes("expires_at <= NOW()"),
+    )).toBe(true);
+  });
+
+  it("answers a concurrent duplicate claim with 409 rather than a crash", async () => {
+    vi.mocked(createAgentRegistrationClaim).mockRejectedValue(
+      Object.assign(new Error("duplicate key"), { code: "23505" }),
+    );
+
+    const response = await startRegistration(
+      request("https://oghmanotes.ie/agent/identity", {
+        type: "service_auth",
+        login_hint: "student@example.com",
+      }),
+    );
+
+    expect(response.status).toBe(409);
   });
 
   it("refuses an existing account instead of creating a claim", async () => {
@@ -170,6 +216,20 @@ describe("auth.md new-user registration", () => {
       }),
     );
     expect(response.status).toBe(401);
+    expect(completeOAuthAgentRegistration).not.toHaveBeenCalled();
+  });
+  it("answers a cross-site completion attempt with 403 rather than a crash", async () => {
+    vi.mocked(assertTrustedOrigin).mockImplementationOnce(() => {
+      throw new Error("Invalid request origin");
+    });
+    const response = await completeClaim(
+      request("https://oghmanotes.ie/agent/identity/claim/complete", {
+        claim_token: CLAIM_TOKEN,
+        user_code: "123456",
+      }),
+    );
+    expect(response.status).toBe(403);
+    expect(mockedAuth).not.toHaveBeenCalled();
     expect(completeOAuthAgentRegistration).not.toHaveBeenCalled();
   });
 });

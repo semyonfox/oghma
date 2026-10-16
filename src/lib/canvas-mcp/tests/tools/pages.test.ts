@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { pageTools } from "../../src/tools/pages.js";
-import type { CanvasClient } from "../../src/canvas/client.js";
+import { CanvasClient } from "../../src/canvas/client.js";
 
 function findTool(name: string) {
     const tool = pageTools.find((t) => t.name === name);
@@ -52,6 +52,23 @@ describe("page tools", () => {
             {},
         );
         expect(result.content[0].text).toContain("Week 1");
+    });
+
+    it("canvas_get_page keeps a model-supplied slug inside the page path", async () => {
+        const fetch = vi.fn().mockResolvedValue(new Response("{}", { status: 200 }));
+        const canvas = new CanvasClient({ domain: "x.instructure.com", token: "t", fetch });
+        const tool = findTool("canvas_get_page");
+
+        await tool.handler(
+            tool.inputSchema.parse({ course_id: 10, page_url: "../../../users/self/profile?as_user_id=1" }),
+            { canvas },
+        );
+
+        const [url] = fetch.mock.calls[0];
+        expect(new URL(url).pathname).toBe(
+            "/api/v1/courses/10/pages/..%2F..%2F..%2Fusers%2Fself%2Fprofile%3Fas_user_id%3D1",
+        );
+        expect(new URL(url).search).toBe("");
     });
 
     it("canvas_get_front_page fetches the course front page", async () => {

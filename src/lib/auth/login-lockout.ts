@@ -1,34 +1,29 @@
-// auth rate limiting — redis-backed with in-memory fallback
-// 5 attempts per 15 min window, 30 min lockout on exceed
+// password login lockout: 5 attempts per 15 min window per normalized email,
+// then a 30 min lock. redis is the shared store. a store outage blocks password
+// login unless AUTH_LOCKOUT_FAIL_OPEN=true, which falls back to per-process memory
 
 import { ensureRedisReady, redis, redisReady } from "@/lib/redis";
 import logger from "@/lib/logger";
 
-interface AuthProtectionState {
-  count: number;
-  windowResetTime: number;
-  lockedUntil: number;
-  lastAttempt: number;
-}
+const MAX_ATTEMPTS = 5;
+const WINDOW_SECS = 15 * 60;
+const LOCK_SECS = 30 * 60;
+// bounds the fail-open fallback against floods of made-up addresses
+const MEMORY_MAX_ENTRIES = 10_000;
 
-type RedisPipelineResults = Array<[Error | null, unknown]> | null;
-
-const authProtection = new Map<string, AuthProtectionState>();
-
-const CONFIG = {
-  MAX_ATTEMPTS: 5,
-  WINDOW_MS: 15 * 60 * 1000, // 15 min sliding window for rate limiting
-  LOCK_DURATION_MS: 30 * 60 * 1000, // 30 min account lockout duration
-  WINDOW_SECS: 15 * 60, // 15 min in seconds (for redis TTL)
-  LOCK_SECS: 30 * 60, // 30 min in seconds (for redis TTL)
-};
-
-// redis key prefixes
 const KEY = {
   attempts: (email: string) => `ratelimit:attempts:${email}`,
   window: (email: string) => `ratelimit:window:${email}`,
   lockout: (email: string) => `ratelimit:lockout:${email}`,
 };
+
+interface MemoryState {
+  count: number;
+  windowResetTime: number;
+  lockedUntil: number;
+}
+
+const memoryState = new Map<string, MemoryState>();
 
 function normalize(email: string): string {
   return email.toLowerCase().trim();
@@ -71,11 +66,11 @@ async function canUseRedis(): Promise<boolean> {
   }
 }
 
-function storeUnavailableError(
+function storeUnavailable(
   fn: string,
-  err: unknown,
+  err: unknown = new Error("redis not ready after initialization"),
 ): AuthLockoutStoreUnavailableError {
-  const message = errorMessage(err ?? "redis not ready after initialization");
+  const message = errorMessage(err);
   logger.error("redis auth lockout store unavailable", {
     fn,
     message,
@@ -84,304 +79,25 @@ function storeUnavailableError(
   return new AuthLockoutStoreUnavailableError(message);
 }
 
-function redisNotReadyError(fn: string): AuthLockoutStoreUnavailableError {
-  return storeUnavailableError(fn, new Error("redis not ready after initialization"));
-}
-
-function assertPipelineSucceeded(
-  results: RedisPipelineResults,
+// null means "use memory"; throws when memory isn't allowed
+async function withStore<T>(
   fn: string,
-): void {
-  if (!results) throw new Error(`${fn} pipeline returned null`);
-  const commandError = results.find(([error]) => error)?.[0];
-  if (commandError) throw commandError;
-}
-
-async function redisIsAccountLocked(email: string): Promise<boolean> {
-  const lockUntil = await redis.get(KEY.lockout(email));
-  if (!lockUntil) return false;
-
-  const now = Date.now();
-  if (now >= parseInt(lockUntil, 10)) {
-    // lock expired, clean up
-    await redis.del(KEY.lockout(email));
-    return false;
-  }
-  return true;
-}
-
-async function redisIsRateLimited(email: string): Promise<boolean> {
-  const [countStr, windowResetStr] = await redis.mget(
-    KEY.attempts(email),
-    KEY.window(email),
-  );
-  if (!countStr) return false;
-
-  const now = Date.now();
-  if (windowResetStr && now > parseInt(windowResetStr, 10)) {
-    // window expired, clean up
-    await redis.del(KEY.attempts(email), KEY.window(email));
-    return false;
-  }
-
-  return parseInt(countStr, 10) >= CONFIG.MAX_ATTEMPTS;
-}
-
-async function redisRecordFailedAttempt(email: string): Promise<void> {
-  const now = Date.now();
-  const windowResetStr = await redis.get(KEY.window(email));
-
-  // reset if window expired or no window exists
-  if (!windowResetStr || now > parseInt(windowResetStr, 10)) {
-    const windowReset = now + CONFIG.WINDOW_MS;
-    // set count to 1 and window reset time atomically with pipeline
-    const pipeline = redis.pipeline();
-    pipeline.set(KEY.attempts(email), "1", "EX", CONFIG.WINDOW_SECS);
-    pipeline.set(
-      KEY.window(email),
-      String(windowReset),
-      "EX",
-      CONFIG.WINDOW_SECS,
-    );
-    assertPipelineSucceeded(
-      await pipeline.exec(),
-      "redisRecordFailedAttempt",
-    );
-
-    // first attempt can never trigger lockout (need MAX_ATTEMPTS)
-    return;
-  }
-
-  // increment within existing window
-  const newCount = await redis.incr(KEY.attempts(email));
-
-  // lock account if threshold exceeded
-  if (newCount >= CONFIG.MAX_ATTEMPTS) {
-    const lockUntil = now + CONFIG.LOCK_DURATION_MS;
-    await redis.set(
-      KEY.lockout(email),
-      String(lockUntil),
-      "EX",
-      CONFIG.LOCK_SECS,
-    );
-  }
-}
-
-async function redisClearFailedAttempts(email: string): Promise<void> {
-  await redis.del(KEY.attempts(email), KEY.window(email), KEY.lockout(email));
-}
-
-async function redisGetLockoutMinutesRemaining(email: string): Promise<number> {
-  const lockUntil = await redis.get(KEY.lockout(email));
-  if (!lockUntil) return 0;
-
-  const remainingMs = parseInt(lockUntil, 10) - Date.now();
-  return Math.max(0, Math.ceil(remainingMs / 1000 / 60));
-}
-
-async function redisGetRateLimitResetTime(email: string): Promise<number> {
-  const windowReset = await redis.get(KEY.window(email));
-  if (!windowReset) return 0;
-
-  const remainingMs = parseInt(windowReset, 10) - Date.now();
-  return Math.max(0, Math.ceil(remainingMs / 1000));
-}
-
-function memIsAccountLocked(email: string): boolean {
-  const state = authProtection.get(email);
-  if (!state) return false;
-
-  const now = Date.now();
-  if (now >= state.lockedUntil) {
-    authProtection.delete(email);
-    return false;
-  }
-  return true;
-}
-
-function memIsRateLimited(email: string): boolean {
-  const state = authProtection.get(email);
-  if (!state) return false;
-
-  const now = Date.now();
-  if (now > state.windowResetTime) {
-    authProtection.delete(email);
-    return false;
-  }
-  return state.count >= CONFIG.MAX_ATTEMPTS;
-}
-
-function memRecordFailedAttempt(email: string): void {
-  const now = Date.now();
-  let state = authProtection.get(email);
-
-  if (!state || now > state.windowResetTime) {
-    state = {
-      count: 0,
-      windowResetTime: now + CONFIG.WINDOW_MS,
-      lockedUntil: 0,
-      lastAttempt: now,
-    };
-  }
-
-  state.count++;
-  state.lastAttempt = now;
-
-  if (state.count >= CONFIG.MAX_ATTEMPTS) {
-    state.lockedUntil = now + CONFIG.LOCK_DURATION_MS;
-  }
-
-  authProtection.set(email, state);
-}
-
-function memClearFailedAttempts(email: string): void {
-  authProtection.delete(email);
-}
-
-function memGetLockoutMinutesRemaining(email: string): number {
-  const state = authProtection.get(email);
-  if (!state || !state.lockedUntil) return 0;
-
-  const remainingMs = state.lockedUntil - Date.now();
-  return Math.max(0, Math.ceil(remainingMs / 1000 / 60));
-}
-
-function memGetRateLimitResetTime(email: string): number {
-  const state = authProtection.get(email);
-  if (!state) return 0;
-
-  const remainingMs = state.windowResetTime - Date.now();
-  return Math.max(0, Math.ceil(remainingMs / 1000));
-}
-
-export async function isAccountLocked(email: string): Promise<boolean> {
-  email = normalize(email);
+  redisOperation: () => Promise<T>,
+): Promise<T | null> {
   if (await canUseRedis()) {
     try {
-      return await redisIsAccountLocked(email);
+      return await redisOperation();
     } catch (err) {
-      if (!failOpen()) {
-        storeUnavailableError("isAccountLocked", err);
-        return false;
-      }
-      logger.warn("redis rate-limit read failed, falling back to memory", {
-        fn: "isAccountLocked",
+      if (!failOpen()) throw storeUnavailable(fn, err);
+      logger.warn("redis lockout store failed, falling back to memory", {
+        fn,
         message: errorMessage(err),
       });
+      return null;
     }
-  } else if (!failOpen()) {
-    redisNotReadyError("isAccountLocked");
-    return false;
   }
-  return memIsAccountLocked(email);
-}
-
-export async function isRateLimited(email: string): Promise<boolean> {
-  email = normalize(email);
-  if (await canUseRedis()) {
-    try {
-      return await redisIsRateLimited(email);
-    } catch (err) {
-      if (!failOpen()) {
-        storeUnavailableError("isRateLimited", err);
-        return true;
-      }
-      logger.warn("redis rate-limit read failed, falling back to memory", {
-        fn: "isRateLimited",
-        message: errorMessage(err),
-      });
-    }
-  } else if (!failOpen()) {
-    redisNotReadyError("isRateLimited");
-    return true;
-  }
-  return memIsRateLimited(email);
-}
-
-export async function recordFailedAttempt(email: string): Promise<void> {
-  email = normalize(email);
-  if (await canUseRedis()) {
-    try {
-      await redisRecordFailedAttempt(email);
-      return;
-    } catch (err) {
-      if (!failOpen()) throw storeUnavailableError("recordFailedAttempt", err);
-      logger.warn("redis rate-limit write failed, falling back to memory", {
-        fn: "recordFailedAttempt",
-        message: errorMessage(err),
-      });
-    }
-  } else if (!failOpen()) {
-    throw redisNotReadyError("recordFailedAttempt");
-  }
-  memRecordFailedAttempt(email);
-}
-
-export async function clearFailedAttempts(email: string): Promise<void> {
-  email = normalize(email);
-  if (await canUseRedis()) {
-    try {
-      await redisClearFailedAttempts(email);
-      return;
-    } catch (err) {
-      if (!failOpen()) {
-        storeUnavailableError("clearFailedAttempts", err);
-        return;
-      }
-      logger.warn("redis rate-limit write failed, falling back to memory", {
-        fn: "clearFailedAttempts",
-        message: errorMessage(err),
-      });
-    }
-  } else if (!failOpen()) {
-    redisNotReadyError("clearFailedAttempts");
-    return;
-  }
-  memClearFailedAttempts(email);
-}
-
-export async function getLockoutMinutesRemaining(email: string): Promise<number> {
-  email = normalize(email);
-  if (await canUseRedis()) {
-    try {
-      return await redisGetLockoutMinutesRemaining(email);
-    } catch (err) {
-      if (!failOpen()) {
-        storeUnavailableError("getLockoutMinutesRemaining", err);
-        return 0;
-      }
-      logger.warn("redis rate-limit read failed, falling back to memory", {
-        fn: "getLockoutMinutesRemaining",
-        message: errorMessage(err),
-      });
-    }
-  } else if (!failOpen()) {
-    redisNotReadyError("getLockoutMinutesRemaining");
-    return 0;
-  }
-  return memGetLockoutMinutesRemaining(email);
-}
-
-export async function getRateLimitResetTime(email: string): Promise<number> {
-  email = normalize(email);
-  if (await canUseRedis()) {
-    try {
-      return await redisGetRateLimitResetTime(email);
-    } catch (err) {
-      if (!failOpen()) {
-        storeUnavailableError("getRateLimitResetTime", err);
-        return 0;
-      }
-      logger.warn("redis rate-limit read failed, falling back to memory", {
-        fn: "getRateLimitResetTime",
-        message: errorMessage(err),
-      });
-    }
-  } else if (!failOpen()) {
-    redisNotReadyError("getRateLimitResetTime");
-    return 0;
-  }
-  return memGetRateLimitResetTime(email);
+  if (!failOpen()) throw storeUnavailable(fn);
+  return null;
 }
 
 const RESERVE_LOGIN_ATTEMPT = `
@@ -400,21 +116,83 @@ if count > tonumber(ARGV[3]) then return 0 end
 return 1
 `;
 
-// reserve before bcrypt so concurrent requests and both login routes share one budget
+function pruneMemory(now: number): void {
+  if (memoryState.size < MEMORY_MAX_ENTRIES) return;
+  for (const [email, state] of memoryState) {
+    if (state.lockedUntil <= now && state.windowResetTime < now) {
+      memoryState.delete(email);
+    }
+  }
+}
+
+// mirrors the lua script for the fail-open fallback
+function memoryReserve(email: string, now: number): boolean {
+  let state = memoryState.get(email);
+  if (state && state.lockedUntil > now) return false;
+  if (!state || now > state.windowResetTime) {
+    pruneMemory(now);
+    state = {
+      count: 0,
+      windowResetTime: now + WINDOW_SECS * 1000,
+      lockedUntil: 0,
+    };
+    memoryState.set(email, state);
+  }
+  state.count += 1;
+  if (state.count >= MAX_ATTEMPTS) state.lockedUntil = now + LOCK_SECS * 1000;
+  return state.count <= MAX_ATTEMPTS;
+}
+
+/**
+ * Count an attempt before bcrypt runs, so concurrent requests and both login
+ * paths share one budget. Successful logins clear the count. Returns false
+ * when the address is locked.
+ */
 export async function reserveLoginAttempt(email: string): Promise<boolean> {
   email = normalize(email);
-  if (await canUseRedis()) {
-    try {
-      return await redis.eval(RESERVE_LOGIN_ATTEMPT, 3,
-        KEY.attempts(email), KEY.window(email), KEY.lockout(email),
-        Date.now(), CONFIG.WINDOW_SECS, CONFIG.MAX_ATTEMPTS, CONFIG.LOCK_SECS) === 1;
-    } catch (error) {
-      if (!failOpen()) throw storeUnavailableError("reserveLoginAttempt", error);
-    }
-  } else if (!failOpen()) {
-    throw redisNotReadyError("reserveLoginAttempt");
+  const now = Date.now();
+  const reserved = await withStore("reserveLoginAttempt", async () =>
+    (await redis.eval(
+      RESERVE_LOGIN_ATTEMPT,
+      3,
+      KEY.attempts(email),
+      KEY.window(email),
+      KEY.lockout(email),
+      now,
+      WINDOW_SECS,
+      MAX_ATTEMPTS,
+      LOCK_SECS,
+    )) === 1,
+  );
+  return reserved ?? memoryReserve(email, now);
+}
+
+export async function clearFailedAttempts(email: string): Promise<void> {
+  email = normalize(email);
+  try {
+    const cleared = await withStore("clearFailedAttempts", async () => {
+      await redis.del(KEY.attempts(email), KEY.window(email), KEY.lockout(email));
+      return true;
+    });
+    if (cleared) return;
+  } catch {
+    // a valid login still succeeds; the stale count expires with its window
+    return;
   }
-  if (memIsAccountLocked(email) || memIsRateLimited(email)) return false;
-  memRecordFailedAttempt(email);
-  return true;
+  memoryState.delete(email);
+}
+
+export async function getLockoutMinutesRemaining(email: string): Promise<number> {
+  email = normalize(email);
+  let lockedUntil: number;
+  try {
+    const stored = await withStore("getLockoutMinutesRemaining", async () =>
+      Number((await redis.get(KEY.lockout(email))) ?? 0),
+    );
+    lockedUntil = stored ?? memoryState.get(email)?.lockedUntil ?? 0;
+  } catch {
+    return 0;
+  }
+  const remainingMs = lockedUntil - Date.now();
+  return remainingMs > 0 ? Math.ceil(remainingMs / 60_000) : 0;
 }

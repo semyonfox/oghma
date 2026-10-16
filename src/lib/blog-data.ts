@@ -142,32 +142,14 @@ OghmaNotes is designed for a different workflow. It starts from Canvas, where le
   },
 ];
 
-const blogPostsBySlug = Object.fromEntries(
-  blogPosts.map((post) => [post.slug, post]),
-);
+export type BlogPost = (typeof blogPosts)[number];
 
-const blogCards = blogPosts.map(
-  ({ slug, title, excerpt, date, imageUrl, author, authorRole }) => ({
-    slug,
-    title,
-    excerpt,
-    date,
-    imageUrl,
-    author,
-    authorRole,
-  }),
-);
+// slugs come straight from the URL, so a plain object lookup would match
+// inherited keys like "constructor" and render a broken page instead of a 404
+const blogPostsBySlug = new Map(blogPosts.map((post) => [post.slug, post]));
 
-const aboutBlogCards = blogPosts.map(
-  ({ slug, title, date, datetime, imageUrl, author, authorRole }) => ({
-    slug,
-    title,
-    date,
-    datetime,
-    imageUrl,
-    author,
-    authorRole,
-  }),
-);
+function findBlogPost(slug: string): BlogPost | undefined {
+  return blogPostsBySlug.get(slug);
+}
 
-export { authors, blogPosts, blogPostsBySlug, blogCards, aboutBlogCards };
+export { authors, blogPosts, findBlogPost };

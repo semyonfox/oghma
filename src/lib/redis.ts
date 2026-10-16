@@ -18,10 +18,15 @@ function initRedis(): RedisConnection {
   const port = parseInt(process.env.REDIS_PORT ?? '6379', 10);
   const tls = process.env.REDIS_TLS === 'true';
 
+  // BullMQ owns its connections in queue.ts, so this command client does not
+  // need maxRetriesPerRequest: null. with null, every command issued during an
+  // outage queued forever and hung presence, chat and lockout requests; a small
+  // bound makes them fail within a few reconnect attempts so callers can
+  // fall back or fail closed
   const redisOptions = {
     tls: tls ? {} : undefined,
     enableReadyCheck: false,
-    maxRetriesPerRequest: null as null,
+    maxRetriesPerRequest: 3,
     keepAlive: 30000,
   };
 

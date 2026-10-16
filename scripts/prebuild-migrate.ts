@@ -6,39 +6,22 @@
 import { execFileSync } from "node:child_process";
 import postgres from "postgres";
 import { assertLegacySchema } from "./legacy-schema-contract.ts";
-
-// migrations applied before the tracking system existed
-const LEGACY_MIGRATIONS = [
-  "001_schema_migrations.sql",
-  "002_oauth_accounts.sql",
-  "003_quiz_session_card_ids.sql",
-  "005_vault_job_columns.sql",
-  "006_canvas_imports_unique.sql",
-  "007_quiz_session_card_ids_invariants.sql",
-  "008_rag_tables_consolidation.sql",
-  "009_quiz_infrastructure.sql",
-  "010_embeddings_vector_4096.sql",
-  "011_two_phase_import.sql",
-  "012_backfill_file_note_canvas_meta.sql",
-  "013_chat_session_context.sql",
-  "014_embeddings_openrouter_4096.sql",
-  "015_dedup_root_notes.sql",
-  "016_tree_items_unique.sql",
-  "017_user_course_settings.sql",
-] as const;
+import {
+  isLegacyMigration,
+  migrationVersion,
+  readMigrationFiles,
+} from "./migration-catalog.ts";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
 async function bootstrap(dbUrl: string): Promise<void> {
-  const sql = postgres(dbUrl, {
-    ssl: dbUrl.includes("sslmode=require")
-      ? { rejectUnauthorized: false }
-      : false,
-    connect_timeout: 10,
-    idle_timeout: 5,
-  });
+  // postgres.js reads sslmode from the URL itself
+  const sql = postgres(dbUrl, { connect_timeout: 10, idle_timeout: 5 });
+  const legacyMigrations = readMigrationFiles(
+    new URL("../database/migrations/", import.meta.url),
+  ).filter(isLegacyMigration);
 
   try {
     await assertLegacySchema(sql);
@@ -49,8 +32,9 @@ async function bootstrap(dbUrl: string): Promise<void> {
         applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `;
-    for (const name of LEGACY_MIGRATIONS) {
-      const version = name.match(/^(\d+)/)?.[1];
+    // these predate the tracking table and keep their numeric identity
+    for (const name of legacyMigrations) {
+      const version = migrationVersion(name);
       if (!version) throw new Error(`invalid legacy migration name: ${name}`);
       await sql`
         INSERT INTO app.schema_migrations (version, name)

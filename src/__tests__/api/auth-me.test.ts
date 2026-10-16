@@ -9,7 +9,10 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/auth", () => ({ auth: mocks.auth }));
-vi.mock("@/lib/auth/session", () => ({ validateSession: mocks.validateSession }));
+vi.mock("@/lib/auth/session", async (original) => ({
+  ...(await original<typeof import("@/lib/auth/session")>()),
+  validateSession: mocks.validateSession,
+}));
 vi.mock("@/lib/auth/oauth", () => ({
   getLinkedProviders: mocks.getLinkedProviders,
 }));

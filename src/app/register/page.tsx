@@ -28,7 +28,6 @@ export default function RegisterPage() {
   const [pwd, setPwd] = useState("");
   const [confirmPwd, setConfirmPwd] = useState("");
   const [errMsg, setErrMsg] = useState("");
-  const [retryEmail, setRetryEmail] = useState("");
   const [showFieldErrors, setShowFieldErrors] = useState(false);
   const [loading, setLoading] = useState(false);
   const [oauthProviders, setOauthProviders] = useState<Awaited<ReturnType<typeof getProviders>>>(null);
@@ -104,7 +103,6 @@ export default function RegisterPage() {
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setErrMsg("");
-    setRetryEmail("");
     setShowFieldErrors(true);
 
     if (
@@ -120,7 +118,7 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      const result = await register(
+      await register(
         email,
         pwd,
         agentClaimToken
@@ -128,33 +126,16 @@ export default function RegisterPage() {
           : undefined,
       );
       reportTelemetry({ kind: "count", name: "action_completed", route: "onboarding" });
-      if (result.requiresVerification) {
-        const query = new URLSearchParams({ email });
-        if (result.emailDelivery) query.set("delivery", result.emailDelivery);
-        const destination = `/verify-email?${query}`;
-        router.replace(destination);
-        setTimeout(() => {
-          window.location.href = destination;
-        }, 1000);
-      } else {
-        router.replace("/notes");
-        setTimeout(() => {
-          window.location.href = "/notes";
-        }, 1000);
-      }
+      // the response is the same whether or not the address was free, so always
+      // continue to verification; an existing owner can resend from there
+      const destination = `/verify-email?${new URLSearchParams({ email })}`;
+      router.replace(destination);
+      setTimeout(() => {
+        window.location.href = destination;
+      }, 1000);
     } catch (err) {
       reportTelemetry({ kind: "error", name: "request_failed", route: "onboarding" });
-      const existingAccount =
-        err instanceof Error &&
-        "status" in err &&
-        err.status === 409 &&
-        err.message === "User already exists";
-      if (existingAccount) {
-        setRetryEmail(email.trim());
-      }
-      setErrMsg(
-        existingAccount ? t("Already have an account?") : getErrorMessage(err),
-      );
+      setErrMsg(getErrorMessage(err));
       setPwd("");
       setConfirmPwd("");
       setShowFieldErrors(false);
@@ -230,14 +211,6 @@ export default function RegisterPage() {
                   title={t("Registration failed")}
                   description={errMsg}
                 />
-                {retryEmail && (
-                  <Link
-                    href={`/verify-email?${new URLSearchParams({ email: retryEmail })}`}
-                    className="mt-2 inline-block text-sm font-semibold text-primary-700 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
-                  >
-                    {t("Resend verification email")}
-                  </Link>
-                )}
               </div>
             )}
 

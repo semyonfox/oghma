@@ -175,4 +175,13 @@ describe("PrimaryNavigation AI chat entry", () => {
     await act(async () => { finish(); });
   });
 
+  it("gives every rail control a visible keyboard focus ring", () => {
+    const { container } = render(React.createElement(PrimaryNavigation));
+
+    const controls = container.querySelectorAll("a, button");
+    expect(controls.length).toBeGreaterThan(5);
+    for (const control of controls) {
+      expect(control.className).toContain("focus-visible:ring-2");
+    }
+  });
 });

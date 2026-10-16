@@ -20,6 +20,13 @@ export enum Locale {
 
 export const supportedLocales = Object.values(Locale) as Locale[];
 
+const RTL_LOCALES: ReadonlySet<Locale> = new Set([Locale.ar]);
+
+/** Whether a locale is written right to left. The server layout and the client provider both use this. */
+export function isRtlLocale(locale: Locale): boolean {
+  return RTL_LOCALES.has(locale);
+}
+
 /** The browser-side copy of the language preference, read by server renders. */
 export const LOCALE_COOKIE_NAME = 'ogma-locale';
 

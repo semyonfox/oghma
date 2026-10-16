@@ -19,17 +19,6 @@ export interface OAuthProfile {
   rawProfile?: Record<string, unknown>;
 }
 
-export interface OAuthAccountRow {
-  id: string;
-  user_id: string;
-  provider: string;
-  provider_id: string;
-  email: string | null;
-  name: string | null;
-  avatar_url: string | null;
-  locale: string | null;
-}
-
 type UserIdRow = { user_id: string };
 
 // a linked or same-email account that was deactivated or soft-deleted
@@ -42,14 +31,8 @@ export class OAuthAccountUnavailableError extends Error {
 
 type LinkedProviderRow = { provider: string; email: string | null };
 
-/**
- * check whether the provider guarantees the email is verified.
- * google always verifies. other providers require checking the profile.
- */
-export function isEmailVerifiedByProvider(
-  provider: string,
-  profile: Record<string, unknown>,
-): boolean {
+// the signIn callback marks the profile only after resolveVerifiedOAuthEmail succeeds
+function hasVerifiedEmail(profile: Record<string, unknown>): boolean {
   return profile.email_verified === true;
 }
 
@@ -68,6 +51,7 @@ export async function resolveVerifiedOAuthEmail(
 
   if (provider === "github" && accessToken) {
     const response = await fetch("https://api.github.com/user/emails", {
+      signal: AbortSignal.timeout(10_000),
       headers: {
         Accept: "application/vnd.github+json",
         Authorization: `Bearer ${accessToken}`,
@@ -101,72 +85,6 @@ export async function resolveVerifiedOAuthEmail(
 }
 
 /**
- * look up an existing oauth account by provider + provider ID
- */
-export async function findOAuthAccount(
-  provider: string,
-  providerId: string,
-): Promise<OAuthAccountRow | null> {
-  const rows = await sql<OAuthAccountRow[]>`
-        SELECT id, user_id, provider, provider_id, email, name, avatar_url, locale
-        FROM app.oauth_accounts
-        WHERE provider = ${provider} AND provider_id = ${providerId}
-    `;
-  return rows[0] ?? null;
-}
-
-/**
- * insert or upsert an oauth account row.
- * ON CONFLICT updates the profile data (provider may change name/avatar).
- */
-export async function linkOAuthAccount(
-  userId: string,
-  profile: OAuthProfile,
-): Promise<void> {
-  await sql`
-        INSERT INTO app.oauth_accounts (
-            user_id, provider, provider_id, email, name, avatar_url, locale, raw_profile
-        ) VALUES (
-            ${userId}::uuid,
-            ${profile.provider},
-            ${profile.providerAccountId},
-            ${profile.email ?? null},
-            ${profile.name ?? null},
-            ${profile.image ?? null},
-            ${profile.locale ?? null},
-            ${JSON.stringify(profile.rawProfile ?? {})}::text::jsonb
-        )
-        ON CONFLICT (provider, provider_id) DO UPDATE SET
-            email = EXCLUDED.email,
-            name = EXCLUDED.name,
-            avatar_url = EXCLUDED.avatar_url,
-            locale = EXCLUDED.locale,
-            raw_profile = EXCLUDED.raw_profile
-    `;
-}
-
-/**
- * update display_name, avatar_url, locale on app.login if currently null.
- * write-once: only fills in blanks, never overwrites user-set values.
- */
-export async function syncProfileToLogin(
-  userId: string,
-  profile: {
-    name?: string | null;
-    image?: string | null;
-    locale?: string | null;
-  },
-): Promise<void> {
-  await sql`
-        UPDATE app.login SET
-            display_name = COALESCE(display_name, ${profile.name ?? null}),
-            avatar_url = COALESCE(avatar_url, ${profile.image ?? null}),
-            locale = COALESCE(locale, ${profile.locale ?? null})
-        WHERE user_id = ${userId}::uuid
-    `;
-}
-
-/**
  * list all oauth providers linked to a user (for settings UI)
  */
 export async function getLinkedProviders(
@@ -187,7 +105,7 @@ export async function findOrCreateOAuthUser(
   signupLocale?: Locale,
 ): Promise<string> {
   if (
-    !isEmailVerifiedByProvider(profile.provider, providerProfile) ||
+    !hasVerifiedEmail(providerProfile) ||
     !profile.email
   ) {
     throw new Error("OAuth provider did not supply a verified email");
@@ -267,7 +185,7 @@ export async function findOrCreateOAuthUser(
     `;
     await tx`
       UPDATE app.login SET display_name = COALESCE(display_name, ${profile.name ?? null}),
-        avatar_url = COALESCE(avatar_url, ${profile.image ?? null}), locale = COALESCE(locale, ${profile.locale ?? null})
+        avatar_url = COALESCE(avatar_url, ${profile.image ?? null}), locale = COALESCE(locale, ${normalizeLocale(profile.locale) ?? null})
       WHERE user_id = ${userId}::uuid
     `;
     return userId;

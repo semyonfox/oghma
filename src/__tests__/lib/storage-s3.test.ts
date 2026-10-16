@@ -13,7 +13,8 @@ vi.mock("@aws-sdk/client-s3", async (importOriginal) => {
   };
 });
 
-import { StoreS3 } from "@/lib/storage/s3";
+import { createS3ClientConfig, StoreS3 } from "@/lib/storage/s3";
+import { ObjectNotFoundError } from "@/lib/storage/base";
 import {
   CopyObjectCommand,
   DeleteObjectCommand,
@@ -21,7 +22,14 @@ import {
   ListObjectsV2Command,
 } from "@aws-sdk/client-s3";
 
-describe("StoreS3.getObjectMeta", () => {
+function storageError(name: string, httpStatusCode?: number) {
+  return Object.assign(new Error(name), {
+    name,
+    ...(httpStatusCode ? { $metadata: { httpStatusCode } } : {}),
+  });
+}
+
+describe("StoreS3", () => {
   const storage = new StoreS3({
     bucket: "test",
     accessKey: "access",
@@ -30,6 +38,7 @@ describe("StoreS3.getObjectMeta", () => {
 
   beforeEach(() => {
     send.mockReset();
+    vi.restoreAllMocks();
   });
 
   it("passes cancellation to object deletion so a vault quota lock has a bounded storage wait", async () => {
@@ -142,6 +151,55 @@ describe("StoreS3.getObjectMeta", () => {
     expect(send).toHaveBeenCalledTimes(2);
   });
 
+  it("reports a confirmed 404 as absence but an outage as a failure", async () => {
+    send.mockRejectedValueOnce(storageError("NotFound", 404));
+    await expect(storage.hasObject("gone.pdf")).resolves.toBe(false);
+
+    // previously any error meant "missing", so an S3 outage looked like data loss
+    send.mockRejectedValueOnce(new Error("connect ECONNREFUSED"));
+    await expect(storage.hasObject("live.pdf")).rejects.toThrow("ECONNREFUSED");
+
+    // a wrong bucket is misconfiguration, not a missing object
+    send.mockRejectedValueOnce(storageError("NoSuchBucket", 404));
+    await expect(storage.hasObject("live.pdf")).rejects.toThrow("NoSuchBucket");
+  });
+
+  it("maps a missing stream to the provider-neutral ObjectNotFoundError", async () => {
+    send.mockRejectedValueOnce(storageError("NoSuchKey", 404));
+    await expect(storage.getObjectStream("gone.pdf")).rejects.toBeInstanceOf(
+      ObjectNotFoundError,
+    );
+
+    send.mockRejectedValueOnce(new Error("socket hang up"));
+    await expect(storage.getObjectStream("live.pdf")).rejects.toThrow("socket hang up");
+  });
+
+  it("returns object bytes without decoding binary content to a string", async () => {
+    const pdf = Buffer.from([0x25, 0x50, 0x44, 0x46, 0xff, 0x00]);
+    send.mockResolvedValueOnce({
+      Body: { transformToByteArray: async () => new Uint8Array(pdf) },
+      ContentType: "application/pdf",
+      ContentLength: pdf.length,
+    });
+
+    const result = await storage.getObjectAndMeta("lecture.pdf");
+
+    expect(result).toEqual({
+      buffer: pdf,
+      contentType: "application/pdf",
+      contentLength: 6,
+      meta: undefined,
+    });
+  });
+
+  it("returns an empty object for a missing object and propagates outages", async () => {
+    send.mockRejectedValueOnce(storageError("NoSuchKey", 404));
+    await expect(storage.getObjectAndMeta("gone.pdf")).resolves.toEqual({});
+
+    send.mockRejectedValueOnce(new Error("storage unavailable"));
+    await expect(storage.getObject("settings.json")).rejects.toThrow("storage unavailable");
+  });
+
   it("URL-encodes copy sources so vault and Canvas filenames copy the right key", async () => {
     send.mockResolvedValueOnce({});
     const prefixed = new StoreS3({ bucket: "bucket", prefix: "oghma" });
@@ -149,8 +207,32 @@ describe("StoreS3.getObjectMeta", () => {
     await prefixed.copyObject("vault/u/j/Week 1/a+b?#ä.md", "notes/n/a+b.md", {});
 
     const input = (send.mock.calls[0][0] as CopyObjectCommand).input;
-    expect(input.CopySource).toBe("bucket/oghma/vault/u/j/Week%201/a%2Bb%3F%23%C3%A4.md");
+    expect(input.CopySource).toBe(
+      "bucket/oghma/vault/u/j/Week%201/a%2Bb%3F%23%C3%A4.md",
+    );
     expect(input.Key).toBe("oghma/notes/n/a+b.md");
     expect(input.MetadataDirective).toBe("COPY");
+  });
+
+  it("does not write object keys or errors to the console", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    send.mockRejectedValue(new Error("private/student@example.test/key.pdf"));
+
+    await expect(storage.putObject("private/key.pdf", "x")).rejects.toThrow();
+    await expect(storage.deleteObject("private/key.pdf")).rejects.toThrow();
+
+    expect(error).not.toHaveBeenCalled();
+    expect(warn).not.toHaveBeenCalled();
+  });
+});
+
+describe("createS3ClientConfig", () => {
+  it("bounds connection and request time so a wedged backend cannot hang callers", () => {
+    expect(createS3ClientConfig({ bucket: "b" }).requestHandler).toEqual({
+      connectionTimeout: 5_000,
+      requestTimeout: 60_000,
+      throwOnRequestTimeout: true,
+    });
   });
 });

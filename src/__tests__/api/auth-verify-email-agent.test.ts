@@ -27,7 +27,10 @@ vi.mock("@/lib/rate-limiter", () => ({
 vi.mock("@/lib/logger", () => ({
   default: { error: vi.fn(), warn: vi.fn() },
 }));
-vi.mock("@/lib/api-error", () => ({ assertTrustedOrigin: vi.fn() }));
+vi.mock("@/lib/api-error", async (original) => ({
+  ...(await original<typeof import("@/lib/api-error")>()),
+  assertTrustedOrigin: vi.fn(),
+}));
 vi.mock("@/lib/marketing/events", () => ({
   recordActivationMilestone: vi.fn().mockResolvedValue(undefined),
 }));

@@ -2,8 +2,9 @@ import Image from "next/image";
 import Link from "next/link";
 import Header from "@/components/header";
 import Footer from "@/components/footer";
-import { aboutBlogCards, authors } from "@/lib/blog-data";
+import { authors, blogPosts } from "@/lib/blog-data";
 import { getServerI18n } from "@/lib/i18n/server";
+import type { Translate } from "@/lib/i18n/translate";
 
 const academicImages = [
   {
@@ -28,14 +29,11 @@ const academicImages = [
   },
 ];
 
-type Translate = (key: string, params?: Record<string, unknown>) => string;
-
 const getStats = (t: Translate) => [
   { label: t("Launch focus"), value: "Canvas" },
   { label: t("Current stage"), value: "Beta" },
   { label: t("Built in"), value: "Galway" },
 ];
-const blogPosts = aboutBlogCards;
 const getTeam = (t: Translate) => [
   {
     name: authors.samuel.name,

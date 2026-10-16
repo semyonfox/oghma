@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { isAnalyticsAdmin } from "@/lib/marketing/admin";
-import { parseAnalyticsWindow } from "@/lib/marketing/analytics";
 import { parseRetentionDays } from "@/lib/marketing/retention";
 
 describe("analytics access", () => {
@@ -15,13 +14,7 @@ describe("analytics access", () => {
   });
 });
 
-describe("analytics configuration", () => {
-  it("accepts supported report windows and defaults invalid input", () => {
-    expect(parseAnalyticsWindow("7")).toBe(7);
-    expect(parseAnalyticsWindow("90")).toBe(90);
-    expect(parseAnalyticsWindow("365")).toBe(30);
-  });
-
+describe("marketing retention configuration", () => {
   it("bounds retention configuration", () => {
     expect(parseRetentionDays(undefined, 30)).toBe(30);
     expect(parseRetentionDays("1", 30)).toBe(30);

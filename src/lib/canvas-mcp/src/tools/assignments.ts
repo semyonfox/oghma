@@ -84,8 +84,7 @@ export const assignmentTools: ToolDef[] = [
         },
     }),
 
-    // Privileged tools remain in the standalone adapter. The hosted profile
-    // filters them in src/lib/canvas/mcp.ts.
+    // educator tools. the hosted profile disables these in src/lib/canvas/mcp.ts
     defineTool({
         name: "canvas_create_assignment",
         description: "Create a new assignment in a course. Requires educator permissions.",

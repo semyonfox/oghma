@@ -4,7 +4,7 @@ import { createErrorResponse, parseJsonBody } from "@/lib/auth/session";
 import { validateAuthCredentials } from "@/lib/auth/credentials";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
 import logger from "@/lib/logger";
-import { assertTrustedOrigin } from "@/lib/api-error";
+import { ApiError, assertTrustedOrigin } from "@/lib/api-error";
 import { hashToken } from "@/lib/auth/tokens";
 import type { NextRequest } from "next/server";
 
@@ -31,10 +31,10 @@ export async function POST(request: NextRequest): Promise<Response> {
       true,
     );
     if (!validation.isValid) {
-      return new Response(JSON.stringify({ errors: validation.errors }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
+      return createErrorResponse(
+        validation.errors.password ?? "Choose a stronger password",
+        400,
+      );
     }
 
     const tokenHash = hashToken(token);
@@ -71,7 +71,12 @@ export async function POST(request: NextRequest): Promise<Response> {
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
   } catch (error) {
-    logger.error("password reset error", { error });
+    if (error instanceof ApiError) {
+      return createErrorResponse(error.userMessage, error.statusCode);
+    }
+    logger.error("password reset error", {
+      errorType: error instanceof Error ? error.name : "unknown",
+    });
     return createErrorResponse("Failed to reset password", 500);
   }
 }

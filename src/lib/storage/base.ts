@@ -1,6 +1,8 @@
 // Storage provider base class (MIT License - Notea)
 // Defines interface for all storage backends (S3, MinIO, etc.)
 
+import type { Readable } from 'stream';
+
 /**
  * Configuration options for storage providers
  */
@@ -29,7 +31,6 @@ export interface ObjectOptions {
  * Metadata returned when retrieving objects
  */
 export interface ObjectMetadata {
-  readonly content?: string;
   readonly meta?: Readonly<Record<string, string>>;
   readonly contentType?: string;
   /** Known object byte length when the storage backend returned it. */
@@ -37,9 +38,32 @@ export interface ObjectMetadata {
   readonly buffer?: Buffer;
 }
 
+/** Thrown by `getObjectStream` when the object is confirmed missing. */
+export class ObjectNotFoundError extends Error {
+  constructor() {
+    super('Storage object not found');
+    this.name = 'ObjectNotFoundError';
+  }
+}
+
+export interface ExternalSignOptions {
+  /** Serve the object as a download with this filename. */
+  readonly downloadName?: string;
+}
+
+export interface ObjectStream {
+  readonly body: Readable;
+  readonly contentType?: string;
+  readonly contentLength?: number;
+}
+
 /**
  * Abstract base class for storage providers
- * Handles path prefixing and defines the storage interface
+ * Handles path prefixing and defines the storage interface.
+ *
+ * Reads report a confirmed miss as false, `undefined`, `{}` or
+ * `ObjectNotFoundError` (streams), and reject on any other storage failure so
+ * an outage is never mistaken for absence.
  */
 export abstract class StoreProvider {
   protected readonly prefix?: string;
@@ -59,10 +83,15 @@ export abstract class StoreProvider {
     return this.prefix ? this.prefix + paths.join('/') : paths.join('/');
   }
 
-  /**
-   * Generate a signed URL for temporary access to an object
-   */
+  /** Signed GET URL for consumers on the internal storage network. */
   abstract getSignUrl(path: string, expiresIn?: number): Promise<string>;
+
+  /** Signed GET URL for consumers outside the homelab, such as GPU workers and browsers. */
+  abstract getExternalSignUrl(
+    path: string,
+    expiresIn?: number,
+    options?: ExternalSignOptions
+  ): Promise<string>;
 
   /** Generate a signed URL that permits uploading one object. */
   abstract getPutSignUrl(
@@ -78,12 +107,9 @@ export abstract class StoreProvider {
   abstract hasObject(path: string): Promise<boolean>;
 
   /**
-   * Retrieve object content as string
+   * Retrieve object content as a UTF-8 string
    */
-  abstract getObject(
-    path: string,
-    isCompressed?: boolean
-  ): Promise<string | undefined>;
+  abstract getObject(path: string): Promise<string | undefined>;
 
   /**
    * Retrieve only metadata for an object. A successful HEAD may return an
@@ -94,12 +120,12 @@ export abstract class StoreProvider {
   ): Promise<Pick<ObjectMetadata, "meta" | "contentType" | "contentLength"> | undefined>;
 
   /**
-   * Retrieve object content and metadata together
+   * Retrieve object bytes and metadata together; `{}` means confirmed missing
    */
-  abstract getObjectAndMeta(
-    path: string,
-    isCompressed?: boolean
-  ): Promise<ObjectMetadata>;
+  abstract getObjectAndMeta(path: string): Promise<ObjectMetadata>;
+
+  /** Stream an object without buffering it in memory. */
+  abstract getObjectStream(path: string): Promise<ObjectStream>;
 
   /**
    * Store an object with optional metadata and headers
@@ -107,8 +133,7 @@ export abstract class StoreProvider {
   abstract putObject(
     path: string,
     raw: string | Buffer,
-    options?: ObjectOptions,
-    isCompressed?: boolean
+    options?: ObjectOptions
   ): Promise<void>;
 
   /**

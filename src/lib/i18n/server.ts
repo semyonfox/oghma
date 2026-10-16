@@ -1,14 +1,14 @@
 import "server-only";
 
 import { cookies, headers } from "next/headers";
-import pupa from "pupa";
 import {
   LOCALE_COOKIE_NAME,
   Locale,
   localeFromAcceptLanguage,
   normalizeLocale,
 } from "@/locales";
-import { baseLocaleDictionary, loadLocaleData } from "./locale-data";
+import { loadLocaleData } from "./locale-data";
+import { translate, type Translate } from "./translate";
 
 /** Resolve the request locale once for server-rendered content and document metadata. */
 export async function getRequestLocale(): Promise<Locale> {
@@ -20,14 +20,15 @@ export async function getRequestLocale(): Promise<Locale> {
   return localeFromAcceptLanguage(headerStore.get("accept-language")) ?? Locale.EN;
 }
 
-export async function getServerI18n() {
+export async function getServerI18n(): Promise<{
+  activeLocale: Locale;
+  t: Translate;
+}> {
   const locale = await getRequestLocale();
   const { dict } = await loadLocaleData(locale);
 
   return {
     activeLocale: locale,
-    t(key: string, params: Record<string, unknown> = {}) {
-      return pupa(dict[key] ?? baseLocaleDictionary[key] ?? key, params);
-    },
+    t: (key, params) => translate(dict, key, params),
   };
 }

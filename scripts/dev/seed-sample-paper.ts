@@ -14,6 +14,7 @@ import { resolve } from "node:path";
 import postgres from "postgres";
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { deleteChunkVectors, upsertChunkVectors } from "../../src/lib/qdrant.ts";
+import { assertDisposableDatabaseUrl } from "../e2e/lib/safety.ts";
 
 const FIXTURES = resolve(process.cwd(), "scripts/e2e/fixtures");
 const userId = process.env.E2E_SEED_USER_ID || "11111111-1111-4111-8111-111111111111";
@@ -46,8 +47,10 @@ function isEmbeddingResponse(value: unknown): value is EmbeddingResponse {
 }
 
 const databaseUrl = process.env.DATABASE_URL ?? "";
-if (!databaseUrl) {
-  console.error("[paper] DATABASE_URL missing — run through scripts/dev/run-mock.ts");
+try {
+  assertDisposableDatabaseUrl(databaseUrl);
+} catch (error) {
+  console.error(`[paper] ${errorMessage(error)} — run through scripts/dev/run-mock.ts`);
   process.exit(1);
 }
 
@@ -133,10 +136,7 @@ async function main(): Promise<void> {
   const pdfKey = `notes/${pdfNoteId}/${pdfFilename}`;
   const mdKey = `notes/${mdNoteId}/${mdFilename}`;
 
-  const sql = postgres(databaseUrl, {
-    ssl: databaseUrl.includes("sslmode=require") ? { rejectUnauthorized: false } : false,
-    max: 1,
-  });
+  const sql = postgres(databaseUrl, { max: 1 });
 
   try {
     // attachments has no unique constraint, so clear prior rows to stay idempotent

@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import Header from "@/components/header";
 import Footer from "@/components/footer";
-import { blogCards } from "@/lib/blog-data";
+import { blogPosts } from "@/lib/blog-data";
 import { getServerI18n } from "@/lib/i18n/server";
 
 export default async function BlogPage() {
@@ -36,7 +36,7 @@ export default async function BlogPage() {
             </p>
           </div>
           <div className="mx-auto mt-16 grid max-w-2xl grid-cols-1 gap-x-8 gap-y-20 lg:mx-0 lg:max-w-none lg:grid-cols-3">
-            {blogCards.map((post, index) => (
+            {blogPosts.map((post, index) => (
               <article
                 key={post.slug}
                 className="flex flex-col items-start justify-between"

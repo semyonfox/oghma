@@ -1,78 +1,74 @@
+import { after, type NextRequest } from "next/server";
 import sql from "@/database/pgsql";
-import { sendPasswordResetEmail } from "@/lib/email";
+import { EmailSendError, sendPasswordResetEmail } from "@/lib/email";
 import { createErrorResponse, parseJsonBody } from "@/lib/auth/session";
 import { generateSecureToken, hashToken } from "@/lib/auth/tokens";
-import { checkRateLimit } from "@/lib/rate-limiter";
+import { normalizeEmail } from "@/lib/auth/password-login";
+import { waitForResponseFloor } from "@/lib/auth/response-floor";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
 import logger from "@/lib/logger";
-import { assertTrustedOrigin } from "@/lib/api-error";
-import type { NextRequest } from "next/server";
+import { ApiError, assertTrustedOrigin } from "@/lib/api-error";
+
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 
 function resetAckResponse(): Response {
-  return new Response(
-    JSON.stringify({ message: "If that email exists, we sent a reset link" }),
-    { status: 200, headers: { "Content-Type": "application/json" } },
-  );
-}
-
-// burn CPU time equivalent to the real path to prevent timing attacks
-function dummyWork(): void {
-  hashToken(generateSecureToken());
+  return Response.json({ message: "If that email exists, we sent a reset link" });
 }
 
 export async function POST(request: NextRequest): Promise<Response> {
   try {
     assertTrustedOrigin(request);
+    // the per-email rule alone lets one client mail every address on a list
+    const ipLimited = await checkRateLimit("password-reset-ip", getClientIp(request));
+    if (ipLimited) return ipLimited;
+
     const { data: body, error: parseError } = await parseJsonBody(request);
     if (parseError) return parseError;
 
-    const email = typeof body?.email === "string" ? body.email : "";
-    if (!email) return createErrorResponse("Email is required", 400);
+    const rawEmail = typeof body?.email === "string" ? body.email : "";
+    if (!rawEmail.trim()) return createErrorResponse("Email is required", 400);
+    const email = normalizeEmail(rawEmail);
 
-    const limited = await checkRateLimit(
-      "password-reset",
-      email.trim().toLowerCase(),
-    );
+    const limited = await checkRateLimit("password-reset", email);
     if (limited) return limited;
 
-    const users = await sql<{ user_id: string; email: string }[]>`
-            SELECT user_id, email FROM app.login WHERE lower(btrim(email)) = ${email.trim().toLowerCase()}
-        `;
+    const startedAt = Date.now();
+    const [user] = await sql<{ user_id: string; email: string }[]>`
+      SELECT user_id, email FROM app.login
+      WHERE lower(btrim(email)) = ${email}
+        AND is_active = true AND deleted_at IS NULL
+      LIMIT 1
+    `;
 
-    // constant-time: perform the same work regardless of whether email exists
-    const start = Date.now();
-    const MIN_RESPONSE_MS = 500;
-
-    if (users.length === 0) {
-      dummyWork();
-      const elapsed = Date.now() - start;
-      if (elapsed < MIN_RESPONSE_MS) {
-        await new Promise((r) =>
-          setTimeout(r, MIN_RESPONSE_MS - elapsed + Math.random() * 100),
-        );
-      }
-      return resetAckResponse();
+    if (user) {
+      const resetToken = generateSecureToken();
+      await sql`
+        UPDATE app.login
+        SET reset_token = ${hashToken(resetToken)},
+            reset_token_expires = ${new Date(Date.now() + RESET_TOKEN_TTL_MS)}
+        WHERE user_id = ${user.user_id}::uuid
+      `;
+      after(async () => {
+        try {
+          await sendPasswordResetEmail(user.email, resetToken);
+        } catch (error) {
+          logger.error("password reset email failed", {
+            reason: error instanceof EmailSendError ? error.reason : "unexpected",
+            httpStatus: error instanceof EmailSendError ? error.httpStatus : undefined,
+          });
+        }
+      });
     }
 
-    const user = users[0];
-    const resetToken = generateSecureToken();
-    const expiresAt = new Date(Date.now() + 3600000); // 1 hour
-    const tokenHash = hashToken(resetToken);
-
-    await sql`
-            UPDATE app.login
-            SET reset_token = ${tokenHash}, reset_token_expires = ${expiresAt}
-            WHERE user_id = ${user.user_id}
-        `;
-
-    await sendPasswordResetEmail(email, resetToken);
-
-    const elapsed = Date.now() - start;
-    if (elapsed < MIN_RESPONSE_MS) {
-      await new Promise((r) => setTimeout(r, MIN_RESPONSE_MS - elapsed));
-    }
+    await waitForResponseFloor(startedAt);
     return resetAckResponse();
   } catch (error) {
-    logger.error("password reset request error", { error });
+    if (error instanceof ApiError) {
+      return createErrorResponse(error.userMessage, error.statusCode);
+    }
+    logger.error("password reset request error", {
+      errorType: error instanceof Error ? error.name : "unknown",
+    });
     return createErrorResponse("Failed to send reset email", 500);
   }
 }

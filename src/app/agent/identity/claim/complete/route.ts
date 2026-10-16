@@ -13,7 +13,13 @@ import {
 } from "@/lib/validations/schemas";
 
 export async function POST(request: NextRequest) {
-  assertTrustedOrigin(request);
+  // this route is not wrapped by withErrorHandler, so an uncaught ApiError
+  // would surface as a bare 500 instead of the intended 403
+  try {
+    assertTrustedOrigin(request);
+  } catch {
+    return createErrorResponse("Invalid request origin", 403);
+  }
   const limited = await checkRateLimit(
     "agent-registration-claim",
     getClientIp(request),

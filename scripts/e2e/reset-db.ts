@@ -1,17 +1,23 @@
 #!/usr/bin/env node
 
 import bcrypt from "bcryptjs";
+import { BASELINE_SCHEMA_SQL } from "./baseline-schema.ts";
 import { applyCurrentSchemaPatch } from "./legacy-schema.ts";
 import IORedis from "ioredis";
 import postgres from "postgres";
 import { randomUUID } from "crypto";
 import { readFile } from "fs/promises";
 import {
+  isLegacyMigration,
   migrationId,
   migrationVersion,
   readMigrationFiles,
 } from "../migration-catalog.ts";
 import { loadE2EEnvFiles } from "./lib/env.ts";
+import {
+  assertDisposableDatabaseUrl,
+  assertDisposableServiceHost,
+} from "./lib/safety.ts";
 
 loadE2EEnvFiles();
 
@@ -21,57 +27,13 @@ const seedPassword = process.env.E2E_SEED_USER_PASSWORD || "E2ePassword123!";
 const seedUserId =
   process.env.E2E_SEED_USER_ID || "11111111-1111-4111-8111-111111111111";
 const qdrantCollection = process.env.QDRANT_COLLECTION || "oghma_e2e_chunks";
-const standaloneMigrationModule = "../standalone-migration.ts";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-async function loadStandaloneMigrationSql(): Promise<string> {
-  // Validate the imported snapshot at its dynamic-module boundary. E2E resets
-  // deliberately reuse this destructive baseline only after the URL guards.
-  const module: unknown = await import(standaloneMigrationModule);
-  if (
-    typeof module !== "object" ||
-    module === null ||
-    !("MIGRATION_SQL" in module) ||
-    typeof module.MIGRATION_SQL !== "string"
-  ) {
-    throw new Error("standalone migration must export MIGRATION_SQL as a string");
-  }
-  return module.MIGRATION_SQL;
-}
-
-function assertSafeDatabaseUrl(dbUrl: string | undefined): asserts dbUrl is string {
-  if (!dbUrl) {
-    throw new Error("DATABASE_URL or E2E_DATABASE_URL is required");
-  }
-
-  const parsed = new URL(dbUrl);
-  const dbName = parsed.pathname.replace(/^\//, "");
-  const host = parsed.hostname;
-  const looksLocal =
-    host === "localhost" ||
-    host === "127.0.0.1" ||
-    host === "::1" ||
-    host === "postgres" ||
-    host.endsWith(".local");
-
-  if (!dbName.includes("e2e")) {
-    throw new Error(
-      `Refusing to reset database '${dbName}'. E2E database names must include 'e2e'.`,
-    );
-  }
-
-  if (!looksLocal && process.env.E2E_ALLOW_NONLOCAL_DB_RESET !== "1") {
-    throw new Error(
-      `Refusing to reset non-local database host '${host}'. Set E2E_ALLOW_NONLOCAL_DB_RESET=1 only for disposable CI services.`,
-    );
-  }
-}
-
 async function applyCanonicalMigrations(sql: postgres.Sql): Promise<void> {
-  // The standalone snapshot plus applyCurrentSchemaPatch form the legacy E2E
+  // The baseline snapshot plus applyCurrentSchemaPatch form the legacy E2E
   // bootstrap. Every later schema change must come from the checked-in
   // canonical migration catalog.
   const catalog = readMigrationFiles(
@@ -88,9 +50,7 @@ async function applyCanonicalMigrations(sql: postgres.Sql): Promise<void> {
   // The snapshot already contains this legacy schema. Record those filenames
   // with their historical numeric identities, just as production bootstrap
   // does, then exercise the current full-filename identity for later files.
-  for (const migration of catalog.filter(
-    (filename) => Number(migrationVersion(filename)) <= 17,
-  )) {
+  for (const migration of catalog.filter(isLegacyMigration)) {
     const version = migrationVersion(migration);
     if (!version) throw new Error(`Invalid migration filename: ${migration}`);
     await sql`
@@ -100,9 +60,7 @@ async function applyCanonicalMigrations(sql: postgres.Sql): Promise<void> {
     `;
   }
 
-  const migrations = catalog.filter(
-    (filename) => Number(migrationVersion(filename)) > 17,
-  );
+  const migrations = catalog.filter((filename) => !isLegacyMigration(filename));
 
   for (const migration of migrations) {
     const migrationSql = await readFile(
@@ -374,11 +332,16 @@ async function seedUser(sql: postgres.Sql): Promise<void> {
   `;
 }
 
-async function flushRedis(): Promise<void> {
-  if (process.env.E2E_RESET_REDIS === "0") return;
+function redisResetTarget(): { host: string; port: number } | null {
+  if (process.env.E2E_RESET_REDIS === "0") return null;
   const host = process.env.REDIS_HOST;
-  const port = Number(process.env.REDIS_PORT || 6379);
-  if (!host) return;
+  if (!host) return null;
+  return { host, port: Number(process.env.REDIS_PORT || 6379) };
+}
+
+async function flushRedis(target: { host: string; port: number } | null): Promise<void> {
+  if (!target) return;
+  const { host, port } = target;
 
   const redis = new IORedis({ host, port, maxRetriesPerRequest: 1 });
   try {
@@ -389,24 +352,22 @@ async function flushRedis(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  assertSafeDatabaseUrl(databaseUrl);
-  const migrationSql = await loadStandaloneMigrationSql();
+  // check every target before wiping any of them
+  assertDisposableDatabaseUrl(databaseUrl);
+  assertDisposableServiceHost("Qdrant", new URL(qdrantUrl()).hostname);
+  const redis = redisResetTarget();
+  if (redis) assertDisposableServiceHost("Redis", redis.host);
 
-  const sql = postgres(databaseUrl, {
-    ssl: databaseUrl.includes("sslmode=require")
-      ? { rejectUnauthorized: false }
-      : false,
-    max: 1,
-  });
+  const sql = postgres(databaseUrl, { max: 1 });
 
   try {
     await sql.unsafe("DROP SCHEMA IF EXISTS app CASCADE; CREATE SCHEMA app;");
-    await sql.unsafe(migrationSql);
+    await sql.unsafe(BASELINE_SCHEMA_SQL);
     await applyCurrentSchemaPatch(sql);
     await applyCanonicalMigrations(sql);
     await resetQdrant();
     await seedUser(sql);
-    await flushRedis();
+    await flushRedis(redis);
     console.log(
       `[e2e] reset complete for ${new URL(databaseUrl).pathname.slice(1)}`,
     );

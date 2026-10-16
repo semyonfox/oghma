@@ -35,11 +35,9 @@ export const profileTools: ToolDef[] = [
         },
     }),
 
-    // Privileged tools remain in the standalone adapter. The hosted profile
-    // filters them in src/lib/canvas/mcp.ts.
     defineTool({
         name: "canvas_update_user_profile",
-        description: "Update a user's profile. Requires educator permissions.",
+        description: "Update a user's name, short name or bio. Students can usually only edit their own profile, if the institution allows it.",
         inputSchema: z.object({
             user_id: canvasIdSchema,
             name: z.string().optional(),
@@ -54,7 +52,7 @@ export const profileTools: ToolDef[] = [
     }),
     defineTool({
         name: "canvas_update_my_settings",
-        description: "Update settings for the authenticated user. Requires educator permissions.",
+        description: "Update display settings for the authenticated user.",
         inputSchema: z.object({
             manual_mark_as_read: z.boolean().optional(),
             collapse_global_nav: z.boolean().optional(),
@@ -64,6 +62,7 @@ export const profileTools: ToolDef[] = [
             return jsonResult(result);
         },
     }),
+    // admin tools. the hosted profile disables these in src/lib/canvas/mcp.ts
     defineTool({
         name: "canvas_create_user",
         description: "Create a new user in an account. Requires admin permissions.",

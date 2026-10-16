@@ -54,7 +54,7 @@ describe("message tools", () => {
         expect(result.content[0].text).toContain("Assignment question");
     });
 
-    it("canvas_get_conversation passes optional include", async () => {
+    it("canvas_get_conversation reads without marking the conversation read", async () => {
         const get = vi.fn().mockResolvedValue({ id: 5 });
         const tool = findTool("canvas_get_conversation");
         await tool.handler(
@@ -63,7 +63,7 @@ describe("message tools", () => {
         );
         expect(get).toHaveBeenCalledWith(
             "/api/v1/conversations/5",
-            { include: ["participant_avatars"] },
+            { auto_mark_as_read: false, include: ["participant_avatars"] },
         );
     });
 

@@ -41,6 +41,9 @@ describe("agent-readable content routes", () => {
     expect(body).toContain("does not grant the agent account or API access");
     expect(body).toContain('"claim": {');
     expect(body).toContain("claim.verification_uri");
+    // the claim poll limit is 60 per hour per IP, so a 15-minute claim must not
+    // be polled more often than every 15 seconds
+    expect(body).toContain("no more than once every 30 seconds");
     expect(protectedResource.scopes_supported).toEqual([]);
     expect(authorizationServer.agent_auth).toMatchObject({
       skill: "https://oghmanotes.ie/auth.md",
@@ -194,10 +197,14 @@ describe("agent-readable content routes", () => {
     expect(
       body.paths["/api/chat"].post.requestBody.content["application/json"]
         .schema.properties.sessionId,
-    ).toEqual({ type: ["string", "null"] });
+    ).toEqual({ type: ["string", "null"], maxLength: 64 });
     expect(body.paths["/api/notes"].post["x-human-confirmation-required"]).toBe(
       true,
     );
+    expect(body.paths["/api/notes/{id}"].put["x-human-confirmation-required"]).toBe(
+      true,
+    );
+    expect(body.paths["/api/notes/{id}"].put["x-private-data"]).toBe(true);
     expect(body.paths["/api/search"].get.summary).toBe("Search notes");
     expect(
       body.paths["/api/search"].get.parameters.find(

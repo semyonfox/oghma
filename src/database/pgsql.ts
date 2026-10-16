@@ -67,7 +67,13 @@ export async function withDatabaseTransaction<T>(
         }
         throw error;
     }
-    for (const effect of effects) await effect();
+    // the data is committed, so one failed invalidation must not skip the rest
+    const failures: unknown[] = [];
+    for (const effect of effects) {
+        try { await effect(); } catch (error) { failures.push(error); }
+    }
+    if (failures.length === 1) throw failures[0];
+    if (failures.length > 1) throw new AggregateError(failures, "Database post-commit effects failed");
     return result.value;
 }
 
@@ -86,9 +92,9 @@ function getSQL(): PostgresClient {
                     .join(", "),
             );
         }
-        const requiresSSL = url.includes("sslmode=require");
+        // no ssl option: postgres.js reads sslmode from the URL, and an explicit
+        // value would silently turn verify-full into plaintext
         const options: postgres.Options<Record<string, postgres.PostgresType>> = {
-            ssl: requiresSSL ? { rejectUnauthorized: false } : false,
             connection: {
                 application_name: process.env.DB_APPLICATION_NAME || (process.argv.some(arg => arg.endsWith("/worker-entry.ts")) ? "oghmanotes-worker" : "oghmanotes-app"),
                 idle_in_transaction_session_timeout: config.db.transactionTimeoutMs,

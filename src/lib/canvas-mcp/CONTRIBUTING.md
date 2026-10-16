@@ -4,9 +4,9 @@
 >
 > Audience: Maintainers adding, changing, or removing Canvas MCP tools
 >
-> Last verified: 2026-07-11
+> Last verified: 2026-10-06
 
-The package is intentionally small, but its impact is not: all 129 tool objects
+The package is intentionally small, but its impact is not: all 126 tool objects
 are registered, including mutating and elevated-permission operations. Treat
 tool changes as API and security changes.
 
@@ -22,6 +22,12 @@ tool changes as API and security changes.
   Canvas data, or institution-specific secret.
 - Do not describe a tool as disabled unless it is absent from the exported
   arrays and verified absent from `tools/list`.
+- OghmaNotes exposes every new tool to students by default, behind user
+  confirmation. Add educator/admin tools to `disabledCanvasMcpToolNames` in
+  `src/lib/canvas/mcp.ts`. Add a tool to `src/lib/canvas/tool-policy.ts` only
+  if it sends nothing but GETs; the app's profile test checks this.
+- Encode free-text path segments such as page slugs with
+  `encodeURIComponent`. IDs go through `canvasIdSchema`.
 
 ## Before Adding a Tool
 

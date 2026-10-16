@@ -116,6 +116,11 @@ function parseToolOutput(text: string): unknown {
     }
 }
 
+// file urls carry a bearer verifier until they expire, so previews never print it
+function redactSecrets(text: string): string {
+    return text.replace(/([?&](?:verifier|sf_verifier|access_token|token)=)[^&"\s]+/gi, "$1[redacted]");
+}
+
 function pickFirst(value: unknown, property?: string): unknown {
     if (!Array.isArray(value) || value.length === 0) return undefined;
     const first = value[0];
@@ -152,7 +157,8 @@ function createToolRunner(
         try {
             const result = await executeTool(tool, parsed.data, context);
             const text = result.content[0]?.text ?? "";
-            const preview = text.length > 400 ? `${text.slice(0, 400)}…` : text;
+            const safe = redactSecrets(text);
+            const preview = safe.length > 400 ? `${safe.slice(0, 400)}…` : safe;
             console.log(`\n=== ${toolName} ===\nargs: ${JSON.stringify(args)}\nOK (${text.length} chars)\n${preview}`);
             results.ok++;
             return parseToolOutput(text);
@@ -249,11 +255,11 @@ async function main(): Promise<void> {
         console.log(`\n[discovered] pageUrl = ${pageUrl}`);
 
         if (pageUrl) {
-            await run("canvas_get_page", { course_id: courseId, page_url_or_id: pageUrl });
-            const revisions = await run("canvas_list_page_revisions", { course_id: courseId, page_url_or_id: pageUrl });
+            await run("canvas_get_page", { course_id: courseId, page_url: pageUrl });
+            const revisions = await run("canvas_list_page_revisions", { course_id: courseId, page_url: pageUrl });
             const revisionId = pickFirst(revisions, "revision_id");
             if (revisionId) {
-                await run("canvas_get_page_revision", { course_id: courseId, page_url_or_id: pageUrl, revision_id: revisionId });
+                await run("canvas_get_page_revision", { course_id: courseId, page_url: pageUrl, revision_id: revisionId });
             } else {
                 console.log("\n=== canvas_get_page_revision ===\nSKIPPED (no revisions on page)");
                 results.skipped++;
@@ -279,7 +285,7 @@ async function main(): Promise<void> {
             }
             const firstAnnouncement = await run("canvas_list_announcements", { context_codes: [`course_${courseId}`] });
             const announcementId = pickFirst(firstAnnouncement, "id");
-            if (announcementId) await run("canvas_get_announcement", { topic_id: announcementId });
+            if (announcementId) await run("canvas_get_announcement", { course_id: courseId, announcement_id: announcementId });
         }
 
         const files = await run("canvas_list_course_files", { course_id: courseId });

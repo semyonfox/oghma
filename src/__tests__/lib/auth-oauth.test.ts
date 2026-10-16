@@ -26,11 +26,6 @@ vi.mock("@/lib/notes/storage/create-note", () => ({
 }));
 
 import {
-  isEmailVerifiedByProvider,
-  findOAuthAccount,
-  linkOAuthAccount,
-  syncProfileToLogin,
-  getLinkedProviders,
   findOrCreateOAuthUser,
   OAuthAccountUnavailableError,
   resolveVerifiedOAuthEmail,
@@ -38,36 +33,11 @@ import {
 import sql from "@/database/pgsql";
 import { Locale } from "@/locales";
 
-const mockSql = sql as unknown as ReturnType<typeof vi.fn>;
-
 beforeEach(() => {
   vi.clearAllMocks();
   vi.unstubAllGlobals();
   (sql as typeof sql & { begin: ReturnType<typeof vi.fn> }).begin.mockReset();
   mocks.insertNoteWithTree.mockResolvedValue(undefined);
-});
-
-describe("isEmailVerifiedByProvider", () => {
-  it("requires google to explicitly assert email verification", () => {
-    expect(isEmailVerifiedByProvider("google", {})).toBe(false);
-    expect(
-      isEmailVerifiedByProvider("google", { email_verified: true }),
-    ).toBe(true);
-  });
-
-  it("returns true for github when email_verified is true", () => {
-    expect(isEmailVerifiedByProvider("github", { email_verified: true })).toBe(
-      true,
-    );
-  });
-
-  it("returns false for github when email_verified is missing", () => {
-    expect(isEmailVerifiedByProvider("github", {})).toBe(false);
-  });
-
-  it("returns false for unknown provider", () => {
-    expect(isEmailVerifiedByProvider("unknown", {})).toBe(false);
-  });
 });
 
 describe("resolveVerifiedOAuthEmail", () => {
@@ -97,74 +67,6 @@ describe("resolveVerifiedOAuthEmail", () => {
     await expect(
       resolveVerifiedOAuthEmail("github", {}, "github-token"),
     ).resolves.toBe("primary@example.com");
-  });
-});
-
-describe("findOAuthAccount", () => {
-  it("returns the account row when found", async () => {
-    const row = {
-      id: "1",
-      user_id: "u1",
-      provider: "google",
-      provider_id: "g1",
-    };
-    mockSql.mockResolvedValueOnce([row]);
-    const result = await findOAuthAccount("google", "g1");
-    expect(result).toEqual(row);
-  });
-
-  it("returns null when not found", async () => {
-    mockSql.mockResolvedValueOnce([]);
-    const result = await findOAuthAccount("google", "g-missing");
-    expect(result).toBeNull();
-  });
-});
-
-describe("linkOAuthAccount", () => {
-  it("calls sql with correct provider data", async () => {
-    mockSql.mockResolvedValueOnce([{ id: "new-id" }]);
-    await linkOAuthAccount("user-1", {
-      provider: "github",
-      providerAccountId: "gh-123",
-      email: "test@test.com",
-      name: "Test User",
-      image: "https://example.com/avatar.png",
-      locale: "en",
-      rawProfile: { login: "testuser" },
-    });
-    expect(mockSql).toHaveBeenCalled();
-  });
-});
-
-describe("syncProfileToLogin", () => {
-  it("calls sql to update login profile fields", async () => {
-    mockSql.mockResolvedValueOnce([]);
-    await syncProfileToLogin("user-1", {
-      name: "Jane Doe",
-      image: "https://example.com/avatar.png",
-      locale: "en-US",
-    });
-    expect(mockSql).toHaveBeenCalled();
-  });
-});
-
-describe("getLinkedProviders", () => {
-  it("returns array of provider names", async () => {
-    mockSql.mockResolvedValueOnce([
-      { provider: "google", email: "a@b.com" },
-      { provider: "github", email: "a@b.com" },
-    ]);
-    const result = await getLinkedProviders("user-1");
-    expect(result).toEqual([
-      { provider: "google", email: "a@b.com" },
-      { provider: "github", email: "a@b.com" },
-    ]);
-  });
-
-  it("returns empty array when no providers linked", async () => {
-    mockSql.mockResolvedValueOnce([]);
-    const result = await getLinkedProviders("user-1");
-    expect(result).toEqual([]);
   });
 });
 

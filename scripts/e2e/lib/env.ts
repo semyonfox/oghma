@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-function parseEnvFile(path: string): Record<string, string> {
+export function parseEnvFile(path: string): Record<string, string> {
   const values: Record<string, string> = {};
   if (!existsSync(path)) return values;
 
@@ -26,15 +26,21 @@ function parseEnvFile(path: string): Record<string, string> {
   return values;
 }
 
-export function loadE2EEnvFiles(cwd = process.cwd()): Record<string, string> {
-  const loaded = {
-    ...parseEnvFile(resolve(cwd, ".env.e2e")),
-    ...parseEnvFile(resolve(cwd, ".env.e2e.local")),
-  };
+/** Load env files in order, later files winning; the real shell env always wins. */
+export function loadEnvFiles(
+  names: readonly string[],
+  cwd = process.cwd(),
+): Record<string, string> {
+  const loaded: Record<string, string> = {};
+  for (const name of names) Object.assign(loaded, parseEnvFile(resolve(cwd, name)));
 
   for (const [key, value] of Object.entries(loaded)) {
     if (process.env[key] === undefined) process.env[key] = value;
   }
 
   return loaded;
+}
+
+export function loadE2EEnvFiles(cwd = process.cwd()): Record<string, string> {
+  return loadEnvFiles([".env.e2e", ".env.e2e.local"], cwd);
 }

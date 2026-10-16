@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { forwardTelemetry, telemetryServerConfigured } from "@/lib/marketing/events";
 import { hasPrivacySignal, parseTelemetryEvent } from "@/lib/telemetry";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
 
 export async function POST(request: Request): Promise<NextResponse> {
   if (!telemetryServerConfigured() || hasPrivacySignal(request)) return new NextResponse(null, { status: 204 });
   if (Number(request.headers.get("content-length")) > 1024) return new NextResponse(null, { status: 413 });
+  // one client shouldn't be able to fill the process-wide forward budget with junk
+  const limited = await checkRateLimit("telemetry", getClientIp(request));
+  if (limited) return limited;
   const reader = request.body?.getReader();
   if (!reader) return new NextResponse(null, { status: 400 });
   const timeout = setTimeout(() => { void reader.cancel().catch(() => {}); }, 2000);

@@ -1,15 +1,22 @@
 import { isReadOnlyCanvasTool } from "./tool-policy";
+import type { CanvasCredentials } from "./credentials";
+import { safeCanvasFetch } from "./safe-fetch";
 import { proposeToolAction } from "@/lib/chat/actions";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { ZodTypeAny } from "zod";
-import { CanvasClient } from "@/lib/canvas-mcp/src/canvas/client";
+import {
+  CanvasClient,
+  type FetchLike,
+} from "@/lib/canvas-mcp/src/canvas/client";
 import { allTools } from "@/lib/canvas-mcp/src/tools";
 import {
   executeTool,
   type ToolDef,
 } from "@/lib/canvas-mcp/src/tools/types";
 
+// a typo here would silently leave the tool enabled, so the profile test
+// checks every name against the registry
 export const disabledCanvasMcpToolNames = [
   // course / assignment authoring and grading
   "canvas_create_course",
@@ -23,7 +30,6 @@ export const disabledCanvasMcpToolNames = [
   "canvas_bulk_grade_submissions",
   "canvas_post_submission_comment",
   "canvas_list_section_submissions",
-  "canvas_submit_grade",
   "canvas_get_all_students_status",
   "canvas_get_comprehensive_status",
 
@@ -47,10 +53,8 @@ export const disabledCanvasMcpToolNames = [
   "canvas_create_discussion_topic",
   "canvas_delete_discussion_topic",
 
-  // admin / privileged file operations
-  "canvas_upload_file",
+  // privileged file operations
   "canvas_delete_file",
-  "canvas_download_file_to_disk",
 
   // mass messaging and account administration
   "canvas_send_bulk_messages",
@@ -76,10 +80,6 @@ export const canvasMcpStudentTools = allTools.filter(
   (tool) => !disabledCanvasMcpToolSet.has(tool.name),
 );
 
-export const canvasMcpStudentToolNames = canvasMcpStudentTools.map(
-  (tool) => tool.name,
-);
-
 export const canvasMcpToolSchemas: Record<string, { inputSchema: ZodTypeAny }> =
   Object.fromEntries(
     canvasMcpStudentTools.map((tool) => [
@@ -93,20 +93,48 @@ export const canvasToolInstruction =
   "Available categories: courses, assignments, submissions, grades, modules, pages, calendar/planner, announcements, discussions, files, messages, notifications, profile, quizzes, rubrics.\n" +
   "Disabled in this student profile: instructor/admin authoring and grading flows (course/assignment/page/module creation or deletion, quiz/rubric authoring, admin user management).";
 
-function tryParseJson(text: string): unknown | undefined {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return undefined;
-  }
+/**
+ * A Canvas client bound to one user's stored connection. Every request is
+ * pinned to that user's Canvas origin and goes through the public-address
+ * guard, so a tool argument or Canvas response cannot redirect the token.
+ */
+export function createUserCanvasClient(
+  credentials: CanvasCredentials,
+): CanvasClient {
+  const origin = new URL(`https://${credentials.domain}`).origin;
+  const guardedFetch: FetchLike = async (url, init) => {
+    if (new URL(url).origin !== origin) {
+      throw new Error("Canvas request points to another host");
+    }
+    if (init?.body != null && typeof init.body !== "string") {
+      throw new Error("Canvas request body must be JSON");
+    }
+    return safeCanvasFetch(
+      url,
+      Object.fromEntries(new Headers(init?.headers).entries()),
+      false,
+      {
+        method: init?.method,
+        body: init?.body ?? undefined,
+        signal: init?.signal ?? undefined,
+      },
+    );
+  };
+  return new CanvasClient({ ...credentials, fetch: guardedFetch });
 }
 
 function asStructuredContent(
-  value: unknown,
+  text: string | undefined,
 ): Record<string, unknown> | undefined {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
+  if (!text) return undefined;
+  try {
+    const value: unknown = JSON.parse(text);
+    return value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function normalizeToolOutput(
@@ -118,26 +146,18 @@ function normalizeToolOutput(
   }));
 
   if (toolResult.isError) {
-    const message = content[0]?.text || "Canvas tool execution failed";
-    throw new Error(message);
+    throw new Error(content[0]?.text || "Canvas tool execution failed");
   }
 
-  const firstText = content[0]?.text;
-  const structuredContent = asStructuredContent(
-    firstText ? tryParseJson(firstText) : undefined,
-  );
-  if (structuredContent !== undefined) {
-    return { content, structuredContent };
-  }
-
-  return { content };
+  const structuredContent = asStructuredContent(content[0]?.text);
+  return structuredContent ? { content, structuredContent } : { content };
 }
 
 function registerCanvasTool(
   server: McpServer,
   client: CanvasClient,
   tool: ToolDef,
-  userId?: string,
+  userId: string,
 ) {
   server.registerTool(
     tool.name,
@@ -147,9 +167,15 @@ function registerCanvasTool(
     },
     async (args: unknown) => {
       const parsed = tool.inputSchema.parse(args);
+      // the chat client already turns writes into proposals. this second
+      // gate covers any other caller of the endpoint
       if (!isReadOnlyCanvasTool(tool.name)) {
-        if (!userId) throw new Error("Action confirmation requires an authenticated account");
-        const proposal = await proposeToolAction(userId, null, tool.name, parsed);
+        const proposal = await proposeToolAction(
+          userId,
+          null,
+          tool.name,
+          parsed,
+        );
         return {
           content: [{ type: "text" as const, text: JSON.stringify(proposal) }],
           structuredContent: proposal,
@@ -161,7 +187,7 @@ function registerCanvasTool(
   );
 }
 
-export function createCanvasMcpServer(client: CanvasClient, userId?: string) {
+export function createCanvasMcpServer(client: CanvasClient, userId: string) {
   const server = new McpServer({
     name: "oghmanotes-canvas",
     version: "2.0.0",
