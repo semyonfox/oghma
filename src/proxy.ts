@@ -98,7 +98,6 @@ export const config = {
         "/api/extract/:path*",
         "/api/notes/:path*",
         "/api/chat/:path*",
-        "/api/import-export/:path*",
         "/api/tree/:path*",
         "/api/trash/:path*",
         "/api/upload/:path*",
