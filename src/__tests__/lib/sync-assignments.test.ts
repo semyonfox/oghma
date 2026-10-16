@@ -18,7 +18,7 @@ describe("syncAssignmentMetadata", () => {
       { id: "7", name: "Essay", due_at: "2026-10-01T10:00:00Z" },
     ]);
 
-    expect(result).toEqual({ synced: 1, errors: 0 });
+    expect(result).toEqual({ synced: 1, errors: 0, removed: 0 });
     expect(client.getAssignments).not.toHaveBeenCalled();
     expect(sql).toHaveBeenCalledOnce();
   });
@@ -38,8 +38,81 @@ describe("syncAssignmentMetadata", () => {
     }));
     const result = await syncAssignmentMetadata("42", "11111111-1111-4111-8111-111111111111", "Course", { getAssignments: vi.fn() }, assignments);
 
-    expect(result).toEqual({ synced: 8, errors: 0 });
+    expect(result).toEqual({ synced: 8, errors: 0, removed: 0 });
     expect(peak).toBe(4);
+  });
+});
+
+describe("syncAssignmentMetadata Canvas deletions", () => {
+  const userId = "11111111-1111-4111-8111-111111111111";
+  const sqlText = (call: unknown[]) => (call[0] as string[]).join("?");
+
+  beforeEach(() => {
+    vi.mocked(sql).mockReset().mockResolvedValue([]);
+  });
+
+  it("removes rows Canvas no longer lists after a complete fetch", async () => {
+    vi.mocked(sql).mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: "gone" }] as never);
+    const client = {
+      getAssignments: vi.fn().mockResolvedValue({
+        data: [
+          { id: "7", name: "Essay", due_at: "2026-10-01T10:00:00Z" },
+          // locked rows are listed, so they must never be pruned
+          { id: "8", name: "Locked", due_at: "2026-10-01T10:00:00Z", locked_for_user: true },
+        ],
+        forbidden: false,
+      }),
+    };
+
+    const result = await syncAssignmentMetadata("42", userId, "Course", client);
+
+    expect(result).toEqual({ synced: 1, errors: 0, removed: 1 });
+    const deleteCall = vi.mocked(sql).mock.calls.find((call) => sqlText(call).includes("DELETE FROM app.assignments"));
+    expect(deleteCall).toBeDefined();
+    expect(deleteCall).toContain(userId);
+    expect(deleteCall).toContain("42");
+    expect(deleteCall).toContainEqual(["7", "8"]);
+  });
+
+  it("never prunes from a partial or restricted Canvas read", async () => {
+    const client = {
+      getAssignments: vi.fn().mockResolvedValue({
+        data: [{ id: "7", name: "Essay", due_at: "2026-10-01T10:00:00Z" }],
+        forbidden: false,
+        error: "Canvas API error: 500",
+      }),
+    };
+
+    expect(await syncAssignmentMetadata("42", userId, "Course", client)).toEqual({ synced: 0, errors: 1, removed: 0 });
+    expect(sql).not.toHaveBeenCalled();
+
+    client.getAssignments.mockResolvedValue({ data: [], forbidden: true, error: "Access restricted by lecturer" });
+    expect(await syncAssignmentMetadata("42", userId, "Course", client)).toEqual({ synced: 0, errors: 1, removed: 0 });
+    expect(sql).not.toHaveBeenCalled();
+  });
+
+  it("only prunes from discovery's list when the caller vouches it is complete", async () => {
+    const known = [{ id: "7", name: "Essay", due_at: "2026-10-01T10:00:00Z" }];
+    const client = { getAssignments: vi.fn() };
+
+    await syncAssignmentMetadata("42", userId, "Course", client, known);
+    expect(vi.mocked(sql).mock.calls.some((call) => sqlText(call).includes("DELETE"))).toBe(false);
+
+    await syncAssignmentMetadata("42", userId, "Course", client, known, { complete: true });
+    expect(vi.mocked(sql).mock.calls.some((call) => sqlText(call).includes("DELETE"))).toBe(true);
+  });
+
+  it("skips pruning when any upsert failed", async () => {
+    vi.mocked(sql).mockRejectedValueOnce(new Error("write failed"));
+    const client = {
+      getAssignments: vi.fn().mockResolvedValue({
+        data: [{ id: "7", name: "Essay", due_at: "2026-10-01T10:00:00Z" }],
+        forbidden: false,
+      }),
+    };
+
+    expect(await syncAssignmentMetadata("42", userId, "Course", client)).toEqual({ synced: 0, errors: 1, removed: 0 });
+    expect(sql).toHaveBeenCalledOnce();
   });
 });
 

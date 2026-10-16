@@ -222,6 +222,10 @@ describe("POST /api/canvas/sync", () => {
     );
 
     expect(await response.json()).toEqual({ queued: true, jobId });
+    // the job carries the same dedupe fingerprint as manual runs
+    const insert = tx.mock.calls[2];
+    expect(insert?.[0].join("")).toContain("request_fingerprint");
+    expect(insert).toContainEqual(expect.stringMatching(/^[0-9a-f]{64}$/));
     expect(cancelActiveCanvasImportJobs).not.toHaveBeenCalled();
     expect(enqueueCanvasJob).toHaveBeenCalledWith("canvas-discover", {
       jobId,

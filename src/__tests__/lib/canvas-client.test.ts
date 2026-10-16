@@ -432,6 +432,93 @@ describe("CanvasClient string-ID requests", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it("retries a request whose response headers timed out", async () => {
+    vi.useFakeTimers();
+    const timeout = Object.assign(new Error("Headers Timeout Error"), {
+      code: "UND_ERR_HEADERS_TIMEOUT",
+    });
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(timeout)
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: "1" })));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const resultPromise = new CanvasClient("example.instructure.com", "token")
+      .getCourse("1");
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect((await resultPromise).data?.id).toBe("1");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+
+  it("retries a download whose body outlived its deadline", async () => {
+    vi.useFakeTimers();
+    const deadline = Object.assign(new Error("Canvas request timed out after 600000ms"), {
+      code: "CANVAS_REQUEST_TIMEOUT",
+    });
+    const stalled = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array([1]));
+        controller.error(deadline);
+      },
+    });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(stalled))
+      .mockResolvedValueOnce(new Response(new Uint8Array([1, 2, 3])));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const resultPromise = new CanvasClient("example.instructure.com", "token")
+      .downloadFile("https://example.instructure.com/files/1/download");
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(await resultPromise).toMatchObject({ buffer: Buffer.from([1, 2, 3]) });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+
+  it("honours a Retry-After HTTP date on a 429", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-06T12:00:00Z"));
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(null, {
+        status: 429,
+        headers: { "Retry-After": "Tue, 06 Oct 2026 12:00:05 GMT" },
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: "1" })));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const resultPromise = new CanvasClient("example.instructure.com", "token")
+      .getCourse("1");
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect((await resultPromise).data?.id).toBe("1");
+    vi.useRealTimers();
+  });
+
+  it("normalizes attachment MIME types on a single assignment too", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      id: "7",
+      name: "Lab 1",
+      attachments: [{ id: "9", display_name: "brief.pdf", "content-type": "application/pdf" }],
+    }))));
+
+    const result = await new CanvasClient("example.instructure.com", "token")
+      .getAssignment("1", "7");
+
+    expect(result.data?.attachments?.[0].content_type).toBe("application/pdf");
+  });
+
+  it("encodes caller-supplied IDs into the request path", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: "1" })));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await new CanvasClient("example.instructure.com", "token").getCourse("1/../users/self");
+
+    expect(fetchMock.mock.calls[0][0]).toContain("/courses/1%2F..%2Fusers%2Fself?");
+  });
+
   it("merges active, pending, and completed courses without duplicating IDs", async () => {
     const fetchMock = vi
       .fn()

@@ -55,6 +55,9 @@ export const POST = withErrorHandler(async (request: Request) => {
   ) {
     return tracedError("Missing required fields", 400);
   }
+  if (courseName.trim().length > 500) {
+    return tracedError("Course name is too long", 400);
+  }
   if (isActive !== undefined && typeof isActive !== "boolean") {
     return tracedError("isActive must be a boolean", 400);
   }

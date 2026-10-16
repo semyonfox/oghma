@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { withErrorHandler, requireAuth } from "@/lib/api-error";
 import { CanvasClient } from "@/lib/canvas/client";
 import { syncAssignmentMetadata } from "@/lib/canvas/sync-assignments";
-import { cleanCourseName } from "@/lib/canvas/canvas-folders";
+import { cleanCourseName } from "@/lib/canvas/content-formatting";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
 import {
   discoverCanvasCourses,
@@ -22,6 +22,7 @@ export const POST = withErrorHandler(async () => {
   if (!credentials) {
     return NextResponse.json({
       synced: false,
+      code: "not_connected",
       reason: "No Canvas account connected",
     });
   }
@@ -32,6 +33,7 @@ export const POST = withErrorHandler(async () => {
   if (discovery.error) {
     return NextResponse.json({
       synced: false,
+      code: discovery.unauthorized ? "reconnect" : "unavailable",
       reason: discovery.error,
     });
   }
@@ -39,6 +41,7 @@ export const POST = withErrorHandler(async () => {
 
   let totalSynced = 0;
   let totalErrors = 0;
+  let totalRemoved = 0;
 
   for (const course of courses) {
     const { title: courseTitle } = cleanCourseName(
@@ -46,7 +49,7 @@ export const POST = withErrorHandler(async () => {
       course.name,
       course.term,
     );
-    const { synced, errors } = await syncAssignmentMetadata(
+    const { synced, errors, removed } = await syncAssignmentMetadata(
       String(course.id),
       user.user_id,
       courseTitle,
@@ -54,11 +57,13 @@ export const POST = withErrorHandler(async () => {
     );
     totalSynced += synced;
     totalErrors += errors;
+    totalRemoved += removed;
   }
 
   return NextResponse.json({
     synced: true,
     count: totalSynced,
     errors: totalErrors,
+    removed: totalRemoved,
   });
 });

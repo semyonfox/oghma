@@ -10,7 +10,12 @@ import {
   discoverCanvasCourses,
   isCanvasCourseAvailabilityUnresolved,
 } from "@/lib/canvas/sync-courses";
-import { startCanvasRun } from "@/lib/canvas/import-runs";
+import {
+  canonicalCanvasCourses,
+  canvasRequestFingerprint,
+  lockCanvasRuns,
+  startCanvasRun,
+} from "@/lib/canvas/import-runs";
 import { isValidUUID } from "@/lib/utils/uuid";
 
 const ACTIVE_CANVAS_JOB_STATUSES = new Set([
@@ -154,30 +159,28 @@ export const POST = withErrorHandler(async (request) => {
     return NextResponse.json({ queued: true, jobId: started.jobId, alreadyActive: started.kind === "existing" });
   }
 
+  // automatic syncs never replace work, and the cooldown must be checked under
+  // the same per-user lock startCanvasRun uses, so it cannot reuse that helper
   const result = await sql.begin(async (tx) => {
-    if (automatic) {
-      await tx`
-        SELECT pg_advisory_xact_lock(
-          hashtext(${`oghma-canvas-import:${user.user_id}`})
+    await lockCanvasRuns(tx, user.user_id);
+    const blockers = await tx<AutomaticSyncBlocker[]>`
+      SELECT id, status
+      FROM app.canvas_import_jobs
+      WHERE user_id = ${user.user_id}::uuid
+        AND type = 'canvas'
+        AND (
+          status IN ('queued', 'discovering', 'processing')
+          OR COALESCE(completed_at, created_at) >= NOW() - INTERVAL '6 hours'
         )
-      `;
-      const blockers = await tx<AutomaticSyncBlocker[]>`
-        SELECT id, status
-        FROM app.canvas_import_jobs
-        WHERE user_id = ${user.user_id}::uuid
-          AND type = 'canvas'
-          AND (
-            status IN ('queued', 'discovering', 'processing')
-            OR COALESCE(completed_at, created_at) >= NOW() - INTERVAL '6 hours'
-          )
-        ORDER BY created_at DESC
-        LIMIT 1
-      `;
-      if (blockers[0]) return { blocker: blockers[0], job: null };
-    }
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+    if (blockers[0]) return { blocker: blockers[0], job: null };
+    const syncCourses = canonicalCanvasCourses(courses);
     const [inserted] = await tx<{ id: string }[]>`
-      INSERT INTO app.canvas_import_jobs (user_id, course_ids, status, job_type)
-      VALUES (${user.user_id}::uuid, ${JSON.stringify(courses)}::text::jsonb, 'queued', 'sync')
+      INSERT INTO app.canvas_import_jobs (user_id, course_ids, status, job_type, request_fingerprint)
+      VALUES (${user.user_id}::uuid, ${JSON.stringify(syncCourses)}::text::jsonb, 'queued', 'sync',
+        ${canvasRequestFingerprint(syncCourses, "sync")})
       RETURNING id
     `;
     return { blocker: null, job: inserted };

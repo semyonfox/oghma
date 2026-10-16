@@ -84,6 +84,20 @@ describe("assignment store archive visibility", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/assignments?all=1&includeArchived=1");
   });
 
+  it.each([
+    [{ synced: true, count: 3 }, { synced: true, count: 3 }],
+    [{ synced: false, code: "reconnect", reason: "Invalid or expired Canvas token" }, { synced: false, code: "reconnect" }],
+    [{ synced: false, reason: "No Canvas account connected", code: "not_connected" }, { synced: false, code: "not_connected" }],
+    [{ synced: false, reason: "Canvas API error: 500" }, { synced: false, code: "unavailable" }],
+  ])("reports why a Canvas sync did or did not run: %j", async (body, expected) => {
+    const useAssignmentStore = await loadStore();
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(okJson(body))
+      .mockResolvedValueOnce(okJson([])));
+
+    expect(await useAssignmentStore.getState().syncFromCanvas()).toEqual(expected);
+  });
+
   it("refetches immediately when archived visibility changes", async () => {
     const useAssignmentStore = await loadStore();
     const fetchMock = vi.fn().mockResolvedValue(okJson([]));
