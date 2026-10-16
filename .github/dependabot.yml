@@ -34,6 +34,10 @@ updates:
       - dependency-name: "eslint"
         update-types:
           - "version-update:semver-major"
+      # types track the oldest node major in engines; newer ones type-check APIs that crash on it
+      - dependency-name: "@types/node"
+        update-types:
+          - "version-update:semver-major"
     reviewers:
       - "semyonfox"
     assignees:
@@ -63,6 +67,10 @@ updates:
         applies-to: "security-updates"
         patterns:
           - "*"
+    ignore:
+      - dependency-name: "@types/node"
+        update-types:
+          - "version-update:semver-major"
     reviewers:
       - "semyonfox"
     assignees:
@@ -72,3 +80,13 @@ updates:
     target-branch: "dev"
     schedule:
       interval: weekly
+    # runtime majors are deliberate upgrades: node stays on an LTS line and python on
+    # the version the GPU stack ships wheels for
+    ignore:
+      - dependency-name: "node"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "python"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"

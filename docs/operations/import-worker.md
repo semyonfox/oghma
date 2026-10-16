@@ -306,8 +306,7 @@ Stop workload verification and use the homelab deployment guide. Do not edit
 
 ## Related Sources
 
-- [Current homelab runtime](../../infra/HOMELAB.md)
-- `Jenkinsfile`
+- [Current homelab runtime](../../infra/HOMELAB.md), which names the live Jenkins pipelines
 - `src/lib/queue.ts`
 - `src/lib/canvas/worker-entry.ts`
 - `src/lib/canvas/import-extraction.ts`
