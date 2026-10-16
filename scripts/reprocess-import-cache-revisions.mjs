@@ -11,7 +11,8 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import sql from "../database/pgsql.ts";
+import sql from "../src/database/pgsql.ts";
+import { closeQueues } from "../src/lib/queue.ts";
 import { submitMarkerJob } from "../src/lib/marker/serverless.ts";
 
 function excludedShas() {
@@ -89,4 +90,7 @@ async function main() {
   }
 }
 
-main().catch((error) => { console.error(error); process.exitCode = 1; });
+// open database and Redis handles would otherwise keep the process alive
+main()
+  .catch((error) => { console.error(error); process.exitCode = 1; })
+  .finally(() => Promise.allSettled([closeQueues(), sql.end({ timeout: 5 })]));

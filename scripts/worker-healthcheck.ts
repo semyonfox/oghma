@@ -13,6 +13,11 @@ import {
 import {
   validateMarkerWorkerConfiguration,
 } from "../src/lib/marker/worker-config.ts";
+import {
+  WORKER_HEARTBEAT_MAX_AGE_MS,
+  readWorkerHeartbeatAge,
+  workerHeartbeatPath,
+} from "../src/lib/worker/heartbeat.ts";
 import { Queue } from "bullmq";
 
 function errorMessage(error: unknown): string {
@@ -71,6 +76,29 @@ async function checkBullMq(
   }
 }
 
+// A worker that just started writes its first heartbeat once its consumers
+// are up, so give it a bounded window before declaring it unhealthy.
+async function checkWorkerHeartbeat(): Promise<void> {
+  const waitMs = Number.parseInt(process.env.WORKER_HEALTHCHECK_WAIT_MS ?? "", 10);
+  const deadline = Date.now() + (Number.isFinite(waitMs) && waitMs >= 0 ? waitMs : 20_000);
+  const file = workerHeartbeatPath();
+  for (;;) {
+    const age = await readWorkerHeartbeatAge(file);
+    if (age !== null && age <= WORKER_HEARTBEAT_MAX_AGE_MS) {
+      console.log(`[worker-healthcheck] worker heartbeat ${Math.round(age / 1000)}s old`);
+      return;
+    }
+    if (Date.now() >= deadline) {
+      throw new Error(
+        age === null
+          ? `no worker heartbeat at ${file}; is the worker running in this container?`
+          : `worker heartbeat is ${Math.round(age / 1000)}s old; consumers are stopped or the event loop is blocked`,
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+}
+
 function checkCloudflareQueueConfig(
   markerDispatchConsumerEnabled: boolean,
 ): void {
@@ -93,6 +121,7 @@ try {
   } else {
     checkCloudflareQueueConfig(markerConfiguration.markerDispatchConsumerEnabled);
   }
+  await checkWorkerHeartbeat();
   console.log(`[worker-healthcheck] ok (${provider})`);
 } catch (err: unknown) {
   console.error("[worker-healthcheck] failed:", errorMessage(err));

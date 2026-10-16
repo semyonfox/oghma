@@ -64,7 +64,7 @@ vi.mock("@/lib/canvas/client", () => ({
 vi.mock("@/lib/canvas/credentials", () => ({
   loadCanvasCredentials: vi.fn(),
 }));
-vi.mock("@/lib/queue", () => ({ enqueueCanvasJob: vi.fn() }));
+vi.mock("@/lib/queue", () => ({ enqueueCanvasDiscoverJob: vi.fn() }));
 vi.mock("@/lib/marketing/events", () => ({
   recordActivationMilestone: vi.fn(),
 }));
@@ -75,7 +75,7 @@ vi.mock("@/lib/canvas/cancel-import-jobs", () => ({
 import { requireAuth } from "@/lib/api-error";
 import sql from "@/database/pgsql";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
-import { enqueueCanvasJob } from "@/lib/queue";
+import { enqueueCanvasDiscoverJob } from "@/lib/queue";
 import { POST } from "@/app/api/canvas/import/route";
 
 function request(courseIds: unknown[]) {
@@ -104,7 +104,7 @@ describe("POST /api/canvas/import Canvas IDs", () => {
       token: "token",
     });
     canvas.getSelfEnrollments.mockResolvedValue({ data: [] });
-    vi.mocked(enqueueCanvasJob).mockResolvedValue(undefined);
+    vi.mocked(enqueueCanvasDiscoverJob).mockResolvedValue(undefined);
   });
 
   it("returns 400 before queueing an ID outside signed bigint range", async () => {
@@ -141,7 +141,7 @@ describe("POST /api/canvas/import Canvas IDs", () => {
     const response = await POST(request(["42"]));
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({ code: "canvas_folders_in_trash", folders });
-    expect(enqueueCanvasJob).not.toHaveBeenCalled();
+    expect(enqueueCanvasDiscoverJob).not.toHaveBeenCalled();
     expect(tx.mock.calls.some(([parts]) => Array.from(parts).join("").includes("INSERT INTO"))).toBe(false);
   });
 
@@ -157,10 +157,7 @@ describe("POST /api/canvas/import Canvas IDs", () => {
     expect(canvas.getSelfEnrollments).toHaveBeenCalledOnce();
     expect(canvas.getCourses).not.toHaveBeenCalled();
     expect(begin).toHaveBeenCalledOnce();
-    expect(enqueueCanvasJob).toHaveBeenCalledWith("canvas-discover", {
-      jobId: "job-123",
-      userId: "user-123",
-    });
+    expect(enqueueCanvasDiscoverJob).toHaveBeenCalledWith("job-123", "user-123");
   });
 
   it("falls back to the regular course list when enrollment access is scoped", async () => {

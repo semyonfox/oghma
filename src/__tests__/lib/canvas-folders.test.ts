@@ -76,3 +76,14 @@ it("distinguishes a missing parent from a folder in Trash", async () => {
   await expect(findOrCreateFolder(userId, "Week 1", folderId, { canvasCourseId: "101", canvasModuleId: "1" }))
     .rejects.toBeInstanceOf(CanvasFolderMissingError);
 });
+
+it("fails discovery on an unexpected database error instead of using the parent folder", async () => {
+  vi.mocked(sql).mockReset();
+  vi.mocked(sql)
+    .mockResolvedValueOnce([] as never) // advisory lock
+    .mockResolvedValueOnce([{ note_id: folderId, deleted_at: null }] as never) // active parent
+    .mockRejectedValueOnce(new Error("canceling statement due to statement timeout"));
+
+  await expect(findOrCreateFolder(userId, "Week 1", folderId, { canvasCourseId: "101", canvasModuleId: "1" }))
+    .rejects.toThrow("statement timeout");
+});

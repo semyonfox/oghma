@@ -128,7 +128,8 @@ export async function enqueueChatGeneration(generationId: string): Promise<void>
   if (getQueueProvider() !== "bullmq") {
     throw new Error("Chat generation currently requires the BullMQ queue provider");
   }
-  await getChatGenerationQueue().add(
+  await addBullMqJob(
+    getChatGenerationQueue(),
     "chat-generation",
     { type: "chat-generation", generationId },
     {
@@ -148,7 +149,8 @@ export async function enqueueRecoveredChatGeneration(
   if (getQueueProvider() !== "bullmq") {
     throw new Error("Chat generation currently requires the BullMQ queue provider");
   }
-  await getChatGenerationQueue().add(
+  await addBullMqJob(
+    getChatGenerationQueue(),
     "chat-generation",
     { type: "chat-generation", generationId },
     {
@@ -164,6 +166,49 @@ export async function enqueueRecoveredChatGeneration(
 function positiveIntegerEnv(name: string, fallback: number): number {
   const value = Number.parseInt(process.env[name] ?? "", 10);
   return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+export class QueuePublishTimeoutError extends Error {
+  constructor(queueName: string, timeoutMs: number) {
+    super(`Queue publish to ${queueName} timed out after ${timeoutMs}ms`);
+    this.name = "QueuePublishTimeoutError";
+  }
+}
+
+function publishTimeoutMs(): number {
+  return positiveIntegerEnv("QUEUE_PUBLISH_TIMEOUT_MS", 10_000);
+}
+
+// ioredis queues commands while Redis is down, so an unbounded add hangs an
+// API request or worker poll until Redis returns. A late add can still land
+// after this rejects; that is safe because every consumer claims its work
+// from the database before acting on it
+async function withPublishTimeout<T>(
+  queueName: string,
+  publish: Promise<T>,
+): Promise<T> {
+  const timeoutMs = publishTimeoutMs();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new QueuePublishTimeoutError(queueName, timeoutMs)),
+      timeoutMs,
+    );
+  });
+  try {
+    return await Promise.race([publish, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function addBullMqJob(
+  queue: Queue,
+  name: string,
+  data: Record<string, unknown>,
+  opts: JobsOptions,
+): Promise<void> {
+  await withPublishTimeout(queue.name, queue.add(name, data, opts));
 }
 
 /**
@@ -201,20 +246,17 @@ function getCloudflareQueueConfig(): CloudflareQueueConfig {
     process.env.CLOUDFLARE_QUEUES_API_TOKEN ??
     process.env.CLOUDFLARE_QUEUE_API_TOKEN ??
     process.env.CF_QUEUES_API_TOKEN;
-  const missing = [
-    ["CLOUDFLARE_ACCOUNT_ID", accountId],
-    ["CLOUDFLARE_QUEUES_API_TOKEN", apiToken],
-  ]
-    .filter(([, value]) => !value)
-    .map(([name]) => name);
-
-  if (missing.length > 0) {
+  if (!accountId || !apiToken) {
+    const missing = [
+      ...(accountId ? [] : ["CLOUDFLARE_ACCOUNT_ID"]),
+      ...(apiToken ? [] : ["CLOUDFLARE_QUEUES_API_TOKEN"]),
+    ];
     throw new Error(
       `Missing Cloudflare Queues configuration for QUEUE_PROVIDER=cloudflare: ${missing.join(", ")}`,
     );
   }
 
-  return { accountId: accountId!, apiToken: apiToken! };
+  return { accountId, apiToken };
 }
 
 // A queue ID is only required by deployments that publish to or pull from it.
@@ -257,19 +299,30 @@ async function cloudflareQueueRequest<T>(
       "content-type": "application/json",
     },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(publishTimeoutMs()),
   });
 
   const text = await response.text();
-  const payload = text ? JSON.parse(text) : {};
+  // a gateway error page is not JSON; keep the status in the thrown error
+  const payload = text ? parseJsonRecord(text) ?? {} : {};
   if (!response.ok || payload.success === false) {
-    const message =
-      payload.errors?.map((err: { message?: string }) => err.message).filter(Boolean).join("; ") ||
-      payload.message ||
-      response.statusText;
-    throw new Error(`Cloudflare Queues request failed (${response.status}): ${message}`);
+    throw new Error(
+      `Cloudflare Queues request failed (${response.status}): ${cloudflareErrorMessage(payload) || response.statusText}`,
+    );
   }
 
   return payload as T;
+}
+
+function cloudflareErrorMessage(payload: Record<string, unknown>): string {
+  const errors = Array.isArray(payload.errors) ? payload.errors : [];
+  const messages = errors.flatMap((error) =>
+    isRecord(error) && typeof error.message === "string" && error.message
+      ? [error.message]
+      : [],
+  );
+  if (messages.length > 0) return messages.join("; ");
+  return typeof payload.message === "string" ? payload.message : "";
 }
 
 async function sendCloudflareQueueMessage(
@@ -298,11 +351,31 @@ export async function enqueueCanvasJob(
     return;
   }
 
-  await getCanvasImportQueue().add(
+  await addBullMqJob(
+    getCanvasImportQueue(),
     type,
     { type, ...data },
     { ...defaultCanvasJobOptions(), ...opts },
   );
+}
+
+/**
+ * Publish Canvas discovery. The BullMQ id dedupes the minute-by-minute orphan
+ * republication while a message is still waiting; the attempt count keeps a
+ * requeued discovery distinct from the delivery that already ran.
+ */
+export async function enqueueCanvasDiscoverJob(
+  jobId: string,
+  userId: string,
+  executionAttempts = 0,
+): Promise<void> {
+  await enqueueCanvasJob("canvas-discover", { jobId, userId }, {
+    jobId: `canvas-discover-${jobId}-${executionAttempts}`,
+    // a retained completed or failed job would make BullMQ silently ignore
+    // the next publication with the same id
+    removeOnComplete: true,
+    removeOnFail: true,
+  });
 }
 
 export async function enqueueExtractRetryJob(
@@ -318,7 +391,8 @@ export async function enqueueExtractRetryJob(
     return;
   }
 
-  await getCanvasImportQueue().add(
+  await addBullMqJob(
+    getCanvasImportQueue(),
     "extract-retry",
     { type: "extract-retry", ...data },
     { ...defaultCanvasJobOptions(), delay: delaySeconds * 1000 },
@@ -344,7 +418,8 @@ export async function enqueueNoteReindexJob(
     return;
   }
 
-  await getCanvasImportQueue().add(
+  await addBullMqJob(
+    getCanvasImportQueue(),
     "note-reindex",
     { type: "note-reindex", noteId, userId },
     {
@@ -372,7 +447,7 @@ export async function enqueueMarkerDispatchJob(
     return;
   }
 
-  await getMarkerDispatchQueue().add("marker-dispatch", data, {
+  await addBullMqJob(getMarkerDispatchQueue(), "marker-dispatch", data, {
     ...defaultCanvasJobOptions(),
     jobId: `marker-dispatch-${callbackId}`,
     attempts,
@@ -398,7 +473,7 @@ async function enqueueMarkerContinuationJob(
   // Completion is DB-claimed, so at-least-once delivery is safe. Remove the
   // completed job so recovery can enqueue a new deterministic job ID after a
   // crash or an exhausted transient queue delivery.
-  await getCanvasImportQueue().add(type, data, {
+  await addBullMqJob(getCanvasImportQueue(), type, data, {
     ...defaultCanvasJobOptions(),
     jobId: `${type}-${callbackId}`,
     attempts: getMarkerCompletionAttemptLimit(),
@@ -422,6 +497,24 @@ export async function enqueueMarkerFailureJob(
 
 export function getQueueConnection(): IORedis {
   return getConnection();
+}
+
+/** Close producer queues and the shared Redis connection, if any were opened. */
+export async function closeQueues(): Promise<void> {
+  const queues = [
+    _canvasImportQueue,
+    _extractRetryQueue,
+    _chatGenerationQueue,
+    _markerDispatchQueue,
+  ].filter((queue): queue is Queue => queue !== null);
+  _canvasImportQueue = null;
+  _extractRetryQueue = null;
+  _chatGenerationQueue = null;
+  _markerDispatchQueue = null;
+  await Promise.allSettled(queues.map((queue) => queue.close()));
+  const connection = _connection;
+  _connection = null;
+  if (connection) await connection.quit().catch(() => connection.disconnect());
 }
 
 export interface CloudflarePulledMessage {

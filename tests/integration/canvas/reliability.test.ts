@@ -512,6 +512,20 @@ describe("Canvas durable lifecycle with PostgreSQL", () => {
     expect(completed.map((row) => row.status)).toEqual(["complete", "complete"]);
   });
 
+  it("settles a file whose extraction keeps killing its worker", async () => {
+    const owner = await fixture("indexing");
+    await sql`UPDATE app.canvas_imports SET source_s3_key = 'test/poison.pdf', retry_attempts = 3
+      WHERE id = ${owner.importId}::uuid`;
+
+    await recoverPendingCanvasExtracts();
+
+    const [row] = await sql`SELECT status, retryable, retry_attempts FROM app.canvas_imports
+      WHERE id = ${owner.importId}::uuid`;
+    expect(row).toMatchObject({ status: "error", retryable: true, retry_attempts: 4 });
+    expect(mocks.enqueue).not.toHaveBeenCalledWith("canvas-extract",
+      expect.objectContaining({ importRecordId: owner.importId }));
+  });
+
   it("reclaims an expired extraction claim and fences its old worker", async () => {
     const owner = await fixture("pending");
     mocks.rag.mockImplementation(async (noteId: string) => ({ noteId, chunksStored: 1 }));

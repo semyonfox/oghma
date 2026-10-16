@@ -2,7 +2,7 @@
 
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { usePollingJob } from "@/lib/hooks/use-polling-job";
+import { parsePollingJobData, usePollingJob } from "@/lib/hooks/use-polling-job";
 
 function deferred<T>() {
   let resolve: (value: T) => void;
@@ -161,5 +161,33 @@ describe("usePollingJob", () => {
     expect(onError).toHaveBeenCalledWith(
       expect.objectContaining({ message: "Invalid polling job response" }),
     );
+  });
+});
+
+describe("parsePollingJobData", () => {
+  // the vault status API used to send null for absent fields, and the old guard
+  // rejected every one of those polls so the settings page never updated
+  it("treats null fields as absent instead of rejecting the response", () => {
+    expect(
+      parsePollingJobData({
+        job: { status: "complete", error: null, jobId: "j1" },
+        progress: { completed: 2, total: 2, percent: null },
+        downloadUrl: null,
+      }),
+    ).toEqual({
+      job: { status: "complete", error: undefined, jobId: "j1" },
+      progress: { completed: 2, total: 2, percent: undefined },
+      downloadUrl: undefined,
+    });
+    expect(parsePollingJobData({ job: null, progress: null })).toEqual({
+      downloadUrl: undefined,
+    });
+  });
+
+  it("still rejects fields of the wrong type", () => {
+    expect(parsePollingJobData({ job: { status: 3 } })).toBeNull();
+    expect(parsePollingJobData({ progress: { completed: "2", total: 2 } })).toBeNull();
+    expect(parsePollingJobData({ downloadUrl: 5 })).toBeNull();
+    expect(parsePollingJobData([])).toBeNull();
   });
 });

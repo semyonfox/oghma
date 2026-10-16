@@ -167,6 +167,37 @@ describe("BullMQ queue prefixing", () => {
     );
   });
 
+  it("rejects a publish that Redis never acknowledges instead of hanging the caller", async () => {
+    vi.stubEnv("QUEUE_PREFIX", "oghma-dev");
+    vi.stubEnv("QUEUE_PUBLISH_TIMEOUT_MS", "20");
+    // ioredis keeps an offline command pending until Redis returns
+    queueAdd.mockReturnValueOnce(new Promise(() => undefined));
+
+    const { enqueueCanvasJob, QueuePublishTimeoutError } = await import("@/lib/queue");
+
+    await expect(
+      enqueueCanvasJob("canvas-discover", { jobId: "job-1" }),
+    ).rejects.toBeInstanceOf(QueuePublishTimeoutError);
+  });
+
+  it("dedupes discovery republication per execution attempt", async () => {
+    vi.stubEnv("QUEUE_PREFIX", "oghma-dev");
+
+    const { enqueueCanvasDiscoverJob } = await import("@/lib/queue");
+    await enqueueCanvasDiscoverJob("job-1", "user-1", 2);
+
+    expect(queueAdd).toHaveBeenCalledWith(
+      "canvas-discover",
+      { type: "canvas-discover", jobId: "job-1", userId: "user-1" },
+      expect.objectContaining({
+        jobId: "canvas-discover-job-1-2",
+        // a retained finished job would swallow the next attempt's publication
+        removeOnComplete: true,
+        removeOnFail: true,
+      }),
+    );
+  });
+
   it("can infer distinct prefixes from app URLs when no explicit queue prefix is set", async () => {
     vi.stubEnv("QUEUE_PREFIX", "");
     vi.stubEnv("BULLMQ_QUEUE_PREFIX", "");

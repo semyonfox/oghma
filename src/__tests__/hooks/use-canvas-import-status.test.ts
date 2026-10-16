@@ -610,6 +610,45 @@ describe("useCanvasImportStatus", () => {
     unmount();
   });
 
+  it("pauses polling in a hidden tab and catches up when it is shown", async () => {
+    vi.useFakeTimers();
+    let hidden = false;
+    const visibility = vi.spyOn(document, "hidden", "get").mockImplementation(() => hidden);
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => canvasStatus(),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { result, unmount } = renderHook(() =>
+      useCanvasImportStatus({ autoCheckOnMount: false }),
+    );
+
+    await act(async () => {
+      await result.current.checkStatus();
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_000);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    hidden = true;
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    // the poll already scheduled before the tab hid still runs once
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    hidden = false;
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    unmount();
+    visibility.mockRestore();
+  });
+
   it("uses the server poll interval for the next status request", async () => {
     vi.useFakeTimers();
     const fetchMock = vi.fn().mockResolvedValue({

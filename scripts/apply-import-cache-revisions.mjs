@@ -3,7 +3,7 @@
 /** Apply ready immutable cache revisions only where the user projection still
  * exactly equals its old canonical Markdown.  Divergent notes are recorded as
  * update-available and are never modified. */
-import sql from "../database/pgsql.ts";
+import sql from "../src/database/pgsql.ts";
 import { cloneImportedPdfCacheToNote } from "../src/lib/canvas/import-cache.ts";
 
 const pipelineVersion = process.env.CACHE_REPROCESS_PIPELINE_VERSION?.trim();
@@ -52,4 +52,6 @@ async function main() {
   }
   console.log(JSON.stringify({ examined: rows.length, applied, updateAvailable: available, binaryUpdated: binary }));
 }
-main().catch((error) => { console.error(error); process.exitCode = 1; });
+main()
+  .catch((error) => { console.error(error); process.exitCode = 1; })
+  .finally(() => sql.end({ timeout: 5 }));

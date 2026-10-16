@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { withErrorHandler, requireAuth, ApiError } from "@/lib/api-error";
 import { CanvasClient } from "@/lib/canvas/client";
 import sql from "@/database/pgsql";
-import { enqueueCanvasJob } from "@/lib/queue";
+import { enqueueCanvasDiscoverJob } from "@/lib/queue";
 import logger from "@/lib/logger";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
 import {
@@ -153,7 +153,7 @@ export const POST = withErrorHandler(async (request) => {
       error: "The active import changed. Confirm the current import before replacing it.", activeJob: started.activeJob,
     }, { status: 409 });
     if (started.kind === "created") {
-      await enqueueCanvasJob("canvas-discover", { jobId: started.jobId, userId: user.user_id })
+      await enqueueCanvasDiscoverJob(started.jobId, user.user_id)
         .catch((error: unknown) => logger.warn("Sync publication deferred to recovery", { error: errorMessage(error) }));
     }
     return NextResponse.json({ queued: true, jobId: started.jobId, alreadyActive: started.kind === "existing" });
@@ -192,7 +192,7 @@ export const POST = withErrorHandler(async (request) => {
   const jobId = result.job.id;
 
   try {
-    await enqueueCanvasJob("canvas-discover", { jobId, userId: user.user_id });
+    await enqueueCanvasDiscoverJob(jobId, user.user_id);
   } catch (queueErr) {
     logger.warn("queue enqueue failed for sync (job still queued in DB)", {
       error: errorMessage(queueErr),

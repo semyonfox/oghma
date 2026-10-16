@@ -126,9 +126,10 @@ function getStoredActiveJob(): StoredJob | null {
     const value: unknown = JSON.parse(
       localStorage.getItem(LS_ACTIVE_JOB) ?? "null",
     );
-    return typeof value === "object" && value !== null
-      ? (value as StoredJob)
-      : null;
+    if (typeof value !== "object" || value === null) return null;
+    // another tab or an older build may have written this; only trust a string
+    const jobId = "jobId" in value ? value.jobId : undefined;
+    return typeof jobId === "string" ? { jobId } : {};
   } catch {
     localStorage.removeItem(LS_ACTIVE_JOB);
     return null;
@@ -792,19 +793,39 @@ export function useCanvasImportStatus(
 
   // Poll again only once the current request settles. This avoids slow OCR
   // responses racing each other and triggering rapid/out-of-order tree work.
+  // A hidden tab stops polling, since imports run for minutes and every open
+  // tab otherwise costs the status route a query set every few seconds. It
+  // catches up with one immediate check when it becomes visible again.
   useEffect(() => {
     if (!enabled || !isImporting) return;
 
     let cancelled = false;
+    let inFlight = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
-    const poll = async () => {
-      await checkStatus();
-      if (!cancelled) timer = setTimeout(poll, pollIntervalRef.current);
+    const schedule = () => {
+      if (cancelled || timer || document.hidden) return;
+      timer = setTimeout(() => void poll(), pollIntervalRef.current);
     };
-    timer = setTimeout(poll, pollIntervalRef.current);
+    const poll = async () => {
+      timer = null;
+      inFlight = true;
+      try {
+        await checkStatus();
+      } finally {
+        inFlight = false;
+      }
+      schedule();
+    };
+    const onVisibilityChange = () => {
+      if (cancelled || document.hidden || inFlight || timer) return;
+      void poll();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    schedule();
 
     return () => {
       cancelled = true;
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       if (timer) clearTimeout(timer);
       abortRef.current?.abort();
     };

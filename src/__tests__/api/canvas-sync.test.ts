@@ -43,7 +43,7 @@ vi.mock("@/database/pgsql.js", () => ({ default: vi.fn() }));
 vi.mock("@/lib/canvas/credentials", () => ({
   loadCanvasCredentials: vi.fn(),
 }));
-vi.mock("@/lib/queue", () => ({ enqueueCanvasJob: vi.fn() }));
+vi.mock("@/lib/queue", () => ({ enqueueCanvasDiscoverJob: vi.fn() }));
 vi.mock("@/lib/canvas/cancel-import-jobs", () => ({
   cancelActiveCanvasImportJobs: vi.fn(),
 }));
@@ -52,7 +52,7 @@ vi.mock("@/lib/logger", () => ({ default: { warn: vi.fn() } }));
 import { requireAuth } from "@/lib/api-error";
 import sql from "@/database/pgsql";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
-import { enqueueCanvasJob } from "@/lib/queue";
+import { enqueueCanvasDiscoverJob } from "@/lib/queue";
 import { cancelActiveCanvasImportJobs } from "@/lib/canvas/cancel-import-jobs";
 import { POST } from "@/app/api/canvas/sync/route";
 
@@ -125,7 +125,7 @@ describe("POST /api/canvas/sync", () => {
     });
     expect(canvas.getDiscoverableCourses).not.toHaveBeenCalled();
     expect(cancelActiveCanvasImportJobs).not.toHaveBeenCalled();
-    expect(enqueueCanvasJob).not.toHaveBeenCalled();
+    expect(enqueueCanvasDiscoverJob).not.toHaveBeenCalled();
   });
 
   it("does not replace a job that wins a concurrent automatic-sync race", async () => {
@@ -174,7 +174,7 @@ describe("POST /api/canvas/sync", () => {
       activeJobId,
     });
     expect(cancelActiveCanvasImportJobs).not.toHaveBeenCalled();
-    expect(enqueueCanvasJob).not.toHaveBeenCalled();
+    expect(enqueueCanvasDiscoverJob).not.toHaveBeenCalled();
     expect(tx.mock.calls[0]?.[0].join("")).toContain(
       "pg_advisory_xact_lock",
     );
@@ -227,9 +227,6 @@ describe("POST /api/canvas/sync", () => {
     expect(insert?.[0].join("")).toContain("request_fingerprint");
     expect(insert).toContainEqual(expect.stringMatching(/^[0-9a-f]{64}$/));
     expect(cancelActiveCanvasImportJobs).not.toHaveBeenCalled();
-    expect(enqueueCanvasJob).toHaveBeenCalledWith("canvas-discover", {
-      jobId,
-      userId: "user-123",
-    });
+    expect(enqueueCanvasDiscoverJob).toHaveBeenCalledWith(jobId, "user-123");
   });
 });
