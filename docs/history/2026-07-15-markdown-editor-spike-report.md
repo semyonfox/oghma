@@ -1,6 +1,6 @@
 # Milkdown Crepe Spike Report
 
-> **Status:** Implemented editor migration; dated evidence, not a current runbook
+> **Status:** Historical. Moved from `docs/engineering/` on 2026-10-16. The migration shipped; see [Markdown editing and rendering](../engineering/markdown-rendering.md) for the current contract
 >
 > **Date:** 2026-07-15
 

@@ -25,7 +25,7 @@ for the signing fingerprint and device verification gate. The dedicated native w
 
 An existing alpha session transfers to the WebView once. The old SecureStore session is removed only after successful transfer, preventing an old native session from signing the user back in after website logout. Previous native draft keys remain on the device; the web editor does not import those drafts. New edits use the website's existing save and recovery behaviour.
 
-Native cookie installation accepts only the exact production and development HTTPS origins. Native bridge messages cover Google/GitHub sign-in, the update screen, the resolved light/dark theme, and the offline reader (`offline-open`, `offline-account`, `offline-save`). The shell checks each message's source origin, size and payload before acting. File/content/intent/JavaScript navigation is blocked. The website confirms the signed-in account for the offline reader once per page rather than on every navigation; an account switch goes through `/login`, a full reload or sign-out in settings, which all reset it.
+Native cookie installation accepts only the exact production and development HTTPS origins. Native bridge messages cover Google/GitHub sign-in, the update screen, the resolved light/dark theme, and the offline reader (`offline-open`, `offline-account`, `offline-save`). The shell checks each message's source origin, size (512 bytes, or 250 kB for `offline-save`) and payload against a strict schema before acting. File, content, intent, JavaScript, blob and data navigation is blocked, as are URLs with credentials. The website confirms the signed-in account for the offline reader once per page rather than on every navigation; an account switch goes through `/login`, a full reload or sign-out in settings, which all reset it.
 
 ## In-app updates
 
@@ -101,7 +101,7 @@ images. Keyboard, OAuth-return and APK-installer behaviour remain unverified on 
 
 ## 0.1.5 EAS Update preparation
 
-Status: unreleased source target as of 2026-09-25. Version 0.1.5 adds the
+Status: superseded by 0.1.6 and never released; notes from 2026-09-25. Version 0.1.5 adds the
 `expo-updates` native module to the existing signed APK build. It will use the
 public project ID of [foxscope/oghmanotes-alpha](https://expo.dev/accounts/foxscope/projects/oghmanotes-alpha), the `production` update channel
 for the production website origin, and the app version as its runtime version.

@@ -2,8 +2,9 @@
 
 > **Status:** Active operations runbook
 >
-> **Last verified:** 2026-09-14 against the chat routes, BullMQ worker,
-> PostgreSQL generation state, and Redis replay implementation
+> **Last verified:** 2026-10-16, after the domain audit's chat fixes landed on
+> `dev` (#634), against the chat routes, BullMQ worker, PostgreSQL generation
+> state, and Redis replay implementation
 >
 > **Source of truth:** `src/app/api/chat/`, `src/lib/chat/`,
 > `src/lib/queue.ts`, `src/lib/canvas/worker-entry.ts`, and
@@ -34,14 +35,17 @@ selected note and folder set remains the default session search scope passed to
 the tools. Only model-requested tool calls appear as search activity in the
 response work log.
 
+History sent to the model is the last 20 user and assistant messages, each
+capped at 20,000 characters and 128 KiB in total, for both stored and
+request-supplied history ([`request-history.ts`](../../src/lib/chat/request-history.ts)).
+
 Both app and worker must use the same `DATABASE_URL`, `REDIS_HOST`,
 `REDIS_PORT`, `REDIS_TLS`, and `QUEUE_PREFIX`. Background chat currently
 requires `QUEUE_PROVIDER=bullmq`.
 
 ## Streaming and restoration contract
 
-Verified against the working tree on 2026-09-17. These changes require an app
-and worker deployment; this section does not assert production rollout.
+Verified against the code on 2026-10-16.
 
 `generation-result.ts` records reasoning, prose, and tool calls in one ordered
 `parts` array. Tool results update the matching call ID without moving its
@@ -70,10 +74,19 @@ repeat tools that may already have changed notes or calendar entries. Failures
 before any output retain the existing bounded retry policy. Explicit stop saves
 partial output as cancelled. A lost worker lease still fences all final writes.
 Abrupt process death remains subject to the existing lease/requeue recovery;
-this is not a checkpoint of model execution after every tool.
+this is not a checkpoint of model execution after every tool. A rerun is
+detected from `started_at` on the claimed row, not from the BullMQ attempt
+number (lease recovery republishes under a fresh job ID with attempt 1). When a
+started generation is claimed again, the worker deletes the replay stream and
+appends a `reset` event so the browser drops the old run's output. A worker
+that loses its lease discards its queued Redis writes.
 
 Transport reconnects resume after the last successfully parsed event ID.
-Terminal generation errors are not reconnect attempts. A Redis append failure
+Terminal generation errors are not reconnect attempts. The client's retry
+budget counts consecutive reconnects that delivered no new event, so a long
+answer on a flaky network keeps going as long as each reconnect makes progress.
+If a Redis read fails mid-stream, the stream route stops using Redis, polls
+PostgreSQL every 2 s and sends the durable `done` or `error`. A Redis append failure
 stops subsequent queued writes, preventing a later `done` event from passing a
 missing segment. PostgreSQL reconciliation supplies the saved message when
 Redis delivery is unavailable.
@@ -85,8 +98,17 @@ legacy JSON strings, validates their decoded fields, and recovers the trace
 without a data migration. Legacy aggregated reasoning has no original positions;
 it appears before the stored parts. New messages preserve the actual positions.
 
+Cancellation settles `queued` and lease-expired `generating` rows directly in
+PostgreSQL. Only a live worker needs the Redis cancel flag, so Stop and session
+delete work while Redis is down. A Stop pressed before `POST /api/chat`
+returns is remembered and sent once the generation ID arrives.
+
+Inline delivery (API clients using SSE or JSON) marks the session `failed`
+when the provider fails, and saves partial output if there is any.
+
 Regression coverage includes `paragraph-stream.test.ts`,
-`generate-background.test.ts`, `use-chat-stream.test.ts`, the real-driver
+`generate-background.test.ts`, `use-chat-stream.test.ts`,
+`chat-generation-cancel.test.ts`, `chat-inline-delivery.test.ts`, the real-driver
 `tests/integration/db/chat-generation-json.test.ts`, and
 `tests/e2e/smoke/chat-stream-order.spec.ts`.
 
@@ -121,8 +143,11 @@ docker logs oghma-dev --tail 100
 docker logs oghma-dev-worker --tail 120
 ```
 
-The worker logs completed, cancelled, and failed background generations with a
-generation ID and elapsed time. The app logs Redis connection failures. Do not
+Since 2026-10-04 the logger keeps only a severity, a fixed category and a
+status class, so logs show that a generation failed but not which one or why.
+Use the PostgreSQL query below for detail, or the chat processing spans and
+error stacks in Sentry once a DSN is configured (see
+[monitoring](monitoring.md)). Do not
 copy request payloads, message content, environment files, or authenticated
 URLs into an issue.
 
@@ -150,7 +175,7 @@ change generation rows or delete queue keys during diagnosis.
 | Request is accepted but no events arrive | Worker process, worker health check, chat queue, and matching prefixes |
 | Partial response stops | Worker generation failure and Redis connection logs |
 | Answer appears only after reload | Client history restoration overwrote live messages, or terminal replay/session reconciliation failed |
-| Session stays generating | Worker interruption, failed BullMQ redelivery, or stale PostgreSQL ownership |
+| Session stays generating | Worker interruption, failed BullMQ redelivery, or stale PostgreSQL ownership. Inline API failures now mark the session failed, so this points at the background path |
 
 ## Release verification
 

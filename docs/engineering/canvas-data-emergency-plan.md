@@ -2,7 +2,7 @@
 
 > **Status:** Contingency design; not implemented and not an executable runbook
 >
-> **Last reviewed:** 2026-07-25
+> **Last reviewed:** 2026-10-16 (current data boundary rechecked after the domain audit fixes landed)
 >
 > **Source of truth for:** The response options if OghmaNotes must reduce or
 > stop retaining Canvas-originated content
@@ -21,7 +21,9 @@ the selected mode first, then run a reference-aware cleanup.
 Normal Canvas import is narrower than a full Canvas account archive. It stores
 supported module files and assignment attachments selected through course
 import, plus assignment metadata. The separate Canvas archive endpoint streams
-its ZIP response to the user with `Cache-Control: no-store`.
+its ZIP response to the user with `Cache-Control: no-store`. The archive starts
+with a `README.txt` and streams while discovery runs, so nothing is buffered on
+the server beyond the entry in flight.
 
 Current persisted representations are:
 
@@ -33,9 +35,9 @@ Current persisted representations are:
 | Chunk text | PostgreSQL chunks and imported-file cache chunks | Retained so vector results can be hydrated into cited text |
 | Embeddings | Qdrant | User-scoped points plus a canonical imported-file cache set |
 | Marker image assets | S3-compatible storage | User-note assets and cache-owned shared assets may both exist |
-| Assignment data | PostgreSQL `app.assignments` | Canvas fields are fetched during import or explicit assignment sync and upserted locally |
+| Assignment data | PostgreSQL `app.assignments` | Canvas fields are fetched during import or explicit assignment sync and upserted locally. After a complete course read, rows Canvas no longer lists are deleted. A user-set done or in-progress status survives sync unless Canvas reports the work submitted |
 | Study calendar | PostgreSQL `app.time_blocks` | Oghma-owned blocks, optionally linked to a local assignment |
-| Canvas calendar, planner, and todo reads | Canvas API through the hosted MCP | Fetched live when a chat tool requests them; not mirrored into the Oghma calendar |
+| Canvas calendar, planner, and todo reads | Canvas API through the hosted MCP | Fetched live when a chat tool requests them; not mirrored into the Oghma calendar. The `app.canvas_planner_items` table and `/api/planner/items` exist, but nothing populates the table yet |
 | Canvas-informed chat answers | PostgreSQL chat tables | The raw MCP result is not a standalone cache, but the resulting assistant answer is durable chat content |
 
 Canvas import and assignment sync use the Canvas client directly. The hosted

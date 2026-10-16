@@ -1,7 +1,7 @@
 # Launch Checklist
 
 > **Status:** Active launch gate
-> **Last reviewed:** 2026-07-11
+> **Last reviewed:** 2026-10-16 (deletion, analytics, cookie and vector-rebuild items updated after the domain audit)
 > **Source of truth for:** Readiness to invite beta users or enable paid checkout. Product sequencing lives in [roadmap.md](roadmap.md); prices and allowances live in [pricing.md](pricing.md).
 
 Unchecked items are not assumed complete. Record evidence or a link when closing a gate.
@@ -24,9 +24,9 @@ Unchecked items are not assumed complete. Record evidence or a link when closing
 - [ ] Confirm browser object access uses presigned or proxied URLs and private buckets.
 - [ ] Review Cloudflare tunnel, proxy, WAF, and rate-limit rules for auth, upload, Canvas, contact, and chat endpoints.
 - [ ] Store production secrets only in the selected runtime secret store or protected Jenkins environment files.
-- [ ] Verify account deletion, grace-period recovery, and user export end to end.
+- [ ] Verify account deletion, grace-period recovery, and user export end to end. Deleting an account deactivates it at once, and the worker's daily purge erases it 30 days later (#612). Recovery inside those 30 days is a manual support step with no tooling yet.
 - [ ] Verify that the privacy policy covers stored chats, model evaluation, lead capture, first-party analytics, and retention periods.
-- [ ] Confirm the no-analytics-cookie posture in [growth-analytics.md](growth-analytics.md) matches the deployed site before deciding whether consent UI is required.
+- [ ] Confirm the no-analytics-cookie posture in [anonymous usage counts](../engineering/anonymous-telemetry.md) matches the deployed site before deciding whether consent UI is required. The cookie notice describes language and theme preferences as browser storage; it should name the `ogma-locale` and `ogma-theme` cookies.
 - [ ] Maintain a current processor and data-residency inventory for the actual launch stack.
 
 ## 3. Current Beta Infrastructure
@@ -34,7 +34,7 @@ Unchecked items are not assumed complete. Record evidence or a link when closing
 - [ ] Confirm the production and development Jenkins environment files contain the required values without defaults.
 - [ ] Confirm `DATABASE_URL` uses the application role and `MIGRATION_DATABASE_URL` uses the migrator role.
 - [ ] Apply every migration in `database/migrations/` and verify the schema-migration ledger.
-- [ ] Verify Qdrant has the correct per-environment collection, vector size, payload indexes, and backup/rebuild procedure.
+- [ ] Verify Qdrant has the correct per-environment collection, vector size, payload indexes, and backup/rebuild procedure. The rebuild steps are in the [vector index runbook](../operations/vector-index.md).
 - [ ] Verify RustFS or the selected S3-compatible bucket from both app and worker containers.
 - [ ] Verify Redis/BullMQ connectivity and healthy app and worker containers.
 - [ ] Confirm the selected direct-extraction and Marker/OCR fallback behavior.
@@ -71,7 +71,7 @@ Run these against the environment users will receive:
 - [ ] Export and re-import a small vault.
 - [ ] Exercise friendly error and cancellation paths.
 - [ ] Check the main flows on a phone and with keyboard navigation.
-- [ ] Delete a test account and validate the grace-period behavior.
+- [ ] Delete a test account and confirm the account is deactivated, every session cookie is cleared, the calendar feed, reset, verification and Canvas tokens are revoked, and queued Canvas and study jobs are cancelled. Check the purge removes it after the 30-day grace period.
 
 ## 6. Monitoring And Operations
 
@@ -97,7 +97,7 @@ Run these against the environment users will receive:
 
 ## 8. Analytics Readiness
 
-- [ ] Complete every deployment-verification item in [growth-analytics.md](growth-analytics.md).
+- [ ] Complete the deployment checks for [anonymous usage counts](../engineering/anonymous-telemetry.md). The older acquisition design is [retired](../history/2026-10-04-growth-analytics-retired.md).
 
 ## 9. Company And Payments
 

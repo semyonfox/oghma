@@ -54,7 +54,7 @@ The largest margin risks are:
 
 - uncapped historical Canvas imports;
 - OCR retries and idle or poorly batched GPU time;
-- high-cost model and reranker use;
+- high-cost model use;
 - growth in Qdrant vectors and related query capacity;
 - support and recovery work for failed imports.
 
@@ -68,7 +68,7 @@ The live homelab shape uses:
 - Qdrant for 4,096-dimensional chunk vectors;
 - RustFS or another S3-compatible object store;
 - Redis and BullMQ for background jobs;
-- configurable LLM, embedding, rerank, and document-extraction providers.
+- configurable LLM, embedding, and document-extraction providers (there is no reranker).
 
 Qdrant is current infrastructure, not a hypothetical alternative. The pre-Qdrant PostgreSQL embedding footprint remains historical measurement evidence only.
 

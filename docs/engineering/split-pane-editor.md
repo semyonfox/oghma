@@ -2,7 +2,7 @@
 
 > **Status:** Active behaviour contract
 >
-> **Last reviewed:** 2026-09-15
+> **Last reviewed:** 2026-10-16
 >
 > **Source of truth:** [`split-editor-pane.tsx`](../../src/components/editor/split-editor-pane.tsx), [`editor-pane.tsx`](../../src/components/editor/editor-pane.tsx), [`layout.ts`](../../src/lib/notes/state/layout.ts), [`file-spec.ts`](../../src/lib/notes/utils/file-spec.ts), and [`save-indicator.ts`](../../src/lib/notes/state/save-indicator.ts)
 
@@ -95,6 +95,18 @@ PDF pages use one display width for both lazy placeholders and rendered
 canvases. Zoom uses the first loaded page's dimensions, and fit mode follows
 the pane's measured content width. Loading another page therefore cannot
 widen the document and shift the visible page sideways.
+
+## Load failures and empty panes
+
+A failed note fetch no longer closes the pane. The editor confirms with
+`GET /api/notes/:id?fields=id`, and only a 400, 403 or 404 dismisses it. On any
+other failure (offline, 5xx, 429) the cached or drafted copy stays open, or the
+pane shows a "Try again" state when there is nothing local. Drafts are also
+flushed on `pagehide` and `visibilitychange: hidden`, because Android WebView
+often skips `beforeunload`.
+
+The empty-pane and first-run UI lives in
+[`pane-empty-state.tsx`](../../src/components/editor/pane-empty-state.tsx).
 
 ## Known cost
 

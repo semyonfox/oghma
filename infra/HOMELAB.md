@@ -138,8 +138,11 @@ The candidate container proves that the image can start before the fixed
 runtime is replaced. There is still a short swap window; do not describe it as
 universally zero-downtime.
 
-Migrations are recorded in `app.schema_migrations`. Never edit that table by
-hand as a normal rollback mechanism.
+Migrations are recorded in `app.schema_migrations` with a SHA-256 checksum of
+each file. `scripts/run-migration.ts` holds a PostgreSQL advisory lock while it
+applies them, so two runs against the same database apply migrations one at a
+time, and it warns when an applied file has since been edited. Never edit that
+table by hand as a normal rollback mechanism.
 
 ## Queues
 
@@ -190,7 +193,8 @@ Do not include env-file contents in diagnostics.
 database is reachable, including when Redis is unavailable, but returns
 `{"status":"degraded"}` in that case. Monitoring authenticated with
 `x-health-secret: $HEALTH_CHECK_SECRET` also receives
-`rateLimiter.redisReady` and `rateLimiter.status`. Alert on a degraded status
+`rateLimiter.redisReady` and `rateLimiter.status`, plus the database URL with
+its credentials and query string stripped. Alert on a degraded status
 or `redisReady: false`; do not treat a successful container liveness check as
 proof of distributed rate limiting.
 

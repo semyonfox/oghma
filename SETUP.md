@@ -1,7 +1,7 @@
 # Local setup
 
 > **Status:** Current developer guide
-> **Last reviewed:** 2026-08-12
+> **Last reviewed:** 2026-10-16
 > **Source of truth for:** Running OghmaNotes locally
 
 Use `npm` for every package and script command.
@@ -66,8 +66,10 @@ At minimum, configure these groups for the features you exercise:
 | Object storage | `STORAGE_*` endpoint, bucket, region, credentials, and path-style settings |
 | Authentication | App/auth signing secrets, encryption secret, and any enabled OAuth provider |
 | Queues | Redis/BullMQ settings for the local worker, or the explicitly selected queue provider |
-| AI | LLM, embedding, rerank, and optional OCR/Marker provider settings |
+| AI | LLM, embedding, and optional OCR/Marker provider settings. The `RERANK_*` entries in the templates are unused; nothing reranks search results |
 | Email | Cloudflare Email Sending account/token/from-address settings when testing real mail |
+
+Numeric settings (`DB_*` pool and timeout values, `UPLOAD_MAX_FILE_SIZE`, `CANVAS_POLL_INTERVAL_MS`) must be positive integers. An empty value means the default; anything else, such as `100MB`, stops startup with the variable's name.
 
 Start the background worker in a second terminal when testing streamed chat,
 imports, or vault jobs.
@@ -104,7 +106,7 @@ npm run worker
 - **Chat accepts a message but never answers:** verify that the worker is running with the same database, Redis, and `QUEUE_PREFIX` as the app, then run `npm run worker:healthcheck` in that environment.
 - **Uploads fail:** verify that the bucket exists and that endpoint/path-style settings match the storage provider.
 - **Search fails:** verify Qdrant connectivity and that the configured collection matches the environment.
-- **Schema errors appear:** apply migrations with the intended migration connection; never point a migration command at an unverified database.
+- **Schema errors appear:** apply migrations with the intended migration connection; never point a migration command at an unverified database. `node --experimental-strip-types scripts/run-migration.ts --status` lists applied, pending and changed migrations. For a fresh local database, use the mock environment (`npm run mock:seed`); the old `standalone-migration` bootstrap is gone.
 
 Deployment is intentionally out of scope here. See [infra/HOMELAB.md](infra/HOMELAB.md) for the running environment and [docs/operations/import-worker.md](docs/operations/import-worker.md) for workload-specific operations.
 For suite scope and disposable-service safety, use [the testing workflow](docs/engineering/testing.md).
