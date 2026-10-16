@@ -78,6 +78,7 @@ vi.mock("@/lib/canvas/import-scheduler.ts", () => ({
 }));
 
 vi.mock("@/lib/canvas/extraction-retry.ts", () => ({
+  MAX_EXTRACTION_RETRIES: 4,
   enqueueExtractionRetry: vi.fn().mockResolvedValue({ delaySeconds: 30 }),
   stageCanvasExtractionRetry: vi.fn().mockResolvedValue(undefined),
 }));
@@ -249,6 +250,26 @@ describe("Canvas extraction stage", () => {
     expect(enqueueCanvasJob).toHaveBeenCalledWith("canvas-extract", {
       importRecordId: "import-1", jobId: "job-1", userId: "user-1",
     });
+  });
+  it("spends a retry when reclaiming a crashed extraction and stops at the budget", async () => {
+    vi.mocked(sql).mockImplementation(async (parts) => {
+      const query = Array.from(parts).join("");
+      if (query.includes("imported.claim_expires_at < NOW()")) {
+        return [{ importRecordId: "import-1", jobId: "job-1", userId: "user-1" }] as never;
+      }
+      if (query.includes("pg_try_advisory_xact_lock")) return [{ acquired: true }] as never;
+      if (query.includes("FOR SHARE SKIP LOCKED")) return [{ id: "job-1" }] as never;
+      // the poison file has used its last retry, so the reclaim settles it
+      if (query.includes("retry_attempts = retry_attempts + 1")) return [{ status: "error" }] as never;
+      return [] as never;
+    });
+
+    await expect(recoverPendingCanvasExtracts()).resolves.toBe(0);
+    expect(enqueueCanvasJob).not.toHaveBeenCalled();
+    const reclaim = vi.mocked(sql).mock.calls.find((call) =>
+      queryText(call).includes("retry_attempts = retry_attempts + 1"));
+    expect(reclaim).toBeDefined();
+    expect(reclaim?.slice(1)).toContain(4);
   });
 });
 

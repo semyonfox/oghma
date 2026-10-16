@@ -47,6 +47,7 @@ import logger from "../logger.ts";
 import { sanitizePostgresText } from "../text-sanitize.ts";
 import { dispatchFairCanvasFiles } from "./import-scheduler.ts";
 import {
+  MAX_EXTRACTION_RETRIES,
   type ExtractionRetryMessage,
   stageCanvasExtractionRetry,
 } from "./extraction-retry.ts";
@@ -1553,10 +1554,15 @@ async function recoverExpiredCanvasExtracts(limit: number): Promise<CanvasFileMe
         FOR SHARE SKIP LOCKED
       `;
       if (!job) return null;
+      // An expired extraction usually means the worker died mid-file, and a
+      // PDF that crashes the parser crashes it again. Spend a retry on every
+      // reclaim so one poison file cannot restart the worker forever.
       const [changed] = await tx<{ status: string }[]>`
         UPDATE app.canvas_imports
-        SET status = CASE WHEN retry_attempts >= 4 THEN 'error' ELSE 'pending_extract' END,
-          retryable = retry_attempts >= 4,
+        SET retry_attempts = retry_attempts + 1,
+          status = CASE WHEN retry_attempts + 1 >= ${MAX_EXTRACTION_RETRIES}
+            THEN 'error' ELSE 'pending_extract' END,
+          retryable = retry_attempts + 1 >= ${MAX_EXTRACTION_RETRIES},
           error_message = 'Extraction worker stopped responding',
           claim_token = NULL, claim_expires_at = NULL, updated_at = NOW()
         WHERE id = ${row.importRecordId}::uuid

@@ -1,4 +1,6 @@
-// browser history is a bounded hint; the server owns the stored conversation
+// the prompt window: the latest user and assistant turns, capped by count, per-message
+// length and total bytes. the browser sends it as a hint and the server reapplies it
+// to stored history
 export function boundedChatHistory(
   history: readonly { role: string; content: string }[],
 ) {

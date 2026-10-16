@@ -25,6 +25,16 @@ describe("syncCanvasPlannerItems", () => {
     expect(String.raw({ raw: query })).toContain("deleted_at = NOW()");
   });
 
+  it("stores an item Canvas reports as deleted as hidden rather than active", async () => {
+    const client = makeClient({ data: [{ plannable_type: "assignment", plannable_id: 5, workflow_state: "deleted", plannable: { id: 5, title: "Removed", due_at: "2026-02-01T10:00:00Z" } }], forbidden: false });
+    await syncCanvasPlannerItems({ userId: USER_ID, canvasDomain: "canvas.example", client, startDate: "2026-01-01T00:00:00.000Z", endDate: "2026-03-01T00:00:00.000Z" });
+    const [query, ...values] = vi.mocked(sql).mock.calls[0];
+    const text = String.raw({ raw: query });
+    expect(values).toContain("deleted");
+    expect(text).toContain("= 'deleted' THEN NOW() END")
+    expect(text).not.toMatch(/deleted_at = NULL/);
+  });
+
   it("does not tombstone rows when Canvas returns a partial failure", async () => {
     const client = makeClient({ data: [], forbidden: false, error: "Canvas API rate limited — try again later" });
     const result = await syncCanvasPlannerItems({ userId: USER_ID, canvasDomain: "canvas.example", client, startDate: "2026-01-01T00:00:00.000Z", endDate: "2026-03-01T00:00:00.000Z" });

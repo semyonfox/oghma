@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
-import { discoverCanvasRawExportEntries } from "@/lib/canvas/raw-export";
+import { describe, expect, it, vi } from "vitest";
+import { strFromU8, unzipSync } from "fflate";
+import {
+  createCanvasRawExportZipStream,
+  discoverCanvasRawExportEntries,
+} from "@/lib/canvas/raw-export";
 
 function result(data: unknown) {
   return { data, forbidden: false };
@@ -272,6 +276,7 @@ CT216-Software-Engineering/assignments/Essay/my-submission-attachments/submissio
     );
     expect(textEntryPaths).toEqual(
       orderedLines(`
+README.txt
 _account/profile.json
 _account/account-notifications.json
 _account/upcoming-events.json
@@ -486,5 +491,103 @@ paginated /courses/123/groups
         "_canvas-export-manifest.json",
       ]),
     );
+  });
+});
+
+describe("Canvas raw archive stream", () => {
+  function exportClient(fileCount: number) {
+    const calls = { metadata: 0, downloads: 0 };
+    const files = Array.from({ length: fileCount }, (_, index) => ({
+      id: index + 1,
+      display_name: `file-${index + 1}.pdf`,
+      url: `https://canvas.example/files/${index + 1}/download`,
+    }));
+    const client = {
+      getPath: async () => {
+        calls.metadata += 1;
+        return result(null);
+      },
+      getPaginatedPath: async (path: string) => {
+        calls.metadata += 1;
+        return result(path === "/users/self/files" ? files : []);
+      },
+      downloadFile: async (url: string) => {
+        calls.downloads += 1;
+        return { buffer: Buffer.from(`bytes of ${url}`), forbidden: false };
+      },
+    };
+    return { client, calls };
+  }
+
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 5));
+
+  async function readAll(stream: ReadableStream<Uint8Array>) {
+    const chunks: Uint8Array[] = [];
+    const reader = stream.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+    }
+    return Buffer.concat(chunks);
+  }
+
+  it("sends ZIP bytes before Canvas answers a single request", async () => {
+    const getPath = vi.fn(() => new Promise<never>(() => {}));
+    const stream = createCanvasRawExportZipStream(
+      { getPath, getPaginatedPath: getPath, downloadFile: vi.fn() },
+      [],
+    );
+
+    const { value } = await stream.getReader().read();
+
+    expect(Buffer.from(value!).subarray(0, 4)).toEqual(Buffer.from("PK\x03\x04", "latin1"));
+  });
+
+  it("writes a valid archive with downloads, manifest, and summary", async () => {
+    const { client } = exportClient(2);
+
+    const files = unzipSync(new Uint8Array(await readAll(createCanvasRawExportZipStream(client, []))));
+
+    expect(Object.keys(files)).toEqual(expect.arrayContaining([
+      "README.txt",
+      "_account/user-files/downloads/file-1.pdf",
+      "_account/user-files/downloads/file-2.pdf",
+      "_canvas-export-manifest.json",
+      "_canvas-export-summary.txt",
+    ]));
+    expect(strFromU8(files["_account/user-files/downloads/file-2.pdf"]))
+      .toBe("bytes of https://canvas.example/files/2/download");
+    expect(strFromU8(files["_canvas-export-summary.txt"])).toContain("Downloaded binary files: 2");
+  });
+
+  it("only makes progress while the reader keeps reading", async () => {
+    const { client, calls } = exportClient(20);
+    const reader = createCanvasRawExportZipStream(client, []).getReader();
+
+    await reader.read();
+    await settle();
+    const stalled = { ...calls };
+    await settle();
+
+    expect(calls).toEqual(stalled);
+    expect(calls.downloads).toBeLessThan(20);
+
+    while (!(await reader.read()).done) { /* drain */ }
+    expect(calls.downloads).toBe(20);
+  });
+
+  it("stops calling Canvas once the client disconnects", async () => {
+    const { client, calls } = exportClient(20);
+    const reader = createCanvasRawExportZipStream(client, []).getReader();
+
+    await reader.read();
+    await reader.cancel();
+    const atCancel = { ...calls };
+    await settle();
+
+    expect(calls.metadata).toBeLessThanOrEqual(atCancel.metadata + 1);
+    expect(calls.downloads).toBeLessThanOrEqual(atCancel.downloads + 1);
+    expect(calls.downloads).toBeLessThan(20);
   });
 });

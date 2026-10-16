@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { MarkerDispatchRejectedError } from "@/lib/marker/errors";
 import {
+  cancelRunPodJob,
   getRunPodJobStatus,
   submitRunPodJob,
   summarizeRunPodJobStatus,
@@ -69,6 +71,38 @@ describe("RunPod Serverless client", () => {
     await expect(
       submitRunPodJob({}, config, { fetch: fetchMock as typeof fetch }),
     ).rejects.toThrow("RunPod /run failed (401)");
+  });
+
+  it.each([
+    [400, true],
+    [401, true],
+    [429, true],
+    [408, false],
+    [500, false],
+    [503, false],
+  ])("classifies a /run %i as definitive=%s", async (status, definitive) => {
+    const fetchMock = vi.fn(async (): Promise<Response> =>
+      new Response("provider error", { status }));
+
+    const error = await submitRunPodJob({}, config, {
+      fetch: fetchMock as typeof fetch,
+    }).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(Error);
+    expect(error instanceof MarkerDispatchRejectedError).toBe(definitive);
+  });
+
+  it("cancels a job through the endpoint-scoped cancel route", async () => {
+    const fetchMock = vi.fn(async (
+      _url: RequestInfo | URL,
+      _init?: RequestInit,
+    ): Promise<Response> => jsonResponse({ id: "job_123", status: "CANCELLED" }));
+
+    await cancelRunPodJob("job_123", config, { fetch: fetchMock as typeof fetch });
+
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).toBe("https://api.runpod.ai/v2/endpoint_123/cancel/job_123");
+    expect(init).toMatchObject({ method: "POST" });
   });
 
   it("keeps only safe scalar status and handler metrics", async () => {

@@ -77,8 +77,8 @@ async function recoverStaleCanvasDispatches(limit = 100): Promise<number> {
  * Releases a bounded number of Canvas files into the provider queue. Classes
  * use smooth weighted round robin; users within a class use least-recently
  * served order. Each user can have two active downloads. New downloads pause
- * while eight files wait for or undergo extraction. The advisory lock makes
- * selection safe across worker replicas.
+ * while eight files wait for or undergo extraction. Deactivated accounts are
+ * never dispatched. The advisory lock makes selection safe across worker replicas.
  */
 export async function dispatchFairCanvasFiles(limit = 10): Promise<number> {
   // A waiter owns no OCR work. Once the shared result is ready, or its
@@ -116,6 +116,7 @@ export async function dispatchFairCanvasFiles(limit = 10): Promise<number> {
         FROM app.canvas_imports ci
         JOIN app.canvas_import_jobs cij ON cij.id = ci.job_id
         JOIN app.login l ON l.user_id = ci.user_id
+          AND l.is_active AND l.deleted_at IS NULL
         WHERE ci.status = 'pending'
           AND ci.dispatched_at IS NULL
           AND (ci.next_attempt_at IS NULL OR ci.next_attempt_at <= NOW())
@@ -162,6 +163,7 @@ export async function dispatchFairCanvasFiles(limit = 10): Promise<number> {
         FROM app.canvas_imports ci
         JOIN app.canvas_import_jobs cij ON cij.id = ci.job_id
         JOIN app.login l ON l.user_id = ci.user_id
+          AND l.is_active AND l.deleted_at IS NULL
         LEFT JOIN app.import_scheduler_users isu ON isu.user_id = ci.user_id
         WHERE ci.status = 'pending'
           AND ci.dispatched_at IS NULL

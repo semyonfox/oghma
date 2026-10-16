@@ -47,7 +47,7 @@ async function upsertPlannerItem(userId: string, item: NormalizedPlannerItem) {
       ${item.title}, ${item.body}, ${item.html_url}, ${item.source}, ${item.item_state},
       ${item.display_at}, ${item.due_at}, ${item.available_at}, ${item.end_at}, ${item.date_source}, ${item.all_day},
       ${JSON.stringify(item.raw_planner_item)}::text::jsonb, ${item.raw_plannable ? JSON.stringify(item.raw_plannable) : null}::text::jsonb,
-      NOW(), NULL
+      NOW(), CASE WHEN ${item.item_state} = 'deleted' THEN NOW() END
     )
     ON CONFLICT (user_id, canvas_domain, plannable_type, plannable_id)
     DO UPDATE SET
@@ -71,7 +71,11 @@ async function upsertPlannerItem(userId: string, item: NormalizedPlannerItem) {
       raw_planner_item = EXCLUDED.raw_planner_item,
       raw_plannable = EXCLUDED.raw_plannable,
       last_seen_at = NOW(),
-      deleted_at = NULL,
+      -- Canvas can report an item as deleted; keep it hidden like a tombstone
+      deleted_at = CASE
+        WHEN EXCLUDED.item_state = 'deleted'
+          THEN COALESCE(app.canvas_planner_items.deleted_at, NOW())
+      END,
       updated_at = NOW()
   `;
 }

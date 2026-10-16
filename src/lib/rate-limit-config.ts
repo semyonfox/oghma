@@ -24,8 +24,10 @@ export const RATE_LIMITS = {
   // presence heartbeats fire every ~10s per open tab plus visibility events
   'chat-presence':  { limit: 1200, windowSeconds: 3600, keyType: 'userId' },
   'chat-cancel':    { limit: 120, windowSeconds: 3600,  keyType: 'userId' },
-  'extract':        { limit: 10,  windowSeconds: 3600,  keyType: 'userId' },
   'canvas-connect': { limit: 10,  windowSeconds: 3600,  keyType: 'userId' },
+  // a raw export walks every course; a sync re-reads every assignment
+  'canvas-download': { limit: 3,  windowSeconds: 3600, keyType: 'userId' },
+  'assignments-sync': { limit: 20, windowSeconds: 3600, keyType: 'userId' },
   // each semantic query is a paid embedding call, budgeted apart from the search palette
   'semantic-search': { limit: 120, windowSeconds: 3600, keyType: 'userId' },
 

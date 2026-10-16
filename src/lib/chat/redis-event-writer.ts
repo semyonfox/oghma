@@ -4,6 +4,8 @@ const DEFAULT_MAX_PENDING_CHAT_EVENTS = 256;
 
 export interface BufferedSseWriter extends SseWriter {
   flush(): Promise<void>;
+  /** drop queued and future writes without reporting a delivery failure */
+  discard(): void;
 }
 
 function asError(error: unknown): Error {
@@ -63,6 +65,10 @@ export function createBufferedSseWriter(
         });
     },
     close() {},
+    discard() {
+      stopped = true;
+      writeFailed = true;
+    },
     async flush() {
       await pending;
       if (deliveryError) throw deliveryError;

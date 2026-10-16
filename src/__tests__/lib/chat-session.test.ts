@@ -345,4 +345,26 @@ describe("loadHistory", () => {
       "newer",
     ]);
   });
+
+  it("bounds long stored answers before they reach the prompt", async () => {
+    mocks.sql.mockResolvedValueOnce(
+      Array.from({ length: 20 }, (_, index) => ({
+        role: index % 2 === 0 ? "user" : "assistant",
+        content: `${index}:` + "x".repeat(50_000),
+      })),
+    );
+
+    const result = await loadHistory(
+      "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+      [],
+    );
+
+    expect(result.at(-1)?.content).toMatch(/^19:/);
+    expect(result.every((message) => message.content.length <= 20_000)).toBe(true);
+    expect(
+      new TextEncoder().encode(JSON.stringify(result)).byteLength,
+    ).toBeLessThanOrEqual(128 * 1024);
+  });
 });
+

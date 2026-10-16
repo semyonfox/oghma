@@ -1,14 +1,10 @@
 import {
+  markerDispatchEnabled,
+  markerOcrEnabled,
   markerQueueEnabled,
   markerServerlessConfigured,
   markerServerlessProvider,
-} from "@/lib/marker/serverless";
-
-function enabled(value: string | undefined): boolean {
-  return ["1", "true", "on", "yes"].includes(
-    value?.trim().toLowerCase() ?? "",
-  );
-}
+} from "@/lib/marker/config";
 
 export function markerDispatchConsumerEnabled(): boolean {
   return !["0", "false", "no", "off"].includes(
@@ -31,10 +27,8 @@ export function validateMarkerWorkerConfiguration(): MarkerWorkerConfiguration {
   const provider = markerServerlessProvider();
   const markerConsumerEnabled = markerDispatchConsumerEnabled();
   const directMarkerUrl = process.env.MARKER_API_URL?.trim();
-  const serverlessDispatchEnabled = enabled(
-    process.env.MARKER_SERVERLESS_DISPATCH_ENABLED,
-  );
-  const ocrEnabled = enabled(process.env.MARKER_OCR_ENABLED);
+  const serverlessDispatchEnabled = markerDispatchEnabled();
+  const ocrEnabled = markerOcrEnabled();
 
   if (rawProvider && !provider) {
     throw new Error(

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 const {
   mockGetDiscoverableCourses,
@@ -72,18 +72,16 @@ vi.mock("@/lib/canvas/client", () => ({
   }),
 }));
 
+vi.mock("@/lib/rate-limiter", () => ({ checkRateLimit: vi.fn() }));
 vi.mock("@/lib/canvas/raw-export", () => ({
-  discoverCanvasRawExportEntries: vi.fn(),
   createCanvasRawExportZipStream: vi.fn(),
 }));
 
 import { requireAuth } from "@/lib/api-error";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
 import { CanvasClient } from "@/lib/canvas/client";
-import {
-  createCanvasRawExportZipStream,
-  discoverCanvasRawExportEntries,
-} from "@/lib/canvas/raw-export";
+import { createCanvasRawExportZipStream } from "@/lib/canvas/raw-export";
+import { checkRateLimit } from "@/lib/rate-limiter";
 import { POST } from "@/app/api/canvas/download/route";
 
 describe("POST /api/canvas/download", () => {
@@ -93,14 +91,10 @@ describe("POST /api/canvas/download", () => {
     mockGetSelfEnrollments.mockReset();
     mockGetCourse.mockReset();
     vi.mocked(requireAuth).mockResolvedValue({ user_id: "u1" } as never);
+    vi.mocked(checkRateLimit).mockResolvedValue(null);
     vi.mocked(loadCanvasCredentials).mockResolvedValue({
       domain: "canvas.example.edu",
       token: "token",
-    } as never);
-    vi.mocked(discoverCanvasRawExportEntries).mockResolvedValue({
-      downloads: [{ path: "course/file.pdf", file: { url: "https://file" } }],
-      textEntries: [{ path: "course/page.md", content: "# Page\n" }],
-      skipped: [],
     } as never);
     vi.mocked(createCanvasRawExportZipStream).mockReturnValue(
       new ReadableStream({
@@ -110,6 +104,23 @@ describe("POST /api/canvas/download", () => {
         },
       }) as never,
     );
+  });
+
+  // one export walks every enrolled course on Canvas, so it's metered per user
+  it("refuses a user over the export budget before touching Canvas", async () => {
+    vi.mocked(checkRateLimit).mockResolvedValue(
+      NextResponse.json({ error: "Too many requests" }, { status: 429 }),
+    );
+    const response = await POST(
+      new NextRequest("http://localhost/api/canvas/download", {
+        method: "POST",
+        body: JSON.stringify({}),
+      }),
+    );
+    expect(response.status).toBe(429);
+    expect(checkRateLimit).toHaveBeenCalledWith("canvas-download", "u1");
+    expect(loadCanvasCredentials).not.toHaveBeenCalled();
+    expect(CanvasClient).not.toHaveBeenCalled();
   });
 
   it("returns a zip archive for selected courses", async () => {
@@ -129,7 +140,7 @@ describe("POST /api/canvas/download", () => {
       /^attachment; filename="canvas-export-\d{4}-\d{2}-\d{2}\.zip"$/,
     );
     expect(CanvasClient).toHaveBeenCalledWith("canvas.example.edu", "token");
-    expect(discoverCanvasRawExportEntries).toHaveBeenCalledWith(
+    expect(createCanvasRawExportZipStream).toHaveBeenCalledWith(
       expect.any(Object),
       [{ id: "123", name: "Course", course_code: "CT216", term: null }],
       expect.objectContaining({
@@ -179,7 +190,7 @@ describe("POST /api/canvas/download", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(discoverCanvasRawExportEntries).toHaveBeenCalledWith(
+    expect(createCanvasRawExportZipStream).toHaveBeenCalledWith(
       expect.any(Object),
       [
         {
@@ -222,7 +233,7 @@ describe("POST /api/canvas/download", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(discoverCanvasRawExportEntries).toHaveBeenCalledWith(
+    expect(createCanvasRawExportZipStream).toHaveBeenCalledWith(
       expect.any(Object),
       [{ id: "123", name: "Available Course", course_code: "", term: null }],
       expect.objectContaining({
@@ -232,6 +243,19 @@ describe("POST /api/canvas/download", () => {
         }),
       }),
     );
+  });
+
+  it("caps how many selected courses one export request may walk", async () => {
+    const courseIds = Array.from({ length: 201 }, (_, index) => ({ id: String(index + 1) }));
+    const response = await POST(
+      new NextRequest("http://localhost/api/canvas/download", {
+        method: "POST",
+        body: JSON.stringify({ courseIds }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(createCanvasRawExportZipStream).not.toHaveBeenCalled();
   });
 
   it.each(["{", "null"])(
@@ -246,7 +270,7 @@ describe("POST /api/canvas/download", () => {
       );
 
       expect(response.status).toBe(400);
-      expect(discoverCanvasRawExportEntries).not.toHaveBeenCalled();
+      expect(createCanvasRawExportZipStream).not.toHaveBeenCalled();
     },
   );
 
@@ -266,7 +290,7 @@ describe("POST /api/canvas/download", () => {
       );
 
       expect(response.status).toBe(400);
-      expect(discoverCanvasRawExportEntries).not.toHaveBeenCalled();
+      expect(createCanvasRawExportZipStream).not.toHaveBeenCalled();
     },
   );
 });

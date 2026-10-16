@@ -48,6 +48,7 @@ function configureSql(options: {
   liveAtPurge?: boolean;
   liveReferenceAnswers?: boolean[];
   otherCacheUsesOriginal?: boolean;
+  expiredCacheIds?: string[];
 } = {}) {
   const queries: string[] = [];
   let liveReferenceCheck = 0;
@@ -59,7 +60,7 @@ function configureSql(options: {
   sqlMock.begin.mockImplementation(
     async (callback: (tx: typeof sqlMock) => unknown) => callback(sqlMock),
   );
-  sqlMock.mockImplementation((parts: TemplateStringsArray) => {
+  sqlMock.mockImplementation((parts: TemplateStringsArray, ...values: unknown[]) => {
     const query = parts.join(" ");
     queries.push(query);
 
@@ -72,7 +73,7 @@ function configureSql(options: {
       return Promise.resolve([]);
     }
     if (query.includes("SELECT id, sha256, storage_key")) {
-      return Promise.resolve([{ id: CACHE_ID, sha256: SHA256, storage_key: ORIGINAL_KEY }]);
+      return Promise.resolve([{ id: values[0], sha256: SHA256, storage_key: ORIGINAL_KEY }]);
     }
     if (query.includes("AS has_live_references")) {
       const hasLiveReferences =
@@ -84,7 +85,7 @@ function configureSql(options: {
       return Promise.resolve([{ id: "20000000-0000-4000-8000-000000000001" }]);
     }
     if (query.includes("FROM app.imported_file_cache_assets")) {
-      return Promise.resolve([{ storage_key: ASSET_KEY }]);
+      return Promise.resolve([{ storage_key: `imports/shared-assets/${String(values[0])}/page-1.png` }]);
     }
     if (query.includes("WHERE storage_key =")) {
       return Promise.resolve(
@@ -94,10 +95,18 @@ function configureSql(options: {
       );
     }
     if (query.includes("DELETE FROM app.imported_file_cache")) {
-      return Promise.resolve([{ id: CACHE_ID }]);
+      return Promise.resolve([{ id: values[0] }]);
     }
     if (query.includes("SELECT id, sha256") && query.includes("purge_after <= NOW")) {
-      return Promise.resolve([{ id: CACHE_ID, sha256: SHA256 }]);
+      // honour the per-run exclusion and batch limit like PostgreSQL would
+      const attempted = values.filter(Array.isArray).at(-1) ?? [];
+      const limit = Number(values.at(-1));
+      return Promise.resolve(
+        (options.expiredCacheIds ?? [CACHE_ID])
+          .filter((id) => !attempted.includes(id))
+          .slice(0, limit)
+          .map((id) => ({ id, sha256: SHA256 })),
+      );
     }
     return Promise.resolve([]);
   });
@@ -189,6 +198,29 @@ describe("imported-file cache retention", () => {
     expect(
       queries.some((query) => query.includes("DELETE FROM app.imported_file_cache")),
     ).toBe(false);
+  });
+
+  it("drains an expired backlog larger than one batch in a single run", async () => {
+    const expiredCacheIds = [
+      CACHE_ID,
+      "10000000-0000-4000-8000-000000000002",
+      "10000000-0000-4000-8000-000000000003",
+    ];
+    configureSql({ expiredCacheIds });
+
+    const result = await runImportedFileCacheRetention({ batchSize: 2 });
+
+    expect(result).toMatchObject({ cachesPurged: 3, purgeFailures: 0 });
+  });
+
+  it("tries a failing cache once per run instead of looping on it", async () => {
+    configureSql();
+    vi.mocked(deleteChunkVectors).mockRejectedValue(new Error("Qdrant unavailable"));
+
+    const result = await runImportedFileCacheRetention({ batchSize: 1 });
+
+    expect(result).toMatchObject({ cachesPurged: 0, purgeFailures: 1 });
+    expect(deleteChunkVectors).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the cache row retryable when object deletion fails", async () => {

@@ -14,7 +14,11 @@ vi.mock("undici", () => ({
 }));
 vi.mock("node:dns/promises", () => ({ lookup: mocks.lookup }));
 
-import { isPublicIpv4, safeCanvasFetch } from "@/lib/canvas/safe-fetch";
+import {
+  CanvasRequestTimeoutError,
+  isPublicIpv4,
+  safeCanvasFetch,
+} from "@/lib/canvas/safe-fetch";
 
 beforeEach(() => {
   mocks.fetch.mockReset();
@@ -121,9 +125,69 @@ describe("Canvas request guard", () => {
     expect(mocks.fetch.mock.calls[0][1]).toMatchObject({
       method: "POST",
       body: '{"submission":{}}',
-      signal,
       redirect: "manual",
     });
+  });
+
+  it("aborts with the caller's signal as well as its own deadline", async () => {
+    mocks.fetch.mockResolvedValueOnce(new Response("{}"));
+    const caller = new AbortController();
+
+    await safeCanvasFetch(
+      "https://canvas.university.edu/api/v1/users/self",
+      {},
+      false,
+      { signal: caller.signal },
+    );
+    const sent: AbortSignal = mocks.fetch.mock.calls[0][1].signal;
+    expect(sent.aborted).toBe(false);
+
+    caller.abort(new Error("client went away"));
+    expect(sent.aborted).toBe(true);
+  });
+
+  // undici's idle timeouts reset on every chunk, so a slow-drip response needs
+  // an overall deadline. undici keeps the signal on the response stream, so
+  // aborting it also fails a body read that is still in progress
+  it("aborts the request signal once its deadline passes", async () => {
+    vi.useFakeTimers();
+    process.env.CANVAS_REQUEST_TIMEOUT_MS = "5000";
+    try {
+      mocks.fetch.mockResolvedValueOnce(new Response("[]"));
+
+      await safeCanvasFetch("https://canvas.university.edu/api/v1/courses", {});
+      const sent: AbortSignal = mocks.fetch.mock.calls[0][1].signal;
+      await vi.advanceTimersByTimeAsync(4_999);
+      expect(sent.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+
+      expect(sent.aborted).toBe(true);
+      expect(sent.reason).toBeInstanceOf(CanvasRequestTimeoutError);
+      expect(sent.reason).toMatchObject({ code: "CANVAS_REQUEST_TIMEOUT" });
+    } finally {
+      delete process.env.CANVAS_REQUEST_TIMEOUT_MS;
+      vi.useRealTimers();
+    }
+  });
+
+  it("gives file downloads their own longer deadline", async () => {
+    vi.useFakeTimers();
+    process.env.CANVAS_REQUEST_TIMEOUT_MS = "5000";
+    process.env.CANVAS_DOWNLOAD_TIMEOUT_MS = "20000";
+    try {
+      mocks.fetch.mockResolvedValueOnce(new Response("pdf"));
+
+      await safeCanvasFetch("https://canvas.university.edu/files/1/download", {}, true);
+      const sent: AbortSignal = mocks.fetch.mock.calls[0][1].signal;
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(sent.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(15_000);
+      expect(sent.aborted).toBe(true);
+    } finally {
+      delete process.env.CANVAS_REQUEST_TIMEOUT_MS;
+      delete process.env.CANVAS_DOWNLOAD_TIMEOUT_MS;
+      vi.useRealTimers();
+    }
   });
 
   it("drops authorization when a file redirects to another public host", async () => {
@@ -152,6 +216,25 @@ describe("Canvas request guard", () => {
     expect(mocks.fetch.mock.calls[0][1].headers.Authorization).toBe("Bearer token");
     expect(mocks.fetch.mock.calls[1][1].headers).not.toHaveProperty("Authorization");
     expect(mocks.fetch.mock.calls[2][1].headers).not.toHaveProperty("Authorization");
+  });
+
+  it("bounds how long a stalled Canvas response can hold a connection", () => {
+    expect(mocks.agentOptions).toMatchObject({
+      headersTimeout: 30_000,
+      bodyTimeout: 60_000,
+    });
+  });
+
+  // net.connect skips the custom lookup for IP literals, so these must be
+  // rejected before any request is made
+  it.each([
+    "https://127.0.0.1/api/v1/users/self",
+    "https://2130706433/api/v1/users/self",
+    "https://0x7f.1/api/v1/users/self",
+    "https://[::1]/api/v1/users/self",
+  ])("rejects IP literal host %s before connecting", async (url) => {
+    await expect(safeCanvasFetch(url, {})).rejects.toThrow();
+    expect(mocks.fetch).not.toHaveBeenCalled();
   });
 
   it("rejects a file redirect to an internal address", async () => {

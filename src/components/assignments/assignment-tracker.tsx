@@ -318,7 +318,12 @@ export default function AssignmentTracker({
     setSyncing(true);
     try {
       const result = await syncFromCanvas();
-      if (!result) toast.error(t("Something went wrong"));
+      if (result?.synced) toast.success(t("Synced"));
+      else if (result?.code === "reconnect") {
+        toast.error(t("Your Canvas token is invalid or expired. Please reconnect."));
+      } else if (result?.code === "not_connected") {
+        toast.error(t("Connect your Canvas LMS account to import your courses and lecture materials."));
+      } else toast.error(t("Something went wrong"));
     } finally {
       setSyncing(false);
     }

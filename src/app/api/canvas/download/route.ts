@@ -6,11 +6,9 @@ import {
   parseJsonObject,
 } from "@/lib/api-error";
 import { CanvasClient } from "@/lib/canvas/client";
+import { checkRateLimit } from "@/lib/rate-limiter";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
-import {
-  createCanvasRawExportZipStream,
-  discoverCanvasRawExportEntries,
-} from "@/lib/canvas/raw-export";
+import { createCanvasRawExportZipStream } from "@/lib/canvas/raw-export";
 import { normalizeCanvasCourseSelection } from "@/lib/canvas/id";
 import type { CanvasCourseSelection } from "@/lib/canvas/id";
 import {
@@ -19,6 +17,9 @@ import {
 } from "@/lib/canvas/sync-courses";
 
 export const runtime = "nodejs";
+
+// generous for any real enrolment history, but bounds one request's Canvas work
+const MAX_EXPORT_COURSES = 200;
 
 function canvasArchiveFilename(): string {
   const stamp = new Date().toISOString().slice(0, 10);
@@ -68,6 +69,9 @@ async function discoverExportCourses(
 
 export const POST = withErrorHandler(async (request) => {
   const user = await requireAuth();
+  const limited = await checkRateLimit("canvas-download", user.user_id);
+  if (limited) return limited;
+
   const body = await parseJsonObject(request);
 
   const credentials = await loadCanvasCredentials(user.user_id);
@@ -78,23 +82,21 @@ export const POST = withErrorHandler(async (request) => {
   const client = new CanvasClient(credentials.domain, credentials.token);
   let selectedCourses: ExportCourseSelection;
   const hasCourseIds = Object.prototype.hasOwnProperty.call(body, "courseIds");
-  if (
-    hasCourseIds &&
-    (!Array.isArray(body.courseIds) || body.courseIds.length === 0)
-  ) {
+  const courseIds: unknown = body.courseIds;
+  if (hasCourseIds && (!Array.isArray(courseIds) || courseIds.length === 0)) {
     throw new ApiError(400, "courseIds must be a non-empty array when provided");
   }
-  if (hasCourseIds) {
-    const courseIds = body.courseIds;
+  if (Array.isArray(courseIds) && courseIds.length > MAX_EXPORT_COURSES) {
+    throw new ApiError(400, `Select at most ${MAX_EXPORT_COURSES} courses per export`);
+  }
+  if (Array.isArray(courseIds)) {
     try {
       selectedCourses = {
-        courses: Array.isArray(courseIds)
-          ? courseIds.map(normalizeCanvasCourseSelection)
-          : [],
+        courses: courseIds.map(normalizeCanvasCourseSelection),
         skipped: [],
         courseDiscovery: {
           mode: "selected",
-          course_count: Array.isArray(courseIds) ? courseIds.length : 0,
+          course_count: courseIds.length,
         },
       };
     } catch (error) {
@@ -120,7 +122,8 @@ export const POST = withErrorHandler(async (request) => {
     throw new ApiError(404, "No Canvas courses found");
   }
 
-  const archive = await discoverCanvasRawExportEntries(
+  // discovery runs inside the stream so the response starts immediately
+  const stream = createCanvasRawExportZipStream(
     client,
     selectedCourses.courses,
     {
@@ -128,16 +131,6 @@ export const POST = withErrorHandler(async (request) => {
       courseDiscovery: selectedCourses.courseDiscovery,
     },
   );
-
-  if (
-    archive.downloads.length === 0 &&
-    archive.textEntries.length === 0 &&
-    archive.skipped.length === 0
-  ) {
-    throw new ApiError(404, "No downloadable Canvas content found");
-  }
-
-  const stream = createCanvasRawExportZipStream(client, archive);
 
   return new NextResponse(stream, {
     headers: {

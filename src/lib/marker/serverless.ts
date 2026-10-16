@@ -12,9 +12,24 @@ import type { ObjectMetadata } from "@/lib/storage/base";
 import { getStorageProvider } from "@/lib/storage/init";
 import type { StoreS3 } from "@/lib/storage/s3";
 import {
+  envFlag,
+  isHttpsUrlWithoutCredentials,
+  markerDispatchEnabled,
+  markerQueueEnabled,
+  markerServerlessProvider,
+  markerSignedUrlTtlSeconds,
+  positiveIntEnv,
+  runpodConfigured,
+  vastConfigured,
+  type MarkerServerlessProvider,
+} from "@/lib/marker/config";
+import { MarkerDispatchRejectedError } from "@/lib/marker/errors";
+import {
+  cancelRunPodJob,
   getRunPodJobStatus,
   submitRunPodJob,
   type RunPodJobMetrics,
+  type RunPodServerlessConfig,
 } from "@/lib/marker/runpod";
 import {
   requestVastEndpoint,
@@ -22,26 +37,16 @@ import {
   type VastRequestMetrics,
 } from "@/lib/marker/vast";
 
-export type MarkerServerlessProvider = "vast" | "runpod";
-type StoredMarkerProvider = MarkerServerlessProvider;
+// existing callers import the env switches from here
+export {
+  markerQueueEnabled,
+  markerServerlessConfigured,
+  markerServerlessProvider,
+  processAllPdfsWithMarker,
+  type MarkerServerlessProvider,
+} from "@/lib/marker/config";
+
 type ProviderMetrics = VastRequestMetrics | RunPodJobMetrics;
-
-function positiveInt(name: string, fallback: number): number {
-  const value = Number.parseInt(process.env[name] ?? "", 10);
-  return Number.isFinite(value) && value > 0 ? value : fallback;
-}
-
-function enabled(value: string | undefined): boolean {
-  return ["1", "true", "on", "yes"].includes(
-    value?.trim().toLowerCase() ?? "",
-  );
-}
-
-function dispatchEnabled(): boolean {
-  // GPU dispatch must be explicitly enabled; a credential alone must never
-  // turn a deployment into a paid external-processing path.
-  return enabled(process.env.MARKER_SERVERLESS_DISPATCH_ENABLED);
-}
 
 function maxDispatchAttempts(): number {
   // An application-originated GPU call has an ambiguous external boundary:
@@ -56,14 +61,9 @@ function resultGraceSeconds(): number {
   // upload its stable result after the caller has given up. Favor one paid
   // execution over automatic redispatch; an absent result becomes an explicit
   // terminal failure after this observation window.
-  // A zero-minimum single-worker endpoint can legitimately hold a sizeable
-  // batch in its provider queue. Its signed URLs and RunPod job TTL are both
-  // twelve hours, so keep observation aligned with those durable boundaries.
-  return positiveInt("MARKER_RESULT_GRACE_SECONDS", 12 * 60 * 60);
-}
-
-function resultUrlTtlSeconds(): number {
-  return positiveInt("MARKER_SERVERLESS_URL_TTL_SECONDS", 3_600);
+  // the upload deadline below usually ends observation first: no result can
+  // arrive once the signed result URL has expired
+  return positiveIntEnv("MARKER_RESULT_GRACE_SECONDS", 12 * 60 * 60);
 }
 
 // once the signed result PUT URL has expired no worker can still deliver a
@@ -79,11 +79,11 @@ function resultUploadDeadlineMs(job: MarkerJobRow): number | null {
   if (job.started_at === null) return null;
   const startedAt = new Date(job.started_at).getTime();
   if (!Number.isFinite(startedAt)) return null;
-  return startedAt + resultUrlTtlSeconds() * 1_000 + marginMs;
+  return startedAt + markerSignedUrlTtlSeconds() * 1_000 + marginMs;
 }
 
 function maxCompletionAttempts(): number {
-  return positiveInt("MARKER_COMPLETION_MAX_ATTEMPTS", 3);
+  return positiveIntEnv("MARKER_COMPLETION_MAX_ATTEMPTS", 3);
 }
 
 function errorMessage(error: unknown): string {
@@ -91,112 +91,39 @@ function errorMessage(error: unknown): string {
   return message.replace(/https?:\/\/\S+/gi, "[redacted-url]").slice(0, 1_000);
 }
 
-export function markerServerlessProvider(): MarkerServerlessProvider | null {
-  const configured = process.env.MARKER_SERVERLESS_PROVIDER
-    ?.trim()
-    .toLowerCase();
-  return configured === "vast" || configured === "runpod" ? configured : null;
-}
-
-function vastConfigured(): boolean {
-  return Boolean(
-    process.env.VAST_MARKER_ENDPOINT_NAME?.trim() &&
-      process.env.VAST_MARKER_ENDPOINT_API_KEY?.trim(),
-  );
-}
-
-function runpodConfigured(): boolean {
-  const webhookBaseUrl = process.env.RUNPOD_MARKER_WEBHOOK_BASE_URL?.trim();
-  if (
-    !process.env.RUNPOD_MARKER_ENDPOINT_ID?.trim() ||
-    !process.env.RUNPOD_API_KEY?.trim() ||
-    !process.env.RUNPOD_MARKER_WEBHOOK_TOKEN?.trim() ||
-    !webhookBaseUrl
-  ) {
-    return false;
-  }
-  try {
-    const url = new URL(webhookBaseUrl);
-    return (
-      url.protocol === "https:" &&
-      Boolean(url.hostname) &&
-      !url.username &&
-      !url.password
-    );
-  } catch {
-    return false;
-  }
-}
-
 function runpodWebhookUrl(callbackId: string): string {
   const token = process.env.RUNPOD_MARKER_WEBHOOK_TOKEN?.trim();
   const base = process.env.RUNPOD_MARKER_WEBHOOK_BASE_URL?.trim();
-  if (!token || !base) throw new Error("RunPod webhook is not configured");
-  let url: URL;
-  try {
-    url = new URL(base);
-  } catch {
-    throw new Error("RunPod webhook base URL is invalid");
-  }
-  if (url.protocol !== "https:" || !url.hostname || url.username || url.password) {
-    throw new Error("RunPod webhook base URL must use HTTPS without credentials");
+  if (!token || !base || !isHttpsUrlWithoutCredentials(base)) {
+    throw new MarkerDispatchRejectedError("RunPod webhook is not configured");
   }
   return new URL(
     `/api/internal/marker/${encodeURIComponent(token)}/${encodeURIComponent(callbackId)}`,
-    url,
+    base,
   ).toString();
 }
 
-function runpodConfig(callbackId: string) {
-  if (!runpodConfigured()) throw new Error("RunPod Marker is not configured");
+function runpodConfig(callbackId: string): RunPodServerlessConfig {
+  if (!runpodConfigured()) {
+    throw new MarkerDispatchRejectedError("RunPod Marker is not configured");
+  }
   return {
-    endpointId: process.env.RUNPOD_MARKER_ENDPOINT_ID!.trim(),
-    apiKey: process.env.RUNPOD_API_KEY!.trim(),
+    endpointId: process.env.RUNPOD_MARKER_ENDPOINT_ID?.trim() ?? "",
+    apiKey: process.env.RUNPOD_API_KEY?.trim() ?? "",
     webhookUrl: runpodWebhookUrl(callbackId),
-    executionTimeoutMs: positiveInt(
+    executionTimeoutMs: positiveIntEnv(
       "RUNPOD_MARKER_EXECUTION_TIMEOUT_MS",
       30 * 60 * 1_000,
     ),
-    ttlSeconds: positiveInt("RUNPOD_MARKER_JOB_TTL_SECONDS", 12 * 60 * 60),
-    requestTimeoutMs: positiveInt("RUNPOD_MARKER_REQUEST_TIMEOUT_MS", 10_000),
-    statusTimeoutMs: positiveInt("RUNPOD_MARKER_STATUS_TIMEOUT_MS", 10_000),
+    // a job still queued after its signed URLs expire can only fail, after
+    // paying for a cold start, so never let RunPod keep it longer than that
+    ttlSeconds: Math.min(
+      positiveIntEnv("RUNPOD_MARKER_JOB_TTL_SECONDS", 12 * 60 * 60),
+      markerSignedUrlTtlSeconds(),
+    ),
+    requestTimeoutMs: positiveIntEnv("RUNPOD_MARKER_REQUEST_TIMEOUT_MS", 10_000),
+    statusTimeoutMs: positiveIntEnv("RUNPOD_MARKER_STATUS_TIMEOUT_MS", 10_000),
   };
-}
-
-function hasSafePublicStorageEndpoint(): boolean {
-  const value = process.env.STORAGE_PUBLIC_ENDPOINT?.trim();
-  if (!value) return false;
-  try {
-    const url = new URL(value);
-    return (
-      url.protocol === "https:" &&
-      Boolean(url.hostname) &&
-      !url.username &&
-      !url.password
-    );
-  } catch {
-    return false;
-  }
-}
-
-export function markerQueueEnabled(): boolean {
-  if (!enabled(process.env.MARKER_OCR_ENABLED) || !dispatchEnabled()) {
-    return false;
-  }
-  return markerServerlessConfigured();
-}
-
-export function markerServerlessConfigured(): boolean {
-  if (!hasSafePublicStorageEndpoint()) return false;
-  const provider = markerServerlessProvider();
-  return (
-    (provider === "vast" && vastConfigured()) ||
-    (provider === "runpod" && runpodConfigured())
-  );
-}
-
-export function processAllPdfsWithMarker(): boolean {
-  return enabled(process.env.MARKER_PROCESS_ALL_PDFS);
 }
 
 export interface SubmitMarkerJobInput {
@@ -413,7 +340,7 @@ export async function submitMarkerJob({
 
 interface MarkerJobRow {
   callback_id: string;
-  provider: StoredMarkerProvider;
+  provider: MarkerServerlessProvider;
   provider_job_id: string | null;
   runpod_job_id: string | null;
   note_id: string;
@@ -490,7 +417,7 @@ function markerOptions(): Record<string, unknown> {
     pageRange: process.env.MARKER_PAGE_RANGE?.trim() || null,
     ocrFallbackPolicy: process.env.MARKER_OCR_FALLBACK_POLICY ?? "auto",
     tableOcrPolicy: process.env.MARKER_TABLE_OCR_POLICY ?? "auto",
-    useLlm: enabled(process.env.MARKER_USE_LLM),
+    useLlm: envFlag(process.env.MARKER_USE_LLM),
   };
 }
 
@@ -500,17 +427,33 @@ interface ProviderResult {
   resultReady: boolean;
 }
 
+async function signJobUrls(
+  storage: StoreS3,
+  job: MarkerJobRow,
+  ttlSeconds: number,
+): Promise<{ sourceUrl: string; resultUrl: string }> {
+  try {
+    const [sourceUrl, resultUrl] = await Promise.all([
+      storage.getExternalSignUrl(job.source_key, ttlSeconds),
+      // Immutable result writes prevent a late/duplicate worker from replacing
+      // the envelope that is bound to this callback ID.
+      storage.getPutSignUrl(job.result_key, ttlSeconds, "application/json", true),
+    ]);
+    return { sourceUrl, resultUrl };
+  } catch (error) {
+    // signing happens before any provider call, so nothing can be running
+    throw new MarkerDispatchRejectedError(
+      `Marker object URLs could not be signed: ${errorMessage(error)}`,
+    );
+  }
+}
+
 async function dispatchVast(
   storage: StoreS3,
   job: MarkerJobRow,
   ttlSeconds: number,
 ): Promise<ProviderResult> {
-  const [sourceUrl, resultUrl] = await Promise.all([
-    storage.getExternalSignUrl(job.source_key, ttlSeconds),
-    // Immutable result writes prevent a late/duplicate worker from replacing
-    // the envelope that is bound to this callback ID.
-    storage.getPutSignUrl(job.result_key, ttlSeconds, "application/json", true),
-  ]);
+  const { sourceUrl, resultUrl } = await signJobUrls(storage, job, ttlSeconds);
   const sourceBytes =
     job.source_bytes === null ? null : Number(job.source_bytes);
   const result = await requestVastEndpoint<{
@@ -533,13 +476,13 @@ async function dispatchVast(
     },
     vastWorkloadCost(sourceBytes),
     {
-      endpointName: process.env.VAST_MARKER_ENDPOINT_NAME!.trim(),
-      endpointApiKey: process.env.VAST_MARKER_ENDPOINT_API_KEY!.trim(),
-      totalTimeoutMs: positiveInt(
+      endpointName: process.env.VAST_MARKER_ENDPOINT_NAME?.trim() ?? "",
+      endpointApiKey: process.env.VAST_MARKER_ENDPOINT_API_KEY?.trim() ?? "",
+      totalTimeoutMs: positiveIntEnv(
         "VAST_MARKER_TOTAL_TIMEOUT_MS",
         20 * 60 * 1_000,
       ),
-      workerTimeoutMs: positiveInt(
+      workerTimeoutMs: positiveIntEnv(
         "VAST_MARKER_WORKER_TIMEOUT_MS",
         15 * 60 * 1_000,
       ),
@@ -547,14 +490,15 @@ async function dispatchVast(
       // inside the provider client; recovery observes the stable result object
       // instead of issuing another conversion.
       maxWorkerAttempts: 1,
-      maxPollIntervalMs: positiveInt(
+      maxPollIntervalMs: positiveIntEnv(
         "VAST_MARKER_MAX_POLL_INTERVAL_MS",
         5_000,
       ),
     },
   );
   if (result.response.success !== true) {
-    throw new Error(
+    // the single worker attempt answered for itself, so no result is coming
+    throw new MarkerDispatchRejectedError(
       `Vast Marker worker rejected the job: ${result.response.error ?? "unknown error"}`,
     );
   }
@@ -585,10 +529,8 @@ async function dispatchRunPod(
   job: MarkerJobRow,
   ttlSeconds: number,
 ): Promise<ProviderResult> {
-  const [sourceUrl, resultUrl] = await Promise.all([
-    storage.getExternalSignUrl(job.source_key, ttlSeconds),
-    storage.getPutSignUrl(job.result_key, ttlSeconds, "application/json", true),
-  ]);
+  const config = runpodConfig(job.callback_id);
+  const { sourceUrl, resultUrl } = await signJobUrls(storage, job, ttlSeconds);
   const submitted = await submitRunPodJob(
     {
       requestId: job.callback_id,
@@ -602,7 +544,7 @@ async function dispatchRunPod(
       options: markerOptions(),
       submittedAtUnixMs: Date.now(),
     },
-    runpodConfig(job.callback_id),
+    config,
   );
   return {
     providerJobId: submitted.jobId,
@@ -620,14 +562,17 @@ async function dispatchToProvider(
   ttlSeconds: number,
 ): Promise<ProviderResult> {
   if (job.provider === "vast") {
-    if (!vastConfigured()) throw new Error("Vast Marker is not configured");
+    if (!vastConfigured()) {
+      throw new MarkerDispatchRejectedError("Vast Marker is not configured");
+    }
     return await dispatchVast(storage, job, ttlSeconds);
   }
   if (job.provider === "runpod") {
-    if (!runpodConfigured()) throw new Error("RunPod Marker is not configured");
     return await dispatchRunPod(storage, job, ttlSeconds);
   }
-  throw new Error(`Unsupported Marker provider: ${job.provider}`);
+  throw new MarkerDispatchRejectedError(
+    `Unsupported Marker provider: ${String(job.provider)}`,
+  );
 }
 
 async function markAwaitingResult(
@@ -733,6 +678,20 @@ async function recordTerminalDispatchFailure(
   }
 }
 
+async function cancelAbandonedRunPodJob(job: MarkerJobRow): Promise<void> {
+  if (job.provider !== "runpod" || !job.provider_job_id || !runpodConfigured()) {
+    return;
+  }
+  try {
+    await cancelRunPodJob(job.provider_job_id, runpodConfig(job.callback_id));
+  } catch (error) {
+    // best effort: the row still fails and any late result is ignored
+    console.warn(
+      `RunPod cancel failed for Marker job ${job.callback_id}: ${errorMessage(error)}`,
+    );
+  }
+}
+
 export async function dispatchMarkerJob(callbackId: string): Promise<void> {
   const [existing] = (await sql`
     SELECT * FROM app.marker_jobs
@@ -786,6 +745,10 @@ export async function dispatchMarkerJob(callbackId: string): Promise<void> {
       Number.isFinite(updatedAt) &&
       Date.now() - updatedAt >= resultGraceSeconds() * 1_000
     ) {
+      // cancel first: a job still queued at RunPod would otherwise be paid
+      // for and its upload ignored. cancelling an already finished job is a
+      // no-op, so losing the transition below to a late webhook is harmless
+      await cancelAbandonedRunPodJob(existing);
       await recordTerminalDispatchFailure(
         existing,
         existing.error ??
@@ -795,6 +758,7 @@ export async function dispatchMarkerJob(callbackId: string): Promise<void> {
     }
     const uploadDeadline = resultUploadDeadlineMs(existing);
     if (uploadDeadline !== null && Date.now() >= uploadDeadline) {
+      await cancelAbandonedRunPodJob(existing);
       await recordTerminalDispatchFailure(
         existing,
         existing.error ??
@@ -816,7 +780,7 @@ export async function dispatchMarkerJob(callbackId: string): Promise<void> {
     `;
     return;
   }
-  if (!dispatchEnabled()) {
+  if (!markerDispatchEnabled()) {
     await sql`
       UPDATE app.marker_jobs
       SET status = 'dispatch_paused', updated_at = NOW()
@@ -878,7 +842,7 @@ export async function dispatchMarkerJob(callbackId: string): Promise<void> {
   try {
     // record the expiry of the URLs about to be signed so observation stops
     // when they do, even if the configured TTL changes in the meantime
-    const ttlSeconds = resultUrlTtlSeconds();
+    const ttlSeconds = markerSignedUrlTtlSeconds();
     const [stillOwned] = await sql`
       UPDATE app.marker_jobs
       SET result_url_expires_at = NOW() + make_interval(secs => ${ttlSeconds})
@@ -890,6 +854,11 @@ export async function dispatchMarkerJob(callbackId: string): Promise<void> {
     if (!stillOwned) return;
     dispatched = await dispatchToProvider(storage, job, ttlSeconds);
   } catch (error) {
+    if (error instanceof MarkerDispatchRejectedError) {
+      // fail now rather than observe for a result that cannot exist
+      await recordTerminalDispatchFailure(job, errorMessage(error));
+      return;
+    }
     await recordAmbiguousDispatchOutcome(job, error);
     return;
   }
@@ -907,7 +876,7 @@ export async function dispatchMarkerJob(callbackId: string): Promise<void> {
 }
 
 export async function recoverMarkerDispatchJobs(limit = 50): Promise<number> {
-  const mayDispatchNewWork = dispatchEnabled();
+  const mayDispatchNewWork = markerDispatchEnabled();
   const completionLimit = maxCompletionAttempts();
   // The kill switch prevents fresh paid submissions only. It must not strand a
   // job that was already submitted before an operator paused dispatch: that

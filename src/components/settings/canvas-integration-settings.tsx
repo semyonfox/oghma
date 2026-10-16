@@ -31,6 +31,43 @@ type Course = {
   canvasStatusReason?: string;
 };
 
+function readStored(key: string): unknown {
+  try {
+    return JSON.parse(localStorage.getItem(key) ?? "null");
+  } catch {
+    localStorage.removeItem(key);
+    return null;
+  }
+}
+
+function readStoredFlags<T extends string | boolean>(
+  key: string,
+  isValue: (value: unknown) => value is T,
+): Record<string, T> {
+  const stored = readStored(key);
+  if (typeof stored !== "object" || stored === null || Array.isArray(stored)) return {};
+  return Object.fromEntries(
+    Object.entries(stored).filter((entry): entry is [string, T] => isValue(entry[1])),
+  );
+}
+
+const isString = (value: unknown): value is string => typeof value === "string";
+const isTrue = (value: unknown): value is boolean => value === true;
+
+// a saved selection survives reconnects, but only for courses still listed;
+// historical courses are always preselected so a resync keeps them
+function initialSelection(courses: Course[]): string[] {
+  const listedIds = courses.map((course) => String(course.id));
+  const saved = readStored(LS_SELECTED);
+  const selected = Array.isArray(saved)
+    ? saved.map(String).filter((id) => listedIds.includes(id))
+    : listedIds;
+  const historicalIds = courses
+    .filter((course) => course.historical)
+    .map((course) => String(course.id));
+  return Array.from(new Set(selected.concat(historicalIds)));
+}
+
 /**
  * CanvasIntegrationSettings
  *
@@ -102,10 +139,8 @@ export default function CanvasIntegrationSettings() {
 
   // ── On mount: restore state + check connection ────────────────────────────
   useEffect(() => {
-    const savedErrors = JSON.parse(localStorage.getItem(LS_ERRORS) ?? "{}");
-    const savedSynced = JSON.parse(localStorage.getItem(LS_SYNCED) ?? "{}");
-    setCourseErrors(savedErrors);
-    setSyncedCourses(savedSynced);
+    setCourseErrors(readStoredFlags(LS_ERRORS, isString));
+    setSyncedCourses(readStoredFlags(LS_SYNCED, isTrue));
 
     const checkConnection = async () => {
       try {
@@ -149,23 +184,7 @@ export default function CanvasIntegrationSettings() {
             localStorage.removeItem(LS_FORBIDDEN);
           }
 
-          const savedSelection = localStorage.getItem(LS_SELECTED);
-          const savedIds = JSON.parse(savedSelection ?? "[]");
-          const validIds = (data.courses ?? [])
-            .map((c) => String(c.id));
-          const historicalIds = (data.courses ?? [])
-            .filter((course) => course.historical)
-            .map((course) => String(course.id));
-          setSelectedCourseIds(
-            Array.from(
-              new Set(
-                (savedSelection === null
-                  ? validIds
-                  : savedIds.map(String).filter((id: string) => validIds.includes(id))
-                ).concat(historicalIds),
-              ),
-            ),
-          );
+          setSelectedCourseIds(initialSelection(data.courses ?? []));
 
           fetch("/api/canvas/sync")
             .then((r) => r.json())
@@ -246,23 +265,7 @@ export default function CanvasIntegrationSettings() {
       setCourses(data.courses ?? []);
       setCourseDiscoveryDegraded(Boolean(data.courseDiscoveryDegraded));
 
-      const savedSelection = localStorage.getItem(LS_SELECTED);
-      const savedIds = JSON.parse(savedSelection ?? "[]");
-      const validIds = (data.courses ?? [])
-        .map((c) => String(c.id));
-      const historicalIds = (data.courses ?? [])
-        .filter((course) => course.historical)
-        .map((course) => String(course.id));
-      setSelectedCourseIds(
-        Array.from(
-          new Set(
-            (savedSelection === null
-              ? validIds
-              : savedIds.map(String).filter((id: string) => validIds.includes(id))
-            ).concat(historicalIds),
-          ),
-        ),
-      );
+      setSelectedCourseIds(initialSelection(data.courses ?? []));
     } catch {
       reportTelemetry({ kind: "error", name: "request_failed", route: "settings" });
       setConnectionError(toFriendlyCanvasError("network"));
@@ -272,29 +275,34 @@ export default function CanvasIntegrationSettings() {
   };
 
   const handleDisconnect = async () => {
+    // only forget local state once the server has dropped the token, otherwise
+    // the page would show disconnected while imports can still use it
     try {
-      await fetch("/api/canvas/connect", { method: "DELETE" });
-    } finally {
-      resetStatus();
-      setIsConnected(false);
-      setConnectionWarning(null);
-      setConnectedDomain("");
-      setCourses([]);
-      setCourseDiscoveryDegraded(false);
-      setSelectedCourseIds([]);
-      setDomain("");
-      if (tokenInputRef.current) {
-        tokenInputRef.current.value = "";
-      }
-      localStorage.removeItem(LS_SELECTED);
-      localStorage.removeItem(LS_ERRORS);
-      localStorage.removeItem(LS_ACTIVE_JOB);
-      localStorage.removeItem(LS_FORBIDDEN);
-      localStorage.removeItem(LS_SYNCED);
-      setCourseErrors({});
-      setForbiddenCourses({});
-      setSyncedCourses({});
+      const response = await fetch("/api/canvas/connect", { method: "DELETE" });
+      if (!response.ok) throw new Error("disconnect failed");
+    } catch {
+      setConnectionError(toFriendlyCanvasError("network"));
+      return;
     }
+    resetStatus();
+    setIsConnected(false);
+    setConnectionWarning(null);
+    setConnectedDomain("");
+    setCourses([]);
+    setCourseDiscoveryDegraded(false);
+    setSelectedCourseIds([]);
+    setDomain("");
+    if (tokenInputRef.current) {
+      tokenInputRef.current.value = "";
+    }
+    localStorage.removeItem(LS_SELECTED);
+    localStorage.removeItem(LS_ERRORS);
+    localStorage.removeItem(LS_ACTIVE_JOB);
+    localStorage.removeItem(LS_FORBIDDEN);
+    localStorage.removeItem(LS_SYNCED);
+    setCourseErrors({});
+    setForbiddenCourses({});
+    setSyncedCourses({});
   };
 
   const handleDownloadCanvasFiles = async () => {

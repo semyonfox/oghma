@@ -42,6 +42,8 @@ export interface ChatGenerationRecord {
 export interface ChatGenerationClaim {
   generation: ChatGenerationRecord;
   leaseToken: string;
+  /** an earlier worker already started this row, so its replay events are stale */
+  resumed: boolean;
 }
 
 export interface ChatGenerationAssistantOutput {
@@ -140,15 +142,23 @@ export async function claimChatGeneration(
   generationId: string,
 ): Promise<ChatGenerationClaim | null> {
   const leaseToken = generateUUID();
+  // started_at survives requeue and lease recovery, so it tells a fresh claim
+  // apart from a rerun whatever BullMQ attempt number delivered it
   const rows = await sql`
-    WITH claimed AS (
-      UPDATE app.chat_generations
+    WITH previous AS (
+      SELECT id, started_at IS NOT NULL AS resumed
+      FROM app.chat_generations
+      WHERE id = ${generationId}::uuid
+      FOR UPDATE
+    ), claimed AS (
+      UPDATE app.chat_generations generation
       SET status = 'generating', started_at = COALESCE(started_at, NOW()),
           error_message = NULL, lease_token = ${leaseToken}::uuid,
           heartbeat_at = NOW(),
           lease_expires_at = NOW() + ${CHAT_GENERATION_LEASE_MS} * INTERVAL '1 millisecond',
           updated_at = NOW()
-      WHERE id = ${generationId}::uuid
+      FROM previous
+      WHERE generation.id = previous.id
         AND (
           status = 'queued'
           OR (
@@ -159,8 +169,10 @@ export async function claimChatGeneration(
             )
           )
         )
-      RETURNING id, session_id, user_id, status, request_payload,
-                error_message, lease_token, lease_expires_at
+      RETURNING generation.id, generation.session_id, generation.user_id,
+                generation.status, generation.request_payload,
+                generation.error_message, generation.lease_token,
+                generation.lease_expires_at, previous.resumed
     ), session_updated AS (
       UPDATE app.chat_sessions s
       SET generation_status = 'generating', updated_at = NOW()
@@ -169,10 +181,14 @@ export async function claimChatGeneration(
     )
     SELECT * FROM claimed
   `;
-  const generation = normalizeGenerationRecord(
-    rows[0] as ChatGenerationRecord | undefined,
-  );
-  return generation ? { generation, leaseToken } : null;
+  const row = rows[0] as
+    (ChatGenerationRecord & { resumed: boolean }) | undefined;
+  if (!row) return null;
+  const { resumed, ...record } = row;
+  const generation = normalizeGenerationRecord(record);
+  return generation
+    ? { generation, leaseToken, resumed: resumed === true }
+    : null;
 }
 
 export async function heartbeatChatGeneration(
@@ -310,8 +326,10 @@ export async function failChatGeneration(
 }
 
 /**
- * Cancel an unclaimed generation, or fence a worker cancellation with its
- * lease. Workers with partial output use finalizeChatGeneration instead.
+ * Without a lease, cancel work no live worker owns: a queued row, or a
+ * generating row whose lease expired. A worker that resumes later is fenced by
+ * its lease token. With a lease, fence a worker's own cancellation. Workers
+ * with partial output use finalizeChatGeneration instead.
  */
 export async function cancelChatGeneration(
   generationId: string,
@@ -325,13 +343,62 @@ export async function cancelChatGeneration(
           updated_at = NOW()
       WHERE id = ${generationId}::uuid
         AND (
-          (${leaseToken ?? null}::uuid IS NULL AND status IN ('queued', 'failed'))
+          (
+            ${leaseToken ?? null}::uuid IS NULL
+            AND (
+              status = 'queued'
+              OR (
+                status = 'generating'
+                AND (
+                  lease_expires_at <= NOW()
+                  OR (lease_expires_at IS NULL AND updated_at <= NOW() - ${CHAT_GENERATION_LEASE_MS} * INTERVAL '1 millisecond')
+                )
+              )
+            )
+          )
           OR (
             status = 'generating'
             AND lease_token = ${leaseToken ?? null}::uuid
             AND lease_expires_at > NOW()
           )
         )
+      RETURNING session_id
+    )
+    UPDATE app.chat_sessions s
+    SET generation_status = CASE
+          WHEN EXISTS (
+            SELECT 1
+            FROM app.chat_generations active
+            WHERE active.session_id = s.id
+              AND active.id <> ${generationId}::uuid
+              AND active.status IN ('queued', 'generating')
+          ) THEN 'generating'
+          ELSE 'idle'
+        END,
+        updated_at = NOW()
+    FROM cancelled
+    WHERE s.id = cancelled.session_id
+    RETURNING s.id
+  `;
+  return rows.length > 0;
+}
+
+/**
+ * Stop a generation through PostgreSQL alone, for when the Redis cancel flag
+ * cannot be set. Clearing the lease fails the live worker's next heartbeat, so
+ * it aborts within one watchdog tick and its partial output is discarded.
+ */
+export async function revokeChatGeneration(
+  generationId: string,
+): Promise<boolean> {
+  const rows = await sql`
+    WITH cancelled AS (
+      UPDATE app.chat_generations
+      SET status = 'cancelled', completed_at = NOW(),
+          lease_token = NULL, lease_expires_at = NULL, heartbeat_at = NULL,
+          updated_at = NOW()
+      WHERE id = ${generationId}::uuid
+        AND status IN ('queued', 'generating')
       RETURNING session_id
     )
     UPDATE app.chat_sessions s

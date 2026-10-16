@@ -236,18 +236,24 @@ describe("resumable chat generation store", () => {
       error_message: null,
       lease_token: "11111111-1111-1111-1111-111111111111",
       lease_expires_at: new Date(),
+      resumed: false,
     }]);
 
-    await expect(
-      claimChatGeneration("11111111-1111-1111-1111-111111111111"),
-    ).resolves.toEqual(expect.objectContaining({
+    const claim = await claimChatGeneration(
+      "11111111-1111-1111-1111-111111111111",
+    );
+    expect(claim).toEqual(expect.objectContaining({
       leaseToken: "11111111-1111-1111-1111-111111111111",
+      resumed: false,
       generation: expect.objectContaining({ status: "generating" }),
     }));
+    expect(claim?.generation).not.toHaveProperty("resumed");
 
     const [query] = sqlMock.mock.calls[0] as [readonly string[]];
     const text = query.join("?");
-    expect(text).toContain("WITH claimed AS");
+    expect(text).toContain("claimed AS");
+    expect(text).toContain("started_at IS NOT NULL AS resumed");
+    expect(text).toContain("FOR UPDATE");
     expect(text).toContain("status = 'queued'");
     expect(text).not.toContain("status IN ('queued', 'failed')");
     expect(text).toContain("lease_expires_at <= NOW()");
@@ -274,6 +280,35 @@ describe("resumable chat generation store", () => {
     expect(text).toContain("lease_token =");
     expect(text).toContain("lease_expires_at > NOW()");
     expect(text).toContain("heartbeat_at = NOW()");
+  });
+
+  it("reports a claim of previously started work as resumed", async () => {
+    sqlMock.mockResolvedValueOnce([{
+      id: "11111111-1111-1111-1111-111111111111",
+      session_id: "33333333-3333-3333-3333-333333333333",
+      user_id: "22222222-2222-2222-2222-222222222222",
+      status: "generating",
+      request_payload: { message: "hello" },
+      error_message: null,
+      lease_token: "11111111-1111-1111-1111-111111111111",
+      lease_expires_at: new Date(),
+      resumed: true,
+    }]);
+
+    await expect(
+      claimChatGeneration("11111111-1111-1111-1111-111111111111"),
+    ).resolves.toEqual(expect.objectContaining({ resumed: true }));
+  });
+
+  it("lets an unleased cancel settle queued and orphaned work only", async () => {
+    await cancelChatGeneration("11111111-1111-1111-1111-111111111111");
+
+    const [query] = sqlMock.mock.calls[0] as [readonly string[]];
+    const text = query.join("?");
+    expect(text).toContain("status = 'queued'");
+    expect(text).toContain("lease_expires_at <= NOW()");
+    // a failed generation keeps its error instead of turning into a cancel
+    expect(text).not.toContain("'failed'");
   });
 
   it("cancels the generation and returns the session to idle atomically", async () => {

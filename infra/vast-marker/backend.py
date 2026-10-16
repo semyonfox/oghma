@@ -22,6 +22,7 @@ import threading
 import time
 import urllib.request
 from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -76,7 +77,9 @@ TELEMETRY_INTERVAL_SECONDS = max(
     float(os.getenv("MARKER_TELEMETRY_INTERVAL_SECONDS", "1")),
 )
 BENCHMARK_PDF = Path("/app/benchmark.pdf")
-ALLOWED_OUTPUT_FORMATS = {"markdown", "json", "html", "chunks"}
+# the application only accepts a markdown v1 envelope, so any other format
+# would be paid for and then rejected as an invalid result
+ALLOWED_OUTPUT_FORMATS = {"markdown"}
 ALLOWED_OBJECT_HOSTS = {
     host.strip().lower()
     for host in os.getenv("MARKER_ALLOWED_OBJECT_HOSTS", "").split(",")
@@ -124,6 +127,14 @@ def get_pool() -> ProcessPoolExecutor:
             initializer=init_process,
         )
     return _POOL
+
+
+def reset_pool() -> None:
+    """Drop a pool whose child died so the next job builds a fresh one."""
+    global _POOL
+    pool, _POOL = _POOL, None
+    if pool is not None:
+        pool.shutdown(wait=False, cancel_futures=True)
 
 
 def build_converter(models: Any, options: dict[str, Any]) -> PdfConverter:
@@ -476,23 +487,28 @@ async def health() -> dict[str, Any]:
     }
 
 
-async def run_conversion(path: str, options: dict[str, Any]) -> dict[str, Any]:
-    use_llm = bool_value(options.get("useLlm"), False)
-    async with admission:
-        if use_llm:
-            async with vision_admission:
-                return await asyncio.get_running_loop().run_in_executor(
-                    get_pool(),
-                    convert_file,
-                    path,
-                    options,
-                )
+async def convert_in_pool(path: str, options: dict[str, Any]) -> dict[str, Any]:
+    try:
         return await asyncio.get_running_loop().run_in_executor(
             get_pool(),
             convert_file,
             path,
             options,
         )
+    except BrokenProcessPool:
+        # a child died, usually out of memory. a broken executor never heals,
+        # so without this every later job on this worker fails too
+        reset_pool()
+        raise
+
+
+async def run_conversion(path: str, options: dict[str, Any]) -> dict[str, Any]:
+    use_llm = bool_value(options.get("useLlm"), False)
+    async with admission:
+        if use_llm:
+            async with vision_admission:
+                return await convert_in_pool(path, options)
+        return await convert_in_pool(path, options)
 
 
 @app.post("/marker/job")

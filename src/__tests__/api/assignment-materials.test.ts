@@ -6,7 +6,7 @@ vi.mock("@/database/pgsql", () => ({ default: mocks.sql }));
 vi.mock("@/lib/canvas/load-assignment", () => ({ loadCanvasAssignment: mocks.load }));
 vi.mock("@/lib/canvas/assignment-materials", () => ({ discoverAssignmentMaterials: mocks.discover }));
 vi.mock("@/lib/canvas/import-runs", () => ({ startCanvasRun: mocks.start }));
-vi.mock("@/lib/queue", () => ({ enqueueCanvasJob: mocks.enqueue }));
+vi.mock("@/lib/queue", () => ({ enqueueCanvasDiscoverJob: mocks.enqueue }));
 vi.mock("@/lib/logger", () => ({ default: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
 import { GET, POST } from "@/app/api/assignments/[id]/materials/route";
 import { ApiError } from "@/lib/api-error";
@@ -44,7 +44,8 @@ describe("assignment materials API", () => {
     const response = await POST(request("POST"), context);
     expect(await response.json()).toEqual({ queued: true, jobId: "job-1" });
     expect(mocks.start).toHaveBeenCalledWith({ userId, courses: [{ id: "7", name: "History", course_code: "H1", term: null, assignmentId: "8" }], mode: "import", checkTrash: true });
-    expect(mocks.enqueue).toHaveBeenCalledWith("canvas-discover", { userId, jobId: "job-1" });
+    // shares the worker republish's dedupe id rather than a random BullMQ id
+    expect(mocks.enqueue).toHaveBeenCalledWith("job-1", userId);
   });
   it("leaves another active import alone", async () => {
     mocks.start.mockResolvedValue({ kind: "conflict", activeJob: { jobId: "other" } });

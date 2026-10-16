@@ -22,6 +22,10 @@ vi.mock("@/lib/chat/generation-store", () => ({
   readChatGenerationEvents: mocks.readEvents,
 }));
 
+vi.mock("@/lib/logger", () => ({
+  default: { warn: vi.fn(), error: vi.fn(), info: vi.fn() },
+}));
+
 vi.mock("@/lib/redis", () => ({
   createBlockingRedisConnection: () => mocks.reader,
 }));
@@ -173,5 +177,37 @@ describe("GET /api/chat/generations/[id]/stream", () => {
       1,
       mocks.reader,
     );
+  });
+
+  it("waits on PostgreSQL and still ends the stream when Redis replay fails", async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.loadGeneration
+        .mockResolvedValueOnce({ id: generationId, status: "generating" })
+        .mockResolvedValueOnce({ id: generationId, status: "generating" })
+        .mockResolvedValueOnce({ id: generationId, status: "completed" });
+      mocks.readEvents
+        .mockResolvedValueOnce([
+          { id: "1-0", sse: 'event: token\ndata: {"text":"partial"}\n\n' },
+        ])
+        .mockRejectedValue(new Error("Redis unavailable"));
+
+      const response = await GET(
+        new NextRequest(
+          `http://localhost/api/chat/generations/${generationId}/stream`,
+        ),
+        { params: Promise.resolve({ id: generationId }) },
+      );
+      const reading = response.text();
+      await vi.runAllTimersAsync();
+      const body = await reading;
+
+      expect(body).toContain("id: 1-0\nevent: token");
+      expect(body.trimEnd().endsWith("event: done\ndata: {}")).toBe(true);
+      // replay is not retried once it failed; the route only polls the row
+      expect(mocks.readEvents).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

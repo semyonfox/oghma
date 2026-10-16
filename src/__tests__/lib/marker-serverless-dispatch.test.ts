@@ -9,6 +9,9 @@ const mocks = vi.hoisted(() => ({
   getExternalSignUrl: vi.fn(),
   getPutSignUrl: vi.fn(),
   requestVastEndpoint: vi.fn(),
+  submitRunPodJob: vi.fn(),
+  getRunPodJobStatus: vi.fn(),
+  cancelRunPodJob: vi.fn(),
 }));
 
 vi.mock("@/database/pgsql", () => ({ default: mocks.sql }));
@@ -28,7 +31,13 @@ vi.mock("@/lib/marker/vast", () => ({
   requestVastEndpoint: mocks.requestVastEndpoint,
   vastWorkloadCost: vi.fn(() => 100),
 }));
+vi.mock("@/lib/marker/runpod", () => ({
+  submitRunPodJob: mocks.submitRunPodJob,
+  getRunPodJobStatus: mocks.getRunPodJobStatus,
+  cancelRunPodJob: mocks.cancelRunPodJob,
+}));
 
+import { MarkerDispatchRejectedError } from "@/lib/marker/errors";
 import {
   dispatchMarkerJob,
   recoverMarkerDispatchJobs,
@@ -198,5 +207,183 @@ describe("Marker durable dispatch limits", () => {
 
     expect(mocks.sql).toHaveBeenCalledTimes(3);
     expect(mocks.requestVastEndpoint).not.toHaveBeenCalled();
+  });
+});
+
+type SqlCall = [TemplateStringsArray, ...unknown[]];
+
+function sqlTexts(): string[] {
+  return (mocks.sql.mock.calls as unknown as SqlCall[]).map(([strings]) =>
+    strings.join("?"),
+  );
+}
+
+describe("Marker dispatch outcomes", () => {
+  const queuedJob = {
+    ...exhaustedJob,
+    status: "dispatch_queued",
+    dispatch_attempts: 0,
+    error: null,
+    updated_at: new Date().toISOString(),
+  };
+  const claimedJob = { ...queuedJob, status: "dispatching", dispatch_attempts: 1 };
+
+  beforeEach(() => {
+    for (const mock of Object.values(mocks)) mock.mockReset();
+    process.env.MARKER_SERVERLESS_DISPATCH_ENABLED = "true";
+    process.env.VAST_MARKER_ENDPOINT_NAME = "oghma-marker";
+    process.env.VAST_MARKER_ENDPOINT_API_KEY = "endpoint-key";
+    mocks.getObjectMeta.mockResolvedValue(undefined);
+    mocks.getExternalSignUrl.mockResolvedValue("https://objects.example/source");
+    mocks.getPutSignUrl.mockResolvedValue("https://objects.example/result");
+    mocks.enqueueMarkerFailureJob.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    for (const name of [
+      "MARKER_SERVERLESS_DISPATCH_ENABLED",
+      "VAST_MARKER_ENDPOINT_NAME",
+      "VAST_MARKER_ENDPOINT_API_KEY",
+      "RUNPOD_MARKER_ENDPOINT_ID",
+      "RUNPOD_API_KEY",
+      "RUNPOD_MARKER_WEBHOOK_TOKEN",
+      "RUNPOD_MARKER_WEBHOOK_BASE_URL",
+      "MARKER_SERVERLESS_URL_TTL_SECONDS",
+      "MARKER_RESULT_GRACE_SECONDS",
+    ]) {
+      delete process.env[name];
+    }
+  });
+
+  function claimFreshJob() {
+    mocks.sql
+      .mockResolvedValueOnce([queuedJob])
+      .mockResolvedValueOnce([claimedJob])
+      .mockResolvedValueOnce([{ callback_id: claimedJob.callback_id }])
+      .mockResolvedValueOnce([{ callback_id: claimedJob.callback_id }]);
+  }
+
+  it("fails a provider rejection immediately instead of waiting out the grace window", async () => {
+    claimFreshJob();
+    mocks.requestVastEndpoint.mockRejectedValue(
+      new MarkerDispatchRejectedError("Vast route failed (401): bad key"),
+    );
+
+    await dispatchMarkerJob(claimedJob.callback_id);
+
+    const transition = sqlTexts().at(-1) ?? "";
+    expect(transition).toContain("'failure_queued'");
+    expect(mocks.enqueueMarkerFailureJob).toHaveBeenCalledWith(claimedJob.callback_id);
+  });
+
+  it("keeps an ambiguous provider error under result observation", async () => {
+    claimFreshJob();
+    mocks.requestVastEndpoint.mockRejectedValue(
+      new Error("Vast worker transport failed after 1 attempt(s)"),
+    );
+
+    await dispatchMarkerJob(claimedJob.callback_id);
+
+    const transition = sqlTexts().at(-1) ?? "";
+    expect(transition).toContain("'awaiting_result'");
+    expect(mocks.enqueueMarkerFailureJob).not.toHaveBeenCalled();
+  });
+
+  describe("RunPod", () => {
+    const runpodJob = {
+      ...claimedJob,
+      provider: "runpod",
+      provider_job_id: "runpod_job_123",
+    };
+
+    beforeEach(() => {
+      process.env.RUNPOD_MARKER_ENDPOINT_ID = "endpoint_123";
+      process.env.RUNPOD_API_KEY = "runpod-key";
+      process.env.RUNPOD_MARKER_WEBHOOK_TOKEN = "webhook-token";
+      process.env.RUNPOD_MARKER_WEBHOOK_BASE_URL = "https://app.example";
+    });
+
+    it("never lets a queued job outlive its signed URLs", async () => {
+      process.env.MARKER_SERVERLESS_URL_TTL_SECONDS = "3600";
+      mocks.sql
+        .mockResolvedValueOnce([{ ...queuedJob, provider: "runpod" }])
+        .mockResolvedValueOnce([{ ...claimedJob, provider: "runpod" }])
+        .mockResolvedValueOnce([{ callback_id: claimedJob.callback_id }])
+        .mockResolvedValueOnce([{ callback_id: claimedJob.callback_id }]);
+      mocks.submitRunPodJob.mockResolvedValue({ jobId: "runpod_job_123", metrics: {} });
+
+      await dispatchMarkerJob(claimedJob.callback_id);
+
+      expect(mocks.submitRunPodJob).toHaveBeenCalledOnce();
+      expect(mocks.submitRunPodJob.mock.calls[0]![1]).toMatchObject({
+        ttlSeconds: 3600,
+        webhookUrl: `https://app.example/api/internal/marker/webhook-token/${claimedJob.callback_id}`,
+      });
+      expect(mocks.getExternalSignUrl).toHaveBeenCalledWith(queuedJob.source_key, 3600);
+    });
+
+    it("cancels the provider job when the result grace window expires", async () => {
+      process.env.MARKER_RESULT_GRACE_SECONDS = "60";
+      const stale = {
+        ...runpodJob,
+        status: "awaiting_result",
+        updated_at: new Date(Date.now() - 120_000).toISOString(),
+      };
+      mocks.sql
+        .mockResolvedValueOnce([stale])
+        .mockResolvedValueOnce([{ callback_id: stale.callback_id }]);
+      mocks.getRunPodJobStatus.mockResolvedValue({ status: "IN_QUEUE", metrics: {} });
+      mocks.cancelRunPodJob.mockResolvedValue(undefined);
+
+      await dispatchMarkerJob(stale.callback_id);
+
+      expect(mocks.cancelRunPodJob).toHaveBeenCalledWith(
+        "runpod_job_123",
+        expect.objectContaining({ endpointId: "endpoint_123" }),
+      );
+      expect(mocks.enqueueMarkerFailureJob).toHaveBeenCalledWith(stale.callback_id);
+      expect(mocks.submitRunPodJob).not.toHaveBeenCalled();
+    });
+
+    it("cancels the provider job once its signed upload URL has expired", async () => {
+      const stale = {
+        ...runpodJob,
+        status: "awaiting_result",
+        started_at: new Date(Date.now() - 2 * 60 * 60 * 1_000).toISOString(),
+        result_url_expires_at: new Date(Date.now() - 60 * 60 * 1_000).toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      mocks.sql
+        .mockResolvedValueOnce([stale])
+        .mockResolvedValueOnce([{ callback_id: stale.callback_id }]);
+      mocks.getRunPodJobStatus.mockResolvedValue({ status: "IN_QUEUE", metrics: {} });
+      mocks.cancelRunPodJob.mockResolvedValue(undefined);
+
+      await dispatchMarkerJob(stale.callback_id);
+
+      expect(mocks.cancelRunPodJob).toHaveBeenCalledWith(
+        "runpod_job_123",
+        expect.objectContaining({ endpointId: "endpoint_123" }),
+      );
+      expect(mocks.enqueueMarkerFailureJob).toHaveBeenCalledWith(stale.callback_id);
+    });
+
+    it("still fails the row when the provider cancel call itself fails", async () => {
+      process.env.MARKER_RESULT_GRACE_SECONDS = "60";
+      const stale = {
+        ...runpodJob,
+        status: "awaiting_result",
+        updated_at: new Date(Date.now() - 120_000).toISOString(),
+      };
+      mocks.sql
+        .mockResolvedValueOnce([stale])
+        .mockResolvedValueOnce([{ callback_id: stale.callback_id }]);
+      mocks.getRunPodJobStatus.mockRejectedValue(new Error("status unavailable"));
+      mocks.cancelRunPodJob.mockRejectedValue(new Error("RunPod cancel failed (503)"));
+
+      await dispatchMarkerJob(stale.callback_id);
+
+      expect(mocks.enqueueMarkerFailureJob).toHaveBeenCalledWith(stale.callback_id);
+    });
   });
 });

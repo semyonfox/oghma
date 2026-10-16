@@ -21,6 +21,7 @@ import threading
 import time
 import urllib.request
 from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
 from typing import Any, Mapping
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
@@ -229,6 +230,15 @@ def get_pool() -> ProcessPoolExecutor:
     return _POOL
 
 
+def reset_pool() -> None:
+    """Drop a pool whose child died so the next job builds a fresh one."""
+
+    global _POOL
+    pool, _POOL = _POOL, None
+    if pool is not None:
+        pool.shutdown(wait=False, cancel_futures=True)
+
+
 def warm_pool() -> None:
     """Load the lightweight Marker child processes before the first paid job."""
 
@@ -267,6 +277,18 @@ def convert_job(path: str, options: Mapping[str, Any]) -> dict[str, Any]:
         str(options.get("tableOcrPolicy", "auto")),
         bool_option(options.get("useLlm"), False),
     )
+
+
+async def run_conversion(path: str, options: Mapping[str, Any]) -> dict[str, Any]:
+    try:
+        return await asyncio.get_running_loop().run_in_executor(
+            get_pool(), convert_job, path, options
+        )
+    except BrokenProcessPool:
+        # a child died, usually out of memory. a broken executor never heals,
+        # so without this every later job on this warm worker fails too
+        reset_pool()
+        raise
 
 
 def sample_gpu(stop: threading.Event, samples: list[dict[str, float]]) -> None:
@@ -395,9 +417,7 @@ async def handler(job: dict[str, Any]) -> dict[str, Any]:
             sampler.start()
 
         conversion_started = time.monotonic()
-        converted = await asyncio.get_running_loop().run_in_executor(
-            get_pool(), convert_job, path, options
-        )
+        converted = await run_conversion(path, options)
         conversion_ms = duration_millis(conversion_started)
         stop.set()
         if sampler:

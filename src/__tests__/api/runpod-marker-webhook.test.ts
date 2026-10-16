@@ -113,4 +113,70 @@ describe("RunPod Marker webhook", () => {
     expect(mocks.enqueueMarkerCompletionJob).not.toHaveBeenCalled();
     expect(mocks.sql).toHaveBeenCalledTimes(1);
   });
+
+  describe("replayed or out-of-order terminal callbacks", () => {
+    // evaluate the route's own status guard against one in-memory row, so the
+    // test follows whatever predicate the transition statement really uses
+    function useRow(status: string) {
+      const row = { ...markerJob, status };
+      mocks.sql.mockImplementation(
+        async (strings: TemplateStringsArray, ...values: unknown[]) => {
+          const text = strings.join("?");
+          if (text.trimStart().startsWith("SELECT")) return [{ ...row }];
+          const guard = /status (NOT )?IN \(([^)]*)\)/.exec(text);
+          if (!guard || !text.includes("RETURNING")) return [];
+          const listed = guard[2]
+            .split(",")
+            .map((entry) => entry.trim().replace(/'/g, ""))
+            .includes(row.status);
+          if (guard[1] ? listed : !listed) return [];
+          row.status = String(values[0]);
+          return [{ callback_id: callbackId }];
+        },
+      );
+      return row;
+    }
+
+    it.each(["completing", "completion_queued", "completion_enqueue_failed"])(
+      "does not requeue a completion that is already %s",
+      async (status) => {
+        const row = useRow(status);
+
+        const response = await POST(
+          webhook({ id: "runpod_job_123", status: "COMPLETED" }),
+          { params: Promise.resolve({ token: "webhook-token", callbackId }) },
+        );
+
+        expect(response.status).toBe(200);
+        expect(row.status).toBe(status);
+        expect(mocks.enqueueMarkerCompletionJob).not.toHaveBeenCalled();
+      },
+    );
+
+    it("does not flip a queued completion to failure on a late FAILED callback", async () => {
+      const row = useRow("completing");
+
+      const response = await POST(
+        webhook({ id: "runpod_job_123", status: "FAILED", error: "worker lost" }),
+        { params: Promise.resolve({ token: "webhook-token", callbackId }) },
+      );
+
+      expect(response.status).toBe(200);
+      expect(row.status).toBe("completing");
+      expect(mocks.enqueueMarkerFailureJob).not.toHaveBeenCalled();
+    });
+
+    it("advances a row that is still waiting on RunPod", async () => {
+      const row = useRow("dispatching");
+
+      const response = await POST(
+        webhook({ id: "runpod_job_123", status: "COMPLETED" }),
+        { params: Promise.resolve({ token: "webhook-token", callbackId }) },
+      );
+
+      expect(response.status).toBe(200);
+      expect(row.status).toBe("completion_queued");
+      expect(mocks.enqueueMarkerCompletionJob).toHaveBeenCalledWith(callbackId);
+    });
+  });
 });

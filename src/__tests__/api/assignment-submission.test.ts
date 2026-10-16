@@ -75,6 +75,29 @@ describe("Canvas assignment submissions", () => {
     expect((await POST(request({ type: "online_url", content: "https://example.com/work" }), context)).status).toBe(200);
     expect(mocks.fetch.mock.calls[0][1].body).toBe(JSON.stringify({ submission: { submission_type: "online_url", url: "https://example.com/work" } }));
   });
+  it("marks the tracker row submitted once Canvas confirms", async () => {
+    expect((await POST(request({ type: "online_text_entry", content: "Essay" }), context)).status).toBe(200);
+    const update = mocks.sql.mock.calls.find(([query]) => query.join("").includes("UPDATE app.assignments"));
+    expect(update?.[0].join("")).toContain("status = 'done'");
+    expect(update).toEqual(expect.arrayContaining([id, userId]));
+  });
+  it("still reports success when only the tracker update fails", async () => {
+    mocks.sql
+      .mockResolvedValueOnce([{ canvas_course_id: "123", canvas_assignment_id: "456" }])
+      .mockRejectedValueOnce(new Error("db down"));
+    expect((await POST(request({ type: "online_text_entry", content: "Essay" }), context)).status).toBe(200);
+  });
+  it("does not mark the tracker when Canvas rejects the submission", async () => {
+    mocks.fetch.mockResolvedValue(new Response("{}", { status: 400 }));
+    expect((await POST(request({ type: "online_text_entry", content: "Essay" }), context)).status).toBe(502);
+    expect(mocks.sql.mock.calls.some(([query]) => query.join("").includes("UPDATE"))).toBe(false);
+  });
+  it("asks the user to reconnect when the stored token is revoked", async () => {
+    mocks.assignment.mockResolvedValue({ data: null, forbidden: false, unauthorized: true, error: "Invalid or expired Canvas token" });
+    const response = await GET(new NextRequest(`http://localhost/api/assignments/${id}/canvas`), context);
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ error: expect.stringContaining("Reconnect Canvas") });
+  });
   it("does not retry a write after a lost response", async () => {
     mocks.fetch.mockRejectedValue(new Error("connection lost"));
     const response = await POST(request({ type: "online_text_entry", content: "Essay" }), context);

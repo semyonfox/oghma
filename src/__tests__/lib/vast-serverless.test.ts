@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { MarkerDispatchRejectedError } from "@/lib/marker/errors";
 import {
   requestVastEndpoint,
   vastWorkloadCost,
@@ -215,5 +216,56 @@ describe("Vast workload units", () => {
     expect(vastWorkloadCost(100)).toBe(25);
     expect(vastWorkloadCost(5 * 1024 * 1024)).toBe(500);
     expect(vastWorkloadCost(100 * 1024 * 1024)).toBe(2_000);
+  });
+});
+
+describe("Vast failure classification", () => {
+  const route = () =>
+    jsonResponse({ request_idx: 7, url: "https://worker.vast.example" });
+
+  function request(worker: () => Promise<Response>, routeResponse = route) {
+    const fetchMock = vi.fn(async (url: string | URL) =>
+      String(url).startsWith("https://run.vast.ai/route/")
+        ? routeResponse()
+        : worker(),
+    );
+    return requestVastEndpoint(
+      "/marker/job",
+      { requestId: "job-1" },
+      100,
+      { ...config, maxWorkerAttempts: 1 },
+      {
+        fetch: fetchMock as typeof fetch,
+        random: () => 0,
+        sleep: async () => undefined,
+      },
+    );
+  }
+
+  it("treats a refused route as definitive because no worker saw the payload", async () => {
+    await expect(
+      request(
+        async () => jsonResponse({ success: true }),
+        () => new Response("bad endpoint key", { status: 401 }),
+      ),
+    ).rejects.toBeInstanceOf(MarkerDispatchRejectedError);
+  });
+
+  it("treats a failure the worker reported itself as definitive", async () => {
+    await expect(
+      request(async () =>
+        jsonResponse({ success: false, error: "source download failed" }, 502),
+      ),
+    ).rejects.toBeInstanceOf(MarkerDispatchRejectedError);
+  });
+
+  it.each([
+    ["a lost worker response", async () => { throw new TypeError("socket hang up"); }],
+    ["a proxy error page", async () => new Response("<html>bad gateway</html>", { status: 502 })],
+  ])("keeps %s ambiguous so the result object is still observed", async (_name, worker) => {
+    const error = await request(worker).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(Error);
+    expect(error).not.toBeInstanceOf(MarkerDispatchRejectedError);
   });
 });

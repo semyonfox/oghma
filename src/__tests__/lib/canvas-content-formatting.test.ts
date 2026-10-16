@@ -18,4 +18,10 @@ describe("Canvas content formatting", () => {
       "## Week & one\n\nRead\nthis\n\n- First\n- Second",
     );
   });
+
+  it("decodes numeric and typographic entities without double-decoding", () => {
+    expect(stripHtmlToText("<p>It&#8217;s due &ndash; Friday&#x2026; &amp;lt;b&amp;gt; &bogus; &#0;</p>")).toBe(
+      "It\u2019s due \u2013 Friday\u2026 &lt;b&gt; &bogus; &#0;",
+    );
+  });
 });

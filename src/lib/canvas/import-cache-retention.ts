@@ -12,6 +12,10 @@ const DEFAULT_RETENTION_DAYS = 7;
 const MIN_RETENTION_DAYS = 1;
 const MAX_RETENTION_DAYS = 365;
 const DEFAULT_PURGE_BATCH_SIZE = 25;
+// The worker runs this once a day. A single batch per run let more than 25
+// newly expired caches a day pile up indefinitely, so keep taking batches up
+// to a bound that still finishes in reasonable time.
+const MAX_PURGE_BATCHES_PER_RUN = 40;
 const STALE_PROCESSING_INTERVAL = "24 hours";
 
 const COLLECTABLE_CACHE_STATUSES = ["ready", "failed"] as const;
@@ -287,16 +291,6 @@ export async function runImportedFileCacheRetention(
     : DEFAULT_PURGE_BATCH_SIZE;
   const cachesMarkedFailed = await markAbandonedProcessingCaches(retentionDays);
   const reconciled = await reconcileCacheRetention(retentionDays);
-  const candidates = (await sql`
-    SELECT id, sha256
-    FROM app.imported_file_cache
-    WHERE status = ANY(${COLLECTABLE_CACHE_STATUSES}::text[])
-      AND purge_after IS NOT NULL
-      AND purge_after <= NOW()
-    ORDER BY purge_after ASC, id ASC
-    LIMIT ${batchSize}
-  `) as CacheCandidate[];
-
   const result: ImportedFileCacheRetentionResult = {
     retentionDays,
     cachesMarkedFailed,
@@ -307,21 +301,39 @@ export async function runImportedFileCacheRetention(
     purgeFailures: 0,
   };
 
-  // Process sequentially: the deletion is intentionally conservative and may
-  // hold one SHA advisory lock while object storage is contacted.
-  for (const candidate of candidates) {
-    try {
-      const outcome = await purgeCacheCandidate(candidate);
-      if (outcome === "purged") result.cachesPurged += 1;
-      else if (outcome === "revived") result.cachesRevived += 1;
-      else result.cachesSkipped += 1;
-    } catch (error) {
-      result.purgeFailures += 1;
-      logger.warn("imported file cache retention purge failed", {
-        cacheId: candidate.id,
-        error,
-      });
+  // Each candidate is tried at most once per run, so a cache whose purge keeps
+  // failing cannot make this loop spin.
+  const attempted: string[] = [];
+  for (let batch = 0; batch < MAX_PURGE_BATCHES_PER_RUN; batch += 1) {
+    const candidates = (await sql`
+      SELECT id, sha256
+      FROM app.imported_file_cache
+      WHERE status = ANY(${COLLECTABLE_CACHE_STATUSES}::text[])
+        AND purge_after IS NOT NULL
+        AND purge_after <= NOW()
+        AND NOT (id = ANY(${attempted}::uuid[]))
+      ORDER BY purge_after ASC, id ASC
+      LIMIT ${batchSize}
+    `) as CacheCandidate[];
+
+    // Process sequentially: the deletion is intentionally conservative and may
+    // hold one SHA advisory lock while object storage is contacted.
+    for (const candidate of candidates) {
+      attempted.push(candidate.id);
+      try {
+        const outcome = await purgeCacheCandidate(candidate);
+        if (outcome === "purged") result.cachesPurged += 1;
+        else if (outcome === "revived") result.cachesRevived += 1;
+        else result.cachesSkipped += 1;
+      } catch (error) {
+        result.purgeFailures += 1;
+        logger.warn("imported file cache retention purge failed", {
+          cacheId: candidate.id,
+          error,
+        });
+      }
     }
+    if (candidates.length < batchSize) break;
   }
 
   return result;

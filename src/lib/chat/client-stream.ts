@@ -179,8 +179,7 @@ export async function consumeChatStream({
   translate,
   signal,
   isActive = () => true,
-}: ConsumeStreamOptions): Promise<{ timeBlockChanged: boolean }> {
-  let timeBlockChanged = false;
+}: ConsumeStreamOptions): Promise<void> {
   let frameCount = 0;
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -207,9 +206,7 @@ export async function consumeChatStream({
           const update = parseSseFrame(frame);
           if (frame.id) onEventId?.(frame.id);
           if (!update) continue;
-          if (update.type === "done") {
-            return { timeBlockChanged };
-          }
+          if (update.type === "done") return;
           if (update.type === "error") {
             setMessages((messages) =>
               messages.map((message) =>
@@ -223,13 +220,6 @@ export async function consumeChatStream({
             );
           }
           if (update.type === "meta") onSession(update.sessionId, userText);
-          if (
-            update.type === "tool-call" &&
-            (update.toolName === "addTimeBlock" ||
-              update.toolName === "completeTimeBlock")
-          ) {
-            timeBlockChanged = true;
-          }
           setMessages((messages) =>
             messages.map((message) =>
               message.id === assistantId
@@ -285,13 +275,16 @@ export async function consumeBackgroundGeneration(input: {
     assistantId: string,
     userText: string,
     onEventId?: (id: string) => void,
-  ) => Promise<{ timeBlockChanged: boolean }>;
+  ) => Promise<void>;
 }): Promise<void> {
   input.activeGenerationRef.current = input.generationId;
   let afterId = input.afterId ?? "0-0";
+  // consecutive reconnects without a new event. a long answer may survive any
+  // number of transport drops as long as each one makes progress
   let attempts = 0;
   try {
     while (!input.signal.aborted) {
+      const cursorBefore = afterId;
       try {
         const response = await fetch(
           `/api/chat/generations/${input.generationId}/stream?after=${encodeURIComponent(afterId)}`,
@@ -313,7 +306,7 @@ export async function consumeBackgroundGeneration(input: {
       } catch (error) {
         if (input.signal.aborted || error instanceof ChatGenerationFailedError)
           throw error;
-        attempts += 1;
+        attempts = afterId === cursorBefore ? attempts + 1 : 1;
         if (attempts >= 4) throw error;
         await waitForRetry(attempts * 500, input.signal);
       }

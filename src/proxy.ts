@@ -95,7 +95,6 @@ export const config = {
         "/settings/:path*",
         "/trash/:path*",
         "/chat/:path*",
-        "/api/extract/:path*",
         "/api/notes/:path*",
         "/api/chat/:path*",
         "/api/tree/:path*",

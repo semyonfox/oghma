@@ -1,9 +1,19 @@
+import { z } from "zod";
 import type { SseFrame } from "@/lib/chat/sse";
 import { normalizeNoteActivityRefs, type Message, type NoteActivityRef, type SearchContextData } from "@/lib/chat/types";
 import { labelForTool } from "@/lib/chat/tool-labels";
 import { Metrics } from "@/lib/metrics";
 
-export { humanizeToolName,  } from "@/lib/chat/tool-labels";
+export { humanizeToolName } from "@/lib/chat/tool-labels";
+
+const sourceRefSchema = z.object({ id: z.string(), title: z.string() });
+const retrievalSchema = z.object({
+  scopeMode: z.enum(["global", "scoped"]),
+  availableCount: z.number(),
+  availableFiles: z.array(sourceRefSchema),
+  semanticHits: z.array(sourceRefSchema),
+  usedFiles: z.array(sourceRefSchema),
+});
 
 /** a single mutation that should be applied to the assistant message */
 export type MessageUpdate =
@@ -60,8 +70,13 @@ export function parseSseFrame(frame: SseFrame): MessageUpdate | null {
       return {
         type: "meta",
         sessionId: typeof payload.sessionId === "string" ? payload.sessionId : undefined,
-        sources: Array.isArray(payload.sources) ? (payload.sources as { id: string; title: string }[]) : undefined,
-        retrieval: payload.retrieval as Message["retrieval"] | undefined,
+        sources: Array.isArray(payload.sources)
+          ? payload.sources.flatMap((source: unknown) => {
+              const parsed = sourceRefSchema.safeParse(source);
+              return parsed.success ? [parsed.data] : [];
+            })
+          : undefined,
+        retrieval: retrievalSchema.safeParse(payload.retrieval).data,
       };
     }
 

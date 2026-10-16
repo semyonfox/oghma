@@ -13,8 +13,8 @@ import { usePathname } from "next/navigation";
  * staleness window tolerates — so a second open tab keeps a generation alive.
  */
 
-// Mirrors PRESENCE_HEARTBEAT_MS in src/lib/chat/presence.ts (server-only
-// module. It imports the Redis client, so this file cannot import it.
+// must stay well under PRESENCE_STALE_MS in src/lib/chat/presence.ts, which
+// imports the Redis client and so cannot be imported here
 const HEARTBEAT_MS = 10_000;
 const TAB_ID_STORAGE_KEY = "oghma-tab-id";
 
