@@ -1,13 +1,8 @@
 import { NextResponse } from "next/server";
-import {
-  ApiError,
-  requireAuth,
-  requireValidId,
-  withErrorHandler,
-} from "@/lib/api-error";
+import { requireAuth, requireValidId, withErrorHandler } from "@/lib/api-error";
 import { getStudyMapSnapshot } from "@/lib/study-map/repository";
 import { updateStudyMap, deleteStudyMap } from "@/lib/study-map/mutations";
-import { autoConfigureStudyMap } from "@/lib/study-map/jobs";
+import { autoConfigureStudyMapSafely } from "@/lib/study-map/jobs";
 import { mapUpdateSchema } from "@/lib/study-map/types";
 import { readStudyBody, type StudyMapRouteContext } from "@/lib/study-map/api";
 
@@ -33,9 +28,7 @@ export const PATCH = withErrorHandler(
       await readStudyBody(request, mapUpdateSchema),
     );
     // a newly chosen syllabus or folder should start working without another click
-    await autoConfigureStudyMap(user.user_id, id).catch((error: unknown) => {
-      if (!(error instanceof ApiError)) throw error;
-    });
+    await autoConfigureStudyMapSafely(user.user_id, id);
     return NextResponse.json({ saved: true });
   },
 );

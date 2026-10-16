@@ -1,12 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import {
-  ApiError,
-  requireAuth,
-  requireValidId,
-  withErrorHandler,
-} from "@/lib/api-error";
-import { autoConfigureStudyMap } from "@/lib/study-map/jobs";
+import { requireAuth, requireValidId, withErrorHandler } from "@/lib/api-error";
+import { autoConfigureStudyMapSafely } from "@/lib/study-map/jobs";
 import {
   addStudyMaterials,
   reviewStudyMaterial,
@@ -25,9 +20,7 @@ export const POST = withErrorHandler(
     const mapId = requireValidId((await params).id);
     await addStudyMaterials(user.user_id, mapId, input.noteIds);
     // new material can complete a module's setup, so it should not wait for the worker
-    await autoConfigureStudyMap(user.user_id, mapId).catch((error: unknown) => {
-      if (!(error instanceof ApiError)) throw error;
-    });
+    await autoConfigureStudyMapSafely(user.user_id, mapId);
     return NextResponse.json({ added: input.noteIds.length });
   },
 );

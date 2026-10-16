@@ -474,6 +474,59 @@ describe("study generation provider validation", () => {
     expect(second[0].sources[0].noteId).toBe(copy.noteId);
   });
 
+  it("does not share a proposal whose quotes all miss the source", async () => {
+    const stored = new Map<string, unknown>();
+    const cache = {
+      get: async (key: string) => stored.get(key),
+      set: vi.fn(async (key: string, value: unknown) => {
+        stored.set(key, value);
+      }),
+    };
+    respond({
+      topics: [
+        proposal({
+          sources: [{ source: "S1", quote: "A paraphrase", occurrence: 0 }],
+        }),
+      ],
+    });
+    expect(
+      await proposeStudyTopics([syllabus], [], undefined, { cache }),
+    ).toEqual([]);
+    expect(cache.set).not.toHaveBeenCalled();
+    // finding topics again asks the model afresh instead of replaying the empty answer
+    respond({ topics: [proposal()] });
+    const [topic] = await proposeStudyTopics([syllabus], [], undefined, {
+      cache,
+    });
+    expect(topic.name).toBe("Trees");
+    expect(provider.generateText).toHaveBeenCalledTimes(2);
+    expect(cache.set).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks afresh when a cached proposal no longer resolves", async () => {
+    const stored = new Map<string, unknown>();
+    const cache = {
+      get: async (key: string) => stored.get(key),
+      set: async (key: string, value: unknown) => {
+        stored.set(key, value);
+      },
+    };
+    respond({ topics: [proposal()] });
+    await proposeStudyTopics([syllabus], [], undefined, { cache });
+    const [key] = stored.keys();
+    // an answer cached before results were checked can cite a source that does not exist
+    stored.set(key, {
+      topics: [
+        proposal({ sources: [{ source: "S9", quote: "x", occurrence: 0 }] }),
+      ],
+    });
+    const [topic] = await proposeStudyTopics([syllabus], [], undefined, {
+      cache,
+    });
+    expect(topic.name).toBe("Trees");
+    expect(provider.generateText).toHaveBeenCalledTimes(2);
+  });
+
   it("resolves new parent references to actual IDs and preserves omitted existing topics", async () => {
     const existing: StudyTopic = topicSchema.parse({
       id: TOPIC_ID,

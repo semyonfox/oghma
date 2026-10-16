@@ -19,6 +19,7 @@ async function fixture() {
 }
 const release = {
   version: "0.1.0",
+  versionCode: 1,
   bytes: 4,
   sha256: "a".repeat(64),
   builtAt: "2026-09-14T12:00:00.000Z",
@@ -51,11 +52,16 @@ it("returns valid metadata only when the matching artifact exists", async () => 
   await writeFile(join(directory, "oghmanotes-alpha.apk"), "PK00");
   expect(await getMobileRelease(directory)).toEqual(release);
 });
-it("rejects malformed release metadata", async () => {
+it.each([
+  ["a malformed checksum", { ...release, sha256: "invalid" }],
+  // the in-app updater rejects a manifest without versionCode
+  ["a missing versionCode", { ...release, versionCode: undefined }],
+  ["a non-integer versionCode", { ...release, versionCode: 1.5 }],
+])("rejects release metadata with %s", async (_label, manifest) => {
   const directory = await fixture();
   await writeFile(
     join(directory, "android-alpha.json"),
-    JSON.stringify({ ...release, sha256: "invalid" }),
+    JSON.stringify(manifest),
   );
   await writeFile(join(directory, "oghmanotes-alpha.apk"), "PK00");
   expect(await getMobileRelease(directory)).toBeNull();

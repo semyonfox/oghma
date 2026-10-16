@@ -1,8 +1,10 @@
 import sql from "@/database/pgsql";
 import { ApiError } from "@/lib/api-errors";
-import { autoConfigureStudyMap } from "./jobs";
+import { autoConfigureStudyMapSafely } from "./jobs";
 import { createStudyMap } from "./mutations";
 import { currentAcademicYear } from "./types";
+
+const SETUP_BUDGET_MS = 20_000;
 
 /**
  * creates a map for every imported Canvas course that has none yet, so opening
@@ -29,31 +31,32 @@ export async function setupStudyMaps(userId: string): Promise<number> {
     ORDER BY n.created_at, n.note_id
     LIMIT 100
   `;
-  let created = 0;
+  const created: string[] = [];
   for (const course of courses) {
-    let mapId: string;
     try {
-      mapId = await createStudyMap(userId, {
-        name: course.title.trim().slice(0, 160) || "Untitled module",
-        academicYear:
-          course.academic_year?.trim().slice(0, 40) || currentAcademicYear(),
-        rootNoteId: course.note_id,
-        canvasCourseId: course.course_id,
-        syllabusNoteId: null,
-      });
+      created.push(
+        await createStudyMap(userId, {
+          name: course.title.trim().slice(0, 160) || "Untitled module",
+          academicYear:
+            course.academic_year?.trim().slice(0, 40) || currentAcademicYear(),
+          rootNoteId: course.note_id,
+          canvasCourseId: course.course_id,
+          syllabusNoteId: null,
+        }),
+      );
     } catch (error) {
       if (!(error instanceof ApiError)) throw error;
-      // another tab created this course's map first
-      if (error.statusCode === 409) continue;
-      break;
-    }
-    created += 1;
-    try {
-      await autoConfigureStudyMap(userId, mapId);
-    } catch (error) {
-      // an oversized course still gets its map; the worker retries sources later
-      if (!(error instanceof ApiError)) throw error;
+      // the map limit stops setup; a course another tab mapped first, or whose folder
+      // was just deleted, is skipped without losing the courses after it
+      if (error.statusCode === 400) break;
     }
   }
-  return created;
+  // each setup can fetch the public descriptor and the Canvas outline, so a first visit
+  // with many courses would hold the page open for minutes. the worker finishes the rest
+  const deadline = Date.now() + SETUP_BUDGET_MS;
+  for (const mapId of created) {
+    if (Date.now() >= deadline) break;
+    await autoConfigureStudyMapSafely(userId, mapId);
+  }
+  return created.length;
 }

@@ -41,6 +41,7 @@ import {
 import { searchStudyMaterials } from "@/lib/study-map/search";
 import { setupStudyMaps } from "@/lib/study-map/setup";
 import { decisionCache } from "@/lib/study-map/cache";
+import { snapshotSchema } from "@/components/study-map/study-client";
 import {
   effectiveAssociations,
   emptyBoard,
@@ -886,6 +887,7 @@ describe("study map storage and durable jobs", () => {
     );
     await addStudyMaterials(userId, mapId, [starterId]);
     await fixture`UPDATE app.notes SET canvas_assignment_id = 5501 WHERE note_id = ${starterId}::uuid`;
+    await fixture`UPDATE app.assignments SET score = 7.5, points_possible = 10, estimated_hours = 2.5, logged_hours = 1 WHERE id = ${assignmentId}::uuid`;
 
     const snapshot = await getStudyMapSnapshot(userId, mapId);
     expect(snapshot.assignments).toEqual([
@@ -893,10 +895,17 @@ describe("study map storage and durable jobs", () => {
         id: assignmentId,
         title: "Assignment 1: algorithms",
         canvas_course_id: "4401",
+        canvas_assignment_id: "5501",
         source: "canvas",
         noteIds: [starterId],
+        score: 7.5,
+        points_possible: 10,
+        estimated_hours: 2.5,
+        logged_hours: 1,
       }),
     ]);
+    // the page rejects the whole snapshot if any number arrives as a string
+    expect(() => snapshotSchema.parse(snapshot)).not.toThrow();
     const placement = {
       id: `assignment:${assignmentId}`,
       x: 10,
@@ -1242,6 +1251,41 @@ describe("study map storage and durable jobs", () => {
     expect(job.error).not.toMatch(
       /Synthetic provider body|Authorization|private-test-token/,
     );
+    // a provider failure waits for a manual retry instead of paying again every minute
+    expect(
+      await enqueueStudyJobs(
+        userId,
+        mapId,
+        { kind: "classify", noteId },
+        { automatic: true },
+      ),
+    ).toBe(0);
+  });
+
+  it("keeps a classification when the map is renamed during processing", async () => {
+    await enqueueStudyJobs(userId, mapId, { kind: "classify", noteId });
+    await duringClassification(async () => {
+      const map = await getStudyMap(userId, mapId);
+      await updateStudyMap(userId, mapId, {
+        ...map,
+        name: "Renamed module",
+        version: map.version,
+        autoClassify: map.autoClassify,
+      });
+    });
+    expect((await latestJob()).state).toBe("completed");
+    expect((await storedMaterial()).status).toBe("classified");
+  });
+
+  it("does not rewrite unchanged materials when the folder is synced again", async () => {
+    const before = await fixture<{ note_id: string; xmin: string }[]>`
+      SELECT note_id, xmin::text AS xmin FROM app.study_materials WHERE map_id = ${mapId}::uuid ORDER BY note_id
+    `;
+    await syncStudyMaterials(userId, mapId);
+    const after = await fixture<{ note_id: string; xmin: string }[]>`
+      SELECT note_id, xmin::text AS xmin FROM app.study_materials WHERE map_id = ${mapId}::uuid ORDER BY note_id
+    `;
+    expect(after).toEqual(before);
   });
 
   it("stores an extracted paper with current source anchors and leaves it unreviewed", async () => {

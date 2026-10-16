@@ -97,7 +97,9 @@ export function postNativeOfflineAccount(ownerId: string | null): boolean {
 export async function syncNativeOfflineAccount(
   signal: AbortSignal,
 ): Promise<void> {
-  if (!supportsNativeOffline()) return;
+  // switching accounts passes through /login (which resets this) or reloads
+  // the page, so a confirmed account holds for the rest of this page's life
+  if (!supportsNativeOffline() || offlineAccount) return;
   const generation = offlineAccountGeneration;
   const response = await fetch("/api/auth/me", { cache: "no-store", signal });
   if (signal.aborted || generation !== offlineAccountGeneration) return;

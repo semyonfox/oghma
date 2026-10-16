@@ -1,13 +1,8 @@
 import { NextResponse } from "next/server";
-import {
-  ApiError,
-  requireAuth,
-  requireValidId,
-  withErrorHandler,
-} from "@/lib/api-error";
+import { requireAuth, requireValidId, withErrorHandler } from "@/lib/api-error";
 import { listStudyMaps, getNoteStudyMaps } from "@/lib/study-map/repository";
 import { createStudyMap } from "@/lib/study-map/mutations";
-import { autoConfigureStudyMap } from "@/lib/study-map/jobs";
+import { autoConfigureStudyMapSafely } from "@/lib/study-map/jobs";
 import { mapCreateSchema } from "@/lib/study-map/types";
 import { readStudyBody } from "@/lib/study-map/api";
 
@@ -25,12 +20,6 @@ export const POST = withErrorHandler(async (request) => {
   const user = await requireAuth();
   const input = await readStudyBody(request, mapCreateSchema);
   const mapId = await createStudyMap(user.user_id, input);
-  let warning: string | null = null;
-  try {
-    await autoConfigureStudyMap(user.user_id, mapId);
-  } catch (error) {
-    if (!(error instanceof ApiError)) throw error;
-    warning = error.userMessage;
-  }
+  const warning = await autoConfigureStudyMapSafely(user.user_id, mapId);
   return NextResponse.json({ mapId, warning }, { status: 201 });
 });

@@ -105,28 +105,6 @@ export function UpdatesProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function AppUpdateCard() {
-  const { styles } = useTheme();
-  const { controller, state, open } = useUpdates();
-  return (
-    <View style={styles.card}>
-      <Text style={styles.heading}>App updates</Text>
-      <Text style={styles.muted}>
-        Android alpha · {controller.installed.version}
-      </Text>
-      <Text style={styles.text}>{statusTitle(state)}</Text>
-      <Button
-        quiet
-        title={state.release ? "View update" : "Check for updates"}
-        onPress={() => {
-          open();
-          if (!state.release) void controller.check();
-        }}
-      />
-    </View>
-  );
-}
-
 export function AppUpdateLink() {
   const { open } = useUpdates();
   const { colors, styles } = useTheme();

@@ -11,6 +11,7 @@ import {
 } from "./exam-evidence";
 import {
   currentBoard,
+  taxonomyMeaning,
   topicSchema,
   type StudyTopic,
   type SourceAnchor,
@@ -230,21 +231,6 @@ export function validateStudyTopics(topics: StudyTopic[]) {
   }
 }
 
-function taxonomyMeaning(topics: StudyTopic[]) {
-  return JSON.stringify(
-    topics
-      .map(({ id, definition, includes, excludes, aliases, reviewed }) => ({
-        id,
-        definition,
-        includes,
-        excludes,
-        aliases: [...aliases].sort(),
-        reviewed,
-      }))
-      .sort((a, b) => a.id.localeCompare(b.id)),
-  );
-}
-
 async function insertMaterials(
   tx: Transaction,
   userId: string,
@@ -252,14 +238,22 @@ async function insertMaterials(
   noteIds: string[],
   explicit: boolean,
 ) {
-  for (const noteId of new Set(noteIds)) {
+  const unique = [...new Set(noteIds)];
+  // the worker syncs every automatic map each minute, so unchanged rows must not be rewritten;
+  // only an explicit add brings back a material the student removed
+  if (unique.length && explicit)
     await tx`
       INSERT INTO app.study_materials (map_id, user_id, note_id)
-      VALUES (${mapId}::uuid, ${userId}::uuid, ${noteId}::uuid)
-      ON CONFLICT (map_id, note_id) DO UPDATE
-      SET excluded = CASE WHEN ${explicit} THEN FALSE ELSE app.study_materials.excluded END
+      SELECT ${mapId}::uuid, ${userId}::uuid, note_id FROM unnest(${unique}::uuid[]) AS note_id
+      ON CONFLICT (map_id, note_id) DO UPDATE SET excluded = FALSE
+      WHERE app.study_materials.excluded
     `;
-  }
+  else if (unique.length)
+    await tx`
+      INSERT INTO app.study_materials (map_id, user_id, note_id)
+      SELECT ${mapId}::uuid, ${userId}::uuid, note_id FROM unnest(${unique}::uuid[]) AS note_id
+      ON CONFLICT (map_id, note_id) DO NOTHING
+    `;
   const [count] = await tx<{ count: number }[]>`
     SELECT count(*)::int AS count FROM app.study_materials WHERE map_id = ${mapId}::uuid AND user_id = ${userId}::uuid AND NOT excluded
   `;
@@ -348,14 +342,6 @@ export async function addStudyMaterials(
     await lockStudyMap(tx, userId, mapId);
     await requireNotes(tx, userId, noteIds, false);
     await insertMaterials(tx, userId, mapId, noteIds, true);
-    const [count] = await tx<{ count: number }[]>`
-      SELECT count(*)::int AS count FROM app.study_materials WHERE map_id = ${mapId}::uuid AND user_id = ${userId}::uuid AND NOT excluded
-    `;
-    if (count.count > 500)
-      throw new ApiError(
-        400,
-        "A study map supports up to 500 materials. Use a smaller folder or a separate module.",
-      );
     await tx`UPDATE app.study_maps SET updated_at = NOW() WHERE id = ${mapId}::uuid AND user_id = ${userId}::uuid`;
   });
 }
