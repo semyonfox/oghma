@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 const {
   mockGetDiscoverableCourses,
@@ -72,6 +72,7 @@ vi.mock("@/lib/canvas/client", () => ({
   }),
 }));
 
+vi.mock("@/lib/rate-limiter", () => ({ checkRateLimit: vi.fn() }));
 vi.mock("@/lib/canvas/raw-export", () => ({
   createCanvasRawExportZipStream: vi.fn(),
 }));
@@ -80,6 +81,7 @@ import { requireAuth } from "@/lib/api-error";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
 import { CanvasClient } from "@/lib/canvas/client";
 import { createCanvasRawExportZipStream } from "@/lib/canvas/raw-export";
+import { checkRateLimit } from "@/lib/rate-limiter";
 import { POST } from "@/app/api/canvas/download/route";
 
 describe("POST /api/canvas/download", () => {
@@ -89,6 +91,7 @@ describe("POST /api/canvas/download", () => {
     mockGetSelfEnrollments.mockReset();
     mockGetCourse.mockReset();
     vi.mocked(requireAuth).mockResolvedValue({ user_id: "u1" } as never);
+    vi.mocked(checkRateLimit).mockResolvedValue(null);
     vi.mocked(loadCanvasCredentials).mockResolvedValue({
       domain: "canvas.example.edu",
       token: "token",
@@ -101,6 +104,23 @@ describe("POST /api/canvas/download", () => {
         },
       }) as never,
     );
+  });
+
+  // one export walks every enrolled course on Canvas, so it's metered per user
+  it("refuses a user over the export budget before touching Canvas", async () => {
+    vi.mocked(checkRateLimit).mockResolvedValue(
+      NextResponse.json({ error: "Too many requests" }, { status: 429 }),
+    );
+    const response = await POST(
+      new NextRequest("http://localhost/api/canvas/download", {
+        method: "POST",
+        body: JSON.stringify({}),
+      }),
+    );
+    expect(response.status).toBe(429);
+    expect(checkRateLimit).toHaveBeenCalledWith("canvas-download", "u1");
+    expect(loadCanvasCredentials).not.toHaveBeenCalled();
+    expect(CanvasClient).not.toHaveBeenCalled();
   });
 
   it("returns a zip archive for selected courses", async () => {

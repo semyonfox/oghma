@@ -6,6 +6,7 @@ import {
   parseJsonObject,
 } from "@/lib/api-error";
 import { CanvasClient } from "@/lib/canvas/client";
+import { checkRateLimit } from "@/lib/rate-limiter";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
 import { createCanvasRawExportZipStream } from "@/lib/canvas/raw-export";
 import { normalizeCanvasCourseSelection } from "@/lib/canvas/id";
@@ -68,6 +69,9 @@ async function discoverExportCourses(
 
 export const POST = withErrorHandler(async (request) => {
   const user = await requireAuth();
+  const limited = await checkRateLimit("canvas-download", user.user_id);
+  if (limited) return limited;
+
   const body = await parseJsonObject(request);
 
   const credentials = await loadCanvasCredentials(user.user_id);

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { withErrorHandler, requireAuth } from "@/lib/api-error";
+import { checkRateLimit } from "@/lib/rate-limiter";
 import { CanvasClient } from "@/lib/canvas/client";
 import { syncAssignmentMetadata } from "@/lib/canvas/sync-assignments";
 import { cleanCourseName } from "@/lib/canvas/content-formatting";
@@ -17,6 +18,8 @@ import {
  */
 export const POST = withErrorHandler(async () => {
   const user = await requireAuth();
+  const limited = await checkRateLimit("assignments-sync", user.user_id);
+  if (limited) return limited;
 
   const credentials = await loadCanvasCredentials(user.user_id);
   if (!credentials) {
