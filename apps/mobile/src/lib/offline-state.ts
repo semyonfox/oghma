@@ -92,9 +92,12 @@ export class OfflineLibrary {
 
   setAccount(ownerId: string | null): Promise<void> {
     if (ownerId !== null) z.string().uuid().parse(ownerId);
+    // the website re-confirms the account as it navigates, which must not
+    // cancel a download that is already queued for that same account
+    const changed = ownerId === null || ownerId !== this.account;
     this.account = ownerId;
-    const generation = ++this.generation;
-    this.invalidated = true;
+    const generation = changed ? ++this.generation : this.generation;
+    if (changed) this.invalidated = true;
     return this.run(async () => {
       await this.load();
       if (!ownerId || this.library.ownerId !== ownerId) {
@@ -113,6 +116,7 @@ export class OfflineLibrary {
         generation !== this.generation ||
         !this.account ||
         snapshot.ownerId !== this.account ||
+        this.library.ownerId !== this.account ||
         this.invalidated
       ) {
         throw new Error(

@@ -100,7 +100,7 @@ function RecoveryScreen({
 
 function Workspace() {
   const { colors, styles, setWebTheme } = useTheme();
-  const { open: openUpdates } = useUpdates();
+  const { open: openUpdates, controller: updates } = useUpdates();
   const offline = useOfflineNotes();
   const webView = useRef<WebView>(null);
   const canGoBack = useRef(false);
@@ -228,7 +228,8 @@ function Workspace() {
         ref={webView}
         source={source}
         style={{ flex: 1, backgroundColor: colors.background }}
-        applicationNameForUserAgent="OghmaNotesAndroid/0.1.5 OghmaNotesOffline/1"
+        // the website keys native features off these tokens; the version comes from the installed APK
+        applicationNameForUserAgent={`OghmaNotesAndroid/${updates.installed.version} OghmaNotesOffline/1`}
         injectedJavaScriptBeforeContentLoaded={bottomInsetScript(bottomInset)}
         originWhitelist={["*"]}
         onShouldStartLoadWithRequest={(request) => navigate(request.url)}

@@ -56,11 +56,24 @@ describe("offline bridge compatibility and account changes", () => {
 
   it("does not erase downloads just because an account check fails", async () => {
     const postMessage = setup();
-    postNativeOfflineAccount(ownerId);
-    postMessage.mockClear();
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ error: "Unavailable" }, { status: 401 })));
     await syncNativeOfflineAccount(new AbortController().signal);
     expect(postMessage).not.toHaveBeenCalled();
+  });
+
+  it("confirms the account once per page instead of on every navigation", async () => {
+    const postMessage = setup();
+    const fetchProfile = vi.fn().mockImplementation(async () => Response.json({ user: { user_id: ownerId } }));
+    vi.stubGlobal("fetch", fetchProfile);
+    await syncNativeOfflineAccount(new AbortController().signal);
+    await syncNativeOfflineAccount(new AbortController().signal);
+    expect(fetchProfile).toHaveBeenCalledTimes(1);
+    expect(postMessage.mock.calls).toEqual([[JSON.stringify({ type: "oghma:offline-account", ownerId })]]);
+
+    // signing out (as /login does) makes the next page check again
+    postNativeOfflineAccount(null);
+    await syncNativeOfflineAccount(new AbortController().signal);
+    expect(fetchProfile).toHaveBeenCalledTimes(2);
   });
 
   it("rejects a download that finishes after sign-out", async () => {

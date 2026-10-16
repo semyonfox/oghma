@@ -77,6 +77,42 @@ test("logout hides notes immediately and wins over an already writing download",
   assert.deepEqual(await new OfflineLibrary(storage).read(), []);
 });
 
+test("re-confirming the signed-in account keeps a queued download", async () => {
+  const storage = memoryStorage();
+  const library = new OfflineLibrary(storage);
+  await library.setAccount(ownerId);
+  const save = library.save({ ownerId, note });
+  const confirm = library.setAccount(ownerId);
+  await Promise.all([save, confirm]);
+  assert.deepEqual(await new OfflineLibrary(storage).read(), [note]);
+});
+
+test("a failed account switch keeps notes hidden until it succeeds", async () => {
+  let fail = false;
+  const storage = memoryStorage();
+  const library = new OfflineLibrary({
+    read: storage.read,
+    write: async (value) => {
+      if (fail) throw new Error("Storage full");
+      await storage.write(value);
+    },
+  });
+  await library.setAccount(ownerId);
+  await library.save({ ownerId, note });
+  fail = true;
+  await assert.rejects(library.setAccount(otherOwner), /Storage full/);
+  assert.deepEqual(library.notes, []);
+  fail = false;
+  await assert.rejects(
+    library.save({ ownerId: otherOwner, note }),
+    /account changed/,
+  );
+  await library.setAccount(otherOwner);
+  assert.deepEqual(library.notes, []);
+  await library.save({ ownerId: otherOwner, note });
+  assert.deepEqual(await new OfflineLibrary(storage).read(), [note]);
+});
+
 test("a queued download cannot resurrect notes after clearing the library", async () => {
   const storage = memoryStorage();
   const library = new OfflineLibrary(storage);
