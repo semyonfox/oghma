@@ -1,6 +1,6 @@
 # Security rollout
 
-Status: working-tree patch, not deployed. Last reviewed: 2026-10-04.
+Status: code and migrations 072–075 are merged to `dev` and `main`. Whether each gate below was checked on a live deployment is not recorded here unless a dated note says so. Last reviewed: 2026-10-16 (vault retention updated after the domain audit fixes landed on `dev` in #633).
 
 ## Database and sessions
 
@@ -52,7 +52,12 @@ and size. A subsequent import or changed upload retires its predecessor while
 retaining the old key's byte accounting until cleanup; retries cannot escape
 the shared budget. The worker retries expired-artifact deletion every five minutes. A failed
 delete retains its reservation. Completed export archives last 24 hours; a new
-export removes its predecessor before reserving another copy.
+export removes its predecessor before reserving another copy. The presigned
+download URL is no longer stored on the job row. `GET /api/vault/status` signs a
+fresh link only while the export artifact is live, capped to its remaining
+lifetime, and cleanup clears the job's `output_s3_key`. Imported source files
+live at `vault/<user>/<job>/<uuid>/<filename>`, so two ZIP entries with the same
+path no longer share an object.
 Storage deletion while holding an artifact lock has a 30-second cancellation
 deadline; a timeout retains its reservation for retry. One account can reserve
 the shared budget using two different 10 GiB keys without uploading the files.

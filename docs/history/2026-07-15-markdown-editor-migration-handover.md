@@ -1,12 +1,10 @@
 # Unified Markdown Editor Migration Handover
 
-> **Status:** Target implementation and validation handover
+> **Status:** Historical. Moved from `docs/engineering/` on 2026-10-16.
 >
-> **Last reviewed:** 2026-07-15
+> **Written:** 2026-07-15, before the migration shipped
 >
-> **Source of truth for:** Requirements, candidate selection, spike scope, release gates, and visual references for replacing the experimental CodeMirror live-preview writing surface
->
-> **Does not supersede:** [Markdown editing and rendering](markdown-rendering.md). CodeMirror remains the production editor until this handover's release gates pass and the active contract is deliberately updated.
+> **What happened:** Milkdown Crepe passed its gates and is now the production editor. The standalone CodeMirror editor was removed; CodeMirror only runs inside fenced code blocks. The current contract is [Markdown editing and rendering](../engineering/markdown-rendering.md). The requirements and release gates below are kept as context, not as open work.
 
 ## Outcome
 

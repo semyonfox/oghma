@@ -8,7 +8,9 @@
 >
 > Last verified: 2026-08-05 against the current dispatcher, worker image,
 > Cloudflare R2 presigned-URL requirements, and RunPod Serverless API
-> documentation
+> documentation. Dispatch and webhook rules rechecked against code on
+> 2026-10-16, after the domain audit's Marker fixes landed on `dev` (#634);
+> provider behaviour was not re-run.
 
 RunPod is an optional second provider for the same Oghma-owned Marker queue.
 It does not replace PostgreSQL job state, object storage, or the Canvas worker.
@@ -37,6 +39,25 @@ moves to `awaiting_result` and observes the immutable
 status reads may advance or diagnose that same row, but full document text,
 signed URLs, and provider payloads are never placed in PostgreSQL or a queue.
 The v1 result object is validated before it can complete a note.
+
+Since the domain audit fixes (on `dev` from 2026-10-16):
+
+- The job's RunPod `ttl` is capped at `MARKER_SERVERLESS_URL_TTL_SECONDS`, so a
+  job can't start after its signed URLs have expired.
+- Observation of an ambiguous job ends when `MARKER_RESULT_GRACE_SECONDS` runs
+  out (counted from the row's last update) or five minutes after its signed
+  result URL expires, whichever comes first. The dispatcher then cancels the job
+  at RunPod (best effort) before failing the row, so an abandoned job stops
+  billing. The code default for the grace is 12 hours, so in practice the URL
+  expiry usually ends observation; the committed templates set 1800 seconds.
+- A `/run` 4xx other than 408 fails the row straight away instead of waiting out
+  the grace window. 408 and 5xx stay ambiguous and are observed.
+- A terminal webhook only moves a row that is still `dispatching`,
+  `awaiting_result` or `dispatch_retry`. A replayed or late webhook for any
+  other state is a 200 no-op, so it can't requeue a completion that is already
+  running.
+- Cancelling a Canvas import still does not cancel an in-flight RunPod job; it
+  keeps running and billing until it finishes. This is an open item.
 
 ## Signed R2 object access
 
@@ -151,7 +172,8 @@ claim it.
    `MARKER_OCR_ENABLED=false`, `MARKER_SERVERLESS_DISPATCH_ENABLED=false`, and
    `MARKER_PROCESS_ALL_PDFS=false` in both deployments.
 4. With one non-private PDF, test one cold completion, one warm completion, a
-   timeout/lost-response observation, a duplicate terminal webhook, and
+   timeout/lost-response observation, a duplicate terminal webhook (expect a
+   200 no-op once the row has left `dispatching`/`awaiting_result`), and
    cancellation while the provider job is in flight. Record the safe metrics.
 5. Separately verify Canvas import logic and output quality. Only after that
    approval may `MARKER_OCR_ENABLED` and the dispatch gate be enabled for a

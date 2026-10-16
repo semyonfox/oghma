@@ -1,8 +1,10 @@
 # File-tree coordination
 
-> Status: Current working-tree implementation, not deployed
+> Status: Current implementation. Tree coordination is on `dev` and `main`;
+> the restore-placement rule and the single-note cache removal reached `dev`
+> on 2026-10-16 (#633)
 >
-> Last verified: 2026-09-15
+> Last reviewed: 2026-10-16
 >
 > Source of truth for: Browser tree ordering, reconciliation, session reset,
 > and import publication ownership
@@ -47,8 +49,12 @@ title ordering; manual ordering is not persisted or offered.
   rename, and expansion refer only to reachable items. Sidebar reachability
   alone does not decide whether an independently open note was deleted.
 
-Tree child responses read PostgreSQL directly. The removed five-minute cache
-could be repopulated by a stale read after invalidation. This implementation
+Tree child responses and single-note reads come straight from PostgreSQL.
+Nothing reads a Redis copy of notes, tree branches or note lists any more; the
+single-note cache was removed after it served stale content following
+extraction and import writes. `tree-cache.ts` still deletes the old keys after
+imports publish, which is harmless. The old five-minute tree cache could
+be repopulated by a stale read after invalidation. This implementation
 makes no claim about measured production database load; measure representative
 uncached branch latency before adding caching back. A post-commit Redis counter
 would still leave a crash gap. If caching becomes necessary, its consistency
@@ -82,6 +88,14 @@ A tab acknowledges an invalidation only after its handler succeeds; failed
 deliveries can retry on focus. Focus and visibility restoration also revalidate,
 covering missed messages.
 This is same-browser coordination, not a server push protocol across devices.
+
+## Restore placement
+
+Restoring a Trash bundle puts its root back under its original folder only if
+that folder is still a live folder owned by the user. Otherwise the root goes to
+the workspace root, and it stays there if the original folder is restored
+later. Before this rule a restored note could point at a trashed folder and
+never appear in the sidebar.
 
 ## Canvas publication
 

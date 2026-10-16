@@ -5,7 +5,9 @@
 > Audience: OghmaNotes operators and import-pipeline maintainers
 >
 > Last verified: 2026-08-12 against the worker, queue facade, R2 browser upload,
-> Jenkinsfile, and tracked environment templates
+> Jenkinsfile, and tracked environment templates. Worker helpers, healthcheck,
+> retention and vault recovery rechecked 2026-10-16 after the domain audit
+> fixes landed on `dev` (#633, #634).
 
 This runbook covers Canvas import, extraction retry, and vault import/export
 workloads. General container deployment, migrations, and rollback belong in
@@ -15,7 +17,7 @@ workloads. General container deployment, migrations, and rollback belong in
 
 | Concern                  | Current implementation                                                                                                                           |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Worker process           | `npm run worker`, which starts `src/lib/canvas/worker-entry.ts`                                                                                  |
+| Worker process           | `npm run worker`, which starts `src/lib/canvas/worker-entry.ts`; its consumer, periodic-task, heartbeat and maintenance helpers are in `src/lib/worker/` |
 | Job state                | `app.canvas_import_jobs`, including its vault-specific job columns                                                                               |
 | Queue facade             | `src/lib/queue.ts`                                                                                                                               |
 | Current homelab provider | Redis/BullMQ                                                                                                                                     |
@@ -36,9 +38,10 @@ should not bypass it with provider-specific calls.
 | Production  | `oghma`     | `oghma-canvas-import`     | `oghma-extract-retry`     | `oghma-marker-dispatch`       |
 | Development | `oghma-dev` | `oghma-dev-canvas-import` | `oghma-dev-extract-retry` | `oghma-dev-marker-dispatch`   |
 
-The Canvas queue handles `canvas-discover`, `canvas-file`, `extract`,
-`marker-complete`, `marker-failed`, `vault-import`, `vault-export`, and the
-legacy `canvas-import` job name retained for in-flight compatibility.
+The Canvas queue handles `canvas-discover`, `canvas-file`, `canvas-extract`,
+`extract`, `note-reindex`, `marker-complete`, `marker-failed`, `vault-import`,
+`vault-export`, and the legacy `canvas-import` job name retained for in-flight
+compatibility.
 `marker-dispatch` has its own queue and concurrency because cold-start plus
 conversion must not occupy the general import lane. New delayed
 extraction retries return to the Canvas queue so fresh and retried work share
@@ -51,7 +54,9 @@ shares, users rotate within a class, and up to two downloads per user are
 dispatched at once. Discovery publishes files as soon as their rows commit.
 The downloader hands stored files to a durable `pending_extract` stage; a
 database poll republishes that stage after a lost enqueue and reclaims its
-expired extraction claims. New downloads pause
+expired extraction claims. Each reclaim spends one of the file's four
+extraction retries, so a file that keeps crashing the worker ends as a
+retryable `error` instead of looping. New downloads pause
 when eight files for that user await or run extraction. Paid entitlement comes from verified local
 `app.login.import_service_class` state.
 
@@ -62,8 +67,10 @@ Canvas messages carry the exact import-row and job IDs and are claimed before
 they can index. It cannot reconstruct arbitrary direct-extraction or vault
 payloads. That mechanism is recovery, not a substitute for queue health.
 
-The same worker runs shared imported-file cache retention at startup and then
-daily. A cache remains while any note references it, including a note retained
+The same worker runs shared imported-file cache retention shortly after
+startup and then daily, as part of its daily maintenance pass. Consumers start
+first, so maintenance never delays them. Each run purges up to 40 batches of 25
+expired caches and tries each candidate once. A cache remains while any note references it, including a note retained
 in Trash, or while a Canvas import is still in flight. After the final
 reference is gone, `IMPORT_CACHE_RETENTION_DAYS` controls the additional
 cache-only window before canonical vectors, Marker assets, and the shared PDF
@@ -107,12 +114,21 @@ There are three distinct values to discuss:
 | `MARKER_DISPATCH_CONSUMER_ENABLED`       |                                 `true` |              `true` |
 | `MARKER_DISPATCH_CONCURRENCY`            |                                    `1` |                 `1` |
 | `MARKER_COMPLETION_MAX_ATTEMPTS`         |                                    `3` |                 `3` |
-| `MARKER_RESULT_GRACE_SECONDS`            |                                `43200` |             `43200` |
+| `MARKER_RESULT_GRACE_SECONDS`            |                                `43200` |              `1800` |
 | `MARKER_SERVERLESS_URL_TTL_SECONDS`      |                                 `3600` |              `3600` |
 | `QUEUE_PROVIDER`                         |                               `bullmq` |            `bullmq` |
 | `REDIS_HOST`                             |                            `localhost` |       `oghma-redis` |
 | `REDIS_PORT`                             |                                 `6379` |              `6379` |
 | `CLOUDFLARE_QUEUE_VISIBILITY_TIMEOUT_MS` |                             `43200000` |          `43200000` |
+
+Worker process settings, all optional:
+
+| Variable | Code default | Effect |
+| --- | ---: | --- |
+| `QUEUE_PUBLISH_TIMEOUT_MS` | `10000` | Upper bound on one BullMQ publish; a Redis outage fails the caller instead of hanging it |
+| `WORKER_SHUTDOWN_GRACE_MS` | `5000` | How long shutdown waits for consumers to finish; Docker's default stop timeout is 10 s |
+| `WORKER_HEARTBEAT_FILE` | `<tmpdir>/<canvas queue>-worker-heartbeat.json` | Heartbeat path shared by the worker and the healthcheck |
+| `WORKER_HEALTHCHECK_WAIT_MS` | `20000` | How long the healthcheck waits for a fresh heartbeat after a start |
 
 Do not infer live production tuning from either default column. Check variable
 presence and container configuration without printing secret values.
@@ -184,6 +200,7 @@ npx wrangler r2 bucket cors list oghma-notes
 
 A successful command-line upload is not sufficient verification because it does
 not enforce browser CORS. Finish with a small dev vault import and confirm the
+browser upload and the job both complete.
 
 ## Deployment Verification
 
@@ -191,9 +208,15 @@ After the normal Jenkins deployment:
 
 1. Confirm the app and worker containers are running.
 2. Check the worker health command used by Jenkins:
-   `npm run worker:healthcheck`.
-3. Review recent worker logs for queue connection, database connection, Qdrant
-   collection, and recovery-loop errors.
+   `npm run worker:healthcheck`. Run it with `docker exec` inside the worker
+   container, not the app container. Besides PostgreSQL and the queue
+   connection, it requires the worker's heartbeat file to be under 60 s old.
+   It waits up to `WORKER_HEALTHCHECK_WAIT_MS` (20 s) for a freshly started
+   worker. `WORKER_HEARTBEAT_FILE` overrides the file location.
+3. Review recent worker logs for error counts. Since 2026-10-04 the logger
+   keeps only a severity and a fixed category, so logs show that something
+   failed but not what. Use the SQL below, job error columns, or Sentry once a
+   DSN is configured ([monitoring](monitoring.md)).
 4. Confirm recent migrations in `app.schema_migrations`.
 5. Inspect job counts by status.
 6. Run a small dev import before using a large course or vault.
@@ -297,7 +320,21 @@ re-evaluating that model.
 Active vault import/export routes intentionally reject conflicting work unless
 the caller explicitly chooses the supported replacement/cancellation path.
 Do not retry a partial vault import blindly; its retry-safety constraints are
-documented in `src/lib/queue.ts`.
+documented in `src/lib/queue.ts`. Import is not idempotent: a re-import
+duplicates notes, and folders merge by title.
+
+A job whose worker died is expired automatically by the vault status,
+import-start and export routes: `processing` with no heartbeat for 30 minutes,
+or `queued` for 2 hours. It becomes `failed`, or `cancelled` if a cancel was
+pending. A cancel on a queued job takes effect immediately.
+
+### Pending extraction retries
+
+`npm run worker:retry-pending` (`scripts/process-pending-retry-local.ts`)
+republishes due `pending_retry` rows through the normal recovery path and prints
+import status counts. It never runs extraction itself or edits row status. Before
+2026-10-16 it was a silent no-op that could also mark rows `complete` through an
+override; both are gone.
 
 ### Migration or vector-store failure
 
@@ -336,9 +373,17 @@ HAVING count(*) > 1;
 Any results require review and an explicit choice of the retained run. Do not
 silently cancel rows as part of schema installation.
 
-Recovery defaults to observation. Deploy migration 067 and compatible API and
-worker binaries, verify all old writers have stopped, and inspect
-`canvas-expired-executions` logs. Set `CANVAS_CLAIM_RECOVERY=enabled` only after
+Recovery defaults to observation. Until it is enabled, a worker killed during
+download or discovery leaves rows in `downloading` or `discovering` and the job
+shows "processing" indefinitely; extraction leases are reclaimed either way.
+Turning it on is still an open decision (see the
+[domain audit record](../history/2026-10-06-domain-audit.md)).
+
+Deploy migration 067 and compatible API and worker binaries, verify all old
+writers have stopped, and inspect the `canvas-expired-executions` lines (written
+with `console.info`, so they carry a candidate count) or query expired claims
+directly (`claim_expires_at < now()` on `app.canvas_imports` and
+`app.canvas_import_jobs`). Set `CANVAS_CLAIM_RECOVERY=enabled` only after
 the development release gates pass. Unset it to stop further reclamation.
 
 Recovery renews no ownership on behalf of a dead worker. It clears the old

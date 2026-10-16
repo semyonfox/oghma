@@ -1,8 +1,8 @@
 # Database performance and integrity
 
-> **Status:** Implemented in the working tree; not deployed
-> **Last verified:** 2026-09-08
-> **Source of truth:** Migrations 063 to 066, database client, query implementations, and database integration tests
+> **Status:** Migrations 063 to 066 and their code are merged to `dev` and `main`. The production measurements listed at the end are still outstanding. The migration-runner, cache, Qdrant and 080/081 notes describe `dev` after the domain audit fixes landed on 2026-10-16 (#632, #633); they reach `main` with the next release.
+> **Last verified:** 2026-09-08; runner, cache, Qdrant and migration 080/081 notes rechecked 2026-10-16
+> **Source of truth:** Migrations 063 to 066, 080 and 081, the database client, the migration runner, query implementations, and database integration tests
 
 ## Implemented changes
 
@@ -24,7 +24,10 @@
   `X-Next-Cursor` can be passed as the next request's `after` parameter. Cursors
   preserve PostgreSQL microseconds. `skip` remains supported for older clients;
   do not combine it with `after`. Independent page caching was removed to avoid
-  stale pagination after writes. Existing tree and single-note caches remain.
+  stale pagination after writes. The tree and single-note Redis caches are gone
+  too (the single-note copy was removed in #633), so note and tree reads always
+  hit PostgreSQL. `src/lib/notes/tree-cache.ts` still deletes the old tree and
+  list keys after imports publish, but nothing reads them.
 - Tree moves read only destination ancestors while retaining the per-user
   advisory lock and active-folder checks. `UNION` terminates traversal even if
   historical data already has a cycle.
@@ -35,7 +38,10 @@
 - Qdrant requests have a 10-second deadline. A whole upsert, including setup and
   all batches, has at most 15 seconds and at most half the configured idle
   transaction timeout. Index publication retains its note lock to protect the
-  delete/index race. Failed vector deletion is journaled for worker retry.
+  delete/index race. Failed vector deletion is journaled for worker retry. Id
+  deletes and visibility updates go in batches of 1,000 ids. Query embeddings get
+  one 10-second attempt per endpoint; indexing keeps `EMBEDDING_TIMEOUT_MS` and
+  `EMBEDDING_MAX_ATTEMPTS`. Only network errors, 402, 429 and 5xx are retried.
 - Migration 065 permits terminal generation payloads to be cleared after seven
   days. The existing worker retention pass clears at most 500 per pass. Messages,
   generation status and queued/running inputs remain. This intentionally bounds
@@ -45,8 +51,46 @@
   acknowledging another worker's claim. Deletes are idempotent; a crash can
   cause a repeat after expiry. Vector-only cleanup does not initialize storage.
 - Legacy migration adoption now verifies required tables/columns and fails
-  instead of recording an incomplete schema as applied. The E2E bootstrap's
-  historical SQL is shared through `scripts/e2e/legacy-schema.ts`.
+  instead of recording an incomplete schema as applied. The disposable bootstrap
+  loads the pre-tracking snapshot from `scripts/e2e/baseline-schema.ts` and then
+  `applyCurrentSchemaPatch` from `scripts/e2e/legacy-schema.ts`. The old
+  `scripts/standalone-migration.ts` CLI, which dropped core tables on any
+  `DATABASE_URL`, was deleted.
+- Migration 080 adds `quiz_cards.learning_steps` so FSRS learning cards can
+  graduate. Migration 081 converts drifted `NUMERIC` assignment columns
+  (`estimated_hours`, `logged_hours`, `score`, `points_possible`) to double
+  precision, because postgres.js returns `NUMERIC` as strings, and indexes the
+  referencing side of hot `ON DELETE` actions (for example
+  `marker_jobs.parent_folder_id`). Both were rehearsed on a restored production
+  dump before merge; a second run was a no-op. Dashboard review stats read a
+  bounded range through `idx_quiz_reviews_created`.
+
+## Migration runner
+
+`npm run migrate` runs `scripts/prebuild-migrate.ts` against
+`MIGRATION_DATABASE_URL`. It adopts the legacy 001–017 schema, runs the one-off
+`scripts/migrate-pgvector-to-qdrant.ts` step, and then runs
+`scripts/run-migration.ts --all`, each child with a five-minute timeout. The
+runner:
+
+- takes a session advisory lock (`oghmanotes:schema_migrations`, per database)
+  and re-reads applied rows after getting it, so overlapping deploys can't apply
+  a migration twice;
+- stores a `checksum` for each applied file, backfills missing ones on first
+  use, and warns about applied files that changed (`--status` lists them);
+- refuses to re-run an applied file when one is named, and prints usage with no
+  arguments instead of re-running migration 017;
+- sets a default `lock_timeout` of 3 seconds per migration and retries a
+  migration that hits a lock conflict (#623), so a busy table delays a deploy
+  instead of queueing behind live queries.
+
+Rules for new migrations: name them `NNN_description.sql`, continuing from the
+highest number; make them idempotent; start with `SET LOCAL lock_timeout`; never
+edit an applied file; and keep changes expand-only, because Jenkins migrates
+before the app swap and a rollback runs old code against the new schema.
+`CREATE INDEX CONCURRENTLY` can't run inside the runner's transaction yet; that
+needs the non-transactional mode listed as an open item in the
+[domain audit record](../history/2026-10-06-domain-audit.md).
 
 ## Verification commands
 
