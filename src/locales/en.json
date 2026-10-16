@@ -638,6 +638,7 @@
   "quiz.question.check_answer": "Check Answer",
   "quiz.question.type_answer": "Type your answer...",
   "quiz.session.continue": "Continue",
+  "quiz.session.answer_failed": "Couldn't save your answer. Check your connection and try again.",
   "quiz.session.fatigue_warning": "You're getting quite a few wrong this session. Consider taking a break — rest helps memory consolidation.",
   "quiz.session.leech_warning": "This card keeps coming back — consider reviewing the source material.",
   "quiz.session.loading": "Loading quiz...",

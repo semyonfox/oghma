@@ -638,6 +638,7 @@
   "quiz.question.check_answer": "Verificar respuesta",
   "quiz.question.type_answer": "Escribe tu respuesta...",
   "quiz.session.continue": "Continuar",
+  "quiz.session.answer_failed": "No se pudo guardar tu respuesta. Comprueba tu conexión e inténtalo de nuevo.",
   "quiz.session.fatigue_warning": "Estás cometiendo bastantes errores en esta sesión. Considera tomar un descanso — el descanso ayuda a la consolidación de la memoria.",
   "quiz.session.leech_warning": "Esta tarjeta sigue apareciendo; considere revisar el material original.",
   "quiz.session.loading": "Cargando quiz...",

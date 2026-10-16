@@ -6,7 +6,13 @@ import QuizMarkdown from "./quiz-markdown";
 
 interface RelatedChunk {
   text: string;
-  title: string;
+  title: string | null;
+}
+
+function isRelatedChunk(value: unknown): value is RelatedChunk {
+  if (value === null || typeof value !== "object") return false;
+  const { text, title } = value as Record<string, unknown>;
+  return typeof text === "string" && (title === null || typeof title === "string");
 }
 
 interface FeedbackProps {
@@ -27,12 +33,18 @@ export default function Feedback({
 
   useEffect(() => {
     if (!questionId) return;
-    fetch(`/api/quiz/questions/${questionId}/related`)
+    const controller = new AbortController();
+    fetch(`/api/quiz/questions/${questionId}/related`, {
+      signal: controller.signal,
+    })
       .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (Array.isArray(data?.related)) setRelated(data.related);
+      .then((data: { related?: unknown } | null) => {
+        if (Array.isArray(data?.related)) {
+          setRelated(data.related.filter(isRelatedChunk));
+        }
       })
       .catch(() => {});
+    return () => controller.abort();
   }, [questionId]);
 
   return (
@@ -65,9 +77,11 @@ export default function Feedback({
               key={i}
               className="bg-surface rounded-radius-sm px-3 py-2 space-y-1"
             >
-              <div className="text-xs text-text-tertiary font-medium">
-                {chunk.title}
-              </div>
+              {chunk.title && (
+                <div className="text-xs text-text-tertiary font-medium">
+                  {chunk.title}
+                </div>
+              )}
               <div className="text-xs text-text-secondary leading-relaxed line-clamp-4">
                 <QuizMarkdown>{chunk.text}</QuizMarkdown>
               </div>

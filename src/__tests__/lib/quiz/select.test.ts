@@ -1,116 +1,143 @@
-import { describe, it, expect } from 'vitest';
-import { selectCards } from '@/lib/quiz/select';
+import { describe, it, expect, vi } from 'vitest';
+
+vi.mock('@/database/pgsql', () => ({ default: vi.fn() }));
+vi.mock('@/lib/rag/embeddings', () => ({ embedText: vi.fn() }));
+vi.mock('@/lib/qdrant', () => ({ searchChunkVectors: vi.fn() }));
+
+import sql from '@/database/pgsql';
+import { embedText } from '@/lib/rag/embeddings';
+import {
+    allocateSlots,
+    resolveChunkIds,
+    getSessionCandidates,
+    selectCards,
+    sessionCardIds,
+    type CandidateCard,
+} from '@/lib/quiz/select';
+
+function cards(prefix: string, count: number, due = new Date(Date.now() - 1000)): CandidateCard[] {
+    return Array.from({ length: count }, (_, i) => ({
+        id: `${prefix}-${i}`,
+        due: due.toISOString(),
+        state: 'review',
+        last_review: null,
+    }));
+}
+
+const none: CandidateCard[] = [];
+
+describe('slot allocation', () => {
+    it('uses the 70/20/10 split when every bucket is deep enough', () => {
+        expect(allocateSlots([50, 50, 50], 20)).toEqual([14, 4, 2]);
+    });
+
+    it('backfills unused slots in priority order', () => {
+        expect(allocateSlots([3, 50, 50], 20)).toEqual([3, 15, 2]);
+        expect(allocateSlots([0, 0, 15], 5)).toEqual([0, 0, 5]);
+    });
+
+    it('never exceeds the session size', () => {
+        for (const max of [1, 3, 7, 10, 20, 50]) {
+            const [due, fresh, retention] = allocateSlots([100, 100, 100], max);
+            expect(due + fresh + retention).toBe(max);
+        }
+    });
+
+    it('never allocates more than a bucket holds', () => {
+        expect(allocateSlots([1, 0, 0], 20)).toEqual([1, 0, 0]);
+    });
+});
 
 describe('card selection', () => {
-    it('returns empty when no cards available', () => {
-        const result = selectCards([], [], 20);
-        expect(result).toEqual({ due: [], newChunks: [], retention: [] });
+    it('returns empty buckets when nothing is available', () => {
+        expect(selectCards({ dueCards: none, newCards: none, retentionCards: none }, 20))
+            .toEqual({ due: [], new: [], retention: [] });
     });
 
-    it('respects max session size', () => {
-        const dueCards = Array.from({ length: 30 }, (_, i) => ({
-            id: `card-${i}`,
-            due: new Date(Date.now() - 1000).toISOString(),
-        }));
-        const result = selectCards(dueCards, [], 20);
-        const total = result.due.length + result.newChunks.length + result.retention.length;
-        expect(total).toBeLessThanOrEqual(20);
-    });
-
-    it('allocates roughly 70/20/10 split when all categories have cards', () => {
-        const dueCards = Array.from({ length: 50 }, (_, i) => ({
-            id: `due-${i}`,
-            due: new Date(Date.now() - 1000).toISOString(),
-        }));
-        const newChunks = Array.from({ length: 50 }, (_, i) => `chunk-${i}`);
-        const masteredCards = Array.from({ length: 50 }, (_, i) => ({
-            id: `mastered-${i}`,
-            due: new Date(Date.now() + 86400000 * 30).toISOString(),
-        }));
-        const result = selectCards(dueCards, newChunks, 20, masteredCards);
-        expect(result.due.length).toBeGreaterThanOrEqual(10);
-        expect(result.newChunks.length).toBeGreaterThanOrEqual(2);
-    });
-
-    it('uses the configured split before filling spare capacity by due-card priority', () => {
-        const dueCards = Array.from({ length: 10 }, (_, i) => ({
-            id: `due-${i}`,
-            due: new Date(Date.now() - i * 1000).toISOString(),
-        }));
-        const newChunks = Array.from({ length: 10 }, (_, i) => `chunk-${i}`);
-        const masteredCards = Array.from({ length: 10 }, (_, i) => ({
-            id: `mastered-${i}`,
-            due: new Date(Date.now() + i * 1000).toISOString(),
-        }));
-
-        const result = selectCards(dueCards, newChunks, 7, masteredCards);
-
-        expect(result.due).toHaveLength(5);
-        expect(result.newChunks).toEqual(['chunk-0']);
-        expect(result.retention).toHaveLength(1);
+    it('fills the whole session from unseen cards when little is due', () => {
+        // regression: the new-card share used to be reserved for chunks with no
+        // card yet, which a session can never serve, so sessions came up short
+        const result = selectCards(
+            { dueCards: cards('due', 3), newCards: cards('new', 30), retentionCards: none },
+            20,
+        );
+        expect(sessionCardIds(result, 20)).toHaveLength(20);
+        expect(result.due).toHaveLength(3);
+        expect(result.new).toHaveLength(17);
     });
 
     it('sorts due cards earliest-due first (most overdue first)', () => {
         const now = Date.now();
-        const dueCards = [
-            { id: 'c1', due: new Date(now - 1000).toISOString() },       // 1s overdue
-            { id: 'c3', due: new Date(now - 100000).toISOString() },     // 100s overdue — most urgent
-            { id: 'c2', due: new Date(now - 50000).toISOString() },      // 50s overdue
+        const dueCards: CandidateCard[] = [
+            { id: 'c1', due: new Date(now - 1000).toISOString(), state: 'review', last_review: null },
+            { id: 'c3', due: new Date(now - 100000).toISOString(), state: 'review', last_review: null },
+            { id: 'c2', due: new Date(now - 50000).toISOString(), state: 'review', last_review: null },
         ];
-        const result = selectCards(dueCards, [], 3);
-        expect(result.due[0].id).toBe('c3');
-        expect(result.due[1].id).toBe('c2');
-        expect(result.due[2].id).toBe('c1');
+        const result = selectCards({ dueCards, newCards: none, retentionCards: none }, 3);
+        expect(result.due.map(({ id }) => id)).toEqual(['c3', 'c2', 'c1']);
     });
 
     it('does not reorder the caller-owned due-card list', () => {
-        const dueCards = [
-            { id: 'later', due: '2025-01-02T00:00:00.000Z' },
-            { id: 'earlier', due: '2025-01-01T00:00:00.000Z' },
+        const dueCards: CandidateCard[] = [
+            { id: 'later', due: '2025-01-02T00:00:00.000Z', state: 'review', last_review: null },
+            { id: 'earlier', due: '2025-01-01T00:00:00.000Z', state: 'review', last_review: null },
         ];
 
-        selectCards(dueCards, [], 2);
+        selectCards({ dueCards, newCards: none, retentionCards: none }, 2);
 
         expect(dueCards.map(({ id }) => id)).toEqual(['later', 'earlier']);
     });
 
-    it('fills remaining slots with due cards when new/retention pools are empty', () => {
-        const dueCards = Array.from({ length: 10 }, (_, i) => ({
-            id: `d-${i}`,
-            due: new Date(Date.now() - 1000).toISOString(),
-        }));
-        const result = selectCards(dueCards, [], 8);
-        expect(result.due.length).toBe(8);
-        expect(result.newChunks.length).toBe(0);
-        expect(result.retention.length).toBe(0);
+    it('orders the session as due, then new, then retention', () => {
+        const result = selectCards(
+            { dueCards: cards('due', 1), newCards: cards('new', 1), retentionCards: cards('ret', 1) },
+            10,
+        );
+        expect(sessionCardIds(result, 10)).toEqual(['due-0', 'new-0', 'ret-0']);
     });
+});
 
-    it('handles only mastered cards when due and new are absent', () => {
-        const mastered = Array.from({ length: 15 }, (_, i) => ({
-            id: `m-${i}`,
-            due: new Date(Date.now() + 86400000).toISOString(),
-        }));
-        const result = selectCards([], [], 5, mastered);
-        const total = result.due.length + result.newChunks.length + result.retention.length;
-        expect(total).toBeLessThanOrEqual(5);
-        expect(result.retention.length).toBeGreaterThan(0);
+describe('session candidates', () => {
+    it('buckets cards by FSRS state and reports chunks without a card', async () => {
+        const now = new Date('2026-10-06T12:00:00.000Z');
+        const hoursAgo = (h: number) => new Date(now.getTime() - h * 3_600_000).toISOString();
+        const card = (id: string, state: CandidateCard['state'], due: string, lastReview: string | null) => ({
+            id, state, due, last_review: lastReview, chunk_id: `chunk-${id}`,
+        });
+        vi.mocked(sql)
+            .mockResolvedValueOnce([
+                card('new', 'new', hoursAgo(1), null),
+                card('due', 'learning', hoursAgo(1), hoursAgo(2)),
+                card('learning-soon', 'learning', hoursAgo(-1), hoursAgo(0.1)),
+                card('fresh-review', 'review', hoursAgo(-48), hoursAgo(1)),
+                card('old-review', 'review', hoursAgo(-48), hoursAgo(48)),
+            ] as never)
+            .mockResolvedValueOnce([{ id: 'chunk-new' }, { id: 'chunk-uncovered' }] as never);
+
+        const result = await getSessionCandidates('user-1', ['chunk-new', 'chunk-uncovered'], now);
+
+        expect(result.newCards.map(({ id }) => id)).toEqual(['new']);
+        expect(result.dueCards.map(({ id }) => id)).toEqual(['due']);
+        // a card reviewed an hour ago is not worth a retention check yet
+        expect(result.retentionCards.map(({ id }) => id)).toEqual(['old-review']);
+        expect(result.uncoveredChunkIds).toEqual(['chunk-uncovered']);
     });
+});
 
-    it('total never exceeds maxQuestions even with overflow', () => {
-        // 14+4+2 = 20, then overflow trimming should keep total <= 10
-        const due = Array.from({ length: 14 }, (_, i) => ({ id: `d-${i}`, due: new Date().toISOString() }));
-        const chunks = Array.from({ length: 4 }, (_, i) => `ch-${i}`);
-        const mastered = Array.from({ length: 2 }, (_, i) => ({ id: `m-${i}`, due: new Date().toISOString() }));
-        const result = selectCards(due, chunks, 10, mastered);
-        const total = result.due.length + result.newChunks.length + result.retention.length;
-        expect(total).toBeLessThanOrEqual(10);
-    });
+describe('search filter', () => {
+    // a quiz on "graphs" should still start while embeddings or Qdrant are down
+    it('falls back to a literal chunk match when semantic search fails', async () => {
+        vi.mocked(embedText).mockRejectedValue(new Error('embedding timeout'));
+        vi.mocked(sql).mockReset();
+        vi.mocked(sql).mockResolvedValue([{ id: 'chunk-1' }] as never);
 
-    it('handles fewer available cards than maxQuestions gracefully', () => {
-        const dueCards = [{ id: 'd1', due: new Date().toISOString() }];
-        const result = selectCards(dueCards, [], 20);
-        expect(result.due.length).toBe(1);
-        const total = result.due.length + result.newChunks.length + result.retention.length;
-        expect(total).toBeLessThanOrEqual(1);
+        await expect(
+            resolveChunkIds('user-1', { filterType: 'search', filterValue: '100%_graphs' }),
+        ).resolves.toEqual(['chunk-1']);
+
+        const [parts, ...values] = vi.mocked(sql).mock.calls[0];
+        expect(Array.from(parts as TemplateStringsArray).join('')).toContain('c.text ILIKE');
+        // LIKE wildcards in the query are matched literally
+        expect(values).toContain('%100\\%\\_graphs%');
     });
 });

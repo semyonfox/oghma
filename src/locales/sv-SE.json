@@ -638,6 +638,7 @@
   "quiz.question.check_answer": "Kontrollera svar",
   "quiz.question.type_answer": "Skriv ditt svar...",
   "quiz.session.continue": "Fortsätta",
+  "quiz.session.answer_failed": "Det gick inte att spara ditt svar. Kontrollera anslutningen och försök igen.",
   "quiz.session.fatigue_warning": "Du gör ganska många fel i den här sessionen. Överväg att ta en paus — vila hjälper minneskonsolidering.",
   "quiz.session.leech_warning": "Det här kortet kommer tillbaka hela tiden - överväg att granska källmaterialet.",
   "quiz.session.loading": "Laddar quiz...",

@@ -638,6 +638,7 @@
   "quiz.question.check_answer": "Antwort prüfen",
   "quiz.question.type_answer": "Antwort eingeben...",
   "quiz.session.continue": "Weitermachen",
+  "quiz.session.answer_failed": "Deine Antwort konnte nicht gespeichert werden. Prüfe deine Verbindung und versuche es erneut.",
   "quiz.session.fatigue_warning": "Du machst in dieser Sitzung einige Fehler. Erwäge eine Pause — Ruhe hilft bei der Gedächtniskonsolidierung.",
   "quiz.session.leech_warning": "Diese Karte kommt immer wieder zurück – prüfen Sie ggf. das Quellmaterial.",
   "quiz.session.loading": "Quiz wird geladen...",

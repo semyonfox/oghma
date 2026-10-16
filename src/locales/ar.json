@@ -638,6 +638,7 @@
   "quiz.question.check_answer": "تحقق من الإجابة",
   "quiz.question.type_answer": "اكتب إجابتك...",
   "quiz.session.continue": "يكمل",
+  "quiz.session.answer_failed": "تعذّر حفظ إجابتك. تحقّق من اتصالك وحاول مرة أخرى.",
   "quiz.session.fatigue_warning": "أنت ترتكب الكثير من الأخطاء في هذه الجلسة. فكر في أخذ استراحة — الراحة تساعد في تثبيت الذاكرة.",
   "quiz.session.leech_warning": "تستمر هذه البطاقة في العودة — فكر في مراجعة المادة المصدر.",
   "quiz.session.loading": "جارٍ تحميل الاختبار...",

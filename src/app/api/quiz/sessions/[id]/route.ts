@@ -1,22 +1,24 @@
 import { NextResponse } from "next/server";
 import {
   requireAuth,
+  requireValidId,
   type RouteParamsContext,
   withErrorHandler,
   tracedError,
 } from "@/lib/api-error";
-import { cardFromDB, getNextIntervals } from "@/lib/quiz/fsrs";
-import { normalizeQuizQuestion } from "@/lib/quiz/normalize-question";
-import type { QuizSessionQuestion } from "@/lib/quiz/types";
+import { findSessionQuestionFrom } from "@/lib/quiz/session-question";
+import type { QuizSessionResumeResponse } from "@/lib/quiz/types";
 import sql from "@/database/pgsql";
 
-type QuizCardRow = Parameters<typeof cardFromDB>[0] & {
-  options?: unknown;
-  question_text?: unknown;
-  correct_answer?: unknown;
-  explanation?: unknown;
-  [column: string]: unknown;
-};
+interface SessionRow {
+  card_ids: string[] | null;
+  correct_count: number;
+  completed_at: Date | string | null;
+}
+
+interface AnsweredRow {
+  card_id: string;
+}
 
 export const GET = withErrorHandler(
   async (
@@ -24,51 +26,40 @@ export const GET = withErrorHandler(
     { params }: RouteParamsContext<{ id: string }>,
   ) => {
     const user = await requireAuth();
+    const id = requireValidId((await params).id, "session ID");
 
-    const { id } = await params;
-    const [session] = await sql`
-        SELECT id, card_ids, total_questions, correct_count, filter_type, filter_value, started_at, completed_at
+    const [session] = await sql<SessionRow[]>`
+        SELECT card_ids, correct_count, completed_at
         FROM app.quiz_sessions
         WHERE id = ${id}::uuid AND user_id = ${user.user_id}::uuid
     `;
-
     if (!session) return tracedError("Session not found", 404);
 
-    const cardIds: string[] = session.card_ids ?? [];
-
-    // figure out how many questions have already been answered in this session
-    const [{ count: answeredCount }] = await sql`
-        SELECT count(*)::int as count FROM app.quiz_reviews
+    const cardIds = session.card_ids ?? [];
+    const answered = await sql<AnsweredRow[]>`
+        SELECT card_id FROM app.quiz_reviews
         WHERE session_id = ${id}::uuid AND user_id = ${user.user_id}::uuid
     `;
-    const currentIndex = answeredCount;
 
-    // load the current question (first unanswered card)
-    let question: QuizSessionQuestion | null = null;
-    if (currentIndex < cardIds.length) {
-      const rows = await sql<QuizCardRow[]>`
-            SELECT qc.id as card_id, qq.*, qc.state, qc.stability, qc.difficulty,
-                   qc.elapsed_days, qc.scheduled_days, qc.reps, qc.lapses, qc.due, qc.last_review
-            FROM app.quiz_cards qc
-            JOIN app.quiz_questions qq ON qc.question_id = qq.id
-            WHERE qc.id = ${cardIds[currentIndex]}::uuid
-        `;
-      const rawRow = rows[0] ?? null;
-      const normalizedQuestion = normalizeQuizQuestion(rawRow);
-      if (normalizedQuestion && rawRow) {
-        question = {
-          ...normalizedQuestion,
-          intervals: getNextIntervals(cardFromDB(rawRow)),
-        } as QuizSessionQuestion;
-      }
-    }
+    // resume after the furthest answered card. skipped cards leave no review,
+    // so counting reviews would land on a card that was already answered
+    const lastAnswered = Math.max(
+      -1,
+      ...answered.map(({ card_id }) => cardIds.indexOf(card_id)),
+    );
+    const next = session.completed_at
+      ? null
+      : await findSessionQuestionFrom(user.user_id, cardIds, lastAnswered + 1);
 
-    return NextResponse.json({
-      ...session,
+    const body: QuizSessionResumeResponse = {
       cardIds,
-      currentIndex,
-      question,
-    });
+      currentIndex: next?.index ?? cardIds.length,
+      answeredCount: answered.length,
+      correct_count: session.correct_count,
+      completed: next === null,
+      question: next?.question ?? null,
+    };
+    return NextResponse.json(body);
   },
 );
 
@@ -78,11 +69,11 @@ export const DELETE = withErrorHandler(
     { params }: RouteParamsContext<{ id: string }>,
   ) => {
     const user = await requireAuth();
+    const id = requireValidId((await params).id, "session ID");
 
-    const { id } = await params;
     await sql`
         UPDATE app.quiz_sessions
-        SET completed_at = now()
+        SET completed_at = COALESCE(completed_at, now())
         WHERE id = ${id}::uuid AND user_id = ${user.user_id}::uuid
     `;
 

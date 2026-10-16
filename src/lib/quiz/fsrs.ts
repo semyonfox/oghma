@@ -2,90 +2,111 @@ import {
     createEmptyCard,
     fsrs,
     Rating,
+    State,
     type Card,
+    type Grade,
     type RecordLogItem,
 } from 'ts-fsrs';
+import type { CardState } from './types';
 
 const f = fsrs();
 
 export type FSRSCard = Card;
+export type FSRSRating = Grade;
 
-export function createNewCard(): FSRSCard {
-    return createEmptyCard();
-}
-
-export function reviewCard(card: FSRSCard, rating: 1 | 2 | 3 | 4): { card: FSRSCard; log: RecordLogItem } {
-    const now = new Date();
-    const scheduling = f.repeat(card, now);
-    const r = rating as Rating.Again | Rating.Hard | Rating.Good | Rating.Easy;
-    return {
-        card: scheduling[r].card,
-        log: scheduling[r],
-    };
-}
-
-// returns the scheduled_days for each possible rating
-export function getNextIntervals(card: FSRSCard): Record<1 | 2 | 3 | 4, number> {
-    const now = new Date();
-    const scheduling = f.repeat(card, now);
-    return {
-        1: scheduling[Rating.Again].card.scheduled_days,
-        2: scheduling[Rating.Hard].card.scheduled_days,
-        3: scheduling[Rating.Good].card.scheduled_days,
-        4: scheduling[Rating.Easy].card.scheduled_days,
-    };
-}
-
-// convert DB row to ts-fsrs Card object
-export function cardFromDB(row: {
+// columns of app.quiz_cards that hold scheduler state
+export interface FSRSCardRow {
     state: string;
     stability: number;
     difficulty: number;
     elapsed_days: number;
     scheduled_days: number;
+    learning_steps: number;
     reps: number;
     lapses: number;
+    due: string | Date;
+    last_review: string | Date | null;
+}
+
+export interface FSRSCardValues extends Omit<FSRSCardRow, 'state' | 'due' | 'last_review'> {
+    state: CardState;
     due: string;
     last_review: string | null;
-}): FSRSCard {
-    const stateMap: Record<string, number> = {
-        new: 0,
-        learning: 1,
-        review: 2,
-        relearning: 3,
-    };
+}
+
+const STATE_BY_NAME: Record<CardState, State> = {
+    new: State.New,
+    learning: State.Learning,
+    review: State.Review,
+    relearning: State.Relearning,
+};
+
+const NAME_BY_STATE: Record<State, CardState> = {
+    [State.New]: 'new',
+    [State.Learning]: 'learning',
+    [State.Review]: 'review',
+    [State.Relearning]: 'relearning',
+};
+
+const FAST_ANSWER_MS = 5_000;
+const SLOW_ANSWER_MS = 20_000;
+
+function isCardState(value: string): value is CardState {
+    return value in STATE_BY_NAME;
+}
+
+export function createNewCard(now = new Date()): FSRSCard {
+    return createEmptyCard(now);
+}
+
+export function reviewCard(
+    card: FSRSCard,
+    rating: FSRSRating,
+    now = new Date(),
+): { card: FSRSCard; log: RecordLogItem } {
+    const log = f.next(card, now, rating);
+    return { card: log.card, log };
+}
+
+/**
+ * Quiz answers are graded automatically, so the FSRS rating comes from
+ * correctness plus how long the answer took. A missing or zero time is treated
+ * as an ordinary "good".
+ */
+export function ratingForAnswer(
+    wasCorrect: boolean,
+    responseTimeMs: number | null,
+): FSRSRating {
+    if (!wasCorrect) return Rating.Again;
+    if (responseTimeMs === null || responseTimeMs <= 0) return Rating.Good;
+    if (responseTimeMs > SLOW_ANSWER_MS) return Rating.Hard;
+    if (responseTimeMs < FAST_ANSWER_MS) return Rating.Easy;
+    return Rating.Good;
+}
+
+export function cardFromDB(row: FSRSCardRow): FSRSCard {
     return {
-        state: stateMap[row.state] ?? 0,
+        state: isCardState(row.state) ? STATE_BY_NAME[row.state] : State.New,
         stability: row.stability,
         difficulty: row.difficulty,
         elapsed_days: row.elapsed_days,
         scheduled_days: row.scheduled_days,
+        learning_steps: row.learning_steps,
         reps: row.reps,
         lapses: row.lapses,
         due: new Date(row.due),
         last_review: row.last_review ? new Date(row.last_review) : undefined,
-    } as FSRSCard;
+    };
 }
 
-// convert ts-fsrs Card back to DB-friendly values
-export function cardToDB(card: FSRSCard): {
-    state: string;
-    stability: number;
-    difficulty: number;
-    elapsed_days: number;
-    scheduled_days: number;
-    reps: number;
-    lapses: number;
-    due: string;
-    last_review: string | null;
-} {
-    const stateNames = ['new', 'learning', 'review', 'relearning'];
+export function cardToDB(card: FSRSCard): FSRSCardValues {
     return {
-        state: stateNames[card.state] ?? 'new',
+        state: NAME_BY_STATE[card.state],
         stability: card.stability,
         difficulty: card.difficulty,
         elapsed_days: card.elapsed_days,
         scheduled_days: card.scheduled_days,
+        learning_steps: card.learning_steps,
         reps: card.reps,
         lapses: card.lapses,
         due: card.due.toISOString(),

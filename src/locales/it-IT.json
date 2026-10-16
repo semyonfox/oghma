@@ -638,6 +638,7 @@
   "quiz.question.check_answer": "Controlla risposta",
   "quiz.question.type_answer": "Scrivi la tua risposta...",
   "quiz.session.continue": "Continuare",
+  "quiz.session.answer_failed": "Impossibile salvare la tua risposta. Controlla la connessione e riprova.",
   "quiz.session.fatigue_warning": "Stai sbagliando parecchio in questa sessione. Prendi in considerazione una pausa — il riposo aiuta il consolidamento della memoria.",
   "quiz.session.leech_warning": "Questa scheda continua a tornare: valuta la possibilità di rivedere il materiale originale.",
   "quiz.session.loading": "Caricamento quiz...",

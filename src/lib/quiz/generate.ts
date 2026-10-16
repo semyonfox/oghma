@@ -16,6 +16,8 @@ import {
   getLlmThinkingMode,
 } from "@/lib/ai-config";
 import { generateText } from "ai";
+import { z } from "zod";
+import type postgres from "postgres";
 import sql from "@/database/pgsql";
 import logger from "@/lib/logger";
 
@@ -108,19 +110,45 @@ Ask about a DIFFERENT concept or aspect of the material.`
 }`;
 }
 
-interface ParsedQuestion {
-  question_text: string;
-  options: QuizOption[] | null;
-  correct_answer: string;
-  explanation: string;
-}
+const nonBlankString = z
+  .string()
+  .refine((value) => value.trim().length > 0, "must not be blank");
 
-interface ExistingQuestionRow {
+const generatedQuestionSchema = z.object({
+  question_text: nonBlankString,
+  options: z
+    .array(z.object({ text: nonBlankString, is_correct: z.boolean() }))
+    .nullish()
+    .transform((options) => options ?? null),
+  correct_answer: nonBlankString,
+  // a missing or malformed explanation is not worth dropping the question for
+  explanation: z
+    .string()
+    .optional()
+    .catch("")
+    .transform((value) => value ?? ""),
+});
+
+type ParsedQuestion = z.infer<typeof generatedQuestionSchema>;
+
+interface StoredQuestionRow {
   id: string;
+  question_type: QuestionType;
   question_text: string;
   options: QuizOption[] | null;
   correct_answer: string;
   explanation: string | null;
+}
+
+export interface GenerateQuestionInput {
+  userId: string;
+  noteId: string;
+  chunkId: string;
+  chunkText: string;
+  moduleName: string;
+  bloomLevel: BloomLevel;
+  questionType: QuestionType;
+  courseId?: string;
 }
 
 function parseJsonObject(raw: string): Record<string, unknown> | null {
@@ -133,28 +161,6 @@ function parseJsonObject(raw: string): Record<string, unknown> | null {
   } catch {
     return null;
   }
-}
-
-function parseOptions(value: unknown): QuizOption[] | null {
-  if (value == null) return null;
-  if (!Array.isArray(value)) return null;
-
-  const options = value.map((option) => {
-    if (option === null || typeof option !== "object" || Array.isArray(option)) {
-      return null;
-    }
-
-    const { text, is_correct } = option as Record<string, unknown>;
-    return typeof text === "string" &&
-      text.trim().length > 0 &&
-      typeof is_correct === "boolean"
-      ? { text, is_correct }
-      : null;
-  });
-
-  return options.every((option): option is QuizOption => option !== null)
-    ? options
-    : null;
 }
 
 function hasOneMatchingCorrectOption(
@@ -204,29 +210,17 @@ export function parseGeneratedQuestion(
   raw: string,
   questionType: QuestionType,
 ): ParsedQuestion | null {
-  const parsed = parseJsonObject(raw);
-  if (
-    !parsed ||
-    typeof parsed.question_text !== "string" ||
-    !parsed.question_text.trim() ||
-    typeof parsed.correct_answer !== "string" ||
-    !parsed.correct_answer.trim()
-  ) {
-    return null;
-  }
+  const result = generatedQuestionSchema.safeParse(parseJsonObject(raw));
+  if (!result.success) return null;
 
-  const options = parseOptions(parsed.options);
-  if (parsed.options != null && options === null) return null;
-  if (!optionsMatchQuestionType(options, parsed.correct_answer, questionType)) {
-    return null;
-  }
-
-  return {
-    question_text: parsed.question_text,
-    options,
-    correct_answer: parsed.correct_answer,
-    explanation: typeof parsed.explanation === "string" ? parsed.explanation : "",
-  };
+  const question = result.data;
+  return optionsMatchQuestionType(
+    question.options,
+    question.correct_answer,
+    questionType,
+  )
+    ? question
+    : null;
 }
 
 async function callLLM(prompt: string): Promise<string> {
@@ -239,6 +233,7 @@ async function callLLM(prompt: string): Promise<string> {
     getLlmReasoningEffort(),
   );
 
+  // the provider's fetch already enforces LLM_TIMEOUT_MS per attempt
   const { text } = await generateText({
     model: provider(getLlmModel()),
     prompt,
@@ -251,53 +246,165 @@ async function callLLM(prompt: string): Promise<string> {
   return text;
 }
 
-// generate a question for a chunk and save it to DB
-export async function generateQuestion(
+function toQuizQuestion(
+  input: GenerateQuestionInput,
+  row: StoredQuestionRow,
+): QuizQuestion {
+  return {
+    id: row.id,
+    user_id: input.userId,
+    note_id: input.noteId,
+    chunk_id: input.chunkId,
+    question_type: row.question_type,
+    bloom_level: input.bloomLevel,
+    question_text: row.question_text,
+    options: row.options,
+    correct_answer: row.correct_answer,
+    explanation: row.explanation ?? "",
+  };
+}
+
+async function findStoredQuestion(
+  tx: postgres.TransactionSql,
+  { userId, chunkId, bloomLevel }: GenerateQuestionInput,
+): Promise<StoredQuestionRow | null> {
+  const [row] = await tx<StoredQuestionRow[]>`
+    SELECT id, question_type, question_text, options, correct_answer, explanation
+    FROM app.quiz_questions
+    WHERE user_id = ${userId}::uuid
+      AND chunk_id = ${chunkId}::uuid
+      AND bloom_level = ${bloomLevel}
+  `;
+  return row ?? null;
+}
+
+/**
+ * Every question needs exactly one card or it is never scheduled. Locking the
+ * question row serialises concurrent generators so neither can add a second
+ * card, and an older question left without a card gets one here.
+ */
+async function ensureCard(
+  tx: postgres.TransactionSql,
   userId: string,
-  noteId: string,
-  chunkId: string,
-  chunkText: string,
-  moduleName: string,
-  bloomLevel: BloomLevel,
-  questionType: QuestionType,
-  courseId?: string,
+  questionId: string,
+): Promise<void> {
+  await tx`
+    SELECT id FROM app.quiz_questions
+    WHERE id = ${questionId}::uuid AND user_id = ${userId}::uuid
+    FOR UPDATE
+  `;
+  await tx`
+    INSERT INTO app.quiz_cards (id, user_id, question_id)
+    SELECT ${generateUUID()}::uuid, ${userId}::uuid, ${questionId}::uuid
+    WHERE NOT EXISTS (
+      SELECT 1 FROM app.quiz_cards
+      WHERE user_id = ${userId}::uuid AND question_id = ${questionId}::uuid
+    )
+  `;
+}
+
+/**
+ * The question and its card are written together, and only while the source
+ * chunk still belongs to a live note. A re-index or delete that lands during
+ * the LLM call therefore leaves nothing behind, and a concurrent generator for
+ * the same chunk and level reuses the winner's row.
+ */
+async function persistQuestion(
+  input: GenerateQuestionInput,
+  parsed: ParsedQuestion,
+): Promise<StoredQuestionRow | null> {
+  const { userId, noteId, chunkId, bloomLevel, questionType } = input;
+  return sql.begin(async (tx: postgres.TransactionSql) => {
+    const [inserted] = await tx<StoredQuestionRow[]>`
+      INSERT INTO app.quiz_questions
+        (id, user_id, note_id, chunk_id, question_type, bloom_level,
+         question_text, options, correct_answer, explanation)
+      SELECT
+        ${generateUUID()}::uuid, ${userId}::uuid, ${noteId}::uuid, ${chunkId}::uuid,
+        ${questionType}, ${bloomLevel},
+        ${parsed.question_text},
+        ${parsed.options ? JSON.stringify(parsed.options) : null}::text::jsonb,
+        ${parsed.correct_answer},
+        ${parsed.explanation}
+      WHERE EXISTS (
+        SELECT 1 FROM app.chunks c
+        JOIN app.notes n ON n.note_id = c.document_id
+        WHERE c.id = ${chunkId}::uuid
+          AND c.user_id = ${userId}::uuid
+          AND c.document_id = ${noteId}::uuid
+          AND n.deleted_at IS NULL
+      )
+      ON CONFLICT (user_id, chunk_id, bloom_level) DO NOTHING
+      RETURNING id, question_type, question_text, options, correct_answer, explanation
+    `;
+    const row = inserted ?? (await findStoredQuestion(tx, input));
+    if (!row) return null;
+    await ensureCard(tx, userId, row.id);
+    return row;
+  });
+}
+
+async function recentCourseQuestions(
+  userId: string,
+  courseId: string | undefined,
+): Promise<string[]> {
+  if (!courseId) return [];
+  const rows = await sql<Array<{ question_text: string }>>`
+    SELECT qq.question_text
+    FROM app.quiz_questions qq
+    JOIN app.notes n ON qq.note_id = n.note_id
+    WHERE qq.user_id = ${userId}::uuid
+      AND n.canvas_course_id = ${courseId}::bigint
+      AND n.deleted_at IS NULL
+    ORDER BY qq.created_at DESC
+    LIMIT 5
+  `;
+  return rows.map(({ question_text }) => question_text);
+}
+
+// generate a question for a chunk and persist it with its card
+export async function generateQuestion(
+  input: GenerateQuestionInput,
 ): Promise<QuizQuestion | null> {
-  const cleanedChunkText = stripQuizArtifacts(chunkText);
+  const { userId, chunkId, bloomLevel, questionType } = input;
+
+  try {
+    // a question at this level already exists, so skip the LLM entirely and
+    // just make sure it is schedulable
+    const stored = await sql.begin(async (tx: postgres.TransactionSql) => {
+      const row = await findStoredQuestion(tx, input);
+      if (row) await ensureCard(tx, userId, row.id);
+      return row;
+    });
+    if (stored) return toQuizQuestion(input, stored);
+  } catch (err) {
+    logger.error("quiz generation: failed to check existing question", {
+      chunkId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
+
+  const cleanedChunkText = stripQuizArtifacts(input.chunkText);
   const limitedChunkText =
     cleanedChunkText.length > MAX_CHUNK_CHARS
       ? `${cleanedChunkText.slice(0, MAX_CHUNK_CHARS)}\n\n[truncated for question generation]`
       : cleanedChunkText;
 
-  let existingQuestions: string[] = [];
-  if (courseId) {
-    const existing = await sql`
-      SELECT qq.question_text
-      FROM app.quiz_questions qq
-      JOIN app.notes n ON qq.note_id = n.note_id
-      WHERE qq.user_id = ${userId}::uuid
-        AND n.canvas_course_id = ${courseId}::bigint
-        AND n.deleted_at IS NULL
-      ORDER BY qq.created_at DESC
-      LIMIT 5
-    `;
-    existingQuestions = (existing as Array<Pick<ExistingQuestionRow, "question_text">>)
-      .map(({ question_text }) => question_text);
-  }
-
-  const prompt = buildGenerationPrompt(
-    limitedChunkText,
-    moduleName,
-    bloomLevel,
-    questionType,
-    existingQuestions,
-    questionType === "true_false" ? pickTrueFalseTarget() : undefined,
-  );
-
   let raw = "";
   try {
+    const prompt = buildGenerationPrompt(
+      limitedChunkText,
+      input.moduleName,
+      bloomLevel,
+      questionType,
+      await recentCourseQuestions(userId, input.courseId),
+      questionType === "true_false" ? pickTrueFalseTarget() : undefined,
+    );
     raw = await callLLM(prompt);
   } catch (err) {
     logger.error("quiz generation LLM call failed", {
+      chunkId,
       error: err instanceof Error ? err.message : String(err),
     });
     return null;
@@ -311,82 +418,24 @@ export async function generateQuestion(
   const parsed = parseGeneratedQuestion(raw, questionType);
   if (!parsed) {
     logger.warn("quiz generation: failed to parse LLM response", {
+      chunkId,
       raw: raw.slice(0, 500),
     });
     return null;
   }
 
-  let id = generateUUID();
   try {
-    const existingQuestion = (await sql`
-      SELECT id, question_text, options, correct_answer, explanation
-      FROM app.quiz_questions
-      WHERE user_id = ${userId}::uuid
-        AND chunk_id = ${chunkId}::uuid
-        AND bloom_level = ${bloomLevel}
-      ORDER BY created_at ASC
-      LIMIT 1
-    `) as ExistingQuestionRow[];
-
-    if (existingQuestion.length > 0) {
-      const q = existingQuestion[0];
-      id = q.id;
-      return {
-        id,
-        user_id: userId,
-        note_id: noteId,
-        chunk_id: chunkId,
-        question_type: questionType,
-        bloom_level: bloomLevel,
-        question_text: q.question_text,
-        options: q.options,
-        correct_answer: q.correct_answer,
-        explanation: q.explanation ?? "",
-      };
+    const row = await persistQuestion(input, parsed);
+    if (!row) {
+      logger.info("quiz generation: source chunk changed before save", { chunkId });
+      return null;
     }
-
-    await sql`
-      INSERT INTO app.quiz_questions
-        (id, user_id, note_id, chunk_id, question_type, bloom_level, question_text, options, correct_answer, explanation)
-      VALUES (
-        ${id}::uuid, ${userId}::uuid, ${noteId}::uuid, ${chunkId}::uuid,
-        ${questionType}, ${bloomLevel},
-        ${parsed.question_text},
-        ${parsed.options ? JSON.stringify(parsed.options) : null}::text::jsonb,
-        ${parsed.correct_answer},
-        ${parsed.explanation}
-      )
-    `;
-
-    const existingCard = await sql`
-      SELECT id FROM app.quiz_cards
-      WHERE user_id = ${userId}::uuid AND question_id = ${id}::uuid
-      LIMIT 1
-    `;
-    if (existingCard.length === 0) {
-      const cardId = generateUUID();
-      await sql`
-        INSERT INTO app.quiz_cards (id, user_id, question_id)
-        VALUES (${cardId}::uuid, ${userId}::uuid, ${id}::uuid)
-      `;
-    }
+    return toQuizQuestion(input, row);
   } catch (err) {
     logger.error("quiz generation: failed to save question", {
+      chunkId,
       error: err instanceof Error ? err.message : String(err),
     });
     return null;
   }
-
-  return {
-    id,
-    user_id: userId,
-    note_id: noteId,
-    chunk_id: chunkId,
-    question_type: questionType,
-    bloom_level: bloomLevel,
-    question_text: parsed.question_text,
-    options: parsed.options,
-    correct_answer: parsed.correct_answer,
-    explanation: parsed.explanation,
-  };
 }

@@ -638,6 +638,7 @@
   "quiz.question.check_answer": "Vérifier la réponse",
   "quiz.question.type_answer": "Tapez votre réponse...",
   "quiz.session.continue": "Continuer",
+  "quiz.session.answer_failed": "Impossible d'enregistrer ta réponse. Vérifie ta connexion et réessaie.",
   "quiz.session.fatigue_warning": "Vous faites beaucoup d'erreurs dans cette session. Pensez à faire une pause — le repos aide à la consolidation de la mémoire.",
   "quiz.session.leech_warning": "Cette carte revient sans cesse – pensez à revoir le matériel source.",
   "quiz.session.loading": "Chargement du quiz...",
