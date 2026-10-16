@@ -413,7 +413,7 @@ test("a student adds a module and its notes, and topics and classification follo
   expect(browserErrors).toEqual([]);
 });
 
-test("notes sit in their week and between their topics, preview on hover, and moved cards save automatically", async ({
+test("notes sit in topic clusters linked by shared material, preview on hover, and moved cards save automatically", async ({
   loggedInPage: page,
   owned,
   browserErrors,
@@ -451,28 +451,45 @@ test("notes sit in their week and between their topics, preview on hover, and mo
   await reviewMaterial(page, mapId, late.id, { [topics[1].id]: "core" }, []);
   await openMap(page, mapId);
 
-  await expect(studyMap(page).locator("[data-week-label]")).toHaveText([
-    "Week 1",
-    "Week 3",
-    "Week 5",
-  ]);
-  const [earlyBox, bothBox, lateBox] = await Promise.all(
-    [early, both, late].map((note) => cardBox(flowCard(page, note.id))),
-  );
+  const cluster = (key: string) =>
+    studyMap(page).locator(`[data-cluster="${key}"]`);
+  await expect(studyMap(page).locator("[data-cluster]")).toHaveCount(2);
+  await expect(cluster(topics[0].id)).toContainText("Graphs");
+  await expect(cluster(topics[0].id)).toContainText("2 cards");
+  await expect(cluster(topics[1].id)).toContainText("1 card");
+  // a card covering both topics is filed under the first, and the shared card relates the two clusters
+  const inside = (
+    card: { x: number; y: number; width: number; height: number },
+    frame: { x: number; y: number; width: number; height: number },
+  ) =>
+    card.x >= frame.x &&
+    card.y >= frame.y &&
+    card.x + card.width <= frame.x + frame.width + 1 &&
+    card.y + card.height <= frame.y + frame.height + 1;
+  const [earlyBox, bothBox, lateBox, graphsBox, complexityBox] =
+    await Promise.all([
+      ...[early, both, late].map((note) => cardBox(flowCard(page, note.id))),
+      cardBox(cluster(topics[0].id)),
+      cardBox(cluster(topics[1].id)),
+    ]);
+  expect(inside(earlyBox, graphsBox)).toBe(true);
+  expect(inside(bothBox, graphsBox)).toBe(true);
+  expect(inside(lateBox, complexityBox)).toBe(true);
+  expect(complexityBox.x).toBeGreaterThan(graphsBox.x + graphsBox.width);
+  await expect(
+    studyMap(page).locator(
+      `[data-relation~="${topics[0].id}"][data-relation~="${topics[1].id}"]`,
+    ),
+  ).toHaveCount(1);
+  await expect(flowCard(page, early.id)).toHaveAttribute("data-week", "1");
+  await expect(flowCard(page, late.id)).toHaveAttribute("data-week", "5");
+  // the week stays a badge on the card and orders it inside its cluster
   expect(earlyBox.x).toBeLessThan(bothBox.x);
-  expect(bothBox.x).toBeLessThan(lateBox.x);
-  const graphsRow = await cardBox(
-    studyMap(page).locator(`[data-legend="${topics[0].id}"]`),
-  );
-  const complexityRow = await cardBox(
-    studyMap(page).locator(`[data-legend="${topics[1].id}"]`),
-  );
-  const middle = (box: { y: number; height: number }) => box.y + box.height / 2;
-  expect(Math.abs(middle(earlyBox) - middle(graphsRow))).toBeLessThan(
-    Math.abs(middle(earlyBox) - middle(complexityRow)),
-  );
-  expect(middle(bothBox)).toBeGreaterThan(middle(earlyBox));
-  expect(middle(bothBox)).toBeLessThan(middle(lateBox));
+  await flowCard(page, both.id).hover();
+  await expect(
+    studyMap(page).locator(`[data-topic-line="${topics[1].id}"]`),
+  ).toHaveCount(1);
+  await page.mouse.move(5, 5);
 
   await flowCard(page, early.id).hover();
   const preview = page.getByRole("dialog", {
@@ -686,7 +703,8 @@ test("note references, your own labelled links, week overrides and conflicts sta
     .getByRole("combobox", { name: "Week", exact: true })
     .selectOption("5");
   expect((await weekSaved).ok()).toBe(true);
-  await expect(studyMap(page).locator('[data-week-label="5"]')).toBeVisible();
+  await expect(flowCard(page, target.id)).toHaveAttribute("data-week", "5");
+  await expect(flowCard(page, target.id)).toContainText("Week 5");
   expect((await readSnapshot(page, mapId)).map.board.weeks).toEqual({
     [`note:${target.id}`]: 5,
   });
@@ -727,7 +745,7 @@ test("note references, your own labelled links, week overrides and conflicts sta
     .getByRole("button", { name: "Use the latest", exact: true })
     .click();
   await expect(banner).toHaveCount(0);
-  await expect(studyMap(page).locator('[data-week-label="5"]')).toHaveCount(0);
+  await expect(flowCard(page, target.id)).toHaveAttribute("data-week", "1");
 
   await page.getByRole("button", { name: /^All modules/ }).click();
   await expect(
