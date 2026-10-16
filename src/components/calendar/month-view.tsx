@@ -76,8 +76,17 @@ export default function MonthView({ onSelectDate }: MonthViewProps) {
     control: HTMLElement,
   ) => {
     const origin = completed ? undefined : getCelebrationOrigin(control);
-    if (!(await toggleTimeBlockCompleted(id))) return;
+    if (!(await toggleTimeBlockCompleted(id))) {
+      toast.error(t("Something went wrong"));
+      return;
+    }
     if (!completed) void triggerCelebration("assignment", origin);
+  };
+
+  const handleDeleteBlock = async (id: string) => {
+    if (!(await deleteTimeBlock(id))) {
+      toast.error(t("Something went wrong"));
+    }
   };
 
   const handleToggleAssignment = async (
@@ -245,10 +254,11 @@ export default function MonthView({ onSelectDate }: MonthViewProps) {
                         {tb.title || t("Study block")}
                       </span>
                       <button
+                        type="button"
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          void deleteTimeBlock(tb.id);
+                          void handleDeleteBlock(tb.id);
                         }}
                         className="pointer-events-auto absolute right-0.5 top-0.5 rounded p-0.5 opacity-100 transition hover:bg-subtle md:opacity-0 md:group-hover/tb:opacity-100"
                         aria-label={t("Delete study block")}

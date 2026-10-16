@@ -3,6 +3,11 @@ import { NextRequest } from "next/server";
 
 const { sqlMock } = vi.hoisted(() => ({ sqlMock: vi.fn() }));
 vi.mock("@/database/pgsql", () => ({ default: sqlMock }));
+// the feed is public; the session module is mocked only because api-error imports it
+vi.mock("@/lib/auth/session", () => ({
+  validateSession: vi.fn(),
+  validateSessionLite: vi.fn(),
+}));
 
 import { GET } from "@/app/api/calendar/ical/[token]/route";
 
@@ -12,7 +17,10 @@ const USER_ID = "33333333-3333-4333-8333-333333333333";
 
 type AccountState = "active" | "inactive" | "deleted";
 
-function arrange(account: AccountState) {
+function arrange(
+  account: AccountState,
+  rows: { assignments?: unknown[]; timeBlocks?: unknown[] } = {},
+) {
   const queries: string[] = [];
   sqlMock.mockImplementation(async (parts: TemplateStringsArray, ...values: unknown[]) => {
     const query = parts.join("?");
@@ -25,7 +33,8 @@ function arrange(account: AccountState) {
       if (account === "deleted" && hasDeletedGuard) return [];
       return [{ user_id: USER_ID }];
     }
-    if (query.includes("FROM app.assignments") || query.includes("FROM app.time_blocks")) return [];
+    if (query.includes("FROM app.time_blocks")) return rows.timeBlocks ?? [];
+    if (query.includes("FROM app.assignments")) return rows.assignments ?? [];
     throw new Error(`Unexpected query: ${query}`);
   });
   return queries;
@@ -68,5 +77,57 @@ describe("calendar bearer feed", () => {
     const response = await fetchFeed(OLD_TOKEN);
     expect(response.status).toBe(404);
     expect(queries).toHaveLength(1);
+  });
+
+  it.each([
+    "------------------------------------",
+    "zzzzzzzz-zzzz-zzzz-zzzz-zzzzzzzzzzzz",
+    "not-a-token",
+  ])("rejects malformed token %s before touching the database", async (token) => {
+    const queries = arrange("active");
+    const response = await fetchFeed(token);
+    expect(response.status).toBe(404);
+    expect(queries).toHaveLength(0);
+  });
+
+  it("scopes the joined assignment to the feed owner", async () => {
+    const queries = arrange("active");
+    await fetchFeed();
+
+    const blockQuery = queries.find((query) => query.includes("FROM app.time_blocks"));
+    expect(blockQuery).toMatch(/a\.user_id = tb\.user_id/);
+  });
+
+  it("serves RFC 5545 output with VEVENT-valid statuses", async () => {
+    arrange("active", {
+      assignments: [{
+        id: "a1",
+        title: "Essay",
+        description: "<p>Write <b>2000</b> words</p>",
+        course_name: "CT216",
+        due_at: new Date("2026-10-10T22:59:00Z"),
+        status: "done",
+      }],
+      timeBlocks: [{
+        id: "b1",
+        title: null,
+        starts_at: new Date("2026-10-08T09:00:00Z"),
+        ends_at: new Date("2026-10-08T10:00:00Z"),
+        completed: true,
+        assignment_title: "Essay",
+        course_name: "CT216",
+      }],
+    });
+
+    const response = await fetchFeed();
+    const body = await response.text();
+
+    expect(response.headers.get("content-type")).toBe("text/calendar; charset=utf-8");
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    expect(body.endsWith("END:VCALENDAR\r\n")).toBe(true);
+    expect(body).not.toMatch(/(^|[^\r])\n/);
+    expect(body).not.toContain("STATUS:COMPLETED");
+    expect(body).toContain("SUMMARY:[CT216] Study: Essay");
+    expect(body).toContain("DESCRIPTION:Write 2000 words\\nStatus: Done");
   });
 });

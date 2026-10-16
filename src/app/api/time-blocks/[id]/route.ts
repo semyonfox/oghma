@@ -4,13 +4,12 @@ import {
   requireAuth,
   requireValidId,
   tracedError,
-  ApiError,
   parseJson,
   type RouteParamsContext,
 } from '@/lib/api-error';
 import sql from '@/database/pgsql';
 import { timeBlockUpdateSchema, validateBody } from '@/lib/validations/schemas';
-import { pomodoroCountForRange } from '@/lib/calendar/time-blocks';
+import { assertValidTimeBlockSpan, pomodoroCountForRange } from '@/lib/calendar/time-blocks';
 
 interface StoredTimeRange {
   starts_at: string | Date;
@@ -19,7 +18,7 @@ interface StoredTimeRange {
 
 /**
  * PATCH /api/time-blocks/:id
- * Move or resize a time block.
+ * Move, resize, relink or complete a time block.
  */
 export const PATCH = withErrorHandler(async (
   request,
@@ -43,9 +42,7 @@ export const PATCH = withErrorHandler(async (
     if (!existing) return tracedError('Not found', 404);
     const start = new Date(starts_at ?? existing.starts_at);
     const end = new Date(ends_at ?? existing.ends_at);
-    if (end.getTime() <= start.getTime()) {
-      throw new ApiError(400, 'End must be after start');
-    }
+    assertValidTimeBlockSpan(start, end);
     pomodoroCount = pomodoroCountForRange(start, end);
   }
 

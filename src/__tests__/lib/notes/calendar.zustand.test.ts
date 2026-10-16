@@ -81,4 +81,27 @@ describe("calendar store", () => {
     expect(store.getState().selectedDate).toBe("2026-07-23");
     expect(new Date(store.getState().currentDate).getDate()).toBe(23);
   });
+
+  // without the zone the server buckets review days in UTC, so late-evening
+  // reviews land on the wrong day for anyone east or west of it
+  it("asks for review dates in the browser's time zone", async () => {
+    const real = new Intl.DateTimeFormat().resolvedOptions();
+    vi.spyOn(Intl.DateTimeFormat.prototype, "resolvedOptions").mockReturnValue({
+      ...real,
+      timeZone: "Europe/Dublin",
+    });
+    const fetchMock = vi.fn().mockResolvedValue(response({ dates: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+    const store = await loadStore();
+
+    await store.getState().fetchReviewDates("2026-10-01", "2026-10-31");
+
+    const url = new URL(String(fetchMock.mock.calls[0][0]), "http://localhost");
+    expect(url.pathname).toBe("/api/quiz/review-dates");
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      start: "2026-10-01",
+      end: "2026-10-31",
+      tz: "Europe/Dublin",
+    });
+  });
 });

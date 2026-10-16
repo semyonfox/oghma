@@ -48,46 +48,53 @@ export interface BuildMonthCellsInput {
   today: Date;
 }
 
+const MONTH_GRID_CELLS = 42;
+
+// the grid is always six monday-first weeks, starting on or before the 1st
+function monthGridStart(anchorDate: Date): Date {
+  const firstOfMonth = new Date(anchorDate.getFullYear(), anchorDate.getMonth(), 1);
+  const mondayOffset = (firstOfMonth.getDay() + 6) % 7;
+  return new Date(
+    firstOfMonth.getFullYear(),
+    firstOfMonth.getMonth(),
+    1 - mondayOffset,
+  );
+}
+
+export function getMonthGridRange(anchorDate: Date): {
+  startDateKey: string;
+  endDateKey: string;
+} {
+  const start = monthGridStart(anchorDate);
+  const end = new Date(
+    start.getFullYear(),
+    start.getMonth(),
+    start.getDate() + MONTH_GRID_CELLS - 1,
+  );
+  return { startDateKey: formatDateKey(start), endDateKey: formatDateKey(end) };
+}
+
 function getMonthDays(anchorDate: Date, today: Date): MonthCell[] {
-  const year = anchorDate.getFullYear();
   const month = anchorDate.getMonth();
   const todayStr = formatDateKey(today);
-  const firstDay = new Date(year, month, 1);
-  // monday-based: 0=Mon, 6=Sun
-  const startDow = (firstDay.getDay() + 6) % 7;
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const cells: MonthCell[] = [];
+  const start = monthGridStart(anchorDate);
 
-  const createCell = (date: Date, isCurrentMonth: boolean): MonthCell => {
+  return Array.from({ length: MONTH_GRID_CELLS }, (_, index) => {
+    const date = new Date(
+      start.getFullYear(),
+      start.getMonth(),
+      start.getDate() + index,
+    );
     const dateKey = formatDateKey(date);
     return {
       date: dateKey,
-      isCurrentMonth,
+      isCurrentMonth: date.getMonth() === month,
       isToday: dateKey === todayStr,
       isSelected: false,
       assignments: [],
       timeBlocks: [],
     };
-  };
-
-  for (let i = startDow - 1; i >= 0; i--) {
-    cells.push(createCell(new Date(year, month, -i), false));
-  }
-
-  for (let i = 1; i <= daysInMonth; i++) {
-    cells.push(createCell(new Date(year, month, i), true));
-  }
-
-  while (cells.length < 42) {
-    cells.push(
-      createCell(
-        new Date(year, month + 1, cells.length - startDow - daysInMonth + 1),
-        false,
-      ),
-    );
-  }
-
-  return cells;
+  });
 }
 
 export function buildMonthCells({
