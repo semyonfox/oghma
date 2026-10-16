@@ -1,6 +1,7 @@
 import sql from "@/database/pgsql";
 import type { QuizStreakResult, UserStreak } from "@/lib/quiz/types";
 import type postgres from "postgres";
+import { DEFAULT_TIME_ZONE, dateKeyInTimeZone } from "./time-zone";
 
 const MILESTONES = [7, 14, 30, 60, 90, 180, 365] as const;
 const DAY_MS = 86_400_000;
@@ -47,14 +48,17 @@ function daysBetween(from: string, to: string): number {
 }
 
 /**
- * Advances a user's quiz streak at most once per UTC day. The transaction and
- * row lock make concurrent answer submissions and direct streak requests safe.
+ * Advances a user's quiz streak at most once per calendar day in the student's
+ * time zone. Day keys are plain dates, so DST transitions never shorten or
+ * stretch the gap between two days. The transaction and row lock make
+ * concurrent answer submissions safe.
  */
 export async function advanceQuizStreak(
   userId: string,
   date = new Date(),
+  timeZone = DEFAULT_TIME_ZONE,
 ): Promise<QuizStreakResult> {
-  const today = utcDateKey(date);
+  const today = dateKeyInTimeZone(date, timeZone);
 
   return sql.begin(async (tx: postgres.TransactionSql) => {
     const inserted = await tx<Array<{ current_streak: number }>>`
@@ -83,7 +87,9 @@ export async function advanceQuizStreak(
       ? normalizeDateKey(existing.last_review_date)
       : null;
 
-    if (lastReviewDate === today) {
+    // a zone change can make "today" fall before the stored day; treat that as
+    // already counted instead of resetting the streak
+    if (lastReviewDate && today <= lastReviewDate) {
       return {
         advanced: false,
         current_streak: existing.current_streak,

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { embedChunks } from '@/lib/rag/embeddings';
+import { embedChunks, embedText } from '@/lib/rag/embeddings';
 
 describe('embedChunks', () => {
     beforeEach(() => {
@@ -166,4 +166,59 @@ describe('embedChunks', () => {
         expect(fetchMock.mock.calls[0][0]).toBe('https://openrouter.test/embeddings');
     });
 
+    it('does not retry a request the provider rejected as invalid', async () => {
+        process.env.EMBEDDING_MAX_ATTEMPTS = '3';
+        const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 401 });
+        vi.stubGlobal('fetch', fetchMock);
+
+        await expect(embedChunks(['study note'])).rejects.toThrow('Embedding API 401');
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        delete process.env.EMBEDDING_MAX_ATTEMPTS;
+    });
+});
+
+describe('embedText', () => {
+    beforeEach(() => {
+        process.env.EMBEDDING_API_URL = 'https://test.api';
+        process.env.EMBEDDING_API_KEY = 'fake-key';
+        process.env.EMBEDDING_MODEL = 'test-model';
+        process.env.EMBEDDING_TIMEOUT_MS = '120000';
+        process.env.EMBEDDING_MAX_ATTEMPTS = '3';
+        delete process.env.EMBEDDING_FALLBACK_API_URL;
+        delete process.env.EMBEDDING_FALLBACK_MODEL;
+        delete process.env.EMBEDDING_FALLBACK_API_KEY;
+        delete process.env.QDRANT_VECTOR_SIZE;
+        delete process.env.EMBEDDING_DIMENSIONS;
+    });
+
+    afterEach(() => {
+        delete process.env.EMBEDDING_TIMEOUT_MS;
+        delete process.env.EMBEDDING_MAX_ATTEMPTS;
+        vi.restoreAllMocks();
+        vi.unstubAllGlobals();
+    });
+
+    it('gives an interactive query one short attempt instead of the indexing budget', async () => {
+        const timeout = vi.spyOn(AbortSignal, 'timeout');
+        const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 503 });
+        vi.stubGlobal('fetch', fetchMock);
+
+        await expect(embedText('graph search')).rejects.toThrow('Embedding API 503');
+
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(timeout).toHaveBeenCalledWith(10_000);
+    });
+
+    it('marks the text as a retrieval query', async () => {
+        const fetchMock = vi.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({ data: [{ embedding: [0.5] }] }),
+        });
+        vi.stubGlobal('fetch', fetchMock);
+
+        await expect(embedText('graph search')).resolves.toEqual([0.5]);
+        expect(JSON.parse(fetchMock.mock.calls[0][1].body).input).toEqual([
+            'Instruct: Represent this query for retrieval\nQuery: graph search',
+        ]);
+    });
 });

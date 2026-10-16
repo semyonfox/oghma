@@ -31,4 +31,20 @@ describe("stripMarkdown", () => {
     const input = "<p>Hello</p>\n\n\n\n<strong>World</strong>";
     expect(stripMarkdown(input)).toBe("Hello\n\nWorld");
   });
+
+  // stripped text is stored as extracted_text and searched with ILIKE, so
+  // anything removed here is unfindable by exact search too
+  it("keeps comparison operators that only look like tags", () => {
+    expect(stripMarkdown("x < 5 and y > 3")).toBe("x < 5 and y > 3");
+  });
+
+  it("keeps underscores inside identifiers", () => {
+    expect(stripMarkdown("call snake_case_name here")).toBe(
+      "call snake_case_name here",
+    );
+  });
+
+  it("keeps spaced asterisks used as multiplication", () => {
+    expect(stripMarkdown("2 * 3 * 4")).toBe("2 * 3 * 4");
+  });
 });

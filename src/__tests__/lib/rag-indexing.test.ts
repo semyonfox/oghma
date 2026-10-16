@@ -76,11 +76,7 @@ describe("replaceNoteEmbeddings", () => {
     vi.clearAllMocks();
     sqlMock.mockReset();
     txMock.mockReset();
-    sqlMock.mockImplementation(async (strings: TemplateStringsArray) => {
-      const query = strings.join("?");
-      if (query.includes("to_regclass")) return [{ table_name: null }];
-      return [];
-    });
+    sqlMock.mockImplementation(async () => []);
     sqlMock.begin.mockReset();
     sqlMock.begin.mockImplementation(
       async (callback: (tx: ReturnType<typeof vi.fn>) => unknown) =>
@@ -95,10 +91,7 @@ describe("replaceNoteEmbeddings", () => {
     txMock
       .mockResolvedValueOnce([{ note_id: "note-1" }])
       .mockResolvedValueOnce([{ id: "old-chunk" }])
-      .mockResolvedValueOnce([
-        { id: "new-chunk-a" },
-        { id: "new-chunk-b" },
-      ]);
+      .mockResolvedValueOnce([]);
     vi.mocked(embedChunks).mockResolvedValueOnce([
       { chunk: "alpha", vector: [0.1, 0.2] },
       { chunk: "beta", vector: [0.3, 0.4] },
@@ -112,19 +105,18 @@ describe("replaceNoteEmbeddings", () => {
 
     expect(count).toBe(2);
     expect(txMock).toHaveBeenCalledTimes(3);
+    // the vector for each text must land on the id that text was stored under;
+    // the ids are minted before the insert rather than read back from it
+    const [, ids, documentIds, userIds, texts] = txMock.mock.calls[2] as [
+      TemplateStringsArray, string[], string[], string[], string[],
+    ];
+    expect(documentIds).toEqual(["note-1", "note-1"]);
+    expect(userIds).toEqual(["user-1", "user-1"]);
+    expect(texts).toEqual(["alpha", "beta"]);
+    expect(new Set(ids).size).toBe(2);
     expect(upsertChunkVectors).toHaveBeenCalledWith([
-      {
-        chunkId: "new-chunk-a",
-        documentId: "note-1",
-        userId: "user-1",
-        vector: [0.1, 0.2],
-      },
-      {
-        chunkId: "new-chunk-b",
-        documentId: "note-1",
-        userId: "user-1",
-        vector: [0.3, 0.4],
-      },
+      { chunkId: ids[0], documentId: "note-1", userId: "user-1", vector: [0.1, 0.2] },
+      { chunkId: ids[1], documentId: "note-1", userId: "user-1", vector: [0.3, 0.4] },
     ]);
     expect(deleteChunkVectors).toHaveBeenCalledWith(["old-chunk"]);
   });
@@ -133,7 +125,7 @@ describe("replaceNoteEmbeddings", () => {
     txMock
       .mockResolvedValueOnce([{ note_id: "note-1" }])
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ id: "new-chunk" }]);
+      .mockResolvedValueOnce([]);
     vi.mocked(embedChunks).mockResolvedValueOnce([
       { chunk: "alpha", vector: [0.1, 0.2] },
     ]);
@@ -145,19 +137,21 @@ describe("replaceNoteEmbeddings", () => {
       replaceNoteEmbeddings("note-1", "user-1", ["alpha"]),
     ).rejects.toThrow("qdrant unavailable");
 
-    expect(deleteChunkVectors).toHaveBeenCalledWith(["new-chunk"]);
+    const [, insertedIds] = txMock.mock.calls[2] as [TemplateStringsArray, string[]];
+    expect(deleteChunkVectors).toHaveBeenCalledWith(insertedIds);
   });
 
   it("journals partial vector writes when rollback cleanup also fails", async () => {
     txMock.mockResolvedValueOnce([{ note_id: "note-1" }])
-      .mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: "partial-chunk" }]);
+      .mockResolvedValueOnce([]).mockResolvedValueOnce([]);
     vi.mocked(embedChunks).mockResolvedValueOnce([{ chunk: "alpha", vector: [0.1, 0.2] }]);
     vi.mocked(upsertChunkVectors).mockRejectedValueOnce(new Error("write timed out"));
     vi.mocked(deleteChunkVectors).mockRejectedValueOnce(new Error("delete timed out"));
     await expect(replaceNoteEmbeddings("note-1", "user-1", ["alpha"])).rejects.toThrow("write timed out");
+    const [, insertedIds] = txMock.mock.calls[2] as [TemplateStringsArray, string[]];
     const journal = sqlMock.mock.calls.find(([strings]) =>
       (strings as TemplateStringsArray).join(" ").includes("INSERT INTO app.note_deletion_cleanup_tasks"));
-    expect(journal?.slice(1)).toEqual(["user-1", ["partial-chunk"]]);
+    expect(journal?.slice(1)).toEqual(["user-1", insertedIds]);
   });
 
   it("deletes old chunk vectors when there is no replacement content", async () => {

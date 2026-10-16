@@ -182,4 +182,57 @@ describe("advanceQuizStreak", () => {
     ]);
     expect(totalReviewDays).toBe(1);
   });
+
+  // queues only the two reads when no update is expected, so nothing leaks
+  // into the next test
+  function existingStreak(lastReviewDate: string, currentStreak = 3, updates = true) {
+    sqlMock.__tx
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{
+        current_streak: currentStreak,
+        longest_streak: currentStreak,
+        last_review_date: lastReviewDate,
+        total_review_days: currentStreak,
+        streak_milestones: [],
+      }]);
+    if (updates) sqlMock.__tx.mockResolvedValueOnce([]);
+  }
+
+  it("counts the day in the student's zone, not UTC", async () => {
+    // 23:30 in Dublin on 12 August is already 13 August in Auckland
+    const lateEvening = new Date("2026-08-12T22:30:00.000Z");
+    existingStreak("2026-08-12");
+
+    await expect(
+      advanceQuizStreak("user-1", lateEvening, "Pacific/Auckland"),
+    ).resolves.toMatchObject({ advanced: true, current_streak: 4 });
+    expect(sqlMock.__tx.mock.calls[2].slice(1)).toContain("2026-08-13");
+  });
+
+  it("keeps a streak across the spring DST change", async () => {
+    // Europe/Dublin skips 01:00-02:00 on 29 March 2026, a 23 hour day
+    existingStreak("2026-03-28");
+
+    await expect(
+      advanceQuizStreak("user-1", new Date("2026-03-29T00:30:00.000Z"), "Europe/Dublin"),
+    ).resolves.toMatchObject({ advanced: true, current_streak: 4 });
+  });
+
+  it("does not reset when a zone change puts today before the stored day", async () => {
+    existingStreak("2026-08-13", 3, false);
+
+    await expect(
+      advanceQuizStreak("user-1", new Date("2026-08-13T02:00:00.000Z"), "America/Los_Angeles"),
+    ).resolves.toEqual({ advanced: false, current_streak: 3, newMilestone: null });
+    expect(sqlMock.__tx).toHaveBeenCalledTimes(2);
+  });
+
+  it("resets after a missed day", async () => {
+    existingStreak("2026-08-10", 9);
+
+    await expect(advanceQuizStreak("user-1", TODAY)).resolves.toMatchObject({
+      advanced: true,
+      current_streak: 1,
+    });
+  });
 });

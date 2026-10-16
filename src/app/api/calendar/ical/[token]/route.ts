@@ -1,32 +1,46 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import sql from "@/database/pgsql";
-import { buildIcalEvent } from "@/lib/calendar/ical";
+import { withErrorHandler, type RouteParamsContext } from "@/lib/api-error";
+import { isValidUUID } from "@/lib/utils/uuid";
+import {
+  assignmentToIcalEvent,
+  buildIcalCalendar,
+  timeBlockToIcalEvent,
+  type FeedAssignment,
+  type FeedTimeBlock,
+} from "@/lib/calendar/ical";
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ token: string }> },
-) {
+// the feed date window is still an open product call, so the feed keeps
+// every dated assignment and blocks from the last 30 days onwards
+function notFound() {
+  return new NextResponse("Not Found", {
+    status: 404,
+    headers: { "Cache-Control": "no-store" },
+  });
+}
+
+/**
+ * GET /api/calendar/ical/:token
+ * Public iCal feed. The unguessable token is the only credential, so an unknown,
+ * rotated or revoked token and an inactive account all look the same.
+ */
+export const GET = withErrorHandler(async (
+  _request,
+  { params }: RouteParamsContext<{ token: string }>,
+) => {
   const { token } = await params;
+  if (!isValidUUID(token)) return notFound();
 
-  // validate token — UUID format only to avoid injection
-  if (!/^[0-9a-f-]{36}$/i.test(token)) {
-    return new NextResponse("Not Found", { status: 404 });
-  }
-
-  const [loginRow] = await sql`
+  const [loginRow] = await sql<{ user_id: string }[]>`
     SELECT user_id FROM app.login
     WHERE calendar_export_token = ${token}::uuid
       AND is_active = true AND deleted_at IS NULL
   `;
-
-  if (!loginRow) {
-    return new NextResponse("Not Found", { status: 404 });
-  }
+  if (!loginRow) return notFound();
 
   const userId = loginRow.user_id;
 
-  // fetch assignments with a due date
-  const assignments = await sql`
+  const assignments = await sql<FeedAssignment[]>`
     SELECT id, title, description, course_name, due_at, status
     FROM app.assignments
     WHERE user_id = ${userId}::uuid
@@ -34,88 +48,30 @@ export async function GET(
     ORDER BY due_at ASC
   `;
 
-  // fetch time blocks (last 30 days to future), with linked assignment title
-  const timeBlocks = await sql`
+  const timeBlocks = await sql<FeedTimeBlock[]>`
     SELECT tb.id, tb.title, tb.starts_at, tb.ends_at, tb.completed,
            a.title AS assignment_title, a.course_name
     FROM app.time_blocks tb
-    LEFT JOIN app.assignments a ON tb.assignment_id = a.id
+    LEFT JOIN app.assignments a
+      ON a.id = tb.assignment_id AND a.user_id = tb.user_id
     WHERE tb.user_id = ${userId}::uuid
       AND tb.starts_at >= NOW() - INTERVAL '30 days'
     ORDER BY tb.starts_at ASC
   `;
 
-  // build VEVENT strings
-  const vevents: string[] = [];
-
-  for (const a of assignments) {
-    const dtstart = new Date(a.due_at);
-    const dtend = new Date(dtstart.getTime() + 60 * 60 * 1000); // +1 hour
-    const summary = a.course_name
-      ? `[${a.course_name}] ${a.title}`
-      : a.title;
-    const description = [
-      a.description,
-      a.status === "done" ? "Status: Done" : null,
-      a.status === "late" ? "Status: Late" : null,
-    ]
-      .filter(Boolean)
-      .join("\n") || null;
-
-    vevents.push(
-      buildIcalEvent({
-        uid: `assignment-${a.id}@oghmanotes`,
-        summary,
-        dtstart,
-        dtend,
-        description,
-        categories: a.course_name ?? null,
-        status: a.status === "done" ? "COMPLETED" : "CONFIRMED",
-      }),
-    );
-  }
-
-  for (const tb of timeBlocks) {
-    const blockTitle =
-      tb.title ||
-      (tb.assignment_title
-        ? `Study: ${tb.assignment_title}`
-        : "Study Block");
-    const summary = tb.course_name
-      ? `[${tb.course_name}] ${blockTitle}`
-      : blockTitle;
-
-    vevents.push(
-      buildIcalEvent({
-        uid: `timeblock-${tb.id}@oghmanotes`,
-        summary,
-        dtstart: new Date(tb.starts_at),
-        dtend: new Date(tb.ends_at),
-        categories: tb.course_name ?? null,
-        status: tb.completed ? "COMPLETED" : "CONFIRMED",
-      }),
-    );
-  }
-
-  const ical = [
-    "BEGIN:VCALENDAR",
-    "VERSION:2.0",
-    "PRODID:-//OghmaNotes//Calendar Export//EN",
-    "CALSCALE:GREGORIAN",
-    "METHOD:PUBLISH",
-    "X-WR-CALNAME:OghmaNotes",
-    "X-WR-CALDESC:Assignments and study blocks from OghmaNotes",
-    ...vevents,
-    "END:VCALENDAR",
-  ].join("\r\n");
+  const dtstamp = new Date();
+  const ical = buildIcalCalendar([
+    ...assignments.map((assignment) => assignmentToIcalEvent(assignment, dtstamp)),
+    ...timeBlocks.map((block) => timeBlockToIcalEvent(block, dtstamp)),
+  ]);
 
   return new NextResponse(ical, {
     status: 200,
     headers: {
       "Content-Type": "text/calendar; charset=utf-8",
       "Content-Disposition": 'attachment; filename="oghmanotes.ics"',
-      // allow calendar apps to cache for up to 1 hour
-      "Cache-Control": "no-store",
+      // the URL is a bearer credential for private data, so no shared caches
+      "Cache-Control": "private, no-store",
     },
   });
-}
+});

@@ -6,7 +6,6 @@ const mocks = vi.hoisted(() => ({
   validateSession: vi.fn(),
   createNoteWithTree: vi.fn(),
   replaceNoteLinks: vi.fn(),
-  cacheInvalidate: vi.fn(),
   sql: vi.fn(),
 }));
 
@@ -24,15 +23,6 @@ vi.mock("@/lib/notes/storage/create-note", async (importOriginal) => ({
 }));
 vi.mock("@/lib/notes/storage/note-links", () => ({
   replaceNoteLinks: mocks.replaceNoteLinks,
-}));
-vi.mock("@/lib/cache", () => ({
-  cacheInvalidate: mocks.cacheInvalidate,
-  cacheKeys: {
-    treeChildren: (userId: string, parentId: string | null) =>
-      `children:${userId}:${parentId ?? "root"}`,
-    treeFull: (userId: string) => `tree:${userId}`,
-    notesList: (userId: string) => `notes:${userId}`,
-  },
 }));
 
 import { POST } from "@/app/api/notes/route";
@@ -62,7 +52,6 @@ describe("POST /api/notes creation contract", () => {
       updatedAt: CREATED_AT.toISOString(),
     }));
     mocks.replaceNoteLinks.mockResolvedValue(undefined);
-    mocks.cacheInvalidate.mockResolvedValue(undefined);
   });
 
   it("uses the shared write with the optimistic ID and preserves the public response", async () => {
@@ -98,9 +87,6 @@ describe("POST /api/notes creation contract", () => {
     });
     expect(mocks.sql).not.toHaveBeenCalled();
     expect(mocks.replaceNoteLinks).toHaveBeenCalledExactlyOnceWith(USER_ID, NOTE_ID, "# Lecture");
-    expect(mocks.cacheInvalidate).toHaveBeenCalledExactlyOnceWith(
-      `children:${USER_ID}:${PARENT_ID}`, `tree:${USER_ID}`, `notes:${USER_ID}`,
-    );
   });
 
   it.each([
@@ -123,9 +109,6 @@ describe("POST /api/notes creation contract", () => {
     });
     await expect(response.json()).resolves.not.toHaveProperty("pid");
     expect(mocks.replaceNoteLinks).not.toHaveBeenCalled();
-    expect(mocks.cacheInvalidate).toHaveBeenCalledExactlyOnceWith(
-      `children:${USER_ID}:root`, `tree:${USER_ID}`, `notes:${USER_ID}`,
-    );
   });
 
   it("requires authentication before writing", async () => {
@@ -143,7 +126,6 @@ describe("POST /api/notes creation contract", () => {
   ])("rejects invalid input before writing", async (body) => {
     expect((await post(body)).status).toBe(400);
     expect(mocks.createNoteWithTree).not.toHaveBeenCalled();
-    expect(mocks.cacheInvalidate).not.toHaveBeenCalled();
   });
 
   it("maps the shared parent error to the existing 404 response without side effects", async () => {
@@ -154,10 +136,9 @@ describe("POST /api/notes creation contract", () => {
     expect(response.status).toBe(404);
     await expect(response.json()).resolves.toMatchObject({ error: "Parent folder not found" });
     expect(mocks.replaceNoteLinks).not.toHaveBeenCalled();
-    expect(mocks.cacheInvalidate).not.toHaveBeenCalled();
   });
 
-  it("reports other write failures as server errors without indexing or invalidating", async () => {
+  it("reports other write failures as server errors without indexing", async () => {
     mocks.createNoteWithTree.mockRejectedValue(new Error("tree insert failed"));
 
     const response = await post({ content: "Body" });
@@ -165,13 +146,11 @@ describe("POST /api/notes creation contract", () => {
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toMatchObject({ error: "Internal server error" });
     expect(mocks.replaceNoteLinks).not.toHaveBeenCalled();
-    expect(mocks.cacheInvalidate).not.toHaveBeenCalled();
   });
 
-  it("still returns the created note and invalidates caches if link indexing fails", async () => {
+  it("still returns the created note if link indexing fails", async () => {
     mocks.replaceNoteLinks.mockRejectedValue(new Error("link index unavailable"));
 
     expect((await post({ content: "Body" })).status).toBe(201);
-    expect(mocks.cacheInvalidate).toHaveBeenCalledOnce();
   });
 });

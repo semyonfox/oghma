@@ -11,13 +11,10 @@ const mocks = vi.hoisted(() => {
       callback(tx),
     ),
   });
-  return { sql, tx, invalidateTreeAfterPublish: vi.fn() };
+  return { sql, tx };
 });
 
 vi.mock("@/database/pgsql", () => ({ default: mocks.sql }));
-vi.mock("@/lib/notes/tree-cache", () => ({
-  invalidateTreeAfterPublish: mocks.invalidateTreeAfterPublish,
-}));
 
 import { persistVaultSourceFile, processVaultImport } from "@/lib/vault/import-worker";
 
@@ -91,10 +88,6 @@ describe("persistVaultSourceFile", () => {
       "INSERT INTO app.attachments",
     );
     expect(storage.deleteObject).not.toHaveBeenCalled();
-    expect(mocks.invalidateTreeAfterPublish).toHaveBeenCalledWith(
-      "user-1",
-      null,
-    );
   });
 
   it("removes the uploaded object when the relational transaction fails", async () => {
@@ -123,7 +116,6 @@ describe("persistVaultSourceFile", () => {
     expect(storage.deleteObject).toHaveBeenCalledWith(
       "vault/user-1/job-1/lecture.pdf",
     );
-    expect(mocks.invalidateTreeAfterPublish).not.toHaveBeenCalled();
   });
   it("does not expose private job or exception text when an import fails", async () => {
     const stream = new PassThrough(); let output = "";

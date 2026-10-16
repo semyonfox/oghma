@@ -638,6 +638,7 @@
   "quiz.question.check_answer": "Check Answer",
   "quiz.question.type_answer": "Type your answer...",
   "quiz.session.continue": "Continue",
+  "quiz.session.answer_failed": "Couldn't save your answer. Check your connection and try again.",
   "quiz.session.fatigue_warning": "You're getting quite a few wrong this session. Consider taking a break — rest helps memory consolidation.",
   "quiz.session.leech_warning": "This card keeps coming back — consider reviewing the source material.",
   "quiz.session.loading": "Loading quiz...",
@@ -1038,5 +1039,6 @@
   "attachment_viewer.too_large": "This file is too large to preview. Download it to read it.",
   "attachment_viewer.empty": "This file is empty.",
   "Verify email": "Verify email",
-  "Choose a password only you know to finish verifying your account.": "Choose a password only you know to finish verifying your account."
+  "Choose a password only you know to finish verifying your account.": "Choose a password only you know to finish verifying your account.",
+  "This note could not be loaded. Check your connection and try again.": "This note could not be loaded. Check your connection and try again."
 }

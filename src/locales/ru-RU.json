@@ -638,6 +638,7 @@
   "quiz.question.check_answer": "Проверить ответ",
   "quiz.question.type_answer": "Введите ответ...",
   "quiz.session.continue": "Продолжать",
+  "quiz.session.answer_failed": "Не удалось сохранить ответ. Проверьте подключение и попробуйте ещё раз.",
   "quiz.session.fatigue_warning": "В этой сессии вы допускаете много ошибок. Подумайте о перерыве — отдых помогает закрепить знания.",
   "quiz.session.leech_warning": "Эта карточка продолжает возвращаться — рассмотрите возможность просмотра исходного материала.",
   "quiz.session.loading": "Загрузка викторины...",
@@ -1038,5 +1039,6 @@
   "attachment_viewer.too_large": "Файл слишком большой для предпросмотра. Скачайте его для чтения.",
   "attachment_viewer.empty": "Этот файл пуст.",
   "Verify email": "Подтвердить email",
-  "Choose a password only you know to finish verifying your account.": "Придумайте пароль, который знаете только вы, чтобы завершить подтверждение аккаунта."
+  "Choose a password only you know to finish verifying your account.": "Придумайте пароль, который знаете только вы, чтобы завершить подтверждение аккаунта.",
+  "This note could not be loaded. Check your connection and try again.": "Не удалось загрузить заметку. Проверьте подключение и попробуйте ещё раз."
 }

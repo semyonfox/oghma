@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -37,6 +37,26 @@ describe("global search route boundary", () => {
     expect(isGlobalSearchRoute("/settings#ai")).toBe(true);
     expect(isGlobalSearchRoute("/about")).toBe(false);
     expect(isGlobalSearchRoute(null)).toBe(false);
+  });
+
+  it("covers the study map, which renders the navigation Search button", () => {
+    expect(isGlobalSearchRoute("/study-map")).toBe(true);
+    expect(isGlobalSearchRoute("/study-map/topic-1")).toBe(true);
+  });
+
+  it("matches whole path segments only", () => {
+    expect(isGlobalSearchRoute("/notes-export")).toBe(false);
+    expect(isGlobalSearchRoute("/chatroom")).toBe(false);
+  });
+
+  it("keeps search open when the navigation opens it on the study map", () => {
+    mocks.pathname = "/study-map";
+
+    render(React.createElement(GlobalSearchRoot));
+    act(() => useGlobalSearchStore.getState().open());
+
+    expect(useGlobalSearchStore.getState().visible).toBe(true);
+    expect(screen.getByTestId("global-search-modal")).toBeTruthy();
   });
 
   it("does not render the deferred modal on a public route", () => {

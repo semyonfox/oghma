@@ -638,6 +638,7 @@
   "quiz.question.check_answer": "Controlla risposta",
   "quiz.question.type_answer": "Scrivi la tua risposta...",
   "quiz.session.continue": "Continuare",
+  "quiz.session.answer_failed": "Impossibile salvare la tua risposta. Controlla la connessione e riprova.",
   "quiz.session.fatigue_warning": "Stai sbagliando parecchio in questa sessione. Prendi in considerazione una pausa — il riposo aiuta il consolidamento della memoria.",
   "quiz.session.leech_warning": "Questa scheda continua a tornare: valuta la possibilità di rivedere il materiale originale.",
   "quiz.session.loading": "Caricamento quiz...",
@@ -1038,5 +1039,6 @@
   "attachment_viewer.too_large": "Questo file è troppo grande per l’anteprima. Scaricalo per leggerlo.",
   "attachment_viewer.empty": "Questo file è vuoto.",
   "Verify email": "Verifica email",
-  "Choose a password only you know to finish verifying your account.": "Scegli una password che conosci solo tu per completare la verifica del tuo account."
+  "Choose a password only you know to finish verifying your account.": "Scegli una password che conosci solo tu per completare la verifica del tuo account.",
+  "This note could not be loaded. Check your connection and try again.": "Impossibile caricare questa nota. Controlla la connessione e riprova."
 }

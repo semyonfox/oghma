@@ -2,38 +2,57 @@
 
 // preview modal - shows note preview on hover/click
 // ported from Notea (MIT License) - MUI Popover replaced with Tailwind floating panel
-import { FC } from "react";
+import { FC, useEffect, useState } from "react";
 import usePortalStore from "@/lib/notes/state/portal";
-import noteCache from "@/lib/notes/cache/note";
 import Link from "next/link";
-import { useSWR } from "@/lib/notes/hooks/use-swr";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { removeMarkdown } from "@/lib/notes/utils/markdown";
+
+interface PreviewNote {
+  id: string;
+  title: string;
+  excerpt: string;
+}
+
+function parsePreview(id: string, value: unknown): PreviewNote | null {
+  if (!value || typeof value !== "object") return null;
+  const { title, content } = value as { title?: unknown; content?: unknown };
+  return {
+    id,
+    title: typeof title === "string" ? title : "",
+    excerpt: typeof content === "string" ? removeMarkdown(content).slice(0, 200) : "",
+  };
+}
 
 const PreviewModal: FC = () => {
   const { t } = useI18n();
   const { preview } = usePortalStore();
   const previewId = preview.data?.id;
-  const { data: previewNote } = useSWR(
-    previewId ? `preview:${previewId}` : "preview:none",
-    async () => {
-      if (!previewId) return undefined;
-      const cached = await noteCache.getItem(previewId);
-      if (cached) return cached;
+  const [previewNote, setPreviewNote] = useState<PreviewNote | null>(null);
 
-      const response = await fetch(`/api/notes/${previewId}`);
-      if (!response.ok) return undefined;
-      const note = await response.json();
-      return { ...note, rawContent: removeMarkdown(note.content) };
-    },
-  );
+  // the panel stays mounted, so repeated hovers over one link reuse the
+  // last read; a different link aborts the older request
+  useEffect(() => {
+    if (!previewId || previewNote?.id === previewId) return;
+    const controller = new AbortController();
+    fetch(`/api/notes/${encodeURIComponent(previewId)}?fields=title,content`, {
+      signal: controller.signal,
+    })
+      .then(async (response) => (response.ok ? response.json() : null))
+      .then((body: unknown) => {
+        if (!controller.signal.aborted) setPreviewNote(parsePreview(previewId, body));
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [previewId, previewNote?.id]);
 
-  const title = previewNote?.title || t("Untitled");
-  const content = previewNote?.rawContent?.slice(0, 200) || "";
-
-  if (!preview.visible || !preview.data?.id || !preview.anchor) {
+  if (!preview.visible || !previewId || !preview.anchor) {
     return null;
   }
+
+  const current = previewNote?.id === previewId ? previewNote : null;
+  const title = current?.title || t("Untitled");
+  const content = current?.excerpt ?? "";
 
   // position relative to anchor element
   const rect = preview.anchor.getBoundingClientRect();
@@ -48,7 +67,7 @@ const PreviewModal: FC = () => {
       onMouseLeave={() => preview.close()}
     >
       <Link
-        href={`/notes/${preview.data.id}`}
+        href={`/notes/${previewId}`}
         className="block p-3 hover:bg-subtle transition-colors"
         onClick={() => preview.close()}
       >

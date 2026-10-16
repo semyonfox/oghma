@@ -1,6 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
 import sql from "@/database/pgsql";
-import { cacheInvalidate, cacheKeys } from "@/lib/cache";
 import {
   insertNoteWithTree,
   type NoteTransaction,
@@ -93,20 +92,6 @@ async function findOrCreateBundleFolder(
   return bundleId;
 }
 
-async function invalidateBundleTree(
-  userId: string,
-  parentIds: Array<string | null>,
-): Promise<void> {
-  const childrenKeys = new Set(
-    parentIds.map((parentId) => cacheKeys.treeChildren(userId, parentId)),
-  );
-  await cacheInvalidate(
-    ...childrenKeys,
-    cacheKeys.treeFull(userId),
-    cacheKeys.notesList(userId, 0, undefined),
-  );
-}
-
 /**
  * Create or reuse a folder named after a source document under `parentId`.
  * This is used before Canvas cache replay creates both children.
@@ -118,13 +103,10 @@ export async function findOrCreateExtractionBundle(
 ): Promise<string> {
   const normalizedParentId = parentId ?? null;
   const title = extractionBundleTitle(filename);
-  const bundleId = await sql.begin(async (tx) => {
+  return sql.begin(async (tx) => {
     await lockUserTree(tx, userId);
     return findOrCreateBundleFolder(tx, userId, normalizedParentId, title);
   });
-
-  await invalidateBundleTree(userId, [normalizedParentId, bundleId]);
-  return bundleId;
 }
 
 /**
@@ -138,7 +120,7 @@ export async function moveNoteToExtractionBundle(
   filename: string,
 ): Promise<string> {
   const title = extractionBundleTitle(filename);
-  const { bundleId, previousParentId } = await sql.begin(async (tx) => {
+  return sql.begin(async (tx) => {
     await lockUserTree(tx, userId);
     const rows = (await tx`
       SELECT
@@ -162,7 +144,7 @@ export async function moveNoteToExtractionBundle(
       source.parent_is_folder === true &&
       source.parent_title === title
     ) {
-      return { bundleId: source.parent_id, previousParentId: source.parent_id };
+      return source.parent_id;
     }
 
     const bundleId = await findOrCreateBundleFolder(
@@ -176,9 +158,6 @@ export async function moveNoteToExtractionBundle(
       SET parent_id = ${bundleId}::uuid, updated_at = NOW()
       WHERE user_id = ${userId}::uuid AND note_id = ${noteId}::uuid
     `;
-    return { bundleId, previousParentId: source.parent_id };
+    return bundleId;
   });
-
-  await invalidateBundleTree(userId, [previousParentId, bundleId]);
-  return bundleId;
 }

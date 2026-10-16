@@ -6,9 +6,7 @@ import useLayoutStore from "@/lib/notes/state/layout";
 import useNoteStore from "@/lib/notes/state/note";
 import useNoteTreeStore from "@/lib/notes/state/tree";
 import useSaveIndicatorStore from "@/lib/notes/state/save-indicator";
-import useSearchStore from "@/lib/notes/state/search";
 import useSyncStatusStore from "@/lib/notes/state/sync-status";
-import useTrashStore from "@/lib/notes/state/trash";
 import {
   beginDraftCacheReset,
   clearAllDrafts,
@@ -16,6 +14,7 @@ import {
   quarantineUnownedDrafts,
   waitForDraftWrites,
 } from "@/lib/notes/draft-cache";
+import { clearPdfCache } from "@/lib/notes/pdf-cache/store";
 
 let resetInFlight: Promise<void> | null = null;
 let cacheClearQueue = Promise.resolve();
@@ -89,8 +88,6 @@ export async function resetWorkspaceClientState(
   useLayoutStore.getState().resetWorkspace();
   useSyncStatusStore.setState({ status: {} });
   useSaveIndicatorStore.setState({ files: {} });
-  useSearchStore.setState({ keyword: "", list: undefined });
-  useTrashStore.setState({ keyword: undefined, list: undefined });
   clearDeduplicationCache();
 
   const clearing = cacheClearQueue
@@ -107,6 +104,9 @@ export async function resetWorkspaceClientState(
         noteCacheInstance.clear(),
         clearAllDrafts(),
         uiCache.removeItem("tree"),
+        // cached PDF bytes belong to the previous account too. best effort:
+        // IndexedDB can be unavailable (private mode) and that must not block sign-in
+        clearPdfCache().catch(() => {}),
       ]);
     })
     .then(() => {

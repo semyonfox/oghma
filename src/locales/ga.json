@@ -638,6 +638,7 @@
   "quiz.question.check_answer": "Seiceáil Freagra",
   "quiz.question.type_answer": "Clóscríobh do fhreagra...",
   "quiz.session.continue": "Lean ort",
+  "quiz.session.answer_failed": "Níorbh fhéidir do fhreagra a shábháil. Seiceáil do nasc agus bain triail eile as.",
   "quiz.session.fatigue_warning": "Tá go leor cinn mícheart agat sa seisiún seo. Smaoinigh ar sos a ghlacadh — cabhraíonn scíth le daingniú cuimhne.",
   "quiz.session.leech_warning": "Leanann an cárta seo ag teacht ar ais - smaoinigh ar athbhreithniú a dhéanamh ar an mbunábhar.",
   "quiz.session.loading": "Ag lódáil tráth na gceist...",
@@ -1038,5 +1039,6 @@
   "attachment_viewer.too_large": "Tá an comhad seo rómhór le réamhamharc a thaispeáint. Íoslódáil é chun é a léamh.",
   "attachment_viewer.empty": "Tá an comhad seo folamh.",
   "Verify email": "Fíoraigh r-phost",
-  "Choose a password only you know to finish verifying your account.": "Roghnaigh pasfhocal nach bhfuil ar eolas ag aon duine eile chun fíorú do chuntais a chríochnú."
+  "Choose a password only you know to finish verifying your account.": "Roghnaigh pasfhocal nach bhfuil ar eolas ag aon duine eile chun fíorú do chuntais a chríochnú.",
+  "This note could not be loaded. Check your connection and try again.": "Níorbh fhéidir an nóta seo a lódáil. Seiceáil do nasc agus bain triail eile as."
 }

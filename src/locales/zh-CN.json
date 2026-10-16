@@ -638,6 +638,7 @@
   "quiz.question.check_answer": "检查答案",
   "quiz.question.type_answer": "输入你的答案...",
   "quiz.session.continue": "继续",
+  "quiz.session.answer_failed": "无法保存你的答案。请检查网络连接后重试。",
   "quiz.session.fatigue_warning": "你在本次练习中错了不少题。考虑休息一下——休息有助于巩固记忆。",
   "quiz.session.leech_warning": "这张卡片不断出现——考虑回顾一下源材料。",
   "quiz.session.loading": "加载测验中...",
@@ -1038,5 +1039,6 @@
   "attachment_viewer.too_large": "此文件过大，无法预览。请下载后阅读。",
   "attachment_viewer.empty": "此文件为空。",
   "Verify email": "验证邮箱",
-  "Choose a password only you know to finish verifying your account.": "请设置一个只有您知道的密码，以完成账户验证。"
+  "Choose a password only you know to finish verifying your account.": "请设置一个只有您知道的密码，以完成账户验证。",
+  "This note could not be loaded. Check your connection and try again.": "无法加载此笔记。请检查网络连接后重试。"
 }

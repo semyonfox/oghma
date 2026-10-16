@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  assignmentToIcalEvent,
+  buildIcalCalendar,
   buildIcalEvent,
   escapeIcal,
   foldIcalLine,
@@ -30,9 +32,13 @@ describe("foldIcalLine", () => {
 
 describe("iCal event helpers", () => {
   it("escapes reserved text characters", () => {
-    expect(escapeIcal("one, two; three\\four\nfive\r")).toBe(
+    expect(escapeIcal("one, two; three\\four\nfive")).toBe(
       "one\\, two\\; three\\\\four\\nfive",
     );
+  });
+
+  it("treats CRLF and lone CR as one line break and drops control characters", () => {
+    expect(escapeIcal("a\r\nb\rc\u0000d\u001be\tf")).toBe("a\\nb\\ncde\tf");
   });
 
   it("builds deterministic Unicode-safe events", () => {
@@ -48,5 +54,29 @@ describe("iCal event helpers", () => {
     expect(unfold(event)).toContain(`SUMMARY:Résumé ${"🙂".repeat(20)}`);
     expect(unfold(event)).toContain("DESCRIPTION:Café\\; 漢字");
     expect(event).not.toContain("�");
+  });
+});
+
+describe("iCal feed assembly", () => {
+  it("terminates every content line with CRLF", () => {
+    const calendar = buildIcalCalendar([]);
+    expect(calendar.startsWith("BEGIN:VCALENDAR\r\n")).toBe(true);
+    expect(calendar.endsWith("END:VCALENDAR\r\n")).toBe(true);
+  });
+
+  it("turns a Canvas HTML description into bounded plain text", () => {
+    const event = unfold(assignmentToIcalEvent({
+      id: "a1",
+      title: "Essay",
+      description: `<p>${"x".repeat(5000)}</p>`,
+      course_name: null,
+      due_at: "2026-10-10T22:59:00Z",
+      status: "upcoming",
+    }));
+
+    const description = /DESCRIPTION:(.*)/.exec(event)?.[1] ?? "";
+    expect(description).not.toContain("<p>");
+    expect(description.length).toBeLessThanOrEqual(2001);
+    expect(event).toContain("STATUS:CONFIRMED");
   });
 });

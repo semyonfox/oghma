@@ -638,6 +638,7 @@
   "quiz.question.check_answer": "تحقق من الإجابة",
   "quiz.question.type_answer": "اكتب إجابتك...",
   "quiz.session.continue": "يكمل",
+  "quiz.session.answer_failed": "تعذّر حفظ إجابتك. تحقّق من اتصالك وحاول مرة أخرى.",
   "quiz.session.fatigue_warning": "أنت ترتكب الكثير من الأخطاء في هذه الجلسة. فكر في أخذ استراحة — الراحة تساعد في تثبيت الذاكرة.",
   "quiz.session.leech_warning": "تستمر هذه البطاقة في العودة — فكر في مراجعة المادة المصدر.",
   "quiz.session.loading": "جارٍ تحميل الاختبار...",
@@ -1038,5 +1039,6 @@
   "attachment_viewer.too_large": "هذا الملف كبير جدًا للمعاينة. نزّله لقراءته.",
   "attachment_viewer.empty": "هذا الملف فارغ.",
   "Verify email": "تأكيد البريد الإلكتروني",
-  "Choose a password only you know to finish verifying your account.": "اختر كلمة مرور لا يعرفها أحد غيرك لإكمال التحقق من حسابك."
+  "Choose a password only you know to finish verifying your account.": "اختر كلمة مرور لا يعرفها أحد غيرك لإكمال التحقق من حسابك.",
+  "This note could not be loaded. Check your connection and try again.": "تعذّر تحميل هذه الملاحظة. تحقّق من اتصالك وحاول مرة أخرى."
 }

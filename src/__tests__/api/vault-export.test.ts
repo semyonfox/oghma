@@ -35,6 +35,27 @@ function queryText(call: unknown[]): string {
   return Array.isArray(strings) ? strings.join("?") : "";
 }
 
+// route each query by its text so adding a query does not shift every mock
+function routeQueries(routes: {
+  active?: Array<{ id: string }>[];
+  inserted?: string;
+}) {
+  const active = [...(routes.active ?? [])];
+  vi.mocked(sql).mockImplementation((async (strings: unknown) => {
+    const text = Array.isArray(strings) ? strings.join("?") : "";
+    if (text.includes("SELECT id FROM app.canvas_import_jobs")) {
+      return active.shift() ?? [];
+    }
+    if (text.includes("INSERT INTO app.canvas_import_jobs")) {
+      return [{ id: routes.inserted ?? "new-job" }];
+    }
+    return [];
+  }) as never);
+}
+
+const exportRequest = (query = "") =>
+  new NextRequest(`http://localhost/api/vault/export${query}`, { method: "POST" });
+
 describe("POST /api/vault/export", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -53,23 +74,31 @@ describe("POST /api/vault/export", () => {
   });
 
   it("returns 409 when an active export already exists", async () => {
-    vi.mocked(sql).mockResolvedValueOnce([{ id: "existing-job" }] as never);
+    routeQueries({ active: [[{ id: "existing-job" }]] });
 
-    const res = await POST(new NextRequest("http://localhost/api/vault/export", { method: "POST" }));
+    const res = await POST(exportRequest());
     expect(res.status).toBe(409);
     const body = await res.json();
     expect(body.activeJobId).toBe("existing-job");
   });
 
+  it("expires a dead worker's job before checking for an active export", async () => {
+    routeQueries({});
+
+    await POST(exportRequest());
+
+    const texts = vi.mocked(sql).mock.calls.map(queryText);
+    const expire = texts.findIndex((text) => text.includes("updated_at < NOW() - INTERVAL '30 minutes'"));
+    const active = texts.findIndex((text) => text.includes("SELECT id FROM app.canvas_import_jobs"));
+    expect(expire).toBeGreaterThanOrEqual(0);
+    expect(expire).toBeLessThan(active);
+  });
+
   it("returns the active job after a concurrent insert hits the unique constraint", async () => {
-    vi.mocked(sql)
-      .mockResolvedValueOnce([] as never)
-      .mockResolvedValueOnce([{ id: "concurrent-job" }] as never);
+    routeQueries({ active: [[], [{ id: "concurrent-job" }]] });
     vi.mocked(sql.begin).mockRejectedValueOnce({ code: "23505" });
 
-    const response = await POST(
-      new NextRequest("http://localhost/api/vault/export", { method: "POST" }),
-    );
+    const response = await POST(exportRequest());
 
     expect(response.status).toBe(409);
     await expect(response.json()).resolves.toMatchObject({
@@ -79,21 +108,23 @@ describe("POST /api/vault/export", () => {
   });
 
   it("cancels existing job and starts new one when force=true", async () => {
-    vi.mocked(sql).mockResolvedValueOnce([{ id: "existing-job" }] as never);
-    vi.mocked(sql).mockResolvedValueOnce([] as never);
-    vi.mocked(sql).mockResolvedValueOnce([{ id: "new-job" }] as never);
+    routeQueries({ active: [[{ id: "existing-job" }]] });
 
-    const res = await POST(new NextRequest("http://localhost/api/vault/export?force=true", { method: "POST" }));
+    const res = await POST(exportRequest("?force=true"));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.jobId).toBe("new-job");
+    expect(
+      vi.mocked(sql).mock.calls.map(queryText).some((text) =>
+        text.includes("SET status = 'cancelled'") && text.includes("cancel_requested_at = NOW()"),
+      ),
+    ).toBe(true);
   });
 
   it("starts immediately when no active job exists", async () => {
-    vi.mocked(sql).mockResolvedValueOnce([] as never);
-    vi.mocked(sql).mockResolvedValueOnce([{ id: "new-job" }] as never);
+    routeQueries({});
 
-    const res = await POST(new NextRequest("http://localhost/api/vault/export", { method: "POST" }));
+    const res = await POST(exportRequest());
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.jobId).toBe("new-job");
@@ -105,26 +136,16 @@ describe("POST /api/vault/export", () => {
   });
 
   it("marks the durable job failed when queue publication fails", async () => {
-    vi.mocked(sql)
-      .mockResolvedValueOnce([] as never)
-      .mockResolvedValueOnce([{ id: "new-job" }] as never)
-      .mockResolvedValueOnce([] as never);
+    routeQueries({});
     vi.mocked(enqueueCanvasJob).mockRejectedValueOnce(
       new Error("queue unavailable"),
     );
 
-    await expect(
-      POST(
-        new NextRequest("http://localhost/api/vault/export", {
-          method: "POST",
-        }),
-      ),
-    ).rejects.toThrow("queue unavailable");
+    await expect(POST(exportRequest())).rejects.toThrow("queue unavailable");
 
     const cleanupCall = vi
       .mocked(sql)
-      .mock.calls.find((call) => queryText(call).includes("SET status = 'failed'"));
+      .mock.calls.find((call) => queryText(call).includes("SET status = 'failed'") && call.includes("new-job"));
     expect(cleanupCall).toBeDefined();
-    expect(cleanupCall).toContain("new-job");
   });
 });

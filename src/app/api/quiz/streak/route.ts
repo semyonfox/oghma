@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { requireAuth, withErrorHandler } from "@/lib/api-error";
-import { advanceQuizStreak } from "@/lib/quiz/streak";
 import sql from "@/database/pgsql";
 
+// streaks only advance through answer submissions, once a round is finished,
+// so there is deliberately no write endpoint here
 export const GET = withErrorHandler(async () => {
   const user = await requireAuth();
 
@@ -20,11 +21,4 @@ export const GET = withErrorHandler(async () => {
       streak_milestones: [],
     },
   );
-});
-
-export const POST = withErrorHandler(async () => {
-  const user = await requireAuth();
-
-  const { current_streak, newMilestone } = await advanceQuizStreak(user.user_id);
-  return NextResponse.json({ current_streak, newMilestone });
 });

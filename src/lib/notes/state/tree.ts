@@ -293,6 +293,9 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => {
     },
 
     addItem: (item) => {
+      // a note created below a folder this tab never loaded (chat, another
+      // device) is already durable; it appears when that branch is read
+      if (!get().tree.items[item.pid ?? ROOT_ID]) return;
       localChanges += 1;
       apply(TreeActions.mutateItem(TreeActions.addItem(get().tree, item.id, item.pid), item.id,
         { data: item, isFolder: item.isFolder ?? false }));

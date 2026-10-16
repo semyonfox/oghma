@@ -1,7 +1,9 @@
 #!/usr/bin/env -S npx tsx
 
-// full re-index: reads all notes with content, chunks, embeds, and stores
-// vectors in Qdrant while keeping chunk metadata in Postgres.
+// full re-index: re-chunks and re-embeds every live note and replaces its
+// chunk rows and Qdrant vectors. safe to re-run: each note is replaced in one
+// locked transaction, so stale chunks (including those of notes whose content
+// is now empty) are removed and a failed note keeps its previous index.
 //
 // usage: npx tsx scripts/reindex-all-notes.ts [--dry-run]
 
@@ -9,22 +11,13 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import sql from "../src/database/pgsql.ts";
 import { chunkText } from "../src/lib/rag/chunking.ts";
-import { deleteChunkVectors } from "../src/lib/qdrant.ts";
 import { normalizeChunksForIndexing, replaceNoteEmbeddings } from "../src/lib/rag/indexing.ts";
 
 interface NoteRow {
   note_id: string;
   user_id: string;
   title: string | null;
-  text: string;
-}
-
-interface ChunkIdRow {
-  id: string;
-}
-
-interface CountRow {
-  count: number | string;
+  text: string | null;
 }
 
 function errorMessage(error: unknown): string {
@@ -32,8 +25,7 @@ function errorMessage(error: unknown): string {
 }
 
 const DRY_RUN = process.argv.includes("--dry-run");
-// small concurrency to stay under Cohere rate limits
-const NOTE_BATCH = 50;
+const NOTE_PAGE_SIZE = 50;
 
 function loadEnv(): void {
   for (const filename of [".env.local", ".env"]) {
@@ -47,7 +39,7 @@ function loadEnv(): void {
       if (separator === -1) continue;
 
       const key = line.slice(0, separator).trim();
-      const value = line.slice(separator + 1).trim();
+      const value = line.slice(separator + 1).trim().replace(/^["']|["']$/g, "");
       if (!process.env[key]) process.env[key] = value;
     }
 
@@ -55,79 +47,49 @@ function loadEnv(): void {
   }
 }
 
-async function fetchNotesWithContent(
-  offset: number,
-  limit: number,
-): Promise<NoteRow[]> {
+// notes with text to index, plus notes that still hold chunks but no longer
+// have text, so their stale vectors get cleared
+async function fetchNotePage(after: string | null): Promise<NoteRow[]> {
   return sql<NoteRow[]>`
-    SELECT note_id, user_id, title,
-           COALESCE(NULLIF(TRIM(extracted_text), ''), NULLIF(TRIM(content), '')) AS text
-    FROM app.notes
-    WHERE deleted_at IS NULL
-      AND is_folder = false
+    SELECT n.note_id, n.user_id, n.title,
+           COALESCE(NULLIF(TRIM(n.extracted_text), ''), NULLIF(TRIM(n.content), '')) AS text
+    FROM app.notes n
+    WHERE n.deleted_at IS NULL
+      AND COALESCE(n.is_folder, false) = false
+      AND (${after}::uuid IS NULL OR n.note_id > ${after}::uuid)
       AND (
-        (extracted_text IS NOT NULL AND TRIM(extracted_text) != '')
-        OR (content IS NOT NULL AND TRIM(content) != '')
+        NULLIF(TRIM(n.extracted_text), '') IS NOT NULL
+        OR NULLIF(TRIM(n.content), '') IS NOT NULL
+        OR EXISTS (
+          SELECT 1 FROM app.chunks c
+          WHERE c.document_id = n.note_id AND c.user_id = n.user_id
+        )
       )
-    ORDER BY created_at ASC
-    OFFSET ${offset} LIMIT ${limit}
+    ORDER BY n.note_id
+    LIMIT ${NOTE_PAGE_SIZE}
   `;
 }
 
 async function main(): Promise<void> {
   loadEnv();
-
-  const FORCE = process.argv.includes("--force");
   if (DRY_RUN) console.log("=== DRY RUN — no writes ===\n");
-
-  // with --force, wipe existing chunks+embeddings and rebuild from scratch
-  if (FORCE && !DRY_RUN) {
-    console.log("--force: clearing all existing chunks and embeddings...");
-    const rows = await sql<ChunkIdRow[]>`SELECT id FROM app.chunks`;
-    await deleteChunkVectors(rows.map((row) => row.id)).catch(() => undefined);
-    await sql`DELETE FROM app.chunks`;
-    console.log("cleared.\n");
-  }
-
-  // count total notes to process
-  const [{ count }] = await sql<CountRow[]>`
-    SELECT COUNT(*) AS count
-    FROM app.notes
-    WHERE deleted_at IS NULL
-      AND is_folder = false
-      AND (
-        (extracted_text IS NOT NULL AND TRIM(extracted_text) != '')
-        OR (content IS NOT NULL AND TRIM(content) != '')
-      )
-  `;
-
-  const total = Number(count);
-  console.log(`notes with content: ${total}`);
-  if (total === 0) return;
 
   let processed = 0;
   let chunked = 0;
   let embedded = 0;
-  let skipped = 0;
+  let cleared = 0;
   let failed = 0;
+  let after: string | null = null;
 
-  for (let offset = 0; offset < total; offset += NOTE_BATCH) {
-    const notes = await fetchNotesWithContent(offset, NOTE_BATCH);
+  while (true) {
+    const notes = await fetchNotePage(after);
+    if (notes.length === 0) break;
+    after = notes[notes.length - 1].note_id;
 
     for (const note of notes) {
       processed++;
-      const prefix = `[${processed}/${total}] ${note.title?.slice(0, 40) || note.note_id}`;
-
-      // chunk the text
-      const raw = chunkText(note.text);
-      const chunks = normalizeChunksForIndexing(raw);
-
-      if (chunks.length === 0) {
-        skipped++;
-        console.log(`${prefix} — no chunks (empty after normalization)`);
-        continue;
-      }
-
+      const prefix = `[${processed}] ${note.title?.slice(0, 40) || note.note_id}`;
+      const chunks = normalizeChunksForIndexing(chunkText(note.text ?? ""));
       chunked += chunks.length;
 
       if (DRY_RUN) {
@@ -138,22 +100,26 @@ async function main(): Promise<void> {
       try {
         const stored = await replaceNoteEmbeddings(note.note_id, note.user_id, chunks);
         embedded += stored;
-        console.log(`${prefix} — ${stored} chunks embedded`);
+        if (chunks.length === 0) cleared++;
+        console.log(
+          chunks.length === 0
+            ? `${prefix} — no text, stale chunks cleared`
+            : `${prefix} — ${stored} chunks embedded`,
+        );
       } catch (err) {
         failed++;
-        console.error(
-          `${prefix} — FAILED: ${err instanceof Error ? err.message : String(err)}`
-        );
+        console.error(`${prefix} — FAILED: ${errorMessage(err)}`);
       }
     }
   }
 
   console.log("\n--- reindex summary ---");
-  console.log(`  notes processed: ${processed}`);
-  console.log(`  chunks created:  ${chunked}`);
+  console.log(`  notes processed:   ${processed}`);
+  console.log(`  chunks created:    ${chunked}`);
   console.log(`  embeddings stored: ${embedded}`);
-  console.log(`  skipped (empty):   ${skipped}`);
+  console.log(`  cleared (empty):   ${cleared}`);
   console.log(`  failed:            ${failed}`);
+  if (failed > 0) process.exitCode = 1;
 }
 
 main()

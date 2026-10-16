@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CheckIcon,
   ChevronLeftIcon,
@@ -88,40 +88,34 @@ export default function CalendarPage() {
     void fetchAssignments();
   }, [fetchAssignments]);
 
+  // the mobile layout always has a month grid to fill, whatever view desktop saved
+  const fetchView = isDesktop === false ? "month" : view;
   const calendarFetchRange = useMemo(
-    () => getCalendarFetchRange(currentDate, view),
-    [currentDate, view],
+    () => getCalendarFetchRange(currentDate, fetchView),
+    [currentDate, fetchView],
   );
+  const { startDateKey, endDateKey } = calendarFetchRange;
 
-  useEffect(() => {
-    const range = localDateKeyRangeToIso(
-      calendarFetchRange.startDateKey,
-      calendarFetchRange.endDateKey,
-    );
+  const refreshTimeBlocks = useCallback(() => {
+    const range = localDateKeyRangeToIso(startDateKey, endDateKey);
     void fetchTimeBlocks(range.start, range.end);
-    void fetchReviewDates(
-      calendarFetchRange.startDateKey,
-      calendarFetchRange.endDateKey,
-    );
-  }, [
-    calendarFetchRange.endDateKey,
-    calendarFetchRange.startDateKey,
-    fetchReviewDates,
-    fetchTimeBlocks,
-  ]);
+  }, [endDateKey, fetchTimeBlocks, startDateKey]);
+
+  const refreshCalendar = useCallback(() => {
+    refreshTimeBlocks();
+    void fetchReviewDates(startDateKey, endDateKey);
+  }, [endDateKey, fetchReviewDates, refreshTimeBlocks, startDateKey]);
 
   useEffect(() => {
-    const refresh = () => {
-      const range = localDateKeyRangeToIso(
-        addDaysToDateKey(selectedDate, -7),
-        addDaysToDateKey(selectedDate, 7),
-      );
-      void fetchTimeBlocks(range.start, range.end);
-    };
-    window.addEventListener("oghma:time-block-changed", refresh);
+    refreshCalendar();
+  }, [refreshCalendar]);
+
+  // chat tools create blocks outside this page
+  useEffect(() => {
+    window.addEventListener("oghma:time-block-changed", refreshTimeBlocks);
     return () =>
-      window.removeEventListener("oghma:time-block-changed", refresh);
-  }, [fetchTimeBlocks, selectedDate]);
+      window.removeEventListener("oghma:time-block-changed", refreshTimeBlocks);
+  }, [refreshTimeBlocks]);
 
   const current = new Date(currentDate);
   const monthYear = current.toLocaleDateString(activeLocale, {
@@ -287,12 +281,7 @@ export default function CalendarPage() {
                     onToggleMonth={() => setMobileMonthOpen((open) => !open)}
                     onRetry={() => {
                       void fetchAssignments();
-                      const range = localDateKeyRangeToIso(
-                        selectedDate,
-                        selectedDate,
-                      );
-                      void fetchTimeBlocks(range.start, range.end);
-                      void fetchReviewDates(selectedDate, selectedDate);
+                      refreshCalendar();
                     }}
                   />
                 ) : view === "month" ? (
@@ -372,9 +361,8 @@ export default function CalendarPage() {
         dateKey={selectedDate}
         onAddTask={() => openNewTask(selectedDate)}
         onRetry={() => {
-          const range = localDateKeyRangeToIso(selectedDate, selectedDate);
-          void fetchTimeBlocks(range.start, range.end);
-          void fetchReviewDates(selectedDate, selectedDate);
+          void fetchAssignments();
+          refreshCalendar();
         }}
       />
       <NewTaskModal

@@ -6,6 +6,7 @@ import useQuizStore from "@/lib/notes/state/quiz";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { triggerCelebration } from "@/lib/celebration";
 import type { CelebrationType } from "@/lib/celebration";
+import { browserTimeZone } from "@/lib/quiz/time-zone";
 import type {
   QuizAnswerResponse,
   QuizCardResponse,
@@ -93,23 +94,14 @@ function SessionComplete({
 function QuestionView({
   question,
   sessionId,
-  currentIndex,
-  cardIds,
   fatigueWarning,
-  advanceQuestion,
-  setFatigueWarning,
+  onAnswered,
   onComplete,
 }: {
   question: QuizSessionQuestion;
   sessionId: string;
-  currentIndex: number;
-  cardIds: string[];
   fatigueWarning: boolean;
-  advanceQuestion: (
-    question: QuizSessionQuestion,
-    progress: QuizSessionProgress,
-  ) => void;
-  setFatigueWarning: (w: boolean) => void;
+  onAnswered: (data: QuizAnswerResponse) => void;
   onComplete: () => void;
 }) {
   const { t } = useI18n();
@@ -119,7 +111,11 @@ function QuestionView({
     wasCorrect: boolean;
   } | null>(null);
   const [isLeech, setIsLeech] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitFailed, setSubmitFailed] = useState(false);
   const startTimeRef = useRef<number | null>(null);
+  // guards Enter and click landing together; state updates are too late for that
+  const submittingRef = useRef(false);
 
   useEffect(() => {
     startTimeRef.current = Date.now();
@@ -131,54 +127,45 @@ function QuestionView({
   }, []);
 
   const handleContinue = useCallback(async () => {
-    if (!lastAnswer) return;
+    if (!lastAnswer || submittingRef.current) return;
+    submittingRef.current = true;
+    setSubmitting(true);
+    setSubmitFailed(false);
 
-    const nextCardId =
-      currentIndex + 1 < cardIds.length ? cardIds[currentIndex + 1] : null;
     const startTime = startTimeRef.current ?? Date.now();
-    const responseTimeMs = Date.now() - startTime;
+    try {
+      const res = await fetch(`/api/quiz/sessions/${sessionId}/answer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cardId: question.card_id,
+          userAnswer: lastAnswer.answer,
+          responseTimeMs: Date.now() - startTime,
+          timeZone: browserTimeZone(),
+        }),
+      });
+      if (!res.ok) throw new Error(`answer failed with ${res.status}`);
+      const data = (await res.json()) as QuizAnswerResponse;
 
-    const res = await fetch(`/api/quiz/sessions/${sessionId}/answer`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        cardId: question.card_id,
-        userAnswer: lastAnswer.answer,
-        wasCorrect: lastAnswer.wasCorrect,
-        responseTimeMs,
-        nextCardId,
-      }),
-    });
+      if (data.isLeech) setIsLeech(true);
+      // streak confetti — fires once when the round threshold is crossed
+      if (data.streakResult?.advanced) {
+        const type: CelebrationType = data.streakResult.newMilestone
+          ? "streak_milestone"
+          : "streak";
+        void triggerCelebration(type);
+      }
 
-    if (!res.ok) return;
-    const data = (await res.json()) as QuizAnswerResponse;
-
-    if (data.fatigueWarning) setFatigueWarning(true);
-    if (data.isLeech) setIsLeech(true);
-
-    // streak confetti — fires once when the round threshold is crossed
-    if (data.streakResult?.advanced) {
-      const type: CelebrationType = data.streakResult.newMilestone
-        ? "streak_milestone"
-        : "streak";
-      void triggerCelebration(type);
+      onAnswered(data);
+      if (!data.nextQuestion) onComplete();
+    } catch {
+      // the answer route is idempotent per card, so retrying is always safe
+      setSubmitFailed(true);
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
     }
-
-    if (data.nextQuestion) {
-      advanceQuestion(data.nextQuestion, data.sessionProgress);
-    } else {
-      onComplete();
-    }
-  }, [
-    lastAnswer,
-    question,
-    currentIndex,
-    cardIds,
-    sessionId,
-    advanceQuestion,
-    setFatigueWarning,
-    onComplete,
-  ]);
+  }, [lastAnswer, question.card_id, sessionId, onAnswered, onComplete]);
 
   // keyboard: Enter/Space to continue after answering
   useEffect(() => {
@@ -186,7 +173,7 @@ function QuestionView({
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        handleContinue();
+        void handleContinue();
       }
     };
     window.addEventListener("keydown", handler);
@@ -217,10 +204,16 @@ function QuestionView({
                 {t("quiz.session.leech_warning")}
               </p>
             )}
+            {submitFailed && (
+              <p role="alert" className="text-error-500 text-xs text-center">
+                {t("quiz.session.answer_failed")}
+              </p>
+            )}
             <div className="flex justify-center">
               <button
-                onClick={handleContinue}
-                className="glass-card-interactive text-text-secondary text-sm px-6 py-2.5 rounded-radius-lg"
+                onClick={() => void handleContinue()}
+                disabled={submitting}
+                className="glass-card-interactive text-text-secondary text-sm px-6 py-2.5 rounded-radius-lg disabled:opacity-50"
               >
                 {t("quiz.session.continue")}
               </button>
@@ -232,11 +225,21 @@ function QuestionView({
   );
 }
 
+async function fetchCardQuestion(
+  cardId: string,
+): Promise<QuizSessionQuestion | null> {
+  const res = await fetch(`/api/quiz/cards/${cardId}`);
+  if (!res.ok) return null;
+  const data = (await res.json()) as QuizCardResponse;
+  return data.question ?? null;
+}
+
 export default function QuizSessionPage() {
-  const params = useParams();
+  const params = useParams<{ id: string }>();
   const router = useRouter();
-  const sessionId = params.id as string;
+  const sessionId = params.id;
   const {
+    sessionId: storedSessionId,
     cardIds,
     currentIndex,
     currentQuestion,
@@ -246,94 +249,107 @@ export default function QuizSessionPage() {
     sessionCompleted,
     fatigueWarning,
     startSession,
-    setCurrentQuestion,
-    advanceQuestion,
+    showQuestion,
+    setProgress,
     setFatigueWarning,
     completeSession,
     endSession,
   } = useQuizStore();
   const { t } = useI18n();
 
-  const [streak, setStreak] = useState(0);
+  const isCurrentSession = storedSessionId === sessionId && cardIds.length > 0;
 
-  // load session on mount if store is empty (e.g. page refresh)
+  const finishSession = useCallback(() => {
+    completeSession();
+    // mark it finished server-side too so a refresh shows the summary
+    void fetch(`/api/quiz/sessions/${sessionId}`, { method: "DELETE" }).catch(
+      () => {},
+    );
+  }, [completeSession, sessionId]);
+
+  // load from the server on refresh, or when the store still holds a
+  // different session (back/forward navigation never calls endSession)
   useEffect(() => {
-    if (!cardIds.length) {
-      fetch(`/api/quiz/sessions/${sessionId}`)
-        .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-        .then((data: QuizSessionResumeResponse) => {
-          if (Array.isArray(data.cardIds) && data.cardIds.length > 0) {
-            startSession(
-              sessionId,
-              data.cardIds,
-              data.question ?? null,
-              data.currentIndex ?? 0,
-              data.correct_count ?? 0,
-            );
-          } else {
-            // session gone, completed, or malformed — exit
-            completeSession();
-          }
-        })
-        .catch(() => completeSession());
-    }
-  }, [sessionId, cardIds.length, startSession, completeSession]);
+    if (isCurrentSession) return;
+    let cancelled = false;
+    fetch(`/api/quiz/sessions/${sessionId}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((data: QuizSessionResumeResponse) => {
+        if (cancelled) return;
+        if (!Array.isArray(data.cardIds) || data.cardIds.length === 0) {
+          startSession(sessionId, [], null);
+          completeSession();
+          return;
+        }
+        startSession(sessionId, data.cardIds, data.question, {
+          currentIndex: data.currentIndex,
+          answered: data.answeredCount,
+          correct: data.correct_count,
+        });
+        if (data.completed) completeSession();
+      })
+      .catch(() => {
+        if (cancelled) return;
+        // session gone or not ours — show the empty summary with a way back
+        startSession(sessionId, [], null);
+        completeSession();
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isCurrentSession, sessionId, startSession, completeSession]);
 
-  // if the store has card IDs but no question (e.g. first question lookup failed), fetch it directly
+  // the store has card IDs but no question (e.g. first question lookup failed)
   useEffect(() => {
-    if (cardIds.length > 0 && !currentQuestion && !sessionCompleted) {
-      const cardId = cardIds[currentIndex] ?? cardIds[0];
-      fetch(`/api/quiz/cards/${cardId}`)
-        .then((r) => r.ok ? r.json() : null)
-        .then((data: QuizCardResponse | null) => {
-          if (data?.question) setCurrentQuestion(data.question);
-          else completeSession();
-        })
-        .catch(() => completeSession());
-    }
-  }, [cardIds, currentQuestion, currentIndex, sessionCompleted, setCurrentQuestion, completeSession]);
-
-  // fetch streak for progress bar
-  useEffect(() => {
-    fetch("/api/quiz/streak")
-      .then((r) => r.json())
-      .then((data: { current_streak?: number }) =>
-        setStreak(data.current_streak || 0),
-      );
-  }, []);
-
-  const handleSkip = useCallback(async () => {
-    const nextIdx = currentIndex + 1;
-    if (nextIdx >= cardIds.length) {
-      completeSession();
+    if (!isCurrentSession || currentQuestion || sessionCompleted) return;
+    const cardId = cardIds[currentIndex];
+    if (!cardId) {
+      finishSession();
       return;
     }
-
-    // fetch the next card's question data without recording a review
-    const nextCardId = cardIds[nextIdx];
-    try {
-      const res = await fetch(`/api/quiz/cards/${nextCardId}`);
-      if (!res.ok) {
-        completeSession();
-        return;
-      }
-      const data = (await res.json()) as QuizCardResponse;
-      advanceQuestion(data.question, {
-        ...sessionProgress,
-        answered: sessionProgress.answered + 1,
-      });
-    } catch {
-      completeSession();
-    }
+    fetchCardQuestion(cardId)
+      .then((question) => {
+        if (question) showQuestion(question);
+        else finishSession();
+      })
+      .catch(() => finishSession());
   }, [
-    currentIndex,
+    isCurrentSession,
     cardIds,
-    sessionProgress,
-    advanceQuestion,
-    completeSession,
+    currentQuestion,
+    currentIndex,
+    sessionCompleted,
+    showQuestion,
+    finishSession,
   ]);
 
-  if (sessionCompleted) {
+  const handleAnswered = useCallback(
+    (data: QuizAnswerResponse) => {
+      setProgress(data.sessionProgress);
+      if (data.fatigueWarning) setFatigueWarning(true);
+      if (data.nextQuestion) showQuestion(data.nextQuestion);
+    },
+    [setProgress, setFatigueWarning, showQuestion],
+  );
+
+  // move on without recording a review; cards removed since the session
+  // started are skipped over
+  const handleSkip = useCallback(async () => {
+    for (let index = currentIndex + 1; index < cardIds.length; index++) {
+      try {
+        const question = await fetchCardQuestion(cardIds[index]);
+        if (question) {
+          showQuestion(question);
+          return;
+        }
+      } catch {
+        break;
+      }
+    }
+    finishSession();
+  }, [currentIndex, cardIds, showQuestion, finishSession]);
+
+  if (sessionCompleted && storedSessionId === sessionId) {
     return (
       <SessionComplete
         progress={sessionProgress}
@@ -346,7 +362,7 @@ export default function QuizSessionPage() {
     );
   }
 
-  if (!currentQuestion) {
+  if (!isCurrentSession || !currentQuestion) {
     return (
       <div className="flex items-center justify-center h-screen bg-app-page">
         <div className="text-text-tertiary text-sm">
@@ -359,13 +375,12 @@ export default function QuizSessionPage() {
   return (
     <div className="h-screen flex flex-col px-6 py-6 max-w-2xl mx-auto bg-app-page text-text">
       <ProgressBar
-        current={sessionProgress.answered}
-        total={sessionProgress.total}
+        current={currentIndex}
+        total={cardIds.length}
         onBack={() => {
           endSession();
           router.push("/quiz");
         }}
-        streak={streak}
         onSkip={handleSkip}
       />
 
@@ -373,12 +388,9 @@ export default function QuizSessionPage() {
         key={currentQuestion.card_id}
         question={currentQuestion}
         sessionId={sessionId}
-        currentIndex={currentIndex}
-        cardIds={cardIds}
         fatigueWarning={fatigueWarning}
-        advanceQuestion={advanceQuestion}
-        setFatigueWarning={setFatigueWarning}
-        onComplete={completeSession}
+        onAnswered={handleAnswered}
+        onComplete={finishSession}
       />
     </div>
   );

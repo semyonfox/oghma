@@ -638,6 +638,7 @@
   "quiz.question.check_answer": "उत्तर जाँचें",
   "quiz.question.type_answer": "अपना उत्तर टाइप करें...",
   "quiz.session.continue": "जारी रखना",
+  "quiz.session.answer_failed": "आपका उत्तर सहेजा नहीं जा सका। अपना कनेक्शन जांचें और फिर से प्रयास करें।",
   "quiz.session.fatigue_warning": "इस सत्र में आप काफ़ी गलतियाँ कर रहे हैं। विराम लेने पर विचार करें — आराम स्मृति को मज़बूत करता है।",
   "quiz.session.leech_warning": "यह कार्ड बार-बार वापस आता रहता है - स्रोत सामग्री की समीक्षा करने पर विचार करें।",
   "quiz.session.loading": "क्विज़ लोड हो रहा है...",
@@ -1038,5 +1039,6 @@
   "attachment_viewer.too_large": "यह फ़ाइल पूर्वावलोकन के लिए बहुत बड़ी है। इसे पढ़ने के लिए डाउनलोड करें।",
   "attachment_viewer.empty": "यह फ़ाइल खाली है।",
   "Verify email": "ईमेल सत्यापित करें",
-  "Choose a password only you know to finish verifying your account.": "अपने खाते का सत्यापन पूरा करने के लिए ऐसा पासवर्ड चुनें जो केवल आप जानते हों।"
+  "Choose a password only you know to finish verifying your account.": "अपने खाते का सत्यापन पूरा करने के लिए ऐसा पासवर्ड चुनें जो केवल आप जानते हों।",
+  "This note could not be loaded. Check your connection and try again.": "यह नोट लोड नहीं हो सका। अपना कनेक्शन जांचें और फिर से प्रयास करें।"
 }

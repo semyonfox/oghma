@@ -7,6 +7,7 @@ import {
   parseLocalDateKey,
 } from "@/lib/notes/utils/calendar-date";
 import type { AssignmentType } from "@/lib/notes/utils/assignment-type";
+import { browserTimeZone } from "@/lib/quiz/time-zone";
 
 export type CalendarView = "month" | "week";
 
@@ -48,10 +49,6 @@ interface CalendarState {
     starts_at: string;
     ends_at: string;
   }) => Promise<TimeBlock | null>;
-  updateTimeBlock: (
-    id: string,
-    data: Partial<TimeBlock>,
-  ) => Promise<TimeBlock | null>;
   toggleTimeBlockCompleted: (id: string) => Promise<boolean>;
   deleteTimeBlock: (id: string) => Promise<boolean>;
 }
@@ -139,9 +136,9 @@ const useCalendarStore = create<CalendarState>()(
         const requestSequence = ++reviewDateFetchSequence;
         set({ reviewDatesLoading: true, reviewDatesError: null });
         try {
-          const res = await fetch(
-            `/api/quiz/review-dates?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`,
-          );
+          // reviews are bucketed into calendar days in the student's own zone
+          const params = new URLSearchParams({ start, end, tz: browserTimeZone() });
+          const res = await fetch(`/api/quiz/review-dates?${params}`);
           if (!res.ok) throw new Error("fetch failed");
           const data = await res.json();
           if (requestSequence !== reviewDateFetchSequence) return;
@@ -171,26 +168,6 @@ const useCalendarStore = create<CalendarState>()(
           const created = await res.json();
           set((state) => ({ timeBlocks: [...state.timeBlocks, created] }));
           return created;
-        } catch {
-          return null;
-        }
-      },
-
-      updateTimeBlock: async (id, data) => {
-        try {
-          const res = await fetch(`/api/time-blocks/${id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(data),
-          });
-          if (!res.ok) return null;
-          const updated = await res.json();
-          set((state) => ({
-            timeBlocks: state.timeBlocks.map((block) =>
-              block.id === id ? updated : block,
-            ),
-          }));
-          return updated;
         } catch {
           return null;
         }

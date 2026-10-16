@@ -21,7 +21,7 @@ import {
   ArrowPathIcon,
   ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline";
-import { usePdfCache } from "@/lib/notes/pdf-cache/use-pdf-cache";
+import { usePdfCache } from "./use-pdf-cache";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
 import "react-pdf/dist/Page/TextLayer.css";

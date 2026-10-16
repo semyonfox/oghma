@@ -13,7 +13,7 @@ import {
   useId,
 } from "react";
 import { Dialog, Transition } from "@headlessui/react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   AcademicCapIcon,
   ChatBubbleLeftRightIcon,
@@ -24,7 +24,6 @@ import {
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 import useGlobalSearchStore from "@/lib/global-search/state";
-import { isGlobalSearchRoute } from "@/lib/global-search/routes";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
 type ResultType = "destination" | "note" | "chat" | "quiz";
@@ -140,6 +139,10 @@ const SECTION_LABELS: Record<keyof ResultsBySection, string> = {
   quizzes: "Quizzes",
 };
 
+// every request that fires spends the per-user search budget and a paid
+// embedding, so wait for a real pause rather than the gap between keystrokes
+const TYPING_DEBOUNCE_MS = 300;
+
 const SECTION_ORDER: (keyof ResultsBySection)[] = [
   "destinations",
   "notes",
@@ -237,7 +240,6 @@ export function normalizeApiResults(
 export default function GlobalSearchModal() {
   const { t } = useI18n();
   const router = useRouter();
-  const pathname = usePathname();
   const { visible, close } = useGlobalSearchStore();
   const [query, setQuery] = useState("");
   const [remoteResults, setRemoteResults] = useState<
@@ -252,7 +254,6 @@ export default function GlobalSearchModal() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
   const requestSeqRef = useRef(0);
-  const enabled = isGlobalSearchRoute(pathname);
   const trimmedQuery = query.trim();
 
   const results: ResultsBySection = useMemo(
@@ -288,10 +289,6 @@ export default function GlobalSearchModal() {
     },
     [handleClose, router],
   );
-
-  useEffect(() => {
-    if (!enabled && visible) handleClose();
-  }, [enabled, handleClose, visible]);
 
   useEffect(() => {
     if (!visible) return;
@@ -337,7 +334,7 @@ export default function GlobalSearchModal() {
           setLoading(false);
         }
       }
-    }, trimmedQuery ? 180 : 0);
+    }, trimmedQuery ? TYPING_DEBOUNCE_MS : 0);
 
     return () => {
       window.clearTimeout(timeout);
@@ -354,8 +351,6 @@ export default function GlobalSearchModal() {
       setSelectedIndex(0);
     }
   }, [flatResults.length, selectedIndex]);
-
-  if (!enabled) return null;
 
   const onInputKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
     if (event.nativeEvent.isComposing) return;

@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 const mocks = vi.hoisted(() => ({
   sql: vi.fn(),
   validateSession: vi.fn(),
   embedText: vi.fn(),
   searchChunkVectors: vi.fn(),
+  checkRateLimit: vi.fn(),
 }));
 
 vi.mock("@/database/pgsql", () => ({ default: mocks.sql }));
@@ -17,6 +18,7 @@ vi.mock("@/lib/rag/embeddings", () => ({ embedText: mocks.embedText }));
 vi.mock("@/lib/qdrant", () => ({
   searchChunkVectors: mocks.searchChunkVectors,
 }));
+vi.mock("@/lib/rate-limiter", () => ({ checkRateLimit: mocks.checkRateLimit }));
 vi.mock("@/lib/logger", () => ({
   default: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
 }));
@@ -32,6 +34,7 @@ describe("GET /api/search Canvas course contract", () => {
     });
     mocks.embedText.mockResolvedValue([0.1, 0.2, 0.3]);
     mocks.searchChunkVectors.mockResolvedValue([]);
+    mocks.checkRateLimit.mockResolvedValue(null);
   });
 
   it.each(["not-an-id", "9223372036854775808"])(
@@ -95,5 +98,49 @@ describe("GET /api/search Canvas course contract", () => {
         },
       ],
     });
+  });
+
+  it("meters semantic queries before paying for an embedding", async () => {
+    mocks.checkRateLimit.mockResolvedValue(
+      NextResponse.json({ error: "Too many requests" }, { status: 429 }),
+    );
+
+    const response = await GET(
+      new NextRequest("http://localhost/api/search?q=graphs&mode=semantic"),
+    );
+
+    expect(response.status).toBe(429);
+    expect(mocks.checkRateLimit).toHaveBeenCalledWith(
+      "semantic-search",
+      "123e4567-e89b-42d3-a456-426614174000",
+    );
+    expect(mocks.embedText).not.toHaveBeenCalled();
+  });
+
+  it("trims and bounds the exclude list passed to the vector filter", async () => {
+    const ids = Array.from(
+      { length: 150 },
+      (_, index) => `123e4567-e89b-42d3-a456-${String(index).padStart(12, "0")}`,
+    );
+    const exclude = [" " + ids[0] + " ", "not-a-uuid", ...ids.slice(1)].join(",");
+
+    await GET(
+      new NextRequest(
+        `http://localhost/api/search?q=graphs&mode=semantic&exclude=${encodeURIComponent(exclude)}`,
+      ),
+    );
+
+    const [{ excludeDocumentIds }] = mocks.searchChunkVectors.mock.calls[0];
+    expect(excludeDocumentIds).toHaveLength(100);
+    expect(excludeDocumentIds[0]).toBe(ids[0]);
+    expect(excludeDocumentIds).not.toContain("not-a-uuid");
+  });
+
+  it("does not meter keyword queries", async () => {
+    mocks.sql.mockResolvedValue([]);
+
+    await GET(new NextRequest("http://localhost/api/search?q=graphs"));
+
+    expect(mocks.checkRateLimit).not.toHaveBeenCalled();
   });
 });

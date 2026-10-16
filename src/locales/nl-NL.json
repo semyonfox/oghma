@@ -638,6 +638,7 @@
   "quiz.question.check_answer": "Antwoord controleren",
   "quiz.question.type_answer": "Typ je antwoord...",
   "quiz.session.continue": "Doorgaan",
+  "quiz.session.answer_failed": "Je antwoord kon niet worden opgeslagen. Controleer je verbinding en probeer het opnieuw.",
   "quiz.session.fatigue_warning": "Je maakt veel fouten in deze sessie. Overweeg een pauze — rust helpt bij geheugenconsolidatie.",
   "quiz.session.leech_warning": "Deze kaart blijft terugkomen. Overweeg het bronmateriaal te herzien.",
   "quiz.session.loading": "Quiz laden...",
@@ -1038,5 +1039,6 @@
   "attachment_viewer.too_large": "Dit bestand is te groot voor een voorbeeld. Download het om het te lezen.",
   "attachment_viewer.empty": "Dit bestand is leeg.",
   "Verify email": "E-mail verifiëren",
-  "Choose a password only you know to finish verifying your account.": "Kies een wachtwoord dat alleen u kent om de verificatie van uw account te voltooien."
+  "Choose a password only you know to finish verifying your account.": "Kies een wachtwoord dat alleen u kent om de verificatie van uw account te voltooien.",
+  "This note could not be loaded. Check your connection and try again.": "Deze notitie kon niet worden geladen. Controleer je verbinding en probeer het opnieuw."
 }
