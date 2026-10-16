@@ -1,3 +1,5 @@
+import { MarkerDispatchRejectedError } from "@/lib/marker/errors";
+
 export interface RunPodServerlessConfig {
   endpointId: string;
   apiKey: string;
@@ -119,13 +121,13 @@ function endpointUrl(
   jobId?: string,
 ): string {
   const endpointId = safeJobId(config.endpointId);
-  if (!endpointId) throw new Error("RunPod endpoint ID is invalid");
+  if (!endpointId) throw new MarkerDispatchRejectedError("RunPod endpoint ID is invalid");
 
   let base: URL;
   try {
     base = new URL(config.apiBaseUrl ?? DEFAULT_API_BASE_URL);
   } catch {
-    throw new Error("RunPod API base URL is invalid");
+    throw new MarkerDispatchRejectedError("RunPod API base URL is invalid");
   }
   if (
     base.protocol !== "https:" ||
@@ -133,7 +135,9 @@ function endpointUrl(
     base.username ||
     base.password
   ) {
-    throw new Error("RunPod API base URL must use HTTPS without credentials");
+    throw new MarkerDispatchRejectedError(
+      "RunPod API base URL must use HTTPS without credentials",
+    );
   }
 
   const path = jobId
@@ -147,17 +151,19 @@ function verifiedWebhookUrl(value: string): string {
   try {
     url = new URL(value);
   } catch {
-    throw new Error("RunPod webhook URL is invalid");
+    throw new MarkerDispatchRejectedError("RunPod webhook URL is invalid");
   }
   if (url.protocol !== "https:" || !url.hostname || url.username || url.password) {
-    throw new Error("RunPod webhook URL must use HTTPS without credentials");
+    throw new MarkerDispatchRejectedError(
+      "RunPod webhook URL must use HTTPS without credentials",
+    );
   }
   return url.toString();
 }
 
 function apiKey(value: string): string {
   const key = value.trim();
-  if (!key) throw new Error("RunPod API key is required");
+  if (!key) throw new MarkerDispatchRejectedError("RunPod API key is required");
   return key;
 }
 
@@ -259,9 +265,16 @@ export async function submitRunPodJob(
     positiveInteger(config.requestTimeoutMs, 10_000),
   );
   if (!response.ok) {
-    // Provider error bodies can echo submitted signed URLs. Keep them out of
-    // Oghma logs and leave the durable row in its ambiguous-observation state.
-    throw new Error(`RunPod /run failed (${response.status})`);
+    // Provider error bodies can echo submitted signed URLs, so keep them out of
+    // Oghma logs. A 4xx means RunPod refused the job outright (408 is the one
+    // client status that can follow an accepted body); anything else might
+    // still have queued paid work and stays ambiguous.
+    const message = `RunPod /run failed (${response.status})`;
+    await response.body?.cancel();
+    if (response.status >= 400 && response.status < 500 && response.status !== 408) {
+      throw new MarkerDispatchRejectedError(message);
+    }
+    throw new Error(message);
   }
 
   const summary = summarizeRunPodJobStatus(parseJson(await response.text()));
@@ -298,4 +311,35 @@ export async function getRunPodJobStatus(
     throw new Error(`RunPod status failed (${response.status})`);
   }
   return summarizeRunPodJobStatus(parseJson(await response.text()));
+}
+
+/**
+ * Ask RunPod to drop a job Oghma has stopped waiting for. A queued job that
+ * outlives its result grace window would otherwise still be paid for and its
+ * upload ignored.
+ */
+export async function cancelRunPodJob(
+  jobId: string,
+  config: RunPodServerlessConfig,
+  dependencies: RunPodServerlessDependencies = {},
+): Promise<void> {
+  const safeId = safeJobId(jobId);
+  if (!safeId) throw new Error("RunPod job ID is invalid");
+  const response = await fetchWithTimeout(
+    dependencies.fetch ?? fetch,
+    endpointUrl(config, "cancel", safeId),
+    {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        authorization: `Bearer ${apiKey(config.apiKey)}`,
+        "user-agent": "oghma-marker-serverless/1",
+      },
+    },
+    positiveInteger(config.statusTimeoutMs, 10_000),
+  );
+  await response.body?.cancel();
+  if (!response.ok) {
+    throw new Error(`RunPod cancel failed (${response.status})`);
+  }
 }

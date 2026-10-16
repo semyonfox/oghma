@@ -93,6 +93,20 @@ describe("parseMarkerResult", () => {
     );
   });
 
+  it("accepts every image type the output validator allows when its bytes match", () => {
+    const gif = Buffer.from("GIF89a\x01\x00", "latin1").toString("base64");
+    const bmp = Buffer.from([0x42, 0x4d, 0x00, 0x00]).toString("base64");
+
+    const result = parse(
+      payload({ images: { "figure.gif": gif, "scan.bmp": bmp } }),
+    );
+
+    expect(Object.keys(result.images).sort()).toEqual(["figure.gif", "scan.bmp"]);
+    expect(() => parse(payload({ images: { "fake.gif": bmp } }))).toThrow(
+      /does not match/i,
+    );
+  });
+
   it("enforces the result byte limit before parsing", () => {
     process.env.MARKER_MAX_RESULT_BYTES = "32";
     expect(() => parse(payload())).toThrow(/MARKER_MAX_RESULT_BYTES/);

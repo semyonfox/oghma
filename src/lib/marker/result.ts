@@ -1,8 +1,16 @@
 import { createHash } from "node:crypto";
 
-const MARKER_RESULT_SCHEMA_VERSION = 1;
+import {
+  isPlainObject,
+  markerResultByteLimit,
+  validateMarkerOutput,
+  type MarkerMetadata,
+} from "./output";
+
+// the completion consumer loads this module on its own and reads the cap here
 export { markerResultByteLimit } from "./output";
-import { validateMarkerOutput, markerResultByteLimit, type MarkerMetadata } from "./output";
+
+const MARKER_RESULT_SCHEMA_VERSION = 1;
 
 const PAGE_RANGE_PATTERN = /^\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*$/;
 const IMAGE_NAME_PATTERN = /^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$/;
@@ -32,12 +40,6 @@ function invalid(message: string): never {
   throw new MarkerResultValidationError(message);
 }
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
-}
-
 function asBuffer(value: string | Buffer): Buffer {
   return Buffer.isBuffer(value) ? value : Buffer.from(value, "utf8");
 }
@@ -59,11 +61,20 @@ function imageHasExpectedMagic(name: string, bytes: Buffer): boolean {
       bytes.subarray(8, 12).toString("ascii") === "WEBP"
     );
   }
+  // output.ts accepts these too; rejecting them here would throw away an
+  // otherwise valid paid conversion
+  if (extension === "gif") {
+    const signature = bytes.subarray(0, 6).toString("ascii");
+    return signature === "GIF87a" || signature === "GIF89a";
+  }
+  if (extension === "bmp") {
+    return bytes.length >= 2 && bytes[0] === 0x42 && bytes[1] === 0x4d;
+  }
   return false;
 }
 
 /**
- * Parse the v1 object written by the trusted Vast Marker worker. This runs
+ * Parse the v1 object written by a serverless (Vast or RunPod) Marker worker. This runs
  * before any Markdown, image, database, or embedding write.
  */
 export function parseMarkerResult(

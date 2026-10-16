@@ -58,51 +58,76 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   }
 
   // The current import must finish before a prior extracted note is shown as
-  // ready. Historical pairs have no source ID, so only accept unique siblings.
+  // ready. Companions record their source PDF, so prefer that link: it still
+  // holds after the user renames or moves the Markdown note. Historical pairs
+  // have no source ID, so for those only accept a unique same-folder sibling.
   const [extractedNote] = await sql<ExtractedNoteRow[]>`
-    SELECT extracted.note_id, extracted.title, source_tree.parent_id AS folder_id
-    FROM app.notes AS source
-    JOIN app.tree_items AS source_tree
-      ON source_tree.note_id = source.note_id
-      AND source_tree.user_id = source.user_id
-    JOIN app.tree_items AS extracted_tree
-      ON extracted_tree.user_id = source.user_id
-      AND extracted_tree.parent_id IS NOT DISTINCT FROM source_tree.parent_id
-    JOIN app.notes AS extracted
-      ON extracted.note_id = extracted_tree.note_id
-      AND extracted.user_id = source.user_id
-    WHERE source.note_id = ${noteId}::uuid
-      AND source.user_id = ${session.user_id}::uuid
-      AND source.deleted_at IS NULL
-      AND RIGHT(LOWER(source.title), 4) = '.pdf'
-      AND extracted.title = LEFT(source.title, LENGTH(source.title) - 4) || '.md'
-      AND extracted.deleted_at IS NULL
-      AND extracted.s3_key IS NULL
-      AND extracted.extraction_coverage IS NOT NULL
-      AND NOT EXISTS (
-        SELECT 1
-        FROM app.notes AS other_pdf
-        JOIN app.tree_items AS other_tree
-          ON other_tree.note_id = other_pdf.note_id
-          AND other_tree.user_id = other_pdf.user_id
-        WHERE other_pdf.user_id = source.user_id
-          AND other_pdf.note_id <> source.note_id
-          AND other_pdf.title = source.title
-          AND other_pdf.deleted_at IS NULL
-          AND other_tree.parent_id IS NOT DISTINCT FROM source_tree.parent_id
-      )
-      AND NOT EXISTS (
-        SELECT 1
-        FROM app.notes AS other_extracted
-        JOIN app.tree_items AS other_tree
-          ON other_tree.note_id = other_extracted.note_id
-          AND other_tree.user_id = other_extracted.user_id
-        WHERE other_extracted.user_id = source.user_id
-          AND other_extracted.note_id <> extracted.note_id
-          AND other_extracted.title = extracted.title
-          AND other_extracted.deleted_at IS NULL
-          AND other_tree.parent_id IS NOT DISTINCT FROM source_tree.parent_id
-      )
+    (
+      SELECT extracted.note_id, extracted.title, extracted_tree.parent_id AS folder_id
+      FROM app.notes AS source
+      JOIN app.notes AS extracted
+        ON extracted.user_id = source.user_id
+        AND extracted.extracted_from_note_id = source.note_id
+      JOIN app.tree_items AS extracted_tree
+        ON extracted_tree.note_id = extracted.note_id
+        AND extracted_tree.user_id = extracted.user_id
+      WHERE source.note_id = ${noteId}::uuid
+        AND source.user_id = ${session.user_id}::uuid
+        AND source.deleted_at IS NULL
+        AND extracted.deleted_at IS NULL
+        AND extracted.s3_key IS NULL
+        AND extracted.extraction_coverage IS NOT NULL
+      ORDER BY extracted.updated_at DESC
+      LIMIT 1
+    )
+    UNION ALL
+    (
+      SELECT extracted.note_id, extracted.title, source_tree.parent_id AS folder_id
+      FROM app.notes AS source
+      JOIN app.tree_items AS source_tree
+        ON source_tree.note_id = source.note_id
+        AND source_tree.user_id = source.user_id
+      JOIN app.tree_items AS extracted_tree
+        ON extracted_tree.user_id = source.user_id
+        AND extracted_tree.parent_id IS NOT DISTINCT FROM source_tree.parent_id
+      JOIN app.notes AS extracted
+        ON extracted.note_id = extracted_tree.note_id
+        AND extracted.user_id = source.user_id
+      WHERE source.note_id = ${noteId}::uuid
+        AND source.user_id = ${session.user_id}::uuid
+        AND source.deleted_at IS NULL
+        AND RIGHT(LOWER(source.title), 4) = '.pdf'
+        AND extracted.title = LEFT(source.title, LENGTH(source.title) - 4) || '.md'
+        AND extracted.extracted_from_note_id IS NULL
+        AND extracted.deleted_at IS NULL
+        AND extracted.s3_key IS NULL
+        AND extracted.extraction_coverage IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1
+          FROM app.notes AS other_pdf
+          JOIN app.tree_items AS other_tree
+            ON other_tree.note_id = other_pdf.note_id
+            AND other_tree.user_id = other_pdf.user_id
+          WHERE other_pdf.user_id = source.user_id
+            AND other_pdf.note_id <> source.note_id
+            AND other_pdf.title = source.title
+            AND other_pdf.deleted_at IS NULL
+            AND other_tree.parent_id IS NOT DISTINCT FROM source_tree.parent_id
+        )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM app.notes AS other_extracted
+          JOIN app.tree_items AS other_tree
+            ON other_tree.note_id = other_extracted.note_id
+            AND other_tree.user_id = other_extracted.user_id
+          WHERE other_extracted.user_id = source.user_id
+            AND other_extracted.note_id <> extracted.note_id
+            AND other_extracted.title = extracted.title
+            AND other_extracted.deleted_at IS NULL
+            AND other_tree.parent_id IS NOT DISTINCT FROM source_tree.parent_id
+        )
+      LIMIT 1
+    )
     LIMIT 1
   `;
   const readyNote = status === "done" || status === "none" ? extractedNote : null;

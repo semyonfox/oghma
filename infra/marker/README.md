@@ -2,16 +2,34 @@
 
 > Status: Active navigation and safety boundary
 >
-> Last reviewed: 2026-07-22
+> Last reviewed: 2026-10-06
 
-This directory contains two different generations of Marker work. Do not treat
-their presence in one directory as evidence that they are one deployable path.
+This directory holds two unrelated things. Don't read their shared location as
+evidence that they are one deployable path.
 
-## Current benchmark tooling
+## Direct Marker server
 
-`benchmark-matrix.json`, the profiles, `benchmark-userdata.sh`, and the
-`scripts/marker-bench*` and `scripts/package-marker-plus-plus.sh` helpers form
-the reproducible July 2026 benchmark harness. Its identities are deliberate:
+`server.py` and `converter_pool.py` are the synchronous `POST /marker/upload`
+API that `src/lib/marker/ocr.ts` calls when `MARKER_API_URL` is set.
+`Dockerfile.marker` at the repository root packages them with released
+`marker-pdf` 1.10.2. `test_server.py` and `test_converter_pool.py` are pytest
+files (`pip install -r requirements-dev.txt && pytest infra/marker`); they are
+not part of `npm run test:marker`.
+
+The paid serverless GPU path does not use this server. It lives in
+[`../runpod-marker/`](../runpod-marker/) and [`../vast-marker/`](../vast-marker/).
+
+## July 2026 benchmark harness
+
+`benchmark-matrix.json`, the profiles, the vLLM manifests,
+`benchmark-userdata.sh`, and the `scripts/marker-bench*`,
+`scripts/marker-aws-session.py`, `scripts/compare-marker-outputs.py` and
+`scripts/package-marker-plus-plus.sh` helpers form the reproducible July 2026
+benchmark harness. `scripts/marker-bench.py` hashes these files by repository
+path into each run manifest, so moving or renaming them breaks comparison with
+recorded runs. Leave them where they are.
+
+The harness identities are deliberate:
 
 - the released baseline is `marker-pdf` 1.10.2;
 - early Marker++ policy/profile cells use commit `2d66e45`;
@@ -30,17 +48,12 @@ hashes and a matched quality/performance run.
 
 ## Retired AWS provisioning
 
-`setup.sh`, `setup-asg.sh`, the AMI helpers, and the `userdata*.sh` files are
-historical AWS-era provisioning surfaces. Current infrastructure documentation
-marks the old autoscaling Marker deployment as retired. Do not run these
-scripts as a current deployment runbook.
+The AWS-era EC2/ASG/AMI scripts (`setup.sh`, `setup-asg.sh`, `bake-ami.sh`,
+`update-lt-ami.sh`, `userdata*.sh`) were removed on 2026-10-06. The autoscaling
+Marker deployment they built is retired and they installed open-ended Marker
+versions that are not comparable with the benchmark. Recover them from git
+history if they are ever needed as reference.
 
-Some of those scripts install open-ended Marker requirements such as
-`marker-pdf>=1.0.0` or `marker-pdf[server]`. Since upstream released Marker
-2.0.0, a fresh run can install a different major pipeline from the July 1.10.2
-benchmark. `Dockerfile.marker` remains pinned to 1.10.2, but that pin does not
-make the retired userdata paths comparable.
-
-The application currently defaults Marker OCR off, and Jenkins explicitly
-forces it off in deployed containers. Current extraction behavior belongs in
-the [import-worker runbook](../../docs/operations/import-worker.md).
+The application defaults Marker OCR off, and Jenkins explicitly forces it off
+in deployed containers. Current extraction behaviour belongs in the
+[import-worker runbook](../../docs/operations/import-worker.md).

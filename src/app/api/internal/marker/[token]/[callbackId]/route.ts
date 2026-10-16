@@ -9,14 +9,11 @@ import {
 } from "@/lib/queue";
 import { summarizeRunPodJobStatus } from "@/lib/marker/runpod";
 
-interface RunPodWebhook {
-  id?: string;
-  status?: string;
-  error?: string;
-  delayTime?: unknown;
-  executionTime?: unknown;
-  workerId?: unknown;
-  output?: unknown;
+interface MarkerJobRow {
+  provider: string | null;
+  provider_job_id: string | null;
+  runpod_job_id: string | null;
+  status: string;
 }
 
 const UUID_PATTERN =
@@ -50,16 +47,20 @@ export async function POST(
     return NextResponse.json({ error: "unknown callback" }, { status: 404 });
   }
 
-  const body = (await request.json().catch(() => null)) as RunPodWebhook | null;
-  if (!body?.status) {
+  const body: unknown = await request.json().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
     return NextResponse.json({ error: "invalid webhook" }, { status: 400 });
   }
-  const summary = summarizeRunPodJobStatus(body);
-  if (!summary.status || (body.id && !summary.id)) {
+  const webhook = body as Record<string, unknown>;
+  const summary = summarizeRunPodJobStatus(webhook);
+  if (!summary.status || (webhook.id !== undefined && !summary.id)) {
     return NextResponse.json({ error: "invalid webhook" }, { status: 400 });
   }
-  const [job] = await sql`
-    SELECT * FROM app.marker_jobs WHERE callback_id = ${callbackId}::uuid LIMIT 1
+  const [job] = await sql<MarkerJobRow[]>`
+    SELECT provider, provider_job_id, runpod_job_id, status
+    FROM app.marker_jobs
+    WHERE callback_id = ${callbackId}::uuid
+    LIMIT 1
   `;
   if (!job) {
     return NextResponse.json({ error: "unknown callback" }, { status: 404 });
@@ -90,10 +91,13 @@ export async function POST(
   const error = completed
     ? null
     : providerError(
-      body.error,
+      webhook.error,
       `RunPod job ${summary.id ?? expectedJobId ?? "unknown"} ${status.toLowerCase()}`,
     );
 
+  // only a row still waiting on RunPod may move. RunPod redelivers webhooks it
+  // thinks failed, and the dispatcher's own result probe can get there first;
+  // a replay must not reset a claimed completion or flip it to failure
   const transitioned = await sql`
     UPDATE app.marker_jobs
     SET status = ${completed ? "completion_queued" : "failure_queued"},
@@ -104,10 +108,11 @@ export async function POST(
         error = ${error},
         updated_at = NOW()
     WHERE callback_id = ${callbackId}::uuid
-      AND status NOT IN ('completed', 'failed', 'invalid_result', 'cancelled')
+      AND status IN ('dispatching', 'awaiting_result', 'dispatch_retry')
     RETURNING callback_id
   `;
   if (transitioned.length === 0) {
+    // already handled or cancelled; a 2xx stops RunPod redelivering it
     return NextResponse.json({ accepted: true, cancelled: job.status === "cancelled" });
   }
   try {

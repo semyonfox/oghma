@@ -2,11 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const extractWithMarker = vi.hoisted(() => vi.fn());
 const getPdfText = vi.hoisted(() => vi.fn());
+const destroyPdf = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/marker/ocr", () => ({ extractWithMarker }));
 vi.mock("pdf-parse", () => ({
   PDFParse: class {
     getText = getPdfText;
+    destroy = destroyPdf;
   },
 }));
 
@@ -24,6 +26,7 @@ describe("Marker OCR environment toggle", () => {
       pageRange: null,
     });
     getPdfText.mockResolvedValue({ text: "CPU text layer" });
+    destroyPdf.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -43,7 +46,8 @@ describe("Marker OCR environment toggle", () => {
     expect(result.source).toBe("skipped");
   });
 
-  it.each(["true", "1", "on", " TRUE "])(
+  // same truthy set the worker startup validation and serverless gate accept
+  it.each(["true", "1", "on", "yes", " TRUE "])(
     "uses Marker OCR only when MARKER_OCR_ENABLED=%s",
     async (value) => {
       process.env.MARKER_OCR_ENABLED = value;
@@ -71,6 +75,20 @@ describe("Marker OCR environment toggle", () => {
     expect(result.source).toBe("pdf-parse");
     expect(result.rawText).toBe("CPU text layer");
     expect(extractWithMarker).not.toHaveBeenCalled();
+    expect(destroyPdf).toHaveBeenCalledOnce();
+  });
+
+  it("releases the PDF parser when the text layer cannot be read", async () => {
+    getPdfText.mockRejectedValueOnce(new Error("corrupt xref"));
+
+    const result = await extractContentFromBuffer({
+      buffer: Buffer.from("%PDF-1.7"),
+      filename: "scan.pdf",
+      mimeType: "application/pdf",
+    });
+
+    expect(result.source).toBe("skipped");
+    expect(destroyPdf).toHaveBeenCalledOnce();
   });
 
   it.each(["false", "0", "off", " FALSE ", "unexpected"])(
