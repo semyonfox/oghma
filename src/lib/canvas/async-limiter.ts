@@ -1,3 +1,4 @@
+import { AsyncResource } from "node:async_hooks";
 import logger from "@/lib/logger";
 /** Create a limiter that runs at most `limit` asynchronous tasks in parallel. */
 export function createAsyncLimiter(limit: number) {
@@ -18,7 +19,10 @@ export function createAsyncLimiter(limit: number) {
 
   return <T>(fn: () => Promise<T>) =>
     new Promise<T>((resolve, reject) => {
-      queue.push(() => {
+      // a queued task starts from whichever task frees the slot. bind it to
+      // the caller so it keeps its own AsyncLocalStorage state (Canvas
+      // execution owner, database transaction) instead of inheriting theirs
+      queue.push(AsyncResource.bind(() => {
         Promise.resolve()
           .then(fn)
           .then(resolve, reject)
@@ -26,7 +30,7 @@ export function createAsyncLimiter(limit: number) {
             active -= 1;
             next();
           });
-      });
+      }));
       next();
     });
 }
