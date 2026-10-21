@@ -1040,5 +1040,9 @@
   "attachment_viewer.empty": "Questo file è vuoto.",
   "Verify email": "Verifica email",
   "Choose a password only you know to finish verifying your account.": "Scegli una password che conosci solo tu per completare la verifica del tuo account.",
-  "This note could not be loaded. Check your connection and try again.": "Impossibile caricare questa nota. Controlla la connessione e riprova."
+  "This note could not be loaded. Check your connection and try again.": "Impossibile caricare questa nota. Controlla la connessione e riprova.",
+  "Original PDF": "Original PDF",
+  "Original file": "Original file",
+  "Open original PDF": "Open original PDF",
+  "Open original file": "Open original file"
 }

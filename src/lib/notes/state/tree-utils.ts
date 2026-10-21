@@ -85,6 +85,7 @@ function buildTreeItemFromApi(item: TreeItemSummary): TreeItemModel {
       isFolder: item.isFolder ?? false,
       s3Key: item.s3Key ?? undefined,
       mimeType: item.mimeType ?? undefined,
+      bundle: item.bundle,
       deleted: NOTE_DELETED.NORMAL,
       shared: NOTE_SHARED.PRIVATE,
       pinned: item.pinned ?? NOTE_PINNED.UNPINNED,

@@ -34,6 +34,7 @@ const childrenSchema = z.object({
     s3Key: z.string().nullable().optional(),
     mimeType: z.string().nullable().optional(),
     pinned: z.union([z.literal(0), z.literal(1)]).optional(),
+    bundle: z.object({ pdfId: z.string(), noteId: z.string().nullable() }).optional(),
   })),
 });
 const successSchema = z.object({ success: z.literal(true) });

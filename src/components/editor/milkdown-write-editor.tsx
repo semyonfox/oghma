@@ -18,6 +18,8 @@ import {
   parseInternalNoteHref,
 } from "@/lib/notes/internal-links";
 import usePortalStore from "@/lib/notes/state/portal";
+import { isPdfFile, uploadFileBeside } from "@/lib/notes/utils/upload-beside";
+import { toast } from "sonner";
 
 interface MilkdownWriteEditorProps {
   value: string;
@@ -626,6 +628,49 @@ export default function MilkdownWriteEditor({
     setPickerOpen(false);
   };
 
+  // dropped or pasted PDFs become their own notes next to this one, linked
+  // where they were dropped. the link opens the PDF in the other pane
+  const attachPdfs = async (files: File[], dropPos: number | null) => {
+    if (!currentNoteId) return;
+    const crepe = crepeRef.current;
+    if (!crepe) return;
+    const docAtDrop = crepe.editor.action((ctx) => ctx.get(editorViewCtx).state.doc);
+
+    for (const file of files) {
+      const toastId = toast.loading(`Uploading ${file.name}…`);
+      try {
+        const uploaded = await uploadFileBeside(file, currentNoteId);
+        const current = crepeRef.current;
+        if (!current) return;
+        current.editor.action((ctx) => {
+          const view = ctx.get(editorViewCtx);
+          const { state } = view;
+          // the drop point is only trustworthy while the document is unchanged
+          const pos = dropPos !== null && state.doc === docAtDrop
+            ? Math.min(dropPos, state.doc.content.size)
+            : state.selection.from;
+          const label = uploaded.title;
+          const mark = linkSchema.type(ctx).create({
+            href: buildInternalNoteHref(uploaded.noteId),
+            title: null,
+          });
+          // keep the link off the end of the word it was dropped after
+          const previous = state.doc.textBetween(Math.max(0, pos - 1), pos);
+          const start = previous && !/\s/.test(previous) ? pos + 1 : pos;
+          const tr = state.tr
+            .insertText(`${start > pos ? " " : ""}${label} `, pos)
+            .addMark(start, start + label.length, mark)
+            .removeStoredMark(mark.type);
+          view.dispatch(tr.scrollIntoView());
+        });
+        dropPos = null;
+        toast.success(`Added ${file.name}`, { id: toastId });
+      } catch {
+        toast.error(`Couldn't upload ${file.name}`, { id: toastId });
+      }
+    }
+  };
+
   const publishCurrentMarkdown = () => {
     const crepe = crepeRef.current;
     if (!crepe) return;
@@ -647,6 +692,24 @@ export default function MilkdownWriteEditor({
           publishCurrentMarkdown();
           onSave?.();
         }
+      }}
+      onDropCapture={(event) => {
+        const pdfs = Array.from(event.dataTransfer.files).filter(isPdfFile);
+        if (pdfs.length === 0 || !currentNoteId) return;
+        // preventDefault alone makes ProseMirror skip the drop while its drop
+        // cursor still hears it and clears itself; stopping propagation here
+        // would leave the cursor drawn
+        event.preventDefault();
+        const dropPos = crepeRef.current?.editor.action((ctx) =>
+          ctx.get(editorViewCtx).posAtCoords({ left: event.clientX, top: event.clientY })?.pos ?? null,
+        ) ?? null;
+        void attachPdfs(pdfs, dropPos);
+      }}
+      onPasteCapture={(event) => {
+        const pdfs = Array.from(event.clipboardData.files).filter(isPdfFile);
+        if (pdfs.length === 0 || !currentNoteId) return;
+        event.preventDefault();
+        void attachPdfs(pdfs, null);
       }}
       onClickCapture={(event) => {
         const anchor =
