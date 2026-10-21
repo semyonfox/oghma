@@ -273,10 +273,13 @@ export function cardLabel(item: FlowItem): string {
     return item.assignment.assignment_type === "quiz" ? "Quiz" : "Assignment";
   const material = item.material;
   if (!material) return "Material";
-  if (item.kind === "pdf")
-    return material.kind === "notes" || material.kind === "other"
-      ? "PDF"
-      : `${DOCUMENT_LABELS[material.kind]} · PDF`;
+  if (item.kind === "pdf") {
+    const base =
+      material.kind === "notes" || material.kind === "other"
+        ? "PDF"
+        : `${DOCUMENT_LABELS[material.kind]} · PDF`;
+    return item.textVersionId ? `${base} + Note` : base;
+  }
   if (item.kind === "image") return "Image";
   if (item.kind === "file") return "File";
   if (!material.imported) return "Your note";
