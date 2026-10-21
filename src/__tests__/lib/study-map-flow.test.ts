@@ -273,6 +273,141 @@ describe("flow items", () => {
     });
   });
 
+  it("merges a note and a PDF of the same name into a single card in its grouping", () => {
+    const pdf = material(
+      1,
+      "Pointers Overview.pdf",
+      [association(pointers.id, "supporting", "accepted")],
+      {
+        isFile: true,
+        mimeType: "application/pdf",
+      },
+    );
+    const text = material(
+      2,
+      "Pointers Overview",
+      [
+        association(pointers.id, "core", "accepted"),
+        association(memory.id, "supporting", "accepted"),
+      ],
+      {
+        folder: "Week 1",
+      },
+    );
+    const items = moduleItems(
+      snapshot([pointers, memory], [pdf, text]),
+      emptyBoard(),
+    );
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      kind: "pdf",
+      title: "Pointers Overview.pdf",
+      textVersionId: text.noteId,
+      week: 1,
+      weekSource: "folder",
+    });
+    const tags = items[0].tags;
+    const pointersTag = tags.find((t) => t.topicId === pointers.id);
+    const memoryTag = tags.find((t) => t.topicId === memory.id);
+    expect(pointersTag).toMatchObject({ relevance: "core" });
+    expect(memoryTag).toMatchObject({ relevance: "supporting" });
+
+    const catalogue = new Map([
+      [pointers.id, 0],
+      [memory.id, 1],
+    ]);
+    expect(primaryTopic(items[0], catalogue)).toBe(pointers.id);
+
+    const layout = layoutModule(MAP, [pointers, memory], items, []);
+    const pointersCluster = layout.clusters.find((c) => c.key === pointers.id);
+    expect(pointersCluster?.refs).toEqual([items[0].ref]);
+  });
+
+  it("pairs note and PDF by matching folder when multiple items share the same title", () => {
+    const pdf1 = material(1, "Slides.pdf", [association(pointers.id)], {
+      isFile: true,
+      mimeType: "application/pdf",
+      folder: "Week 1",
+    });
+    const pdf2 = material(2, "Slides.pdf", [association(memory.id)], {
+      isFile: true,
+      mimeType: "application/pdf",
+      folder: "Week 2",
+    });
+    const note1 = material(3, "Slides", [association(pointers.id)], {
+      folder: "Week 1",
+    });
+    const note2 = material(4, "Slides.md", [association(memory.id)], {
+      folder: "Week 2",
+    });
+    const items = moduleItems(
+      snapshot([pointers, memory], [pdf1, pdf2, note1, note2]),
+      emptyBoard(),
+    );
+    expect(items).toHaveLength(2);
+    const item1 = items.find((i) => i.id === pdf1.noteId);
+    const item2 = items.find((i) => i.id === pdf2.noteId);
+    expect(item1?.textVersionId).toBe(note1.noteId);
+    expect(item2?.textVersionId).toBe(note2.noteId);
+  });
+
+  it("preserves links and manual placements from merged text notes", () => {
+    const pdf = material(1, "Week 2 - Memory.pdf", [], {
+      isFile: true,
+      mimeType: "application/pdf",
+    });
+    const otherNote = material(3, "Week 1 - Intro", [association(pointers.id)]);
+    const note = material(2, "Week 2 - Memory", [association(memory.id)], {
+      references: [
+        {
+          id: otherNote.noteId,
+          title: otherNote.title,
+          kind: "note",
+          relation: "embedded",
+        },
+      ],
+    });
+    const board = {
+      ...emptyBoard(),
+      placements: [
+        {
+          id: `note:${note.noteId}` as const,
+          x: 120,
+          y: 340,
+          pinned: true,
+          topicId: null,
+        },
+      ],
+    };
+    const items = moduleItems(
+      snapshot([pointers, memory], [pdf, note, otherNote]),
+      board,
+    );
+    expect(items).toHaveLength(2);
+    const merged = items.find((i) => i.id === pdf.noteId)!;
+    expect(merged.textVersionId).toBe(note.noteId);
+
+    const layout = layoutModule(
+      MAP,
+      [pointers, memory],
+      items,
+      board.placements,
+    );
+    expect(layout.positions.get(merged.ref)).toEqual({
+      x: 120,
+      y: 340,
+      manual: true,
+    });
+
+    const links = flowLinks([{ items, board }]);
+    expect(
+      links.some(
+        (l) =>
+          l.source === merged.ref && l.target === `note:${otherNote.noteId}`,
+      ),
+    ).toBe(true);
+  });
+
   it("lets a saved week override inference, including an explicit no-week choice", () => {
     const note = material(1, "Lecture 4", [association(pointers.id)]);
     const board = { ...emptyBoard(), weeks: { [`note:${note.noteId}`]: 6 } };

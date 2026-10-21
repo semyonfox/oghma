@@ -22,7 +22,7 @@ export const UNSORTED = "unsorted";
 type FlowCardKind = "note" | "pdf" | "image" | "file" | "assignment";
 type WeekSource = "set" | "title" | "folder" | "linked" | null;
 
-interface FlowTag {
+export interface FlowTag {
   topicId: string;
   relevance: "core" | "supporting";
   probability: number | null;
@@ -48,6 +48,7 @@ export interface FlowItem {
   assignment: StudyAssignment | null;
   /** extracted Markdown shown through its original file instead of a second card */
   textVersionId: string | null;
+  textVersionMaterial?: StudyMaterial | null;
 }
 
 export interface FlowLink {
@@ -209,6 +210,61 @@ const isTextual = (material: StudyMaterial) =>
   /^text\//.test(material.mimeType ?? "") ||
   /\.(md|markdown|txt)$/i.test(material.title);
 
+const isPdfMaterial = (material: StudyMaterial) =>
+  material.isFile &&
+  (material.mimeType === "application/pdf" || /\.pdf$/i.test(material.title));
+
+export function normalizeMaterialTitle(title: string): string {
+  return title
+    .trim()
+    .replace(/\.(pdf|md|markdown|txt)$/i, "")
+    .trim()
+    .toLowerCase()
+    .replace(/[-_:]+/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+export function mergeTags(
+  primaryTags: FlowTag[],
+  secondaryTags: FlowTag[],
+): FlowTag[] {
+  const map = new Map<string, FlowTag>();
+  for (const tag of primaryTags) {
+    map.set(tag.topicId, { ...tag });
+  }
+  for (const tag of secondaryTags) {
+    const existing = map.get(tag.topicId);
+    if (!existing) {
+      map.set(tag.topicId, { ...tag });
+    } else {
+      const relevance: "core" | "supporting" =
+        existing.relevance === "core" || tag.relevance === "core"
+          ? "core"
+          : "supporting";
+      const probability =
+        existing.probability !== null && tag.probability !== null
+          ? Math.max(existing.probability, tag.probability)
+          : (existing.probability ?? tag.probability);
+      const suggested = existing.suggested && tag.suggested;
+      const mentioned = existing.mentioned || tag.mentioned;
+      const mentions = Math.max(existing.mentions, tag.mentions);
+      map.set(tag.topicId, {
+        topicId: tag.topicId,
+        relevance,
+        probability,
+        suggested,
+        mentioned,
+        mentions,
+      });
+    }
+  }
+  return [...map.values()].sort(
+    (left, right) =>
+      Number(right.relevance === "core") - Number(left.relevance === "core") ||
+      (right.probability ?? 1) - (left.probability ?? 1),
+  );
+}
+
 /** builds the cards for one module; syllabus and past papers belong to topics and exam history rather than the map */
 export function moduleItems(
   snapshot: StudyMapSnapshot,
@@ -237,14 +293,67 @@ export function moduleItems(
     if (original && !textVersions.has(original.id))
       textVersions.set(original.id, material.noteId);
   }
+
+  // pair the remaining textual notes with PDF files of the same name
+  const pairedPdfs = new Set(textVersions.keys());
+  const pairedNotes = new Set(textVersions.values());
+
+  const unpairedPdfs = materials.filter(
+    (m) => !pairedPdfs.has(m.noteId) && isPdfMaterial(m),
+  );
+
+  const unpairedNotes = materials.filter(
+    (m) => !pairedNotes.has(m.noteId) && isTextual(m),
+  );
+
+  for (const note of unpairedNotes) {
+    const norm = normalizeMaterialTitle(note.title);
+    if (!norm || norm === "untitled" || norm === "file") continue;
+
+    const candidates = unpairedPdfs.filter(
+      (pdf) =>
+        !textVersions.has(pdf.noteId) &&
+        normalizeMaterialTitle(pdf.title) === norm,
+    );
+    if (!candidates.length) continue;
+
+    const match =
+      candidates.find(
+        (pdf) => pdf.folder !== null && pdf.folder === note.folder,
+      ) ?? candidates[0];
+
+    textVersions.set(match.noteId, note.noteId);
+  }
+
   const hidden = new Set(textVersions.values());
   const items: FlowItem[] = [];
   for (const material of materials) {
     if (hidden.has(material.noteId)) continue;
+    const textVersionId = textVersions.get(material.noteId) ?? null;
+    const textVersionMaterial = textVersionId
+      ? (byId.get(textVersionId) ?? null)
+      : null;
     const ref = `note:${material.noteId}`;
-    const override = board.weeks[ref];
-    const inferred = inferWeek(material.title, material.folder);
+    const textRef = textVersionMaterial
+      ? `note:${textVersionMaterial.noteId}`
+      : null;
+    const override =
+      board.weeks[ref] ?? (textRef ? board.weeks[textRef] : undefined);
+    const inferred =
+      inferWeek(material.title, material.folder) ??
+      (textVersionMaterial
+        ? inferWeek(textVersionMaterial.title, textVersionMaterial.folder)
+        : null);
     const kind = cardKind(material);
+
+    const primaryTags = tagsFor(material, map.taxonomyVersion, topicIds);
+    const secondaryTags = textVersionMaterial
+      ? tagsFor(textVersionMaterial, map.taxonomyVersion, topicIds)
+      : [];
+    const tags = secondaryTags.length
+      ? mergeTags(primaryTags, secondaryTags)
+      : primaryTags;
+
     items.push({
       ref,
       id: material.noteId,
@@ -254,11 +363,12 @@ export function moduleItems(
       week:
         override !== undefined ? override || null : (inferred?.week ?? null),
       weekSource: override !== undefined ? "set" : (inferred?.source ?? null),
-      tags: tagsFor(material, map.taxonomyVersion, topicIds),
+      tags,
       height: HEIGHTS[kind],
       material,
       assignment: null,
-      textVersionId: textVersions.get(material.noteId) ?? null,
+      textVersionId,
+      textVersionMaterial,
     });
   }
   const notes = [...items];
@@ -290,6 +400,7 @@ export function moduleItems(
       material: null,
       assignment,
       textVersionId: null,
+      textVersionMaterial: null,
     };
     // without a teaching calendar, an assignment sits after the latest week of the material it most depends on
     const sources = assignmentSources(card, notes);
@@ -609,6 +720,19 @@ export function layoutModule(
         manual: true,
       });
   }
+  for (const item of items) {
+    if (!item.textVersionId) continue;
+    const textRef = `note:${item.textVersionId}`;
+    const fallbackPlacement = placements.find((p) => p.id === textRef);
+    const primaryPlacement = placements.find((p) => p.id === item.ref);
+    if (fallbackPlacement && !primaryPlacement) {
+      positions.set(item.ref, {
+        x: fallbackPlacement.x,
+        y: fallbackPlacement.y,
+        manual: true,
+      });
+    }
+  }
   const byRef = new Map(items.map((item) => [item.ref, item]));
   const right = Math.max(
     ...clusters.map((cluster) => cluster.x + cluster.width),
@@ -693,7 +817,11 @@ export function flowLinks(
   const links: FlowLink[] = [];
   const seen = new Set<string>();
   for (const item of items) {
-    for (const reference of item.material?.references ?? []) {
+    const references = [
+      ...(item.material?.references ?? []),
+      ...(item.textVersionMaterial?.references ?? []),
+    ];
+    for (const reference of references) {
       if (reference.relation === "extraction") continue;
       const target = byNote.get(reference.id);
       const key = `${item.ref}>${target?.ref}`;
@@ -709,10 +837,17 @@ export function flowLinks(
     }
   }
   const refs = new Set(items.map((item) => item.ref));
+  const textVersionToRef = new Map<string, string>();
+  for (const item of items) {
+    if (item.textVersionId)
+      textVersionToRef.set(`note:${item.textVersionId}`, item.ref);
+  }
   for (const { board } of modules) {
     for (const link of board.links) {
-      if (refs.has(link.source) && refs.has(link.target))
-        links.push({ ...link, origin: "yours" });
+      const source = textVersionToRef.get(link.source) ?? link.source;
+      const target = textVersionToRef.get(link.target) ?? link.target;
+      if (source !== target && refs.has(source) && refs.has(target))
+        links.push({ ...link, source, target, origin: "yours" });
     }
   }
   return links;
