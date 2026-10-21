@@ -113,6 +113,18 @@ so a legitimate empty job can complete without hiding unresolved paths. Fresh no
 request deduplication and invalidate older reads so pre-import content cannot
 win after publication.
 
+## Document bundles
+
+Extraction places each PDF in a folder named after it, next to the extracted
+`.md`. `/api/tree/children` marks such a folder with
+`bundle: { pdfId, noteId }` only when it holds exactly one live PDF named
+`<folder>.pdf` and at most one live `<folder>.md`, and nothing else. A renamed
+companion or any extra child leaves it an ordinary folder. The sidebar shows a
+bundle as one document row. Clicking it opens the note in pane A and the PDF in
+pane B on desktop, or the PDF alone while extraction is still running. The
+chevron still expands the real folder, and moves and deletes act on the folder
+as before. Rows also drop `.md` and show other extensions muted.
+
 ## Main files
 
 | Concern | Owner |

@@ -2,7 +2,7 @@
 
 import { FC, memo, useCallback, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { FileSpec, PaneId, type RightPanelTab } from "@/lib/notes/state/layout";
 import {
@@ -12,6 +12,7 @@ import {
   CheckCircleIcon,
   ClipboardDocumentCheckIcon,
   CloudArrowUpIcon,
+  DocumentIcon,
   ExclamationTriangleIcon,
   RectangleGroupIcon,
   XMarkIcon,
@@ -31,6 +32,7 @@ import {
 
 import SaveOfflineButton from "@/components/notes/save-offline-button";
 import PaneEmptyState from "./pane-empty-state";
+import { useSourceFile } from "./use-source-file";
 
 const MobileNoteActions = dynamic(
   () => import("@/components/notes/mobile-note-actions"),
@@ -63,7 +65,11 @@ const EditorPane: FC<EditorPaneProps> = ({
   const libraryHref = folderPath
     ? `/notes?folder=${encodeURIComponent(folderPath)}`
     : "/notes";
+  const router = useRouter();
   const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
+  const sourceFile = useSourceFile(
+    file?.fileType === "note" ? file.fileId : undefined,
+  );
   const liveTitle = useNoteTreeStore((s) =>
     file?.fileId ? s.tree.items[file.fileId]?.data?.title : undefined,
   );
@@ -126,6 +132,8 @@ const EditorPane: FC<EditorPaneProps> = ({
   const handleDragOver = useCallback(
     (e: React.DragEvent) => {
       if (!splitInteractionsEnabled) return;
+      // files dragged in from the desktop are the editor's to handle
+      if (!e.dataTransfer.types.includes(FILE_DRAG_MIME)) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = "move";
 
@@ -151,6 +159,7 @@ const EditorPane: FC<EditorPaneProps> = ({
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       if (!splitInteractionsEnabled) return;
+      if (!e.dataTransfer.types.includes(FILE_DRAG_MIME)) return;
       e.preventDefault();
       setIsDragging(false);
 
@@ -166,6 +175,17 @@ const EditorPane: FC<EditorPaneProps> = ({
     },
     [dropTarget, pane, placeFileInPane, splitInteractionsEnabled],
   );
+
+  const otherPane: PaneId = pane === "A" ? "B" : "A";
+  const sourceIsOpenBeside = useLayoutStore((s) =>
+    sourceFile
+      ? (otherPane === "A" ? s.paneA : s.paneB)?.fileId === sourceFile.fileId
+      : false,
+  );
+  const openSourceBeside = () => {
+    if (!sourceFile) return;
+    placeFileInPane(sourceFile, otherPane);
+  };
 
   const aiChatIsOpen = activePane === pane && rightPanelOpen && rightPanelTab === "ai";
   const metadataIsOpen = activePane === pane && rightPanelOpen && rightPanelTab === "meta";
@@ -277,6 +297,19 @@ const EditorPane: FC<EditorPaneProps> = ({
             />
             {t("Global Tasks")}
           </button>
+          {sourceFile && (
+            <button
+              type="button"
+              className={mobileActionClass}
+              onClick={() => {
+                setMobileActionsOpen(false);
+                router.push(`/notes/${sourceFile.fileId}`);
+              }}
+            >
+              <DocumentIcon className="h-5 w-5" aria-hidden="true" />
+              {sourceFile.fileType === "pdf" ? t("Open original PDF") : t("Open original file")}
+            </button>
+          )}
           {file.fileType === "note" && (
             <SaveOfflineButton noteId={file.fileId} presentation="row" />
           )}
@@ -302,6 +335,24 @@ const EditorPane: FC<EditorPaneProps> = ({
           {saveIndicator ? (
             <SaveIndicatorButton indicator={saveIndicator} t={t} />
           ) : null}
+          {sourceFile && splitInteractionsEnabled && (
+            <button
+              type="button"
+              onClick={openSourceBeside}
+              aria-pressed={sourceIsOpenBeside}
+              title={sourceFile.title}
+              className={`ml-1 flex min-h-7 shrink-0 items-center gap-1 rounded-radius-md px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 ${
+                sourceIsOpenBeside
+                  ? "bg-primary-500/10 text-primary-700 dark:text-primary-300"
+                  : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
+              }`}
+            >
+              <DocumentIcon className="h-4 w-4 text-red-400" aria-hidden="true" />
+              <span>
+                {sourceFile.fileType === "pdf" ? t("Original PDF") : t("Original file")}
+              </span>
+            </button>
+          )}
         </div>
 
         <div className="flex w-full shrink-0 items-center justify-end gap-1 lg:w-auto lg:gap-0.5">

@@ -1,7 +1,7 @@
 // extracted from Notea (MIT License)
 // adapted for oghma - removed @atlaskit/tree and lodash dependencies
 
-import { NoteModel } from "./note";
+import { DocumentBundle, NoteModel } from "./note";
 
 export interface TreeItem {
   id: string;
@@ -33,6 +33,7 @@ export interface TreeItemSummary {
   s3Key?: string | null;
   mimeType?: string | null;
   pinned?: number;
+  bundle?: DocumentBundle;
 }
 
 export interface TreeModel extends TreeData {

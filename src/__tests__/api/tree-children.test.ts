@@ -71,7 +71,26 @@ describe("GET /api/tree/children", () => {
     await GET(new NextRequest("http://localhost/api/tree/children"));
     await GET(new NextRequest("http://localhost/api/tree/children"));
 
-    expect(mocks.sql).toHaveBeenCalledTimes(2);
+    // the document-bundle join is a nested fragment, so count the reads
+    const childReads = mocks.sql.mock.calls.filter(([strings]) =>
+      (strings as string[]).join("").includes("FROM app.tree_items ti"),
+    );
+    expect(childReads).toHaveLength(2);
+  });
+
+  it("marks PDF bundle folders and leaves other rows untouched", async () => {
+    mocks.sql.mockResolvedValue([
+      { id: "lecture", title: "Lecture 3", isFolder: true, isExpanded: false, s3Key: null, mimeType: null, pinned: 0, bundlePdfId: "pdf-1", bundleNoteId: "md-1" },
+      { id: "pending", title: "Lecture 4", isFolder: true, isExpanded: false, s3Key: null, mimeType: null, pinned: 0, bundlePdfId: "pdf-2", bundleNoteId: null },
+      { id: "week", title: "Week 1", isFolder: true, isExpanded: false, s3Key: null, mimeType: null, pinned: 0, bundlePdfId: null, bundleNoteId: null },
+    ]);
+
+    const response = await GET(new NextRequest("http://localhost/api/tree/children"));
+    const items = (await response.json()).items as Array<Record<string, unknown>>;
+
+    expect(items.find((item) => item.id === "lecture")?.bundle).toEqual({ pdfId: "pdf-1", noteId: "md-1" });
+    expect(items.find((item) => item.id === "pending")?.bundle).toEqual({ pdfId: "pdf-2", noteId: null });
+    expect(items.find((item) => item.id === "week")).not.toHaveProperty("bundle");
   });
 
   it("rejects a malformed parent before it reaches the uuid cast", async () => {

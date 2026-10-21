@@ -7,6 +7,7 @@ import useContextMenuStore from "@/lib/notes/state/context-menu";
 import { buildFileSpec } from "@/lib/notes/utils/file-spec";
 import React, { memo, useMemo, useState, useCallback, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import useMediaQuery from "@/lib/hooks/use-media-query";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { Favorites } from "./favorites";
 import {
@@ -55,6 +56,7 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
     refreshTree,
   } = useNoteTreeStore();
 
+  const isDesktop = useMediaQuery("(min-width: 1024px)");
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const [deleteConfirmTarget, setDeleteConfirmTarget] =
     useState<DeleteConfirmTarget>(null);
@@ -147,6 +149,24 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
       setSelectedIds(new Set([itemId]));
       setSelectionAnchorId(itemId);
 
+      const bundle = nodeData?.bundle;
+      if (isFolder && bundle) {
+        // a PDF bundle opens as one document: the editable note, with the
+        // original beside it on desktop. the chevron still expands the folder
+        const { setPaneA, setPaneB, setActivePane } = useLayoutStore.getState();
+        const title = nodeData?.title;
+        const pdf = { fileId: bundle.pdfId, fileType: "pdf" as const, title: title ? `${title}.pdf` : undefined };
+        const primaryId = bundle.noteId ?? bundle.pdfId;
+        setPaneA(bundle.noteId
+          ? { fileId: bundle.noteId, fileType: "note", title: title ? `${title}.md` : undefined }
+          : pdf);
+        if (bundle.noteId && isDesktop === true) setPaneB(pdf);
+        setActivePane("A");
+        router.push(pathname?.startsWith("/notes") ? `/notes/${primaryId}` : `/${primaryId}`);
+        onOpenNote?.();
+        return;
+      }
+
       if (isFolder) {
         const next = new Set(expandedIds);
         if (isExpanded) {
@@ -170,6 +190,7 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
     },
     [
       expandedIds,
+      isDesktop,
       loadChildren,
       onOpenNote,
       pathname,
@@ -359,7 +380,11 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
                 const isDraggingOver = context.isDraggingOver === true;
                 const itemId = String(item.index);
                 const isExpanded = expandedIds.has(itemId);
-                const isActive = activeId === item.index;
+                const isActive =
+                  activeId === item.index ||
+                  (!!nodeData?.bundle &&
+                    (activeId === nodeData.bundle.noteId ||
+                      activeId === nodeData.bundle.pdfId));
                 const isItemRenaming = renamingId === item.index;
                 const isSelected = selectedIds.has(itemId);
 

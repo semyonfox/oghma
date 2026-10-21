@@ -1040,5 +1040,9 @@
   "attachment_viewer.empty": "यह फ़ाइल खाली है।",
   "Verify email": "ईमेल सत्यापित करें",
   "Choose a password only you know to finish verifying your account.": "अपने खाते का सत्यापन पूरा करने के लिए ऐसा पासवर्ड चुनें जो केवल आप जानते हों।",
-  "This note could not be loaded. Check your connection and try again.": "यह नोट लोड नहीं हो सका। अपना कनेक्शन जांचें और फिर से प्रयास करें।"
+  "This note could not be loaded. Check your connection and try again.": "यह नोट लोड नहीं हो सका। अपना कनेक्शन जांचें और फिर से प्रयास करें।",
+  "Original PDF": "Original PDF",
+  "Original file": "Original file",
+  "Open original PDF": "Open original PDF",
+  "Open original file": "Open original file"
 }

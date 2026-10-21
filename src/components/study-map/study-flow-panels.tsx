@@ -9,7 +9,7 @@ import {
 import { z } from "zod";
 import PreviewRenderer from "@/components/editor/preview-renderer";
 import type { FlowItem, FlowLink, TopicBridge } from "@/lib/study-map/flow";
-import type { StudyTopic } from "@/lib/study-map/types";
+import type { StudyMaterial, StudyTopic } from "@/lib/study-map/types";
 import {
   cardLabel,
   FilePreview,
@@ -134,6 +134,71 @@ function PdfPages({ item }: { item: FlowItem }) {
   );
 }
 
+function MergedPdfNoteBody({
+  item,
+  material,
+  full,
+}: {
+  item: FlowItem;
+  material: StudyMaterial;
+  full: boolean;
+}) {
+  const [tab, setTab] = useState<"note" | "pdf">("note");
+
+  if (!full) {
+    return (
+      <div className="space-y-2">
+        <div className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-radius-md border border-border-subtle bg-background">
+          <FilePreview material={material} kind="pdf" />
+        </div>
+        <NoteText
+          noteId={item.textVersionId!}
+          fallback={material.excerpt}
+          clamp
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-1.5 border-b border-border-subtle pb-2">
+        <button
+          type="button"
+          className={`rounded-radius-sm px-2.5 py-1 text-xs font-medium transition-colors ${
+            tab === "note"
+              ? "bg-primary-500/10 font-semibold text-primary-600 dark:text-primary-400"
+              : "text-text-secondary hover:bg-surface-hover hover:text-text"
+          }`}
+          onClick={() => setTab("note")}
+        >
+          Note text
+        </button>
+        <button
+          type="button"
+          className={`rounded-radius-sm px-2.5 py-1 text-xs font-medium transition-colors ${
+            tab === "pdf"
+              ? "bg-primary-500/10 font-semibold text-primary-600 dark:text-primary-400"
+              : "text-text-secondary hover:bg-surface-hover hover:text-text"
+          }`}
+          onClick={() => setTab("pdf")}
+        >
+          PDF pages
+        </button>
+      </div>
+      {tab === "note" ? (
+        <NoteText
+          noteId={item.textVersionId!}
+          fallback={material.excerpt}
+          clamp={false}
+        />
+      ) : (
+        <PdfPages item={item} />
+      )}
+    </div>
+  );
+}
+
 /** the readable body of a card: rendered Markdown, PDF pages or an image */
 export function ItemBody({ item, full }: { item: FlowItem; full: boolean }) {
   if (item.assignment) {
@@ -151,6 +216,9 @@ export function ItemBody({ item, full }: { item: FlowItem; full: boolean }) {
   const material = item.material;
   if (!material) return null;
   const preview = previewKind(material);
+  if (preview === "pdf" && item.textVersionId) {
+    return <MergedPdfNoteBody item={item} material={material} full={full} />;
+  }
   if (preview === "pdf") {
     if (full) return <PdfPages item={item} />;
     return (
@@ -402,13 +470,35 @@ export function ItemActions({
               Read here
             </button>
           )}
-          <Link href={`/notes/${item.id}`} className={secondarySmall}>
-            Open in editor{" "}
-            <ArrowTopRightOnSquareIcon
-              className="h-3.5 w-3.5"
-              aria-hidden="true"
-            />
-          </Link>
+          {item.textVersionId ? (
+            <>
+              <Link
+                href={`/notes/${item.textVersionId}`}
+                className={secondarySmall}
+              >
+                Open note{" "}
+                <ArrowTopRightOnSquareIcon
+                  className="h-3.5 w-3.5"
+                  aria-hidden="true"
+                />
+              </Link>
+              <Link href={`/notes/${item.id}`} className={secondarySmall}>
+                Open PDF{" "}
+                <ArrowTopRightOnSquareIcon
+                  className="h-3.5 w-3.5"
+                  aria-hidden="true"
+                />
+              </Link>
+            </>
+          ) : (
+            <Link href={`/notes/${item.id}`} className={secondarySmall}>
+              Open in editor{" "}
+              <ArrowTopRightOnSquareIcon
+                className="h-3.5 w-3.5"
+                aria-hidden="true"
+              />
+            </Link>
+          )}
           <button type="button" className={secondarySmall} onClick={onReview}>
             Review topics
           </button>
