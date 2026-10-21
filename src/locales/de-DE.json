@@ -1040,5 +1040,9 @@
   "attachment_viewer.empty": "Diese Datei ist leer.",
   "Verify email": "E-Mail bestätigen",
   "Choose a password only you know to finish verifying your account.": "Wählen Sie ein Passwort, das nur Sie kennen, um die Bestätigung Ihres Kontos abzuschließen.",
-  "This note could not be loaded. Check your connection and try again.": "Diese Notiz konnte nicht geladen werden. Prüfe deine Verbindung und versuche es erneut."
+  "This note could not be loaded. Check your connection and try again.": "Diese Notiz konnte nicht geladen werden. Prüfe deine Verbindung und versuche es erneut.",
+  "Original PDF": "Original-PDF",
+  "Original file": "Originaldatei",
+  "Open original PDF": "Original-PDF öffnen",
+  "Open original file": "Originaldatei öffnen"
 }

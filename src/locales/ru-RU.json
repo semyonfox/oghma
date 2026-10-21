@@ -1040,5 +1040,9 @@
   "attachment_viewer.empty": "Этот файл пуст.",
   "Verify email": "Подтвердить email",
   "Choose a password only you know to finish verifying your account.": "Придумайте пароль, который знаете только вы, чтобы завершить подтверждение аккаунта.",
-  "This note could not be loaded. Check your connection and try again.": "Не удалось загрузить заметку. Проверьте подключение и попробуйте ещё раз."
+  "This note could not be loaded. Check your connection and try again.": "Не удалось загрузить заметку. Проверьте подключение и попробуйте ещё раз.",
+  "Original PDF": "Original PDF",
+  "Original file": "Original file",
+  "Open original PDF": "Open original PDF",
+  "Open original file": "Open original file"
 }

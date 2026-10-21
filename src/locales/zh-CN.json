@@ -1040,5 +1040,9 @@
   "attachment_viewer.empty": "此文件为空。",
   "Verify email": "验证邮箱",
   "Choose a password only you know to finish verifying your account.": "请设置一个只有您知道的密码，以完成账户验证。",
-  "This note could not be loaded. Check your connection and try again.": "无法加载此笔记。请检查网络连接后重试。"
+  "This note could not be loaded. Check your connection and try again.": "无法加载此笔记。请检查网络连接后重试。",
+  "Original PDF": "Original PDF",
+  "Original file": "Original file",
+  "Open original PDF": "Open original PDF",
+  "Open original file": "Open original file"
 }

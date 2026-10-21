@@ -1,12 +1,4 @@
-"use client";
-
-import NotesProviders from "@/components/notes/notes-providers";
-import NotesWorkspace from "@/components/notes/notes-workspace";
-
+// rendered by the notes layout, which switches to the trash view on this path
 export default function TrashRoutePage() {
-  return (
-    <NotesProviders>
-      <NotesWorkspace view="trash" />
-    </NotesProviders>
-  );
+  return null;
 }

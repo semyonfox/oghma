@@ -46,6 +46,32 @@ into the target without clearing the source destroys whatever the target held
 and leaves the dragged file open twice. A single store transition also means
 the exchange costs one render pass.
 
+## Notes and their source files
+
+An extracted note and the file it came from open side by side. Since
+2026-10-21, `GET /api/notes/:id` returns `sourceFile` (`id`, `title`, `s3Key`,
+`mimeType`) when `extracted_from_note_id` points at a live file. `EditorPane`
+then shows an "Original PDF" control next to the filename, which places that
+file in the other pane. On phones the same action is in the note menu and
+navigates instead. The PDF viewer's existing banner covers the other direction.
+
+Clicking an internal link to a file (PDF, image, video) opens it in the other
+pane on desktop through `openLinkedFileBeside()`, so reading the source never
+replaces the note being written. Links to notes still navigate.
+
+Dropping or pasting a PDF into a note uploads it with `besideNoteId`, which
+puts the new file in the same folder as the note, then inserts a portable
+`/notes/<uuid>` link at the drop point. The PDF is never rendered inside the
+note body. The editor only calls `preventDefault()` on these events:
+ProseMirror then skips them, and its drop cursor still clears itself. Pane
+drag targets react only to `FILE_DRAG_MIME`, so desktop file drags don't light
+up the split overlay.
+
+The workspace is rendered from `src/app/notes/layout.tsx` through
+`NotesShell`, and the pages return `null`. As a page it was keyed by the
+`[id]` segment and remounted on every note change, which reset the file tree's
+scroll to the top.
+
 ## Save affordance
 
 The save button lives in the pane header, next to the filename. It used to be

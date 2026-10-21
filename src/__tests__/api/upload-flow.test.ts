@@ -49,7 +49,10 @@ vi.mock("@/lib/queue", () => ({ enqueueCanvasJob }));
 vi.mock("@/lib/config", () => ({
   config: { upload: { maxFileSizeBytes: 1024 * 1024 } },
 }));
-vi.mock("@/lib/notes/storage/create-note", () => ({ insertNoteWithTree }));
+vi.mock("@/lib/notes/storage/create-note", () => ({
+  insertNoteWithTree,
+  InvalidNoteParentError: class InvalidNoteParentError extends Error {},
+}));
 vi.mock("@/lib/notes/tree-cache", () => ({ invalidateTreeAfterPublish }));
 vi.mock("@/lib/storage/init", () => ({ getStorageProvider: () => storage }));
 
@@ -57,9 +60,10 @@ import { POST } from "@/app/api/upload/route";
 
 const noteId = "00000000-0000-0000-0000-000000000001";
 
-function upload(file: File, existingNoteId?: string) {
+function upload(file: File, existingNoteId?: string, besideNoteId?: string) {
   const form = new FormData();
   if (existingNoteId) form.append("noteId", existingNoteId);
+  if (besideNoteId) form.append("besideNoteId", besideNoteId);
   form.append("file", file);
   return new NextRequest("http://localhost/api/upload", { method: "POST", body: form });
 }
@@ -81,6 +85,48 @@ beforeEach(() => {
 });
 
 describe("POST /api/upload", () => {
+  it("places a file dropped into a note in that note's folder", async () => {
+    const folderId = "00000000-0000-0000-0000-0000000000f1";
+    sqlMock.mockImplementation(async (strings: TemplateStringsArray) => {
+      const query = strings.join("?").replace(/\s+/g, " ").trim();
+      queries.push(query);
+      return query.startsWith("SELECT t.parent_id") ? [{ parent_id: folderId }] : [{ id: "row" }];
+    });
+
+    const response = await POST(upload(pdf("lecture.pdf"), undefined, noteId));
+
+    expect(response.status).toBe(200);
+    expect(insertNoteWithTree).toHaveBeenCalledWith(
+      sqlMock,
+      expect.objectContaining({ title: "lecture.pdf", parentId: folderId }),
+    );
+    expect(invalidateTreeAfterPublish).toHaveBeenCalledWith(
+      "00000000-0000-0000-0000-0000000000aa",
+      folderId,
+    );
+  });
+
+  it("refuses to place a file beside a note that is gone and removes the object", async () => {
+    sqlMock.mockImplementation(async (strings: TemplateStringsArray) => {
+      const query = strings.join("?").replace(/\s+/g, " ").trim();
+      queries.push(query);
+      return query.startsWith("SELECT t.parent_id") ? [] : [{ id: "row" }];
+    });
+
+    const response = await POST(upload(pdf("lecture.pdf"), undefined, noteId));
+
+    expect(response.status).toBe(404);
+    expect(insertNoteWithTree).not.toHaveBeenCalled();
+    expect(storage.deleteObject).toHaveBeenCalledOnce();
+  });
+
+  it("rejects besideNoteId when uploading into an existing note", async () => {
+    const response = await POST(upload(pdf("lecture.pdf"), noteId, noteId));
+
+    expect(response.status).toBe(400);
+    expect(storage.putObject).not.toHaveBeenCalled();
+  });
+
   it("titles a new note with the real filename and keys the object with a safe one", async () => {
     const response = await POST(upload(pdf("Léacht 3 Nótaí.pdf")));
     const body = await response.json();

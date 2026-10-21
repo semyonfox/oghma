@@ -1040,5 +1040,9 @@
   "attachment_viewer.empty": "Filen är tom.",
   "Verify email": "Verifiera e-post",
   "Choose a password only you know to finish verifying your account.": "Välj ett lösenord som bara du känner till för att slutföra verifieringen av ditt konto.",
-  "This note could not be loaded. Check your connection and try again.": "Anteckningen kunde inte läsas in. Kontrollera anslutningen och försök igen."
+  "This note could not be loaded. Check your connection and try again.": "Anteckningen kunde inte läsas in. Kontrollera anslutningen och försök igen.",
+  "Original PDF": "Original PDF",
+  "Original file": "Original file",
+  "Open original PDF": "Open original PDF",
+  "Open original file": "Open original file"
 }

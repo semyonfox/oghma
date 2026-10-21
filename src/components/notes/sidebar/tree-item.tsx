@@ -10,13 +10,43 @@ import {
 import {
   ArrowPathIcon,
   ChevronRightIcon,
+  CodeBracketIcon,
   DocumentIcon,
   DocumentTextIcon,
   EllipsisHorizontalIcon,
+  FilmIcon,
+  FolderIcon,
+  FolderOpenIcon,
+  PaperClipIcon,
+  PhotoIcon,
 } from "@heroicons/react/24/outline";
+import type { FileType } from "@/lib/notes/state/layout";
 import type { TreeItemRenderContext } from "react-complex-tree";
 
 const INDENT_PX = 14;
+
+const FILE_ICONS: Record<FileType, { Icon: typeof DocumentIcon; className: string }> = {
+  note: { Icon: DocumentTextIcon, className: "text-text-tertiary" },
+  pdf: { Icon: DocumentIcon, className: "text-red-400" },
+  image: { Icon: PhotoIcon, className: "text-emerald-500 dark:text-emerald-400" },
+  video: { Icon: FilmIcon, className: "text-violet-500 dark:text-violet-400" },
+  text: { Icon: CodeBracketIcon, className: "text-sky-500 dark:text-sky-400" },
+  attachment: { Icon: PaperClipIcon, className: "text-text-tertiary" },
+};
+
+// notes drop their .md, other files keep a muted extension so a PDF and the
+// note extracted from it don't read as the same line twice
+function splitDisplayTitle(title: string, fileType: FileType | null) {
+  if (!fileType) return { name: title, extension: "" };
+  const match = /^(.+?)(\.[a-z0-9]{1,8})$/i.exec(title);
+  if (!match) return { name: title, extension: "" };
+  if (fileType === "note") {
+    return match[2].toLowerCase() === ".md"
+      ? { name: match[1], extension: "" }
+      : { name: title, extension: "" };
+  }
+  return { name: match[1], extension: match[2] };
+}
 
 interface TreeItemProps {
   itemId: string;
@@ -72,8 +102,19 @@ const TreeItem: React.FC<TreeItemProps> = memo(
     const escapedRef = useRef(false);
     const committedRef = useRef(false);
     const pl = depth * INDENT_PX;
-    const isPdf =
-      inferFileType(nodeData?.title, nodeData?.mimeType) === "pdf";
+    const bundle = isFolder ? nodeData?.bundle : undefined;
+    const fileType = isFolder
+      ? null
+      : inferFileType(nodeData?.title, nodeData?.mimeType, nodeData?.s3Key);
+    const displayTitle = splitDisplayTitle(
+      nodeData?.title || (initLoaded ? t("Untitled") : "..."),
+      fileType,
+    );
+    const { Icon: RowIcon, className: rowIconClass } = bundle
+      ? FILE_ICONS.pdf
+      : isFolder
+        ? { Icon: isExpanded ? FolderOpenIcon : FolderIcon, className: "text-text-tertiary" }
+        : FILE_ICONS[fileType ?? "note"];
 
     useEffect(() => {
       renameValueRef.current = renameValue;
@@ -170,7 +211,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
           }}
         >
           <span
-            className="mr-1 flex h-11 w-6 shrink-0 items-center justify-center md:mr-0.5 md:h-5 md:w-4"
+            className="flex h-11 w-6 shrink-0 items-center justify-center md:h-5 md:w-4"
             onClick={(e) => {
               if (isFolder) {
                 e.preventDefault();
@@ -186,23 +227,19 @@ const TreeItem: React.FC<TreeItemProps> = memo(
               />
             ) : isFolder ? (
               <ChevronRightIcon
-                className={`h-3 w-3 text-text-tertiary transition-transform duration-100 ${isExpanded ? "rotate-90" : ""}`}
+                className={`h-3 w-3 text-text-tertiary transition-[transform,opacity] duration-100 ${isExpanded ? "rotate-90" : ""} ${
+                  bundle && !isExpanded
+                    ? "md:opacity-0 md:group-hover/item:opacity-100 md:group-focus-within/item:opacity-100"
+                    : ""
+                }`}
                 aria-hidden="true"
               />
-            ) : (
-              isPdf ? (
-                <DocumentIcon
-                  className="h-3.5 w-3.5 text-red-400"
-                  aria-hidden="true"
-                />
-              ) : (
-                <DocumentTextIcon
-                  className="h-3.5 w-3.5 text-text-tertiary"
-                  aria-hidden="true"
-                />
-              )
-            )}
+            ) : null}
           </span>
+          <RowIcon
+            className={`mr-1.5 h-4 w-4 shrink-0 md:h-3.5 md:w-3.5 ${rowIconClass}`}
+            aria-hidden="true"
+          />
 
           {isRenaming ? (
             <div
@@ -234,7 +271,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
             <span
               title={nodeData?.title || t("Untitled")}
               className={`flex-1 min-w-0 truncate text-base md:text-[13px] leading-snug ${
-                isFolder ? "font-medium" : ""
+                isFolder && !bundle ? "font-medium" : ""
               } ${
                 syncStatus === "modified"
                   ? "text-amber-700 dark:text-amber-400"
@@ -243,7 +280,10 @@ const TreeItem: React.FC<TreeItemProps> = memo(
                     : ""
               }`}
             >
-              {nodeData?.title || (initLoaded ? t("Untitled") : "...")}
+              {displayTitle.name}
+              {displayTitle.extension && (
+                <span className="text-text-tertiary">{displayTitle.extension}</span>
+              )}
             </span>
           )}
 

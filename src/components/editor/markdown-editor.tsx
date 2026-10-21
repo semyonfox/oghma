@@ -26,6 +26,7 @@ import useI18n from "@/lib/notes/hooks/use-i18n";
 import { toast } from "sonner";
 import { writeDraft, readDraft, clearDraft, acknowledgeDraftRecovery, type NoteDraft } from "@/lib/notes/draft-cache";
 import { getEditorMaxWidth } from "@/lib/notes/editor-width";
+import { openLinkedFileBeside } from "@/lib/notes/utils/open-linked-file";
 
 // Milkdown accesses browser APIs on import, so load the writing surface client-side only.
 const MilkdownWriteEditor = dynamic(() => import("./milkdown-write-editor"), {
@@ -62,6 +63,15 @@ async function noteIsGone(noteId: string): Promise<boolean> {
  */
 const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
   const router = useRouter();
+  const openLinkedNote = useCallback(
+    async (noteId: string) => {
+      // split panes are desktop-only, matching SplitEditorPane's breakpoint
+      const isDesktop = window.matchMedia?.("(min-width: 1024px)").matches === true;
+      if (isDesktop && (await openLinkedFileBeside(noteId, pane))) return;
+      router.push(`/notes/${noteId}`);
+    },
+    [pane, router],
+  );
   const draftOwner = file.draftOwner ?? pane;
   const [localContent, setLocalContent] = useState("");
   const [isDirty, setIsDirty] = useState(false);
@@ -524,7 +534,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
               onSave={handleSave}
               placeholder={t("Start writing...")}
               currentNoteId={file.fileId}
-              onOpenNote={(noteId) => router.push(`/notes/${noteId}`)}
+              onOpenNote={openLinkedNote}
             />
           </div>
         ) : loadFailed ? (

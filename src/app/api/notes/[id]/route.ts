@@ -30,6 +30,7 @@ interface NoteSummaryRow {
   pinned: number;
   created_at: string;
   updated_at: string;
+  source_file: { id: string; title: string; s3Key: string; mimeType: string | null } | null;
 }
 
 interface PreviousNoteRow {
@@ -59,7 +60,19 @@ export const GET = withErrorHandler(async (request: NextRequest, { params }: Not
             n.created_at, n.updated_at,
             (SELECT a.mime_type FROM app.attachments a
              WHERE a.note_id = n.note_id AND a.user_id = n.user_id AND a.s3_key = n.s3_key
-             LIMIT 1) AS mime_type
+             LIMIT 1) AS mime_type,
+            -- the live file this note was extracted from, so the editor can
+            -- open the original beside it
+            (SELECT json_build_object(
+                      'id', src.note_id, 'title', src.title, 's3Key', src.s3_key,
+                      'mimeType', (SELECT a.mime_type FROM app.attachments a
+                                   WHERE a.note_id = src.note_id AND a.user_id = src.user_id
+                                     AND a.s3_key = src.s3_key LIMIT 1))
+             FROM app.notes src
+             WHERE src.note_id = n.extracted_from_note_id
+               AND src.user_id = n.user_id
+               AND src.deleted_at IS NULL
+               AND src.s3_key IS NOT NULL) AS source_file
      FROM app.notes n
      WHERE n.note_id = ${noteId}::uuid
        AND n.user_id = ${user.user_id}::uuid
@@ -71,7 +84,10 @@ export const GET = withErrorHandler(async (request: NextRequest, { params }: Not
     return tracedError("Note not found", 404);
   }
 
-  return NextResponse.json(filterNoteFields(mapNoteFromDB(dbNote), fields));
+  return NextResponse.json(filterNoteFields(
+    { ...mapNoteFromDB(dbNote), sourceFile: dbNote.source_file },
+    fields,
+  ));
 });
 
 export const PUT = withErrorHandler(async (request: NextRequest, { params }: NoteRouteContext) => {

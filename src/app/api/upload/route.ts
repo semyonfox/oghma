@@ -11,7 +11,7 @@ import {
   noteAttachmentKey,
   storageFileName,
 } from "@/lib/storage/file-names";
-import { insertNoteWithTree } from "@/lib/notes/storage/create-note";
+import { insertNoteWithTree, InvalidNoteParentError } from "@/lib/notes/storage/create-note";
 import { generateUUID, isValidUUID } from "@/lib/utils/uuid";
 import { withErrorHandler, tracedError, requireAuth, ApiError } from "@/lib/api-error";
 import sql from "@/database/pgsql";
@@ -94,6 +94,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const file = formData.get("file");
   const rawNoteId = formData.get("noteId");
   if (rawNoteId !== null && typeof rawNoteId !== "string") return tracedError("Invalid noteId", 400);
+  // a new file can be placed in the same folder as an open note, which is
+  // how a PDF dropped into a note lands next to it
+  const besideNoteId = formData.get("besideNoteId");
+  if (besideNoteId !== null && (typeof besideNoteId !== "string" || !isValidUUID(besideNoteId) || rawNoteId)) {
+    return tracedError("Invalid besideNoteId", 400);
+  }
   if (!(file instanceof File)) return tracedError("No file provided", 400);
 
   if (file.size > config.upload.maxFileSizeBytes) {
@@ -149,9 +155,22 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   // the object goes first so a crash can only leave an unreferenced object,
   // never a note or attachment row that points at nothing
+  let parentId: string | null = null;
   try {
     await (sql as postgres.Sql).begin(async (tx) => {
       if (createdNewNote) {
+        if (besideNoteId) {
+          const [sibling] = await tx<{ parent_id: string | null }[]>`
+            SELECT t.parent_id
+            FROM app.tree_items t
+            JOIN app.notes n ON n.note_id = t.note_id AND n.user_id = t.user_id
+            WHERE t.note_id = ${besideNoteId}::uuid
+              AND t.user_id = ${userId}::uuid
+              AND n.deleted_at IS NULL
+          `;
+          if (!sibling) throw new NoteUnavailableError();
+          parentId = sibling.parent_id;
+        }
         await insertNoteWithTree(tx, {
           noteId,
           userId,
@@ -159,6 +178,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
           content: "",
           isFolder: false,
           s3Key: storagePath,
+          parentId,
         });
       }
       const inserted = await tx`
@@ -188,14 +208,16 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         error: s3Err,
       });
     });
-    if (dbError instanceof NoteUnavailableError) return tracedError("Note not found", 404);
+    if (dbError instanceof NoteUnavailableError || dbError instanceof InvalidNoteParentError) {
+      return tracedError("Note not found", 404);
+    }
     logger.warn("failed to record attachment in database", { error: dbError });
     return tracedError("Failed to save file metadata", 500);
   }
 
   if (createdNewNote) {
     // the new note is durable now, so clear the cached root branch before returning it
-    await invalidateTreeAfterPublish(userId, null);
+    await invalidateTreeAfterPublish(userId, parentId);
   }
 
   // extraction runs in the worker so the response stays fast regardless of

@@ -1040,5 +1040,9 @@
   "attachment_viewer.empty": "هذا الملف فارغ.",
   "Verify email": "تأكيد البريد الإلكتروني",
   "Choose a password only you know to finish verifying your account.": "اختر كلمة مرور لا يعرفها أحد غيرك لإكمال التحقق من حسابك.",
-  "This note could not be loaded. Check your connection and try again.": "تعذّر تحميل هذه الملاحظة. تحقّق من اتصالك وحاول مرة أخرى."
+  "This note could not be loaded. Check your connection and try again.": "تعذّر تحميل هذه الملاحظة. تحقّق من اتصالك وحاول مرة أخرى.",
+  "Original PDF": "Original PDF",
+  "Original file": "Original file",
+  "Open original PDF": "Open original PDF",
+  "Open original file": "Open original file"
 }
