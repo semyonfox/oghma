@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useEffectEvent } from "react";
 import {
   ArrowsPointingOutIcon,
   CheckIcon,
@@ -90,34 +90,31 @@ export default function MermaidInlineViewer({
   const [dragging, setDragging] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const paint = useCallback(() => {
+  const paint = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const { x, y } = translationRef.current;
     const scale = fitScaleRef.current * (zoomRef.current / 100);
     canvas.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scale})`;
-  }, []);
+  };
 
-  const clampAndPaint = useCallback(
-    (translation: Point) => {
-      const viewport = viewportRef.current;
-      const dimensions = dimensionsRef.current;
-      if (!viewport || !dimensions) return;
-      const scale = fitScaleRef.current * (zoomRef.current / 100);
-      translationRef.current = clampMermaidTranslation(
-        translation,
-        { width: viewport.clientWidth, height: viewport.clientHeight },
-        {
-          width: dimensions.width * scale,
-          height: dimensions.height * scale,
-        },
-      );
-      paint();
-    },
-    [paint],
-  );
+  const clampAndPaint = (translation: Point) => {
+    const viewport = viewportRef.current;
+    const dimensions = dimensionsRef.current;
+    if (!viewport || !dimensions) return;
+    const scale = fitScaleRef.current * (zoomRef.current / 100);
+    translationRef.current = clampMermaidTranslation(
+      translation,
+      { width: viewport.clientWidth, height: viewport.clientHeight },
+      {
+        width: dimensions.width * scale,
+        height: dimensions.height * scale,
+      },
+    );
+    paint();
+  };
 
-  const layout = useCallback(() => {
+  const layout = () => {
     const viewport = viewportRef.current;
     const dimensions = dimensionsRef.current;
     if (!viewport || !dimensions || viewport.clientWidth <= 0) return;
@@ -140,7 +137,10 @@ export default function MermaidInlineViewer({
       y: VIEWPORT_PADDING,
     };
     requestAnimationFrame(() => clampAndPaint(translationRef.current));
-  }, [clampAndPaint]);
+  };
+
+  // layout and zoom only touch refs and the DOM, so effects call the latest ones
+  const layoutFromEffect = useEffectEvent(layout);
 
   useEffect(() => {
     let active = true;
@@ -170,7 +170,7 @@ export default function MermaidInlineViewer({
         canvasRef.current.style.height = `${height}px`;
         diagramRef.current.replaceChildren(diagram);
         setLoading(false);
-        requestAnimationFrame(layout);
+        requestAnimationFrame(() => layoutFromEffect());
       })
       .catch(() => {
         if (!active) return;
@@ -181,7 +181,7 @@ export default function MermaidInlineViewer({
     return () => {
       active = false;
     };
-  }, [layout, source]);
+  }, [source]);
 
   useEffect(() => {
     const shell = shellRef.current;
@@ -190,13 +190,13 @@ export default function MermaidInlineViewer({
       const width = entry.contentRect.width;
       if (Math.abs(width - lastWidthRef.current) < 1) return;
       lastWidthRef.current = width;
-      layout();
+      layoutFromEffect();
     });
     observer.observe(shell);
     return () => observer.disconnect();
-  }, [layout]);
+  }, []);
 
-  const changeZoom = useCallback((next: number) => {
+  const changeZoom = (next: number) => {
     const bounded = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, next));
     const viewport = viewportRef.current;
     const dimensions = dimensionsRef.current;
@@ -214,7 +214,10 @@ export default function MermaidInlineViewer({
       x: center.x - ((center.x - previous.x) * nextScale) / previousScale,
       y: center.y - ((center.y - previous.y) * nextScale) / previousScale,
     });
-  }, [clampAndPaint]);
+  };
+
+  const zoomFromWheel = useEffectEvent(changeZoom);
+  const panFromWheel = useEffectEvent(clampAndPaint);
 
   // React's wheel listeners are passive, so preventDefault there cannot stop
   // ctrl+wheel from zooming the whole page or a pan from scrolling the note
@@ -224,19 +227,19 @@ export default function MermaidInlineViewer({
     const handleWheel = (event: WheelEvent) => {
       if (event.ctrlKey || event.metaKey) {
         event.preventDefault();
-        changeZoom(zoomRef.current + (event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP));
+        zoomFromWheel(zoomRef.current + (event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP));
         return;
       }
       if (zoomRef.current <= 100) return;
       event.preventDefault();
-      clampAndPaint({
+      panFromWheel({
         x: translationRef.current.x - event.deltaX,
         y: translationRef.current.y - event.deltaY,
       });
     };
     viewport.addEventListener("wheel", handleWheel, { passive: false });
     return () => viewport.removeEventListener("wheel", handleWheel);
-  }, [changeZoom, clampAndPaint]);
+  }, []);
 
   const stopDragging = (event: React.PointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current;

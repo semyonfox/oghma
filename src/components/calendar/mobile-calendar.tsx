@@ -1,6 +1,5 @@
 "use client";
 
-import { useMemo } from "react";
 import useAssignmentStore from "@/lib/notes/state/assignments";
 import useCalendarStore from "@/lib/notes/state/calendar";
 import useI18n from "@/lib/notes/hooks/use-i18n";
@@ -41,47 +40,28 @@ export default function MobileCalendar({
     reviewDates,
   } = useCalendarStore();
   const assignments = useAssignmentStore((state) => state.assignments);
-  const anchor = useMemo(() => new Date(currentDate), [currentDate]);
+  const anchor = new Date(currentDate);
   const today = formatDateKey(new Date());
-  const weekdayFormatter = useMemo(
-    () => new Intl.DateTimeFormat(activeLocale, { weekday: "narrow" }),
-    [activeLocale],
+  const weekdayFormatter = new Intl.DateTimeFormat(activeLocale, { weekday: "narrow" });
+  const fullDateFormatter = new Intl.DateTimeFormat(activeLocale, {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  // 1 january 2024 was a monday
+  const weekdayLabels = Array.from({ length: 7 }, (_, index) =>
+    weekdayFormatter.format(new Date(2024, 0, 1 + index)),
   );
-  const fullDateFormatter = useMemo(
-    () =>
-      new Intl.DateTimeFormat(activeLocale, {
-        weekday: "long",
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-      }),
-    [activeLocale],
-  );
-  const weekdayLabels = useMemo(() => {
-    const monday = new Date(2024, 0, 1);
-    return Array.from({ length: 7 }, (_, index) => {
-      const date = new Date(monday);
-      date.setDate(monday.getDate() + index);
-      return weekdayFormatter.format(date);
-    });
-  }, [weekdayFormatter]);
-  const monthDays = useMemo(
-    () =>
-      buildMonthCells({
-        anchorDate: anchor,
-        assignments,
-        timeBlocks,
-        selectedDate,
-        today: new Date(),
-      }),
-    [anchor, assignments, selectedDate, timeBlocks],
-  );
-  const weekDates = useMemo(
-    () =>
-      Array.from({ length: 7 }, (_, index) =>
-        addDaysToDateKey(selectedDate, index - 3),
-      ),
-    [selectedDate],
+  const monthDays = buildMonthCells({
+    anchorDate: anchor,
+    assignments,
+    timeBlocks,
+    selectedDate,
+    today: new Date(),
+  });
+  const weekDates = Array.from({ length: 7 }, (_, index) =>
+    addDaysToDateKey(selectedDate, index - 3),
   );
 
   return (

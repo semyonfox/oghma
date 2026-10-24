@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 
-import React from "react";
 import {
   act,
   cleanup,

@@ -43,7 +43,7 @@ export default function ActionConfirmation({ actionId }: { actionId: string }) {
     if (!currentAction || currentAction.status !== "pending") return;
     setBusy(true);
     setError("");
-    try {
+    const run = async () => {
       const response = await fetch(`/api/chat/actions/${actionId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -68,13 +68,16 @@ export default function ActionConfirmation({ actionId }: { actionId: string }) {
           ? { ...current, status: value.status }
           : current,
       );
-    } catch (error) {
-      setError(
-        error instanceof Error ? error.message : "Could not finish action.",
-      );
-    } finally {
-      setBusy(false);
-    }
+    };
+    await run()
+      .catch((error: unknown) => {
+        setError(
+          error instanceof Error ? error.message : "Could not finish action.",
+        );
+      })
+      .finally(() => {
+        setBusy(false);
+      });
   }
   return (
     <section className="my-3 space-y-3 rounded-radius-lg border border-border-subtle bg-surface p-4">

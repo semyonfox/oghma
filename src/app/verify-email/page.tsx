@@ -50,7 +50,7 @@ function VerifyEmailContent() {
     }
     setVerifying(true);
     setError("");
-    try {
+    const run = async () => {
       const response = await fetch("/api/auth/verify-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -69,9 +69,14 @@ function VerifyEmailContent() {
       setPassword("");
       setVerified(true);
       setTimeout(() => router.replace("/notes"), 2000);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : t("Verification failed. The link may have expired."));
-    } finally { setVerifying(false); }
+    };
+    await run()
+      .catch((error: unknown) => {
+        setError(error instanceof Error ? error.message : t("Verification failed. The link may have expired."));
+      })
+      .finally(() => {
+        setVerifying(false);
+      });
   }
 
   const handleResend = async () => {
@@ -80,7 +85,7 @@ function VerifyEmailContent() {
     setResendMessage("");
     setError("");
 
-    try {
+    const run = async () => {
       const res = await fetch("/api/auth/resend-verification", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -96,11 +101,14 @@ function VerifyEmailContent() {
       } else {
         setError(t("We couldn't resend the link. Try again later."));
       }
-    } catch {
-      setError(t("An error occurred. Please try again."));
-    } finally {
-      setResendLoading(false);
-    }
+    };
+    await run()
+      .catch(() => {
+        setError(t("An error occurred. Please try again."));
+      })
+      .finally(() => {
+        setResendLoading(false);
+      });
   };
 
   // verifying state

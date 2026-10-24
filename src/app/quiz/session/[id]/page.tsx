@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useRef, useEffectEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import useQuizStore from "@/lib/notes/state/quiz";
 import useI18n from "@/lib/notes/hooks/use-i18n";
@@ -121,19 +121,19 @@ function QuestionView({
     startTimeRef.current = Date.now();
   }, []);
 
-  const handleAnswer = useCallback((answer: string, wasCorrect: boolean) => {
+  const handleAnswer = (answer: string, wasCorrect: boolean) => {
     setAnswered(true);
     setLastAnswer({ answer, wasCorrect });
-  }, []);
+  };
 
-  const handleContinue = useCallback(async () => {
+  const handleContinue = async () => {
     if (!lastAnswer || submittingRef.current) return;
     submittingRef.current = true;
     setSubmitting(true);
     setSubmitFailed(false);
 
     const startTime = startTimeRef.current ?? Date.now();
-    try {
+    const run = async () => {
       const res = await fetch(`/api/quiz/sessions/${sessionId}/answer`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -158,27 +158,31 @@ function QuestionView({
 
       onAnswered(data);
       if (!data.nextQuestion) onComplete();
-    } catch {
-      // the answer route is idempotent per card, so retrying is always safe
-      setSubmitFailed(true);
-    } finally {
-      submittingRef.current = false;
-      setSubmitting(false);
-    }
-  }, [lastAnswer, question.card_id, sessionId, onAnswered, onComplete]);
+    };
+    await run()
+      .catch(() => {
+        // the answer route is idempotent per card, so retrying is always safe
+        setSubmitFailed(true);
+      })
+      .finally(() => {
+        submittingRef.current = false;
+        setSubmitting(false);
+      });
+  };
 
   // keyboard: Enter/Space to continue after answering
+  const continueFromKeyboard = useEffectEvent(() => void handleContinue());
   useEffect(() => {
     if (!answered || !lastAnswer) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        void handleContinue();
+        continueFromKeyboard();
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [answered, lastAnswer, handleContinue]);
+  }, [answered, lastAnswer]);
 
   return (
     <>
@@ -259,13 +263,13 @@ export default function QuizSessionPage() {
 
   const isCurrentSession = storedSessionId === sessionId && cardIds.length > 0;
 
-  const finishSession = useCallback(() => {
+  const finishSession = () => {
     completeSession();
     // mark it finished server-side too so a refresh shows the summary
     void fetch(`/api/quiz/sessions/${sessionId}`, { method: "DELETE" }).catch(
       () => {},
     );
-  }, [completeSession, sessionId]);
+  };
 
   // load from the server on refresh, or when the store still holds a
   // different session (back/forward navigation never calls endSession)
@@ -300,19 +304,20 @@ export default function QuizSessionPage() {
   }, [isCurrentSession, sessionId, startSession, completeSession]);
 
   // the store has card IDs but no question (e.g. first question lookup failed)
+  const finishFromEffect = useEffectEvent(finishSession);
   useEffect(() => {
     if (!isCurrentSession || currentQuestion || sessionCompleted) return;
     const cardId = cardIds[currentIndex];
     if (!cardId) {
-      finishSession();
+      finishFromEffect();
       return;
     }
     fetchCardQuestion(cardId)
       .then((question) => {
         if (question) showQuestion(question);
-        else finishSession();
+        else finishFromEffect();
       })
-      .catch(() => finishSession());
+      .catch(() => finishFromEffect());
   }, [
     isCurrentSession,
     cardIds,
@@ -320,21 +325,17 @@ export default function QuizSessionPage() {
     currentIndex,
     sessionCompleted,
     showQuestion,
-    finishSession,
   ]);
 
-  const handleAnswered = useCallback(
-    (data: QuizAnswerResponse) => {
-      setProgress(data.sessionProgress);
-      if (data.fatigueWarning) setFatigueWarning(true);
-      if (data.nextQuestion) showQuestion(data.nextQuestion);
-    },
-    [setProgress, setFatigueWarning, showQuestion],
-  );
+  const handleAnswered = (data: QuizAnswerResponse) => {
+    setProgress(data.sessionProgress);
+    if (data.fatigueWarning) setFatigueWarning(true);
+    if (data.nextQuestion) showQuestion(data.nextQuestion);
+  };
 
   // move on without recording a review; cards removed since the session
   // started are skipped over
-  const handleSkip = useCallback(async () => {
+  const handleSkip = async () => {
     for (let index = currentIndex + 1; index < cardIds.length; index++) {
       try {
         const question = await fetchCardQuestion(cardIds[index]);
@@ -347,7 +348,7 @@ export default function QuizSessionPage() {
       }
     }
     finishSession();
-  }, [currentIndex, cardIds, showQuestion, finishSession]);
+  };
 
   if (sessionCompleted && storedSessionId === sessionId) {
     return (

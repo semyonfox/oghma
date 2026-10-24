@@ -36,7 +36,7 @@ function appendTokenPart(parts: MessagePart[], text: string): MessagePart[] {
 export function applyUpdate(
   message: Message,
   update: MessageUpdate,
-  thinkingStartRef: React.MutableRefObject<number | null>,
+  thinkingStartRef: React.RefObject<number | null>,
 ): Message {
   switch (update.type) {
     case "reset":
@@ -153,7 +153,7 @@ interface ConsumeStreamOptions {
   body: ReadableStream<Uint8Array>;
   assistantId: string;
   userText: string;
-  thinkingStartRef: React.MutableRefObject<number | null>;
+  thinkingStartRef: React.RefObject<number | null>;
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
   onSession: (sessionId: string | undefined, userText: string) => void;
   onEventId?: (id: string) => void;
@@ -269,7 +269,7 @@ export async function consumeBackgroundGeneration(input: {
   assistantId: string;
   userText: string;
   signal: AbortSignal;
-  activeGenerationRef: React.MutableRefObject<string | null>;
+  activeGenerationRef: React.RefObject<string | null>;
   consumeStream: (
     body: ReadableStream<Uint8Array>,
     assistantId: string,

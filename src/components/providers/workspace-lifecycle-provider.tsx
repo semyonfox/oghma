@@ -3,13 +3,12 @@
 import {
   createContext,
   type ReactNode,
-  useCallback,
-  useContext,
+  use,
   useEffect,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
+  useEffectEvent,
 } from "react";
 import { usePathname } from "next/navigation";
 import useNoteTreeStore from "@/lib/notes/state/tree";
@@ -85,10 +84,10 @@ export default function WorkspaceLifecycleProvider({
     };
   }, [managedPath]);
 
-  const refreshIdentity = useCallback(async () => {
+  const refreshIdentity = async () => {
     const request = ++identityRequest.current;
     setIdentityError(false);
-    try {
+    const run = async () => {
       const response = await fetch("/api/auth/me", { cache: "no-store" });
       if (!response.ok && response.status !== 401 && response.status !== 403) {
         throw new Error(`auth API returned ${response.status}`);
@@ -107,37 +106,41 @@ export default function WorkspaceLifecycleProvider({
       identityRequired.current = false;
       setReady(true);
       return true;
-    } catch (error) {
-      console.warn("Failed to resolve the workspace session:", error);
-      if (request === identityRequest.current && identityRequired.current) {
-        setIdentityError(true);
-      }
-      return false;
-    }
-  }, []);
+    };
+    return await run()
+      .catch((error: unknown) => {
+        console.warn("Failed to resolve the workspace session:", error);
+        if (request === identityRequest.current && identityRequired.current) {
+          setIdentityError(true);
+        }
+        return false;
+      });
+  };
+
+  // identity checks only read refs and setters, so effects call the latest one
+  const verifyIdentity = useEffectEvent(refreshIdentity);
 
   useEffect(() => {
     if (!managedPath) {
       setReady(false);
       return;
     }
-    void refreshIdentity();
-  }, [managedPath, refreshIdentity]);
+    void verifyIdentity();
+  }, [managedPath]);
 
   useEffect(() => {
     if (!managedPath) return;
     const catchUp = async () => {
-      const identityVerified = await refreshIdentity();
+      const identityVerified = await verifyIdentity();
       if (!identityVerified) return;
       const treeState = useNoteTreeStore.getState();
       if (!identityResolved.current || !treeState.ownerUserId || !treeState.treeAPI) {
         return;
       }
-      try {
-        await treeState.refreshTree();
-      } catch (error) {
-        console.warn("Failed to refresh notes after returning to the app:", error);
-      }
+      await treeState.refreshTree()
+        .catch((error: unknown) => {
+          console.warn("Failed to refresh notes after returning to the app:", error);
+        });
     };
     const handleFocus = () => void catchUp();
     const handleVisibility = () => {
@@ -149,14 +152,14 @@ export default function WorkspaceLifecycleProvider({
       window.removeEventListener("focus", handleFocus);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [managedPath, refreshIdentity]);
+  }, [managedPath]);
 
   useEffect(() => {
     if (!userId) return;
 
     const handleInvalidation = async (event: WorkspaceInvalidation) => {
       if (event.scope === "session") {
-        const identityVerified = await refreshIdentity();
+        const identityVerified = await verifyIdentity();
         if (!identityVerified) {
           throw new Error("Workspace identity refresh did not complete");
         }
@@ -171,7 +174,7 @@ export default function WorkspaceLifecycleProvider({
         return;
       }
 
-      const identityVerified = await refreshIdentity();
+      const identityVerified = await verifyIdentity();
       if (!identityVerified) {
         throw new Error("Workspace identity refresh did not complete");
       }
@@ -184,22 +187,18 @@ export default function WorkspaceLifecycleProvider({
     };
 
     return subscribeToWorkspaceInvalidations(userId, async (event) => {
-      try {
-        await handleInvalidation(event);
-      } catch (error) {
-        console.warn("Failed to apply a workspace update from another tab:", error);
-        throw error;
-      }
+      await handleInvalidation(event)
+        .catch((error: unknown) => {
+          console.warn("Failed to apply a workspace update from another tab:", error);
+          throw error;
+        });
     });
-  }, [refreshIdentity, userId]);
+  }, [userId]);
 
-  const value = useMemo(
-    () => ({ userId, ready, refreshIdentity }),
-    [ready, refreshIdentity, userId],
-  );
+  const value = { userId, ready, refreshIdentity };
 
   return (
-    <WorkspaceSessionContext.Provider value={value}>
+    <WorkspaceSessionContext value={value}>
       {managedPath && !ready ? (
         <div className="flex min-h-dvh items-center justify-center bg-background px-6 text-center text-sm text-text-tertiary">
           {identityError ? (
@@ -220,10 +219,10 @@ export default function WorkspaceLifecycleProvider({
       ) : (
         children
       )}
-    </WorkspaceSessionContext.Provider>
+    </WorkspaceSessionContext>
   );
 }
 
 export function useWorkspaceSession(): WorkspaceSessionValue {
-  return useContext(WorkspaceSessionContext);
+  return use(WorkspaceSessionContext);
 }

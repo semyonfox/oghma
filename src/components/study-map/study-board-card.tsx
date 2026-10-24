@@ -24,6 +24,11 @@ export function previewKind(material: StudyMaterial): PreviewKind | null {
   return null;
 }
 
+// loaded with the first preview so react-pdf stays out of the board bundle
+function loadReactPdf() {
+  return import("react-pdf");
+}
+
 function PdfPreview({
   url,
   pageNumber = 1,
@@ -39,7 +44,7 @@ function PdfPreview({
 
   useEffect(() => {
     let cancelled = false;
-    void import("react-pdf").then(
+    void loadReactPdf().then(
       (module) => {
         if (cancelled) return;
         module.pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.js";
@@ -124,7 +129,7 @@ function SvgPreview({ url, title }: { url: string; title: string }) {
     let mounted = true;
     let objectUrl = "";
     const load = async () => {
-      try {
+      const run = async () => {
         // the proxy downloads SVGs as octet-stream; keep their content inside an image element
         const response = await fetch(url, { signal: controller.signal });
         if (!mounted) return;
@@ -139,7 +144,7 @@ function SvgPreview({ url, title }: { url: string; title: string }) {
         const reader = response.body.getReader();
         const chunks: BlobPart[] = [];
         let size = 0;
-        try {
+        const attempt = async () => {
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
@@ -151,19 +156,23 @@ function SvgPreview({ url, title }: { url: string; title: string }) {
             }
             chunks.push(new Uint8Array(value));
           }
-        } finally {
-          reader.releaseLock();
-        }
+        };
+        await attempt()
+          .finally(() => {
+            reader.releaseLock();
+          });
         if (!mounted) return;
         if (size === 0) throw new Error("SVG preview is empty");
         objectUrl = URL.createObjectURL(
           new Blob(chunks, { type: "image/svg+xml" }),
         );
         setImageUrl(objectUrl);
-      } catch {
-        controller.abort();
-        if (mounted) setFailed(true);
-      }
+      };
+      await run()
+        .catch(() => {
+          controller.abort();
+          if (mounted) setFailed(true);
+        });
     };
     void load();
     return () => {
@@ -311,6 +320,7 @@ export interface StudyFlowCardProps {
 }
 
 /** a fixed-size reference to a library note or assignment; the board never stores its content */
+// memo stays: cards render from a .map that changes on every drag and pan frame
 export const StudyFlowCard = memo(function StudyFlowCard({
   item,
   topics,

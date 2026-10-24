@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  FC,
-  memo,
-  useState,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-} from "react";
+import { FC, useState, useEffect, useRef, useEffectEvent } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import useLayoutStore, {
@@ -43,6 +35,17 @@ const DRAFT_DEBOUNCE_MS = 1000;
 // drafts already cover the gap locally, this closes it across devices
 const AUTOSAVE_DEBOUNCE_MS = 3000;
 
+// the IndexedDB cache is loaded lazily and a miss falls through to the API
+async function readCachedContent(noteId: string): Promise<string | null> {
+  try {
+    const { noteCacheInstance } = await import("@/lib/notes/cache");
+    const cached = await noteCacheInstance.getItem<{ content?: string }>(noteId);
+    return cached?.content ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // the note store reports every failed fetch as a missing note. only a definite
 // answer from the server may close the pane: offline or a 5xx keeps it open
 async function noteIsGone(noteId: string): Promise<boolean> {
@@ -63,15 +66,12 @@ async function noteIsGone(noteId: string): Promise<boolean> {
  */
 const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
   const router = useRouter();
-  const openLinkedNote = useCallback(
-    async (noteId: string) => {
-      // split panes are desktop-only, matching SplitEditorPane's breakpoint
-      const isDesktop = window.matchMedia?.("(min-width: 1024px)").matches === true;
-      if (isDesktop && (await openLinkedFileBeside(noteId, pane))) return;
-      router.push(`/notes/${noteId}`);
-    },
-    [pane, router],
-  );
+  const openLinkedNote = async (noteId: string) => {
+    // split panes are desktop-only, matching SplitEditorPane's breakpoint
+    const isDesktop = window.matchMedia?.("(min-width: 1024px)").matches === true;
+    if (isDesktop && (await openLinkedFileBeside(noteId, pane))) return;
+    router.push(`/notes/${noteId}`);
+  };
   const draftOwner = file.draftOwner ?? pane;
   const [localContent, setLocalContent] = useState("");
   const [isDirty, setIsDirty] = useState(false);
@@ -191,46 +191,34 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
           });
         }
       };
-      try {
-        const draft = await readDraft(file.fileId, draftOwner, () => {
-          const state = useLayoutStore.getState();
-          const otherPane = pane === "A" ? state.paneB : state.paneA;
-          const otherOwner = otherPane?.draftOwner ?? (pane === "A" ? "B" : "A");
-          return otherPane?.fileId !== file.fileId || otherOwner === draftOwner;
-        });
-        if (draft && !cancelled && currentFileId.current === stale) {
-          setLocalContent(draft.content);
-          localContentRef.current = draft.content;
-          isDirtyRef.current = true;
-          setLoaded(true);
-          setIsDirty(true);
-          restoredDraft = draft;
-          showingLocalCopy = true;
-        }
-      } catch {
-        // draft read failure is non-fatal
+      const draft = await readDraft(file.fileId, draftOwner, () => {
+        const state = useLayoutStore.getState();
+        const otherPane = pane === "A" ? state.paneB : state.paneA;
+        const otherOwner = otherPane?.draftOwner ?? (pane === "A" ? "B" : "A");
+        return otherPane?.fileId !== file.fileId || otherOwner === draftOwner;
+      }).catch(() => null); // draft read failure is non-fatal
+      if (draft && !cancelled && currentFileId.current === stale) {
+        setLocalContent(draft.content);
+        localContentRef.current = draft.content;
+        isDirtyRef.current = true;
+        setLoaded(true);
+        setIsDirty(true);
+        restoredDraft = draft;
+        showingLocalCopy = true;
       }
 
       // try IDB cache for instant display (if no draft)
       if (!restoredDraft) {
-        try {
-          const { noteCacheInstance } = await import("@/lib/notes/cache");
-          const cached = await noteCacheInstance.getItem<{
-            content?: string;
-            updatedAt?: string;
-          }>(file.fileId);
-          if (
-            !cancelled &&
-            cached?.content != null &&
-            currentFileId.current === stale
-          ) {
-            setLocalContent(cached.content);
-            localContentRef.current = cached.content;
-            setLoaded(true);
-            showingLocalCopy = true;
-          }
-        } catch {
-          // cache miss — fall through to API fetch
+        const cachedContent = await readCachedContent(file.fileId);
+        if (
+          !cancelled &&
+          cachedContent != null &&
+          currentFileId.current === stale
+        ) {
+          setLocalContent(cachedContent);
+          localContentRef.current = cachedContent;
+          setLoaded(true);
+          showingLocalCopy = true;
         }
       }
 
@@ -242,64 +230,68 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
       };
 
       // fetch from API for freshness
-      try {
-        const result = await fetchNote(file.fileId);
-        if (!cancelled && !result && currentFileId.current === stale) {
-          if (!(await noteIsGone(file.fileId))) {
-            reportUnreachable();
-            return;
-          }
-          if (cancelled || currentFileId.current !== stale) return;
-          const survivingFile = dismissUnavailablePane(pane, file.fileId);
-          if (pane === "A" && survivingFile !== undefined) {
-            router.replace(
-              survivingFile?.fileId ? `/notes/${survivingFile.fileId}` : "/notes",
-            );
-          }
-          return;
-        }
-        if (!cancelled && result && currentFileId.current === stale) {
-          serverUpdatedAt.current = result.updatedAt;
-
-          // If a draft was restored, do not overwrite the user's unsaved work.
-          // Check whether the server version is newer.
-          if (restoredDraft) {
-            const draft = restoredDraft;
-            if (cancelled || currentFileId.current !== stale) return;
-            const matchesServer = draft.content === (result.content ?? "");
-            if (matchesServer && editRevision.current === 0) {
-              isDirtyRef.current = false;
-              setIsDirty(false);
-              markSynced(file.fileId);
-              await clearDraft(file.fileId, draft, draftOwner).catch(() => {});
-            }
-            const serverMs = result.updatedAt
-              ? new Date(result.updatedAt).getTime()
-              : 0;
-            const draftMs = draft.draftAt;
-            if (!matchesServer && serverMs > draftMs) {
-              // The server has a newer version than the draft. Warn once, but do not block.
-              toast.warning(
-                t(
-                  "This note was saved elsewhere. Your draft is older — save to overwrite, or discard.",
-                ),
-                { id: `draft-conflict:${file.fileId}`, duration: 6000 },
-              );
-            } else if (!matchesServer) {
-              notifyRecovery();
-            }
-          } else if (editRevision.current === 0) {
-            // The request may have started from the instant IDB-cache view.
-            // Never let that older response replace content after this editor
-            // has accepted even one local edit (including an already-saved one).
-            setLocalContent(result.content ?? "");
-            localContentRef.current = result.content ?? "";
-            setLoaded(true);
-          }
-        }
-      } catch (_err) {
+      const fetched = await fetchNote(file.fileId).then(
+        (note) => ({ note }),
+        () => null,
+      );
+      if (!fetched) {
         console.error("note_load_failed");
         reportUnreachable();
+        return;
+      }
+      const result = fetched.note;
+      if (!cancelled && !result && currentFileId.current === stale) {
+        if (!(await noteIsGone(file.fileId))) {
+          reportUnreachable();
+          return;
+        }
+        if (cancelled || currentFileId.current !== stale) return;
+        const survivingFile = dismissUnavailablePane(pane, file.fileId);
+        if (pane === "A" && survivingFile !== undefined) {
+          router.replace(
+            survivingFile?.fileId ? `/notes/${survivingFile.fileId}` : "/notes",
+          );
+        }
+        return;
+      }
+      if (!cancelled && result && currentFileId.current === stale) {
+        serverUpdatedAt.current = result.updatedAt;
+
+        // If a draft was restored, do not overwrite the user's unsaved work.
+        // Check whether the server version is newer.
+        if (restoredDraft) {
+          const draft = restoredDraft;
+          if (cancelled || currentFileId.current !== stale) return;
+          const matchesServer = draft.content === (result.content ?? "");
+          if (matchesServer && editRevision.current === 0) {
+            isDirtyRef.current = false;
+            setIsDirty(false);
+            markSynced(file.fileId);
+            await clearDraft(file.fileId, draft, draftOwner).catch(() => {});
+          }
+          const serverMs = result.updatedAt
+            ? new Date(result.updatedAt).getTime()
+            : 0;
+          const draftMs = draft.draftAt;
+          if (!matchesServer && serverMs > draftMs) {
+            // The server has a newer version than the draft. Warn once, but do not block.
+            toast.warning(
+              t(
+                "This note was saved elsewhere. Your draft is older — save to overwrite, or discard.",
+              ),
+              { id: `draft-conflict:${file.fileId}`, duration: 6000 },
+            );
+          } else if (!matchesServer) {
+            notifyRecovery();
+          }
+        } else if (editRevision.current === 0) {
+          // The request may have started from the instant IDB-cache view.
+          // Never let that older response replace content after this editor
+          // has accepted even one local edit (including an already-saved one).
+          setLocalContent(result.content ?? "");
+          localContentRef.current = result.content ?? "";
+          setLoaded(true);
+        }
       }
     })();
 
@@ -341,10 +333,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
     return () => window.removeEventListener("note-content-sync", handler);
   }, [file.fileId]);
 
-  const displayContent = useMemo(
-    () => (loaded ? localContent : ""),
-    [localContent, loaded],
-  );
+  const displayContent = (loaded ? localContent : "");
 
   // track dirty state in sync status store
   useEffect(() => {
@@ -354,28 +343,77 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
   }, [isDirty, file.fileId, markModified]);
 
   // debounced draft write — keeps IDB in sync with unsaved content
-  const scheduleDraftWrite = useCallback(
-    (content: string) => {
-      if (!file.fileId) return;
-      if (draftTimer.current) clearTimeout(draftTimer.current);
-      draftTimer.current = setTimeout(() => {
-        writeDraft(file.fileId, content, draftOwner).catch(() => {});
-      }, DRAFT_DEBOUNCE_MS);
-    },
-    [draftOwner, file.fileId],
-  );
+  const scheduleDraftWrite = (content: string) => {
+    if (!file.fileId) return;
+    if (draftTimer.current) clearTimeout(draftTimer.current);
+    draftTimer.current = setTimeout(() => {
+      writeDraft(file.fileId, content, draftOwner).catch(() => {});
+    }, DRAFT_DEBOUNCE_MS);
+  };
 
-  const scheduleAutosave = useCallback(() => {
+  const scheduleAutosave = () => {
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     autosaveTimer.current = setTimeout(() => {
       autosaveTimer.current = null;
       if (!conflictRef.current) saveLatest.current();
     }, AUTOSAVE_DEBOUNCE_MS);
-  }, []);
+  };
+
+  const persistNote = async (contentToSave: string, revisionToSave: number) => {
+    const savedDraft = await writeDraft(file.fileId, contentToSave, draftOwner).catch(() => undefined);
+    const expectedUpdatedAt = serverUpdatedAt.current;
+    const outcome = await mutateNote(file.fileId, {
+      content: contentToSave,
+      ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}),
+    }).then(
+      (saved) => ({ saved }),
+      (error: unknown) => ({ error }),
+    );
+
+    if ("error" in outcome) {
+      const { error } = outcome;
+      if (error instanceof NoteConflictError) {
+        // the stamp belongs to the note that was open when the save started
+        if (currentFileId.current !== file.fileId) return;
+        // keep the local text dirty and recoverable; the next deliberate save
+        // carries the fresh stamp and wins
+        if (error.updatedAt) serverUpdatedAt.current = error.updatedAt;
+        conflictRef.current = true;
+        toast.warning(
+          t(
+            "This note was saved elsewhere. Your draft is older — save to overwrite, or discard.",
+          ),
+          { id: `draft-conflict:${file.fileId}`, duration: 6000 },
+        );
+        return;
+      }
+      console.error("note_save_failed");
+      setSaveError(true);
+      toast.error(t("Failed to save note"));
+      return;
+    }
+
+    const { saved } = outcome;
+    if (currentFileId.current !== file.fileId) return;
+    if (saved?.updatedAt) serverUpdatedAt.current = saved.updatedAt;
+    const savedCurrentRevision =
+      revisionToSave === editRevision.current &&
+      contentToSave === localContentRef.current;
+    if (savedCurrentRevision) {
+      isDirtyRef.current = false;
+      setIsDirty(false);
+      markSynced(file.fileId);
+      if (savedDraft) await clearDraft(file.fileId, savedDraft, draftOwner).catch(() => {});
+    } else {
+      isDirtyRef.current = true;
+      setIsDirty(true);
+      markModified(file.fileId);
+    }
+  };
 
   // save via API. Every caller except the autosave timer is a deliberate user
   // action, which is what lifts a conflict and overwrites the other version.
-  const handleSave = useCallback(async () => {
+  const handleSave = async () => {
     if (!isDirtyRef.current || !file.fileId) return;
     if (saveInFlight.current) {
       saveQueued.current = true;
@@ -398,87 +436,43 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
 
     setIsSaving(true);
     setSaveError(false);
-    try {
-      const savedDraft = await writeDraft(file.fileId, contentToSave, draftOwner).catch(() => undefined);
-      const saved = await mutateNote(file.fileId, {
-        content: contentToSave,
-        ...(serverUpdatedAt.current
-          ? { expectedUpdatedAt: serverUpdatedAt.current }
-          : {}),
-      });
-      if (currentFileId.current !== file.fileId) return;
-      if (saved?.updatedAt) serverUpdatedAt.current = saved.updatedAt;
-      const savedCurrentRevision =
-        revisionToSave === editRevision.current &&
-        contentToSave === localContentRef.current;
-      if (savedCurrentRevision) {
-        isDirtyRef.current = false;
-        setIsDirty(false);
-        markSynced(file.fileId);
-        if (savedDraft) await clearDraft(file.fileId, savedDraft, draftOwner).catch(() => {});
-      } else {
-        isDirtyRef.current = true;
-        setIsDirty(true);
-        markModified(file.fileId);
-      }
-    } catch (error) {
-      if (error instanceof NoteConflictError) {
-        // the stamp belongs to the note that was open when the save started
-        if (currentFileId.current !== file.fileId) return;
-        // keep the local text dirty and recoverable; the next deliberate save
-        // carries the fresh stamp and wins
-        if (error.updatedAt) serverUpdatedAt.current = error.updatedAt;
-        conflictRef.current = true;
-        toast.warning(
-          t(
-            "This note was saved elsewhere. Your draft is older — save to overwrite, or discard.",
-          ),
-          { id: `draft-conflict:${file.fileId}`, duration: 6000 },
-        );
-        return;
-      }
-      console.error("note_save_failed");
-      setSaveError(true);
-      toast.error(t("Failed to save note"));
-    } finally {
+    await persistNote(contentToSave, revisionToSave).finally(() => {
       saveInFlight.current = false;
       setIsSaving(false);
       if (saveQueued.current && isDirtyRef.current && !conflictRef.current) {
         saveQueued.current = false;
         queueMicrotask(() => saveLatest.current());
       }
-    }
-  }, [draftOwner, file.fileId, mutateNote, markModified, markSynced, t]);
-
-  saveLatest.current = () => {
-    void handleSave();
+    });
   };
+
+  useEffect(() => {
+    saveLatest.current = () => void handleSave();
+  });
 
   // Ctrl+S handler. CodeMirror also handles it while focused; this catches
   // toolbar/outer-shell focus so the editor still behaves like one mode.
+  const saveFromShortcut = useEffectEvent(() => void handleSave());
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!e.defaultPrevented && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s" && useLayoutStore.getState().activePane === pane) {
         e.preventDefault();
-        void handleSave();
+        saveFromShortcut();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleSave, pane]);
+  }, [pane]);
 
   // save on blur — when user clicks away from the editor
-  const handleEditorBlur = useCallback(
-    (e: React.FocusEvent<HTMLDivElement>) => {
-      if (e.relatedTarget instanceof HTMLElement && e.relatedTarget.closest("[data-save-action]")) return;
-      // only save if focus is leaving the editor entirely (not moving within it)
-      if (!(e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) && isDirtyRef.current) {
-        handleSave();
-      }
-    },
-    [handleSave],
-  );
+  const handleEditorBlur = (e: React.FocusEvent<HTMLDivElement>) => {
+    if (e.relatedTarget instanceof HTMLElement && e.relatedTarget.closest("[data-save-action]")) return;
+    // only save if focus is leaving the editor entirely (not moving within it)
+    if (!(e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) && isDirtyRef.current) {
+      handleSave();
+    }
+  };
 
   // publish save state to the pane header — the filename bar owns the button
   const setIndicator = useSaveIndicatorStore((s) => s.setIndicator);
@@ -491,13 +485,13 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
         ? "dirty"
         : "saved";
 
-  const requestSave = useCallback(() => {
-    saveLatest.current();
-  }, []);
-
   useEffect(() => {
-    setIndicator(saveIndicatorKey(file.fileId, draftOwner), { state: saveState, save: requestSave, ready: loaded });
-  }, [draftOwner, file.fileId, loaded, saveState, requestSave, setIndicator]);
+    setIndicator(saveIndicatorKey(file.fileId, draftOwner), {
+      state: saveState,
+      save: () => saveLatest.current(),
+      ready: loaded,
+    });
+  }, [draftOwner, file.fileId, loaded, saveState, setIndicator]);
 
   useEffect(() => {
     const fileId = saveIndicatorKey(file.fileId, draftOwner);
@@ -578,4 +572,4 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
   );
 };
 
-export default memo(MarkdownEditor);
+export default MarkdownEditor;

@@ -117,7 +117,7 @@ export default function RegisterPage() {
 
     setLoading(true);
 
-    try {
+    const run = async () => {
       await register(
         email,
         pwd,
@@ -133,15 +133,17 @@ export default function RegisterPage() {
       setTimeout(() => {
         window.location.href = destination;
       }, 1000);
-    } catch (err) {
-      reportTelemetry({ kind: "error", name: "request_failed", route: "onboarding" });
-      setErrMsg(getErrorMessage(err));
-      setPwd("");
-      setConfirmPwd("");
-      setShowFieldErrors(false);
-      errRef.current?.focus();
-      setLoading(false);
-    }
+    };
+    await run()
+      .catch((err: unknown) => {
+        reportTelemetry({ kind: "error", name: "request_failed", route: "onboarding" });
+        setErrMsg(getErrorMessage(err));
+        setPwd("");
+        setConfirmPwd("");
+        setShowFieldErrors(false);
+        errRef.current?.focus();
+        setLoading(false);
+      });
   };
 
   const handleSocialSignUp = (provider: NativeOAuthProvider) => {

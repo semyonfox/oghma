@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Crepe, CrepeFeature } from "@milkdown/crepe";
 import { editorViewCtx, parserCtx } from "@milkdown/kit/core";
@@ -110,6 +110,10 @@ const COPY_ICON = `<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="6" y="6"
 const CHECK_ICON = `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m4 10 4 4 8-9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const WRAP_ICON = `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h11a3 3 0 0 1 0 6H7m0 0 3-3m-3 3 3 3M3 15h2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 let mermaidPreviewSequence = 0;
+function nextMermaidPreviewId() {
+  mermaidPreviewSequence += 1;
+  return `oghma-mermaid-preview-${Date.now()}-${mermaidPreviewSequence}`;
+}
 
 export function createMermaidPreviewHost(previewId: string) {
   const host = document.createElement("div");
@@ -365,6 +369,35 @@ export function enhanceMilkdownCodeBlocks(root: HTMLElement) {
   });
 }
 
+function insertUploadedLink(
+  crepe: Crepe,
+  uploaded: { noteId: string; title: string },
+  dropPos: number | null,
+  docAtDrop: ProseMirrorNode,
+) {
+  crepe.editor.action((ctx) => {
+    const view = ctx.get(editorViewCtx);
+    const { state } = view;
+    // the drop point is only trustworthy while the document is unchanged
+    const pos = dropPos !== null && state.doc === docAtDrop
+      ? Math.min(dropPos, state.doc.content.size)
+      : state.selection.from;
+    const label = uploaded.title;
+    const mark = linkSchema.type(ctx).create({
+      href: buildInternalNoteHref(uploaded.noteId),
+      title: null,
+    });
+    // keep the link off the end of the word it was dropped after
+    const previous = state.doc.textBetween(Math.max(0, pos - 1), pos);
+    const start = previous && !/\s/.test(previous) ? pos + 1 : pos;
+    const tr = state.tr
+      .insertText(`${start > pos ? " " : ""}${label} `, pos)
+      .addMark(start, start + label.length, mark)
+      .removeStoredMark(mark.type);
+    view.dispatch(tr.scrollIntoView());
+  });
+}
+
 export default function MilkdownWriteEditor({
   value,
   onChange,
@@ -376,7 +409,6 @@ export default function MilkdownWriteEditor({
   const rootRef = useRef<HTMLDivElement>(null);
   const pickerListRef = useRef<HTMLDivElement>(null);
   const crepeRef = useRef<Crepe | null>(null);
-  const onChangeRef = useRef(onChange);
   const latestValueRef = useRef(value);
   const lastLocallyEmittedValueRef = useRef<string | null>(null);
   const lastDocumentMarkdownRef = useRef<string | null>(null);
@@ -389,30 +421,32 @@ export default function MilkdownWriteEditor({
   const [expandedMermaid, setExpandedMermaid] = useState<string | null>(null);
   const [mermaidPortals, setMermaidPortals] = useState<MermaidPortal[]>([]);
   const preview = usePortalStore((state) => state.preview);
-  const openPickerRef = useRef<(from: number, to: number) => void>(() => {});
-
-  openPickerRef.current = (from, to) => {
+  // Milkdown callbacks registered once at mount reach the latest props through
+  // these effect events
+  const openPicker = useEffectEvent((from: number, to: number) => {
     pickerSelectionRef.current = { from, to };
     setPickerQuery("");
     setSelectedOption(0);
     setPickerOpen(true);
-  };
+  });
+  const emitMarkdown = useEffectEvent((markdown: string) => {
+    onChange(markdown, false);
+  });
+  // the editor instance owns its initial value; later values use replaceAll below
+  const readMountOptions = useEffectEvent(() => ({
+    defaultValue: value,
+    placeholderText: placeholder,
+  }));
 
-  const filteredNotes = useMemo(() => {
-    const query = pickerQuery.trim().toLocaleLowerCase();
-    return noteOptions
-      .filter((note) => !note.isFolder && note.id !== currentNoteId)
-      .filter(
-        (note) =>
-          !query ||
-          (note.title || "Untitled").toLocaleLowerCase().includes(query),
-      )
-      .slice(0, 12);
-  }, [currentNoteId, noteOptions, pickerQuery]);
-
-  useEffect(() => {
-    onChangeRef.current = onChange;
-  }, [onChange]);
+  const pickerSearch = pickerQuery.trim().toLocaleLowerCase();
+  const filteredNotes = noteOptions
+    .filter((note) => !note.isFolder && note.id !== currentNoteId)
+    .filter(
+      (note) =>
+        !pickerSearch ||
+        (note.title || "Untitled").toLocaleLowerCase().includes(pickerSearch),
+    )
+    .slice(0, 12);
 
   useEffect(() => {
     if (!pickerOpen) return;
@@ -480,15 +514,16 @@ export default function MilkdownWriteEditor({
       });
     };
 
+    const { defaultValue, placeholderText } = readMountOptions();
     const crepe = new Crepe({
       root,
-      defaultValue: value,
+      defaultValue,
       features: {
         [CrepeFeature.AI]: false,
         [CrepeFeature.TopBar]: true,
       },
       featureConfigs: {
-        [CrepeFeature.Placeholder]: { text: placeholder },
+        [CrepeFeature.Placeholder]: { text: placeholderText },
         [CrepeFeature.TopBar]: {
           buildTopBar: (builder) => {
             builder.getGroup("insert").addItem("note-reference", {
@@ -496,7 +531,7 @@ export default function MilkdownWriteEditor({
               active: () => false,
               onRun: (ctx) => {
                 const { from, to } = ctx.get(editorViewCtx).state.selection;
-                openPickerRef.current(from, to);
+                openPicker(from, to);
               },
             });
           },
@@ -507,7 +542,7 @@ export default function MilkdownWriteEditor({
           previewOnlyByDefault: true,
           renderPreview: (language, content) => {
             if (language.toLowerCase() !== "mermaid" || !content.trim()) return null;
-            const previewId = `oghma-mermaid-preview-${Date.now()}-${mermaidPreviewSequence++}`;
+            const previewId = nextMermaidPreviewId();
             mermaidSources.set(previewId, content);
             return createMermaidPreviewHost(previewId);
           },
@@ -523,7 +558,7 @@ export default function MilkdownWriteEditor({
         if (!crepeRef.current || markdown !== crepeRef.current.getMarkdown() || markdown === lastDocumentMarkdownRef.current) return;
         lastDocumentMarkdownRef.current = markdown;
         lastLocallyEmittedValueRef.current = markdown;
-        onChangeRef.current(markdown, false);
+        emitMarkdown(markdown);
       });
     });
 
@@ -545,7 +580,7 @@ export default function MilkdownWriteEditor({
       event.preventDefault();
       event.stopImmediatePropagation();
       view.dispatch(view.state.tr.delete(from - 1, from));
-      openPickerRef.current(from - 1, from - 1);
+      openPicker(from - 1, from - 1);
     };
     root.addEventListener("beforeinput", handleBeforeInput, true);
     void crepe.create().then(() => {
@@ -584,8 +619,6 @@ export default function MilkdownWriteEditor({
       mermaidSources.clear();
       void crepe.destroy();
     };
-    // The editor instance owns its initial value; later values use replaceAll below.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -638,36 +671,18 @@ export default function MilkdownWriteEditor({
 
     for (const file of files) {
       const toastId = toast.loading(`Uploading ${file.name}…`);
-      try {
-        const uploaded = await uploadFileBeside(file, currentNoteId);
-        const current = crepeRef.current;
-        if (!current) return;
-        current.editor.action((ctx) => {
-          const view = ctx.get(editorViewCtx);
-          const { state } = view;
-          // the drop point is only trustworthy while the document is unchanged
-          const pos = dropPos !== null && state.doc === docAtDrop
-            ? Math.min(dropPos, state.doc.content.size)
-            : state.selection.from;
-          const label = uploaded.title;
-          const mark = linkSchema.type(ctx).create({
-            href: buildInternalNoteHref(uploaded.noteId),
-            title: null,
-          });
-          // keep the link off the end of the word it was dropped after
-          const previous = state.doc.textBetween(Math.max(0, pos - 1), pos);
-          const start = previous && !/\s/.test(previous) ? pos + 1 : pos;
-          const tr = state.tr
-            .insertText(`${start > pos ? " " : ""}${label} `, pos)
-            .addMark(start, start + label.length, mark)
-            .removeStoredMark(mark.type);
-          view.dispatch(tr.scrollIntoView());
-        });
-        dropPos = null;
-        toast.success(`Added ${file.name}`, { id: toastId });
-      } catch {
+      const uploaded = await uploadFileBeside(file, currentNoteId).catch(
+        () => null,
+      );
+      if (!uploaded) {
         toast.error(`Couldn't upload ${file.name}`, { id: toastId });
+        continue;
       }
+      const current = crepeRef.current;
+      if (!current) return;
+      insertUploadedLink(current, uploaded, dropPos, docAtDrop);
+      dropPos = null;
+      toast.success(`Added ${file.name}`, { id: toastId });
     }
   };
 
@@ -679,7 +694,7 @@ export default function MilkdownWriteEditor({
     // the debounced listener can lag behind an immediate save or blur
     lastDocumentMarkdownRef.current = markdown;
     lastLocallyEmittedValueRef.current = markdown;
-    onChangeRef.current(markdown, false);
+    onChange(markdown, false);
   };
 
   return (

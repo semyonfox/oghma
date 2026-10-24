@@ -25,18 +25,21 @@ export default function AssignmentMaterials({ assignmentId }: { assignmentId: st
     const controller = new AbortController();
     async function load() {
       setLoading(true);
-      try {
+      const run = async () => {
         const response = await fetch(`/api/assignments/${assignmentId}/materials`, { signal: controller.signal });
         if (!response.ok) throw new Error();
         const data = responseSchema.parse(await response.json());
         if (controller.signal.aborted) return;
         setMaterials(data.materials);
         setLoaded(true);
-      } catch {
-        if (!controller.signal.aborted) setError("Could not load assignment materials. Try again.");
-      } finally {
-        if (!controller.signal.aborted) setLoading(false);
-      }
+      };
+      await run()
+        .catch(() => {
+          if (!controller.signal.aborted) setError("Could not load assignment materials. Try again.");
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setLoading(false);
+        });
     }
     void load();
     return () => controller.abort();
@@ -45,7 +48,7 @@ export default function AssignmentMaterials({ assignmentId }: { assignmentId: st
   async function importMaterials() {
     setSaving(true);
     setError("");
-    try {
+    const run = async () => {
       const response = await fetch(`/api/assignments/${assignmentId}/materials`, { method: "POST" });
       if (!response.ok) {
         const body: unknown = await response.json();
@@ -55,11 +58,14 @@ export default function AssignmentMaterials({ assignmentId }: { assignmentId: st
       const result = importSchema.parse(await response.json());
       setQueued(result.queued);
       setRefresh(value => value + 1);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : "Could not import materials. Try again.");
-    } finally {
-      setSaving(false);
-    }
+    };
+    await run()
+      .catch((error: unknown) => {
+        setError(error instanceof Error ? error.message : "Could not import materials. Try again.");
+      })
+      .finally(() => {
+        setSaving(false);
+      });
   }
 
   const labels = {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   ChevronRightIcon,
   ArrowTopRightOnSquareIcon,
@@ -197,7 +197,7 @@ export default function NoteInspectorPanel({
 
     const loadNote = async () => {
       setLoading(true);
-      try {
+      const run = async () => {
         const [response, referencesResponse] = await Promise.all([
           fetch(`/api/notes/${activeFile.fileId}`),
           fetch(`/api/notes/${activeFile.fileId}/backlinks`),
@@ -215,11 +215,14 @@ export default function NoteInspectorPanel({
           setNote(data);
           setReferences(referencesData);
         }
-      } catch {
-        if (!cancelled) setNote(null);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+      };
+      await run()
+        .catch(() => {
+          if (!cancelled) setNote(null);
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
     };
 
     void loadNote();
@@ -235,15 +238,9 @@ export default function NoteInspectorPanel({
     };
   }, [activeFile?.fileId]);
 
-  const tags = useMemo(() => extractTags(note?.content), [note?.content]);
-  const createdTimestamp = useMemo(
-    () => formatTimestamp(note?.createdAt),
-    [note?.createdAt],
-  );
-  const updatedTimestamp = useMemo(
-    () => formatTimestamp(note?.updatedAt),
-    [note?.updatedAt],
-  );
+  const tags = extractTags(note?.content);
+  const createdTimestamp = formatTimestamp(note?.createdAt);
+  const updatedTimestamp = formatTimestamp(note?.updatedAt);
 
   // inline tag editing
   const [newTag, setNewTag] = useState("");
@@ -262,7 +259,7 @@ export default function NoteInspectorPanel({
   const tagNote = note && note.id === activeFileId ? note : null;
   const canEditTags = Boolean(tagNote) && !editorHasUnsavedChanges && !isSavingTag;
 
-  const saveTaggedContent = useCallback(async (fileId: string, content: string) => {
+  const saveTaggedContent = async (fileId: string, content: string) => {
     await useNoteStore.getState().mutateNote(fileId, { content });
     setNote((prev) => (prev && prev.id === fileId ? { ...prev, content } : prev));
     // clean editors showing this note adopt the tagged content
@@ -271,44 +268,48 @@ export default function NoteInspectorPanel({
         detail: { fileId, content, sourceId: "note-inspector" },
       }),
     );
-  }, []);
+  };
 
-  const addTag = useCallback(async () => {
+  const addTag = async () => {
     const tag = newTag.trim().replace(/^#/, "");
     if (!tag || !tagNote || !canEditTags) return;
     setIsSavingTag(true);
-    try {
+    const run = async () => {
       const tagLine = `#${tag}`;
       const updatedContent = tagNote.content
         ? `${tagNote.content.trimEnd()}\n${tagLine}\n`
         : `${tagLine}\n`;
       await saveTaggedContent(tagNote.id, updatedContent);
       setNewTag("");
-    } catch {
-      toast.error(t("Failed to save note"));
-    } finally {
-      setIsSavingTag(false);
-    }
-  }, [canEditTags, newTag, saveTaggedContent, t, tagNote]);
-
-  const removeTag = useCallback(
-    async (tagToRemove: string) => {
-      if (!tagNote?.content || !canEditTags) return;
-      setIsSavingTag(true);
-      try {
-        const updatedContent = tagNote.content
-          .split("\n")
-          .filter((line) => line.trim() !== `#${tagToRemove}`)
-          .join("\n");
-        await saveTaggedContent(tagNote.id, updatedContent);
-      } catch {
+    };
+    await run()
+      .catch(() => {
         toast.error(t("Failed to save note"));
-      } finally {
+      })
+      .finally(() => {
         setIsSavingTag(false);
-      }
-    },
-    [canEditTags, saveTaggedContent, t, tagNote],
-  );
+      });
+  };
+
+  const removeTag = async (tagToRemove: string) => {
+    if (!tagNote?.content || !canEditTags) return;
+    const { id: noteId, content } = tagNote;
+    setIsSavingTag(true);
+    const run = async () => {
+      const updatedContent = content
+        .split("\n")
+        .filter((line) => line.trim() !== `#${tagToRemove}`)
+        .join("\n");
+      await saveTaggedContent(noteId, updatedContent);
+    };
+    await run()
+      .catch(() => {
+        toast.error(t("Failed to save note"));
+      })
+      .finally(() => {
+        setIsSavingTag(false);
+      });
+  };
 
   const tabClasses = (tab: RightPanelTab) => `
     min-h-11 px-2.5 py-1.5 text-xs font-medium transition-colors border-b-2 focus-visible:outline-2 focus-visible:outline-primary-400

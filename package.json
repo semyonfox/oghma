@@ -129,9 +129,11 @@
     "zustand": "5.0.15"
   },
   "devDependencies": {
+    "@babel/core": "7.29.7",
     "@playwright/test": "1.64.1",
     "@tailwindcss/postcss": "4.3.3",
     "@testing-library/react": "16.3.3",
+    "@types/babel__core": "7.20.5",
     "@types/canvas-confetti": "1.9.0",
     "@types/jsonwebtoken": "9.0.10",
     "@types/node": "22.20.5",
@@ -142,8 +144,8 @@
     "@typescript-eslint/parser": "8.72.0",
     "@vitest/coverage-v8": "5.0.5",
     "@vitest/ui": "5.0.5",
+    "babel-plugin-react-compiler": "1.0.0",
     "eslint": "10.13.0",
-    "eslint-plugin-react": "7.37.5",
     "eslint-plugin-react-hooks": "7.1.1",
     "husky": "9.1.7",
     "jsdom": "30.1.3",
@@ -151,8 +153,8 @@
     "tailwindcss": "4.3.3",
     "typescript": "npm:@typescript/typescript6@6.0.2",
     "typescript-7": "npm:typescript@7.0.2",
-    "vitest": "5.0.5",
-    "vite": "8.3.4"
+    "vite": "8.3.4",
+    "vitest": "5.0.5"
   },
   "overrides": {
     "@hono/node-server": "2.1.5",

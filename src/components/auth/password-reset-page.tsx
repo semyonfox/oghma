@@ -60,7 +60,7 @@ function ResetPasswordForm({
 
     setLoading(true);
 
-    try {
+    const run = async () => {
       const res = await fetch("/api/auth/password-reset/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -88,9 +88,11 @@ function ResetPasswordForm({
             : "";
         setError(serverError ? t(serverError) : t("Failed to reset password"));
       }
-    } catch (_err) {
-      setError(t("An error occurred. Please try again."));
-    }
+    };
+    await run()
+      .catch((_err: unknown) => {
+        setError(t("An error occurred. Please try again."));
+      });
 
     setLoading(false);
   };

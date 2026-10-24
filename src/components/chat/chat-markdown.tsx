@@ -11,4 +11,6 @@ function ChatMarkdown({ children }: { children: string }) {
   );
 }
 
+// memo stays: the compiler memoises per component, not per item of a .map,
+// so without it every earlier part re-parses its markdown on each streamed token
 export default memo(ChatMarkdown);

@@ -5,9 +5,7 @@ import { reportTelemetry } from "@/lib/marketing/client";
 import {
   Fragment,
   type KeyboardEvent as ReactKeyboardEvent,
-  useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
   useId,
@@ -256,21 +254,18 @@ export default function GlobalSearchModal() {
   const requestSeqRef = useRef(0);
   const trimmedQuery = query.trim();
 
-  const results: ResultsBySection = useMemo(
-    () => ({
-      destinations: DESTINATIONS.filter((result) =>
-        matchesDestination(result, trimmedQuery),
-      ).slice(0, trimmedQuery ? 5 : 4),
-      ...(resultsQuery === trimmedQuery ? remoteResults : { notes: [], chats: [], quizzes: [] }),
-    }),
-    [remoteResults, resultsQuery, trimmedQuery],
-  );
+  const results: ResultsBySection = {
+    destinations: DESTINATIONS.filter((result) =>
+      matchesDestination(result, trimmedQuery),
+    ).slice(0, trimmedQuery ? 5 : 4),
+    ...(resultsQuery === trimmedQuery ? remoteResults : { notes: [], chats: [], quizzes: [] }),
+  };
 
-  const flatResults = useMemo(() => flattenResults(results), [results]);
+  const flatResults = flattenResults(results);
   const selectedResult = flatResults[selectedIndex] ?? flatResults[0] ?? null;
   const hasAnyResult = flatResults.length > 0;
 
-  const handleClose = useCallback(() => {
+  const handleClose = () => {
     abortRef.current?.abort();
     close();
     setQuery("");
@@ -279,16 +274,13 @@ export default function GlobalSearchModal() {
     setLoading(false);
     setSearchError(null);
     setResultsQuery(null);
-  }, [close]);
+  };
 
-  const openResult = useCallback(
-    (result: SearchResult | null) => {
-      if (!result) return;
-      router.push(result.href);
-      handleClose();
-    },
-    [handleClose, router],
-  );
+  const openResult = (result: SearchResult | null) => {
+    if (!result) return;
+    router.push(result.href);
+    handleClose();
+  };
 
   useEffect(() => {
     if (!visible) return;
@@ -302,7 +294,7 @@ export default function GlobalSearchModal() {
     setResultsQuery(null);
 
     const timeout = window.setTimeout(async () => {
-      try {
+      const run = async () => {
         const response = await fetch(
           `/api/global-search?q=${encodeURIComponent(trimmedQuery)}`,
           { signal: controller.signal },
@@ -322,18 +314,21 @@ export default function GlobalSearchModal() {
           normalizeApiResults(isRecord(data) ? data.results : undefined),
         );
         setResultsQuery(trimmedQuery);
-      } catch (error: unknown) {
-        if (isRecord(error) && error.name === "AbortError") return;
-        if (requestSeqRef.current === seq) {
-          setRemoteResults({ notes: [], chats: [], quizzes: [] });
-          setSearchError("failed");
-          reportTelemetry({ kind: "error", name: "request_failed", route: "search" });
-        }
-      } finally {
-        if (requestSeqRef.current === seq) {
-          setLoading(false);
-        }
-      }
+      };
+      await run()
+        .catch((error: unknown) => {
+          if (isRecord(error) && error.name === "AbortError") return;
+          if (requestSeqRef.current === seq) {
+            setRemoteResults({ notes: [], chats: [], quizzes: [] });
+            setSearchError("failed");
+            reportTelemetry({ kind: "error", name: "request_failed", route: "search" });
+          }
+        })
+        .finally(() => {
+          if (requestSeqRef.current === seq) {
+            setLoading(false);
+          }
+        });
     }, trimmedQuery ? TYPING_DEBOUNCE_MS : 0);
 
     return () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useEffectEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import { getProviders, signIn } from "next-auth/react";
 import BrandLogo from "@/components/brand-logo";
@@ -36,30 +36,34 @@ export default function MobileSignIn() {
   });
   const callbackUrl = `/auth/mobile?${callback}`;
 
-  const start = useCallback(async () => {
+  const start = async () => {
     setBusy(true);
     setError("");
-    try {
+    const run = async () => {
       const providers = await getProviders();
       if (!providers?.[provider])
         throw new Error(
           "This sign-in provider is unavailable. Close this page and try again from the app.",
         );
       await signIn(provider, { callbackUrl, redirect: true });
-    } catch (error) {
-      setError(
-        error instanceof Error ? error.message : "Could not open sign-in.",
-      );
-      setBusy(false);
-    }
-  }, [provider, callbackUrl]);
+    };
+    await run()
+      .catch((error: unknown) => {
+        setError(
+          error instanceof Error ? error.message : "Could not open sign-in.",
+        );
+        setBusy(false);
+      });
+  };
+
+  const startOnMount = useEffectEvent(() => void start());
 
   useEffect(() => {
     if (!valid) return;
     if (!complete) {
       if (!started.current) {
         started.current = true;
-        void start();
+        startOnMount();
       }
       return;
     }
@@ -86,12 +90,12 @@ export default function MobileSignIn() {
     return () => {
       active = false;
     };
-  }, [valid, complete, start]);
+  }, [valid, complete]);
 
   async function approve() {
     setBusy(true);
     setError("");
-    try {
+    const run = async () => {
       const response = await fetch("/api/auth/mobile/authorize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -117,13 +121,16 @@ export default function MobileSignIn() {
         throw new Error("Unexpected app return address.");
       setReturnUrl(url);
       window.location.assign(url);
-    } catch (error) {
-      setError(
-        error instanceof Error ? error.message : "Could not return to the app.",
-      );
-    } finally {
-      setBusy(false);
-    }
+    };
+    await run()
+      .catch((error: unknown) => {
+        setError(
+          error instanceof Error ? error.message : "Could not return to the app.",
+        );
+      })
+      .finally(() => {
+        setBusy(false);
+      });
   }
 
   return (

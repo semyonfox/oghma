@@ -13,7 +13,7 @@ export default function useNoteTreeInitialization() {
   const treeAPI = useTreeAPI();
   const noteAPI = useNoteAPI();
   const initializedGeneration = useRef<number | null>(null);
-  const [dependenciesReady, setDependenciesReady] = useState(false);
+  const [readyGeneration, setReadyGeneration] = useState<number | null>(null);
   const treeGeneration = useNoteTreeStore((state) => state.generation);
   const noteSessionReady = useNoteStore((state) => state.sessionReady);
 
@@ -25,7 +25,6 @@ export default function useNoteTreeInitialization() {
       return;
     }
     initializedGeneration.current = treeGeneration;
-    setDependenciesReady(false);
 
     const toastFn = (message: string, type?: "error") => {
       if (type === "error") toast.error(message);
@@ -35,7 +34,7 @@ export default function useNoteTreeInitialization() {
     useNoteTreeStore.getState().setDependencies(treeAPI, toastFn);
     useNoteStore.getState().setDependencies(noteAPI, useNoteTreeStore, toastFn);
     clearDeduplicationCache();
-    setDependenciesReady(true);
+    setReadyGeneration(treeGeneration);
 
     void purgeNonUUIDNoteCache().catch((error) =>
       console.warn("Failed to purge stale note cache:", error),
@@ -46,7 +45,5 @@ export default function useNoteTreeInitialization() {
       .catch((error) => console.error("Error initializing tree:", error));
   }, [noteAPI, noteSessionReady, treeAPI, treeGeneration]);
 
-  return (
-    dependenciesReady && initializedGeneration.current === treeGeneration
-  );
+  return readyGeneration === treeGeneration;
 }

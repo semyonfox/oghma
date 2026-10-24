@@ -1,6 +1,6 @@
 "use client";
 
-import { type ChangeEvent, useState, useEffect, useCallback } from "react";
+import { type ChangeEvent, useState, useEffect } from "react";
 import { toast } from "sonner";
 import { ClipboardDocumentIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
@@ -42,17 +42,20 @@ export default function DataExportSection() {
   async function handleRegenerateToken() {
     if (!confirm(t("This will invalidate your current subscription URL. Any calendar apps using the old URL will stop syncing. Continue?"))) return;
     setCalendarRegenerating(true);
-    try {
+    const run = async () => {
       const res = await fetch("/api/calendar/token", { method: "POST" });
       if (!res.ok) throw new Error();
       const { token } = await res.json();
       setCalendarToken(token);
       toast.success(t("Calendar subscription URL regenerated"));
-    } catch {
-      toast.error(t("Failed to regenerate token"));
-    } finally {
-      setCalendarRegenerating(false);
-    }
+    };
+    await run()
+      .catch(() => {
+        toast.error(t("Failed to regenerate token"));
+      })
+      .finally(() => {
+        setCalendarRegenerating(false);
+      });
   }
 
   function handleCopyCalendarUrl() {
@@ -67,13 +70,13 @@ export default function DataExportSection() {
     const input = e.currentTarget;
     const file = input.files?.[0];
     if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".zip")) {
+      toast.error(t("Please select a .zip file"));
+      input.value = "";
+      return;
+    }
 
-    try {
-      if (!file.name.toLowerCase().endsWith(".zip")) {
-        toast.error(t("Please select a .zip file"));
-        return;
-      }
-
+    const run = async () => {
       setImportStatus("uploading");
       setUploadProgress(0);
       setImportError(null);
@@ -145,52 +148,63 @@ export default function DataExportSection() {
       setImportJobId(jobId);
 
       toast.success(t("Import started! Processing your vault..."));
-    } catch (err: unknown) {
-      console.error("Vault import failed:", err);
-      setImportStatus("failed");
-      const message = err instanceof Error ? err.message : t("Import failed");
-      setImportError(message);
-      toast.error(message);
-    } finally {
-      input.value = "";
-    }
+    };
+    await run()
+      .catch((err: unknown) => {
+        console.error("Vault import failed:", err);
+        setImportStatus("failed");
+        const message = err instanceof Error ? err.message : t("Import failed");
+        setImportError(message);
+        toast.error(message);
+      })
+      .finally(() => {
+        input.value = "";
+      });
   }
 
-  async function handleVaultExport({ force = false } = {}) {
-    try {
-      setExportStatus("processing");
-      setExportDownloadUrl(null);
-      setExportError(null);
+  async function handleVaultExport() {
+    // a running export answers 409; confirming replaces it with a forced export
+    const run = async () => {
+      let force = false;
+      while (true) {
+        setExportStatus("processing");
+        setExportDownloadUrl(null);
+        setExportError(null);
 
-      const url = force ? "/api/vault/export?force=true" : "/api/vault/export";
-      const res = await fetch(url, { method: "POST" });
+        const url = force ? "/api/vault/export?force=true" : "/api/vault/export";
+        const res = await fetch(url, { method: "POST" });
 
-      if (res.status === 409) {
-        setExportStatus(null);
-        await res.json();
-        const ok = confirm(
-          t("An export is already in progress. Cancel it and start a new one?"),
-        );
-        if (!ok) return;
-        return handleVaultExport({ force: true });
+        if (res.status === 409) {
+          setExportStatus(null);
+          await res.json();
+          const ok = confirm(
+            t("An export is already in progress. Cancel it and start a new one?"),
+          );
+          if (!ok) return;
+          force = true;
+          continue;
+        }
+
+        if (!res.ok) {
+          throw new Error(
+            await readResponseError(res, t("Failed to start export")),
+          );
+        }
+        const { jobId } = await res.json();
+        setExportJobId(jobId);
+
+        toast.success(t("Export started! We'll notify you when it's ready."));
+        return;
       }
-
-      if (!res.ok) {
-        throw new Error(
-          await readResponseError(res, t("Failed to start export")),
-        );
-      }
-      const { jobId } = await res.json();
-      setExportJobId(jobId);
-
-      toast.success(t("Export started! We'll notify you when it's ready."));
-    } catch (err: unknown) {
-      console.error("Vault export failed:", err);
-      setExportStatus("failed");
-      const message = err instanceof Error ? err.message : t("Export failed");
-      setExportError(message);
-      toast.error(message);
-    }
+    };
+    await run()
+      .catch((err: unknown) => {
+        console.error("Vault export failed:", err);
+        setExportStatus("failed");
+        const message = err instanceof Error ? err.message : t("Export failed");
+        setExportError(message);
+        toast.error(message);
+      });
   }
 
   async function cancelVaultJob(jobId: string) {
@@ -206,26 +220,30 @@ export default function DataExportSection() {
     if (!importJobId) return;
     if (!confirm(t("Stop this import? Files processed so far will remain."))) return;
     setImportCancelRequested(true);
-    try {
+    const run = async () => {
       await cancelVaultJob(importJobId);
       toast.info(t("Import cancellation requested. Stopping after current file..."));
-    } catch {
-      setImportCancelRequested(false);
-      toast.error(t("Failed to cancel import"));
-    }
+    };
+    await run()
+      .catch(() => {
+        setImportCancelRequested(false);
+        toast.error(t("Failed to cancel import"));
+      });
   }
 
   async function handleCancelExport() {
     if (!exportJobId) return;
     if (!confirm(t("Stop this export?"))) return;
     setExportCancelRequested(true);
-    try {
+    const run = async () => {
       await cancelVaultJob(exportJobId);
       toast.info(t("Export cancellation requested. Stopping after current file..."));
-    } catch {
-      setExportCancelRequested(false);
-      toast.error(t("Failed to cancel export"));
-    }
+    };
+    await run()
+      .catch(() => {
+        setExportCancelRequested(false);
+        toast.error(t("Failed to cancel export"));
+      });
   }
 
   const importPollingActive =
@@ -234,44 +252,41 @@ export default function DataExportSection() {
     importStatus !== "failed" &&
     importStatus !== "cancelled";
 
-  const handleImportPollData = useCallback(
-    (data: JobData) => {
-      const { job, progress } = data;
-      if (!job) {
-        // the job row is gone (Clear Vault deletes it), so there is nothing left to watch
-        setImportStatus(null);
-        setImportCancelRequested(false);
-        return true;
-      }
-      if (job.status === "complete") {
-        setImportStatus("complete");
-        if (progress) setImportProgress(progress);
-        setImportCancelRequested(false);
-        toast.success(t("Vault import complete!"));
-        return true;
-      }
-      if (job.status === "cancelled") {
-        setImportStatus("cancelled");
-        if (progress) setImportProgress(progress);
-        setImportCancelRequested(false);
-        toast.info(t("Import cancelled."));
-        return true;
-      }
-      if (job.status === "failed") {
-        setImportStatus("failed");
-        setImportCancelRequested(false);
-        const message = job.error || t("Import failed");
-        setImportError(message);
-        toast.error(message);
-        return true;
-      }
-      if (progress) {
-        setImportProgress(progress);
-      }
-      return false;
-    },
-    [t],
-  );
+  const handleImportPollData = (data: JobData) => {
+    const { job, progress } = data;
+    if (!job) {
+      // the job row is gone (Clear Vault deletes it), so there is nothing left to watch
+      setImportStatus(null);
+      setImportCancelRequested(false);
+      return true;
+    }
+    if (job.status === "complete") {
+      setImportStatus("complete");
+      if (progress) setImportProgress(progress);
+      setImportCancelRequested(false);
+      toast.success(t("Vault import complete!"));
+      return true;
+    }
+    if (job.status === "cancelled") {
+      setImportStatus("cancelled");
+      if (progress) setImportProgress(progress);
+      setImportCancelRequested(false);
+      toast.info(t("Import cancelled."));
+      return true;
+    }
+    if (job.status === "failed") {
+      setImportStatus("failed");
+      setImportCancelRequested(false);
+      const message = job.error || t("Import failed");
+      setImportError(message);
+      toast.error(message);
+      return true;
+    }
+    if (progress) {
+      setImportProgress(progress);
+    }
+    return false;
+  };
 
   usePollingJob({
     url: "/api/vault/status?type=vault-import",
@@ -286,45 +301,42 @@ export default function DataExportSection() {
     exportStatus !== "failed" &&
     exportStatus !== "cancelled";
 
-  const handleExportPollData = useCallback(
-    (data: JobData) => {
-      const { job, downloadUrl, progress } = data;
-      if (!job) {
-        setExportStatus(null);
-        setExportCancelRequested(false);
-        return true;
-      }
-      if (job.status === "complete") {
-        // no link means the archive already expired, so there is nothing to offer
-        setExportStatus(downloadUrl ? "complete" : null);
-        setExportDownloadUrl(downloadUrl ?? null);
-        if (progress) setExportProgress(progress);
-        setExportCancelRequested(false);
-        if (downloadUrl) toast.success(t("Vault export ready!"));
-        return true;
-      }
-      if (job.status === "cancelled") {
-        setExportStatus("cancelled");
-        if (progress) setExportProgress(progress);
-        setExportCancelRequested(false);
-        toast.info(t("Export cancelled."));
-        return true;
-      }
-      if (job.status === "failed") {
-        setExportStatus("failed");
-        setExportCancelRequested(false);
-        const message = job.error || t("Export failed");
-        setExportError(message);
-        toast.error(message);
-        return true;
-      }
-      if (progress) {
-        setExportProgress(progress);
-      }
-      return false;
-    },
-    [t],
-  );
+  const handleExportPollData = (data: JobData) => {
+    const { job, downloadUrl, progress } = data;
+    if (!job) {
+      setExportStatus(null);
+      setExportCancelRequested(false);
+      return true;
+    }
+    if (job.status === "complete") {
+      // no link means the archive already expired, so there is nothing to offer
+      setExportStatus(downloadUrl ? "complete" : null);
+      setExportDownloadUrl(downloadUrl ?? null);
+      if (progress) setExportProgress(progress);
+      setExportCancelRequested(false);
+      if (downloadUrl) toast.success(t("Vault export ready!"));
+      return true;
+    }
+    if (job.status === "cancelled") {
+      setExportStatus("cancelled");
+      if (progress) setExportProgress(progress);
+      setExportCancelRequested(false);
+      toast.info(t("Export cancelled."));
+      return true;
+    }
+    if (job.status === "failed") {
+      setExportStatus("failed");
+      setExportCancelRequested(false);
+      const message = job.error || t("Export failed");
+      setExportError(message);
+      toast.error(message);
+      return true;
+    }
+    if (progress) {
+      setExportProgress(progress);
+    }
+    return false;
+  };
 
   usePollingJob({
     url: "/api/vault/status?type=vault-export",
@@ -335,7 +347,7 @@ export default function DataExportSection() {
 
   useEffect(() => {
     async function checkExistingJobs() {
-      try {
+      const run = async () => {
         const [importRes, exportRes] = await Promise.all([
           fetch("/api/vault/status?type=vault-import"),
           fetch("/api/vault/status?type=vault-export"),
@@ -371,7 +383,11 @@ export default function DataExportSection() {
             setExportError(job.error || null);
           }
         }
-      } catch {}
+      };
+      await run()
+        .catch(() => {
+
+        });
     }
     checkExistingJobs();
   }, []);

@@ -57,7 +57,7 @@ export default function EditorThemeSection({
   const handleEditorSettingsSave = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSavingSection("editor");
-    try {
+    const run = async () => {
       const savedSettings = await updateSettings({
         theme: formState.theme,
         editorsize: normalizeEditorSize(formState.editorWidth),
@@ -69,12 +69,15 @@ export default function EditorThemeSection({
         ),
       });
       toast.success(t("Editor settings saved"));
-    } catch (error) {
-      console.error("Failed to save editor settings:", error);
-      toast.error(t("Failed to save settings"));
-    } finally {
-      setSavingSection(null);
-    }
+    };
+    await run()
+      .catch((error: unknown) => {
+        console.error("Failed to save editor settings:", error);
+        toast.error(t("Failed to save settings"));
+      })
+      .finally(() => {
+        setSavingSection(null);
+      });
   };
 
   return (

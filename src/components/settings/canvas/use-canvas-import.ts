@@ -2,7 +2,6 @@ import {
   useState,
   useRef,
   useEffect,
-  useCallback,
   type Dispatch,
   type SetStateAction,
 } from "react";
@@ -125,44 +124,38 @@ export default function useCanvasImport({
     };
   }, []);
 
-  const beginAction = useCallback((): ActionFence => {
+  const beginAction = (): ActionFence => {
     const controller = new AbortController();
     actionControllersRef.current.add(controller);
     return {
       controller,
       treeGeneration: useNoteTreeStore.getState().generation,
     };
-  }, []);
+  };
 
-  const actionIsCurrent = useCallback((action: ActionFence): boolean => {
+  const actionIsCurrent = (action: ActionFence): boolean => {
     return (
       mountedRef.current &&
       !action.controller.signal.aborted &&
       useNoteTreeStore.getState().generation === action.treeGeneration
     );
-  }, []);
+  };
 
-  const requireCurrentAction = useCallback(
-    (action: ActionFence): void => {
-      if (!actionIsCurrent(action)) {
-        throw new DOMException("Canvas action is stale", "AbortError");
-      }
-    },
-    [actionIsCurrent],
-  );
+  const requireCurrentAction = (action: ActionFence): void => {
+    if (!actionIsCurrent(action)) {
+      throw new DOMException("Canvas action is stale", "AbortError");
+    }
+  };
 
-  const finishAction = useCallback((action: ActionFence): void => {
+  const finishAction = (action: ActionFence): void => {
     actionControllersRef.current.delete(action.controller);
-  }, []);
+  };
 
-  const recoverAfterNavigation = useCallback(
-    (action: ActionFence): void => {
-      if (useNoteTreeStore.getState().generation === action.treeGeneration) {
-        void owner.checkStatus();
-      }
-    },
-    [owner],
-  );
+  const recoverAfterNavigation = (action: ActionFence): void => {
+    if (useNoteTreeStore.getState().generation === action.treeGeneration) {
+      void owner.checkStatus();
+    }
+  };
 
   useEffect(() => {
     const snapshot = owner.statusSnapshot;
@@ -218,174 +211,169 @@ export default function useCanvasImport({
     t,
   ]);
 
-  const beginJob = useCallback(
-    (jobId: string, jobType: string, action: ActionFence) => {
-      requireCurrentAction(action);
-      localStorage.setItem(
-        LS_ACTIVE_JOB,
-        JSON.stringify({ jobId, startedAt: new Date().toISOString() }),
+  const beginJob = (jobId: string, jobType: string, action: ActionFence) => {
+    requireCurrentAction(action);
+    localStorage.setItem(
+      LS_ACTIVE_JOB,
+      JSON.stringify({ jobId, startedAt: new Date().toISOString() }),
+    );
+    owner.trackJob(jobId, jobType);
+  };
+
+  const requestStart = async (
+    action: ActionFence,
+    url: string,
+    body?: Record<string, unknown>,
+    expectedJobId?: string,
+  ) => {
+    const target =
+      expectedJobId && url === "/api/canvas/sync"
+        ? `${url}?expectedActiveJobId=${encodeURIComponent(expectedJobId)}`
+        : url;
+    const payload =
+      expectedJobId && url !== "/api/canvas/sync"
+        ? { ...body, expectedActiveJobId: expectedJobId }
+        : body;
+    const response = await fetch(target, {
+      method: "POST",
+      signal: action.controller.signal,
+      ...(payload
+        ? {
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          }
+        : {}),
+    });
+    requireCurrentAction(action);
+
+    if (response.status !== 409) return response;
+    const conflict: unknown = await response.clone().json();
+    requireCurrentAction(action);
+    if (
+      conflict &&
+      typeof conflict === "object" &&
+      "code" in conflict &&
+      conflict.code === "canvas_folders_in_trash" &&
+      "folders" in conflict &&
+      Array.isArray(conflict.folders)
+    ) {
+      const folders = conflict.folders.filter(
+        (folder): folder is TrashFolder =>
+          Boolean(
+            folder &&
+              typeof folder === "object" &&
+              "rootId" in folder &&
+              typeof folder.rootId === "string" &&
+              "title" in folder &&
+              typeof folder.title === "string" &&
+              "deletedAt" in folder &&
+              typeof folder.deletedAt === "string",
+          ),
       );
-      owner.trackJob(jobId, jobType);
-    },
-    [owner, requireCurrentAction],
-  );
-
-  const requestStart = useCallback(
-    async (
-      action: ActionFence,
-      url: string,
-      body?: Record<string, unknown>,
-      expectedJobId?: string,
-    ) => {
-      const target =
-        expectedJobId && url === "/api/canvas/sync"
-          ? `${url}?expectedActiveJobId=${encodeURIComponent(expectedJobId)}`
-          : url;
-      const payload =
-        expectedJobId && url !== "/api/canvas/sync"
-          ? { ...body, expectedActiveJobId: expectedJobId }
-          : body;
-      const response = await fetch(target, {
-        method: "POST",
-        signal: action.controller.signal,
-        ...(payload
-          ? {
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(payload),
-            }
-          : {}),
-      });
-      requireCurrentAction(action);
-
-      if (response.status !== 409) return response;
-      const conflict: unknown = await response.clone().json();
-      requireCurrentAction(action);
+      if (folders.length === 0 || folders.length !== conflict.folders.length) {
+        throw new Error("Invalid Trash response");
+      }
+      setPendingTrash({ url: target, body: payload, folders });
+      setPendingReplacement(null);
+    } else if (
+      conflict &&
+      typeof conflict === "object" &&
+      "activeJob" in conflict
+    ) {
+      const active = conflict.activeJob;
       if (
-        conflict &&
-        typeof conflict === "object" &&
-        "code" in conflict &&
-        conflict.code === "canvas_folders_in_trash" &&
-        "folders" in conflict &&
-        Array.isArray(conflict.folders)
+        active &&
+        typeof active === "object" &&
+        "jobId" in active &&
+        typeof active.jobId === "string" &&
+        "status" in active &&
+        typeof active.status === "string"
       ) {
-        const folders = conflict.folders.filter(
-          (folder): folder is TrashFolder =>
-            Boolean(
-              folder &&
-                typeof folder === "object" &&
-                "rootId" in folder &&
-                typeof folder.rootId === "string" &&
-                "title" in folder &&
-                typeof folder.title === "string" &&
-                "deletedAt" in folder &&
-                typeof folder.deletedAt === "string",
-            ),
+        setPendingReplacement({
+          url,
+          body,
+          jobId: active.jobId,
+          status: active.status,
+        });
+        owner.trackJob(
+          active.jobId,
+          url === "/api/canvas/sync" ? "sync" : "import",
         );
-        if (folders.length === 0 || folders.length !== conflict.folders.length) {
-          throw new Error("Invalid Trash response");
-        }
-        setPendingTrash({ url: target, body: payload, folders });
+      } else {
         setPendingReplacement(null);
-      } else if (
-        conflict &&
-        typeof conflict === "object" &&
-        "activeJob" in conflict
-      ) {
-        const active = conflict.activeJob;
-        if (
-          active &&
-          typeof active === "object" &&
-          "jobId" in active &&
-          typeof active.jobId === "string" &&
-          "status" in active &&
-          typeof active.status === "string"
-        ) {
-          setPendingReplacement({
-            url,
-            body,
-            jobId: active.jobId,
-            status: active.status,
+        setConnectionError(t("The active import changed. Please try again."));
+      }
+    }
+    return response;
+  };
+
+  const handleTrashChoice = async (restore: boolean) => {
+    if (!pendingTrash || isRestoring) return;
+    const action = beginAction();
+    setIsRestoring(true);
+    const run = async () => {
+      if (restore) {
+        for (const folder of pendingTrash.folders) {
+          const response = await fetch("/api/trash", {
+            method: "POST",
+            signal: action.controller.signal,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "restore",
+              id: folder.rootId,
+              expectedDeletedAt: folder.deletedAt,
+            }),
           });
-          owner.trackJob(
-            active.jobId,
-            url === "/api/canvas/sync" ? "sync" : "import",
+          requireCurrentAction(action);
+          if (response.status === 404 || response.status === 409) break;
+          if (!response.ok) throw new Error("Restore failed");
+          setPendingTrash((current) =>
+            current
+              ? {
+                  ...current,
+                  folders: current.folders.filter(
+                    (item) => item.rootId !== folder.rootId,
+                  ),
+                }
+              : null,
           );
-        } else {
-          setPendingReplacement(null);
-          setConnectionError(t("The active import changed. Please try again."));
+          await useNoteTreeStore
+            .getState()
+            .refreshTreePaths([[folder.rootId]]);
+          requireCurrentAction(action);
         }
       }
-      return response;
-    },
-    [owner, requireCurrentAction, setConnectionError, t],
-  );
 
-  const handleTrashChoice = useCallback(
-    async (restore: boolean) => {
-      if (!pendingTrash || isRestoring) return;
-      const action = beginAction();
-      setIsRestoring(true);
-      try {
-        if (restore) {
-          for (const folder of pendingTrash.folders) {
-            const response = await fetch("/api/trash", {
-              method: "POST",
-              signal: action.controller.signal,
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                action: "restore",
-                id: folder.rootId,
-                expectedDeletedAt: folder.deletedAt,
-              }),
-            });
-            requireCurrentAction(action);
-            if (response.status === 404 || response.status === 409) break;
-            if (!response.ok) throw new Error("Restore failed");
-            setPendingTrash((current) =>
-              current
-                ? {
-                    ...current,
-                    folders: current.folders.filter(
-                      (item) => item.rootId !== folder.rootId,
-                    ),
-                  }
-                : null,
-            );
-            await useNoteTreeStore
-              .getState()
-              .refreshTreePaths([[folder.rootId]]);
-            requireCurrentAction(action);
-          }
+      const response = await requestStart(
+        action,
+        pendingTrash.url,
+        {
+          ...pendingTrash.body,
+          keepTrashedFolders: !restore,
+        },
+      );
+      if (response.status === 409) {
+        const conflict: unknown = await response.clone().json();
+        if (
+          !conflict ||
+          typeof conflict !== "object" ||
+          !("code" in conflict) ||
+          conflict.code !== "canvas_folders_in_trash"
+        ) {
+          setPendingTrash(null);
         }
-
-        const response = await requestStart(
-          action,
-          pendingTrash.url,
-          {
-            ...pendingTrash.body,
-            keepTrashedFolders: !restore,
-          },
-        );
-        if (response.status === 409) {
-          const conflict: unknown = await response.clone().json();
-          if (
-            !conflict ||
-            typeof conflict !== "object" ||
-            !("code" in conflict) ||
-            conflict.code !== "canvas_folders_in_trash"
-          ) {
-            setPendingTrash(null);
-          }
-          return;
-        }
-        const result: unknown = await response.json();
-        requireCurrentAction(action);
-        const jobId = jobIdFrom(result);
-        if (!response.ok || !jobId) throw new Error("Import failed");
-        setPendingTrash(null);
-        setConnectionError(null);
-        beginJob(jobId, "import", action);
-      } catch {
+        return;
+      }
+      const result: unknown = await response.json();
+      requireCurrentAction(action);
+      const jobId = jobIdFrom(result);
+      if (!response.ok || !jobId) throw new Error("Import failed");
+      setPendingTrash(null);
+      setConnectionError(null);
+      beginJob(jobId, "import", action);
+    };
+    await run()
+      .catch(() => {
         if (actionIsCurrent(action)) {
           setConnectionError(
             t("Could not restore the folders and start the import. Please try again."),
@@ -393,31 +381,18 @@ export default function useCanvasImport({
         } else {
           recoverAfterNavigation(action);
         }
-      } finally {
+      })
+      .finally(() => {
         if (actionIsCurrent(action)) setIsRestoring(false);
         finishAction(action);
-      }
-    },
-    [
-      beginJob,
-      beginAction,
-      actionIsCurrent,
-      finishAction,
-      isRestoring,
-      pendingTrash,
-      requestStart,
-      requireCurrentAction,
-      recoverAfterNavigation,
-      setConnectionError,
-      t,
-    ],
-  );
+      });
+  };
 
-  const confirmReplacement = useCallback(async () => {
+  const confirmReplacement = async () => {
     if (!pendingReplacement || isReplacing) return;
     const action = beginAction();
     setIsReplacing(true);
-    try {
+    const run = async () => {
       const response = await requestStart(
         action,
         pendingReplacement.url,
@@ -438,34 +413,25 @@ export default function useCanvasImport({
       } else if (response.status !== 409) {
         setConnectionError(t("Could not start the import. Please try again."));
       }
-    } catch {
-      if (actionIsCurrent(action)) {
-        setConnectionError(toFriendlyCanvasError("network"));
-      } else {
-        recoverAfterNavigation(action);
-      }
-    } finally {
-      if (actionIsCurrent(action)) setIsReplacing(false);
-      finishAction(action);
-    }
-  }, [
-    actionIsCurrent,
-    beginJob,
-    beginAction,
-    finishAction,
-    isReplacing,
-    pendingReplacement,
-    requestStart,
-    requireCurrentAction,
-    recoverAfterNavigation,
-    setConnectionError,
-    t,
-  ]);
+    };
+    await run()
+      .catch(() => {
+        if (actionIsCurrent(action)) {
+          setConnectionError(toFriendlyCanvasError("network"));
+        } else {
+          recoverAfterNavigation(action);
+        }
+      })
+      .finally(() => {
+        if (actionIsCurrent(action)) setIsReplacing(false);
+        finishAction(action);
+      });
+  };
 
-  const handleRetry = useCallback(async () => {
+  const handleRetry = async () => {
     if (!owner.retrySourceJobId) return;
     const action = beginAction();
-    try {
+    const run = async () => {
       const response = await requestStart(
         action,
         "/api/canvas/retry",
@@ -479,29 +445,21 @@ export default function useCanvasImport({
       } else if (response.status !== 409) {
         setConnectionError(t("Could not start the import. Please try again."));
       }
-    } catch {
-      if (actionIsCurrent(action)) {
-        setConnectionError(toFriendlyCanvasError("network"));
-      } else {
-        recoverAfterNavigation(action);
-      }
-    } finally {
-      finishAction(action);
-    }
-  }, [
-    actionIsCurrent,
-    beginAction,
-    beginJob,
-    finishAction,
-    owner.retrySourceJobId,
-    recoverAfterNavigation,
-    requestStart,
-    requireCurrentAction,
-    setConnectionError,
-    t,
-  ]);
+    };
+    await run()
+      .catch(() => {
+        if (actionIsCurrent(action)) {
+          setConnectionError(toFriendlyCanvasError("network"));
+        } else {
+          recoverAfterNavigation(action);
+        }
+      })
+      .finally(() => {
+        finishAction(action);
+      });
+  };
 
-  const handleImport = useCallback(async () => {
+  const handleImport = async () => {
     if (selectedCourseIds.length === 0) return;
     const selectedCourses = courses
       .filter(
@@ -517,7 +475,7 @@ export default function useCanvasImport({
     if (selectedCourses.length === 0) return;
 
     const action = beginAction();
-    try {
+    const run = async () => {
       const response = await requestStart(
         action,
         "/api/canvas/import",
@@ -547,35 +505,24 @@ export default function useCanvasImport({
         return;
       }
       beginJob(data.jobId, "import", action);
-    } catch {
-      if (actionIsCurrent(action)) {
-        setConnectionError(toFriendlyCanvasError("network"));
-      } else {
-        recoverAfterNavigation(action);
-      }
-    } finally {
-      finishAction(action);
-    }
-  }, [
-    actionIsCurrent,
-    beginAction,
-    beginJob,
-    courseErrors,
-    courses,
-    finishAction,
-    recoverAfterNavigation,
-    requestStart,
-    requireCurrentAction,
-    selectedCourseIds,
-    setConnectionError,
-    setCourseErrors,
-    t,
-  ]);
+    };
+    await run()
+      .catch(() => {
+        if (actionIsCurrent(action)) {
+          setConnectionError(toFriendlyCanvasError("network"));
+        } else {
+          recoverAfterNavigation(action);
+        }
+      })
+      .finally(() => {
+        finishAction(action);
+      });
+  };
 
-  const handleSync = useCallback(async () => {
+  const handleSync = async () => {
     const action = beginAction();
     setIsStartingSync(true);
-    try {
+    const run = async () => {
       const response = await requestStart(
         action,
         "/api/canvas/sync",
@@ -599,34 +546,27 @@ export default function useCanvasImport({
         return;
       }
       beginJob(data.jobId, "sync", action);
-    } catch {
-      if (actionIsCurrent(action)) {
-        setConnectionError(toFriendlyCanvasError("network"));
-      } else {
-        recoverAfterNavigation(action);
-      }
-    } finally {
-      if (actionIsCurrent(action)) setIsStartingSync(false);
-      finishAction(action);
-    }
-  }, [
-    actionIsCurrent,
-    beginAction,
-    beginJob,
-    finishAction,
-    recoverAfterNavigation,
-    requestStart,
-    requireCurrentAction,
-    setConnectionError,
-    t,
-  ]);
+    };
+    await run()
+      .catch(() => {
+        if (actionIsCurrent(action)) {
+          setConnectionError(toFriendlyCanvasError("network"));
+        } else {
+          recoverAfterNavigation(action);
+        }
+      })
+      .finally(() => {
+        if (actionIsCurrent(action)) setIsStartingSync(false);
+        finishAction(action);
+      });
+  };
 
-  const handleCancel = useCallback(async () => {
+  const handleCancel = async () => {
     const jobId =
       owner.statusSnapshot?.activeJob?.jobId ?? getStoredActiveJobId();
     if (!jobId) return;
     const action = beginAction();
-    try {
+    const run = async () => {
       const response = await fetch(
         `/api/canvas/import?jobId=${encodeURIComponent(jobId)}`,
         { method: "DELETE", signal: action.controller.signal },
@@ -637,25 +577,19 @@ export default function useCanvasImport({
       } else if (response.ok) {
         await owner.checkStatus();
       }
-    } catch {
-      if (actionIsCurrent(action)) {
-        setConnectionError(toFriendlyCanvasError("network"));
-      } else {
-        recoverAfterNavigation(action);
-      }
-    } finally {
-      finishAction(action);
-    }
-  }, [
-    actionIsCurrent,
-    beginAction,
-    finishAction,
-    owner,
-    recoverAfterNavigation,
-    requireCurrentAction,
-    setConnectionError,
-    t,
-  ]);
+    };
+    await run()
+      .catch(() => {
+        if (actionIsCurrent(action)) {
+          setConnectionError(toFriendlyCanvasError("network"));
+        } else {
+          recoverAfterNavigation(action);
+        }
+      })
+      .finally(() => {
+        finishAction(action);
+      });
+  };
 
   return {
     pendingReplacement,

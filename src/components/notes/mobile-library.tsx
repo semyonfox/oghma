@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeftIcon,
@@ -45,10 +45,7 @@ export default function MobileLibrary() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const folderPath = searchParams.get("folder") || "";
-  const path = useMemo(
-    () => folderPath.split("/").filter(Boolean),
-    [folderPath],
-  );
+  const path = folderPath.split("/").filter(Boolean);
   const folderId = path.at(-1) || "root";
   const tree = useNoteTreeStore((s) => s.tree);
   const initLoaded = useNoteTreeStore((s) => s.initLoaded);
@@ -93,7 +90,7 @@ export default function MobileLibrary() {
     setSelectedIds(new Set());
     void (async () => {
       let parent = "root";
-      for (const id of path) {
+      for (const id of folderPath.split("/").filter(Boolean)) {
         await loadChildren(parent === "root" ? null : parent);
         if (cancelled || useNoteTreeStore.getState().generation !== generation)
           return;
@@ -111,19 +108,17 @@ export default function MobileLibrary() {
     return () => {
       cancelled = true;
     };
-  }, [initLoaded, path, loadChildren]);
+  }, [initLoaded, folderPath, loadChildren]);
 
-  const items = useMemo(() => {
-    const ids = pinnedOnly
-      ? Object.keys(tree.items).filter(
-          (id) => tree.items[id].data?.pinned === NOTE_PINNED.PINNED,
-        )
-      : tree.items[folderId]?.children || [];
-    return ids
-      .map((id) => tree.items[id])
-      .filter((item) => !!item && item.id !== "root")
-      .sort((a, b) => Number(!!b.isFolder) - Number(!!a.isFolder));
-  }, [folderId, pinnedOnly, tree]);
+  const ids = pinnedOnly
+    ? Object.keys(tree.items).filter(
+        (id) => tree.items[id].data?.pinned === NOTE_PINNED.PINNED,
+      )
+    : tree.items[folderId]?.children || [];
+  const items = ids
+    .map((id) => tree.items[id])
+    .filter((item) => !!item && item.id !== "root")
+    .sort((a, b) => Number(!!b.isFolder) - Number(!!a.isFolder));
   const startCreate = (kind: "note" | "folder") => {
     setLibraryMenu(false);
     setName("");
@@ -147,7 +142,7 @@ export default function MobileLibrary() {
     if (!name.trim() || busy || !createKind) return;
     setBusy(true);
     setError("");
-    try {
+    const run = async () => {
       const note = await useNoteStore.getState().createNote({
         id: useNoteTreeStore.getState().genNewId(),
         title: name.trim(),
@@ -163,11 +158,14 @@ export default function MobileLibrary() {
           `/notes/${note.id}${folderPath ? `?folder=${encodeURIComponent(folderPath)}` : ""}`,
         );
       }
-    } catch {
-      setError(t("Could not complete that action. Please try again."));
-    } finally {
-      setBusy(false);
-    }
+    };
+    await run()
+      .catch(() => {
+        setError(t("Could not complete that action. Please try again."));
+      })
+      .finally(() => {
+        setBusy(false);
+      });
   };
   const openItem = (id: string) => {
     const item = tree.items[id];

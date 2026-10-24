@@ -96,34 +96,36 @@ export default function LanguageSelector({
 
   const applyImmediately = async (lang: Locale) => {
     setIsApplying(true);
-    try {
+    const run = async () => {
       const { dict } = await loadLocaleData(lang);
       // Apply first so the provider mirrors the choice into the cookie. The
       // language then holds when account saving is unavailable, which is the
       // normal case for signed-out visitors.
       locale(lang, dict);
 
-      try {
-        await updateSettings({ locale: lang });
-      } catch (error) {
-        // A signed-out visitor has no account to save to; the local
-        // preference is the whole story and nothing has gone wrong.
-        if (
-          !(error instanceof SettingsRequestError) ||
-          error.status !== 401
-        ) {
-          console.error("Failed to save language preference:", error);
-          toast.error(t("Failed to save language preference"));
-        }
-      }
+      await updateSettings({ locale: lang })
+        .catch((error: unknown) => {
+          // A signed-out visitor has no account to save to; the local
+          // preference is the whole story and nothing has gone wrong.
+          if (
+            !(error instanceof SettingsRequestError) ||
+            error.status !== 401
+          ) {
+            console.error("Failed to save language preference:", error);
+            toast.error(t("Failed to save language preference"));
+          }
+        });
 
       router.refresh();
-    } catch (error) {
-      console.error("Failed to change language:", error);
-      toast.error(t("Failed to change language"));
-    } finally {
-      setIsApplying(false);
-    }
+    };
+    await run()
+      .catch((error: unknown) => {
+        console.error("Failed to change language:", error);
+        toast.error(t("Failed to change language"));
+      })
+      .finally(() => {
+        setIsApplying(false);
+      });
   };
 
   const handleLanguageChange = (lang: Locale) => {

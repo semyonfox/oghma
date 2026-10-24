@@ -177,7 +177,7 @@ export default function ExamPaperImportControl({
     // re-read at submit so the request carries exactly what was validated, without holding every file in memory
     const read = await readPaper(entry.file);
     if ("error" in read) return { kind: "error", message: read.error };
-    try {
+    const attempt = async (): Promise<Outcome> => {
       const data = await requestJson(
         `/api/study-maps/${encodeURIComponent(mapId)}/papers/import`,
         { method: "POST", body: read.text },
@@ -193,9 +193,11 @@ export default function ExamPaperImportControl({
       return result.data.indexing === "retry-needed"
         ? { kind: "indexing-retry" }
         : { kind: result.data.duplicate ? "duplicate" : "imported" };
-    } catch (cause) {
-      return { kind: "error", message: messageFor(cause) };
-    }
+    };
+    return await attempt()
+      .catch((cause: unknown) => {
+        return { kind: "error", message: messageFor(cause) };
+      });
   }
 
   async function run() {
@@ -219,13 +221,12 @@ export default function ExamPaperImportControl({
         : `${committed} added, ${failed} failed. Retry the failed ${failed === 1 ? "paper" : "papers"} when you are ready.`,
     );
     if (committed > 0) {
-      try {
-        await onImported();
-      } catch (cause) {
-        setRefreshError(
-          `The papers were imported, but the list could not be refreshed. ${messageFor(cause)}`,
-        );
-      }
+      await onImported()
+        .catch((cause: unknown) => {
+          setRefreshError(
+            `The papers were imported, but the list could not be refreshed. ${messageFor(cause)}`,
+          );
+        });
     }
     setRunning(false);
   }

@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import useNoteTreeStore from "@/lib/notes/state/tree";
@@ -30,6 +30,25 @@ function notifyTrashChanged() {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event("notes:trash-changed"));
   }
+}
+
+async function readDuplicateSource(id: string) {
+  const original = useNoteTreeStore.getState().tree.items[id];
+  const noteAPI = useNoteStore.getState().noteAPI;
+  if (!original?.data || !noteAPI) throw new Error("Note unavailable");
+  // tree rows carry no content, so copy the stored note. its response
+  // has no parent, which is why placement comes from the tree row
+  const source = await noteAPI.find(id, { deduplicate: false });
+  // an uploaded file's object belongs to the original; an empty note
+  // with its name would not be a copy
+  if (!source || source.isFolder || source.s3Key) {
+    throw new Error("Note cannot be duplicated");
+  }
+  return {
+    title: source.title,
+    content: source.content || "\n",
+    pid: original.data.pid,
+  };
 }
 
 // sidebar CRUD operations and action callbacks
@@ -68,160 +87,130 @@ export function useSidebarActions(deps: {
   } = useNoteTreeStore();
   const { createNote, createFolder, mutateNote, removeNote } = useNoteStore();
 
-  const revealCreatedItem = useCallback(
-    async (itemId: string, parentId: string) => {
-      if (parentId !== "root") {
-        const newExpandedIds = new Set(expandedIds);
-        newExpandedIds.add(parentId);
-        setExpandedIds(newExpandedIds);
-        await mutateItem(parentId, { isExpanded: true });
-        // a collapsed folder that was never read only holds the new child;
-        // read the branch so its existing notes appear alongside it
-        if (!useNoteTreeStore.getState().tree.items[parentId]?.childrenLoaded) {
-          await loadChildren(parentId);
-        }
+  const revealCreatedItem = async (itemId: string, parentId: string) => {
+    if (parentId !== "root") {
+      const newExpandedIds = new Set(expandedIds);
+      newExpandedIds.add(parentId);
+      setExpandedIds(newExpandedIds);
+      await mutateItem(parentId, { isExpanded: true });
+      // a collapsed folder that was never read only holds the new child;
+      // read the branch so its existing notes appear alongside it
+      if (!useNoteTreeStore.getState().tree.items[parentId]?.childrenLoaded) {
+        await loadChildren(parentId);
       }
-      setRenamingId(itemId);
-    },
-    [expandedIds, loadChildren, mutateItem, setExpandedIds, setRenamingId],
-  );
+    }
+    setRenamingId(itemId);
+  };
 
-  const createNoteAndStartRename = useCallback(
-    async (parentId: string) => {
-      const newId = genNewId();
-      const pid = parentId === "root" ? undefined : parentId;
-      const newNote = await createNote({
-        id: newId,
-        title: t("Untitled"),
-        content: "\n",
-        pid,
-      });
-      if (newNote) {
-        await revealCreatedItem(newId, parentId);
-        router.push(`/notes/${newId}`);
-      }
-    },
-    [createNote, genNewId, revealCreatedItem, router, t],
-  );
+  const createNoteAndStartRename = async (parentId: string) => {
+    const newId = genNewId();
+    const pid = parentId === "root" ? undefined : parentId;
+    const newNote = await createNote({
+      id: newId,
+      title: t("Untitled"),
+      content: "\n",
+      pid,
+    });
+    if (newNote) {
+      await revealCreatedItem(newId, parentId);
+      router.push(`/notes/${newId}`);
+    }
+  };
 
-  const createFolderAndStartRename = useCallback(
-    async (parentId: string) => {
-      const pid = parentId === "root" ? undefined : parentId;
-      const newFolder = await createFolder(pid);
-      if (newFolder) {
-        await revealCreatedItem(newFolder.id, parentId);
-      }
-    },
-    [createFolder, revealCreatedItem],
-  );
+  const createFolderAndStartRename = async (parentId: string) => {
+    const pid = parentId === "root" ? undefined : parentId;
+    const newFolder = await createFolder(pid);
+    if (newFolder) {
+      await revealCreatedItem(newFolder.id, parentId);
+    }
+  };
 
   // quick new note from toolbar button
-  const handleQuickNewNote = useCallback(
-    () => createNoteAndStartRename("root"),
-    [createNoteAndStartRename],
-  );
+  const handleQuickNewNote = () => createNoteAndStartRename("root");
 
   // quick new folder from toolbar button
-  const handleQuickNewFolder = useCallback(
-    () => createFolderAndStartRename("root"),
-    [createFolderAndStartRename],
-  );
+  const handleQuickNewFolder = () => createFolderAndStartRename("root");
 
   // upload one file and create a note for it
-  const uploadFile = useCallback(
-    async (file: File) => {
-      const formData = new FormData();
-      formData.append("file", file);
+  const uploadFile = async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
 
-      const uploadRes = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
+    const uploadRes = await fetch("/api/upload", {
+      method: "POST",
+      body: formData,
+    });
 
-      if (!uploadRes.ok) {
-        throw new Error("upload failed");
-      }
+    if (!uploadRes.ok) {
+      throw new Error("upload failed");
+    }
 
-      const data: unknown = await uploadRes.json();
-      if (!isRecord(data) || typeof data.noteId !== "string") {
-        throw new Error("upload response did not include a note ID");
-      }
-      return data.noteId;
-    },
-    [],
-  );
+    const data: unknown = await uploadRes.json();
+    if (!isRecord(data) || typeof data.noteId !== "string") {
+      throw new Error("upload response did not include a note ID");
+    }
+    return data.noteId;
+  };
 
   // upload files
-  const handleUploadFiles = useCallback(
-    async (files: File[]) => {
-      let firstNoteId: string | null = null;
+  const handleUploadFiles = async (files: File[]) => {
+    let firstNoteId: string | null = null;
 
-      for (const file of files) {
-        try {
-          const noteId = await uploadFile(file);
-          if (!firstNoteId) firstNoteId = noteId;
-        } catch {
-          toast.error(t("Failed to upload {filename}", { filename: file.name }));
-        }
+    for (const file of files) {
+      try {
+        const noteId = await uploadFile(file);
+        if (!firstNoteId) firstNoteId = noteId;
+      } catch {
+        toast.error(t("Failed to upload {filename}", { filename: file.name }));
       }
+    }
 
-      if (firstNoteId) {
-        // The upload endpoint publishes the source note before its background
-        // extraction begins. Merge the root branch once for the whole batch so
-        // the sidebar reflects that immediately without a full-tree reset.
-        const userId = useNoteTreeStore.getState().ownerUserId;
-        if (userId) publishWorkspaceInvalidation(userId, "tree");
-        await refreshChildren(null);
-        router.push(`/notes/${firstNoteId}`);
-      }
-    },
-    [refreshChildren, router, uploadFile, t],
-  );
+    if (firstNoteId) {
+      // The upload endpoint publishes the source note before its background
+      // extraction begins. Merge the root branch once for the whole batch so
+      // the sidebar reflects that immediately without a full-tree reset.
+      const userId = useNoteTreeStore.getState().ownerUserId;
+      if (userId) publishWorkspaceInvalidation(userId, "tree");
+      await refreshChildren(null);
+      router.push(`/notes/${firstNoteId}`);
+    }
+  };
 
   // collapse all tree items
-  const handleCollapseAll = useCallback(() => {
+  const handleCollapseAll = () => {
     collapseAllItems();
-  }, [collapseAllItems]);
+  };
 
   // start renaming an item
-  const handleRename = useCallback(
-    (id: string) => {
-      setRenamingId(id);
-    },
-    [setRenamingId],
-  );
+  const handleRename = (id: string) => {
+    setRenamingId(id);
+  };
 
   // request delete (shows confirmation)
-  const handleDeleteRequest = useCallback(
-    (id: string) => {
-      if (!initLoaded) {
-        toast.error(t("Please wait for notes to load"));
-        return;
-      }
-      setDeleteConfirmTarget({ mode: "single", ids: [id] });
-    },
-    [initLoaded, setDeleteConfirmTarget, t],
-  );
+  const handleDeleteRequest = (id: string) => {
+    if (!initLoaded) {
+      toast.error(t("Please wait for notes to load"));
+      return;
+    }
+    setDeleteConfirmTarget({ mode: "single", ids: [id] });
+  };
 
-  const handleBulkDeleteRequest = useCallback(
-    (ids: string[]) => {
-      if (!initLoaded) {
-        toast.error(t("Please wait for notes to load"));
-        return;
-      }
-      const cleanIds = ids.filter((id) => id !== "root" && tree.items[id]);
-      if (cleanIds.length === 0) return;
-      if (cleanIds.length === 1) {
-        setDeleteConfirmTarget({ mode: "single", ids: [cleanIds[0]] });
-        return;
-      }
-      setDeleteConfirmTarget({ mode: "bulk", ids: cleanIds });
-    },
-    [initLoaded, setDeleteConfirmTarget, tree.items, t],
-  );
+  const handleBulkDeleteRequest = (ids: string[]) => {
+    if (!initLoaded) {
+      toast.error(t("Please wait for notes to load"));
+      return;
+    }
+    const cleanIds = ids.filter((id) => id !== "root" && tree.items[id]);
+    if (cleanIds.length === 0) return;
+    if (cleanIds.length === 1) {
+      setDeleteConfirmTarget({ mode: "single", ids: [cleanIds[0]] });
+      return;
+    }
+    setDeleteConfirmTarget({ mode: "bulk", ids: cleanIds });
+  };
 
   // confirm and execute delete
-  const handleDeleteConfirm = useCallback(async () => {
+  const handleDeleteConfirm = async () => {
     if (!deleteConfirmTarget) return;
 
     const target = deleteConfirmTarget;
@@ -231,19 +220,20 @@ export function useSidebarActions(deps: {
       const id = target.ids[0];
       try {
         await removeNote(id);
-        notifyTrashChanged();
-        const nextSelected = new Set(useNoteTreeStore.getState().selectedIds);
-        nextSelected.delete(id);
-        setSelectedIds(nextSelected);
-        onDeleteSelectionCleared();
-        if (
-          activeId &&
-          (activeId === id || treeItemContainsId(tree, id, activeId))
-        ) {
-          router.push("/notes");
-        }
       } catch {
         toast.error(t("Could not complete that action. Please try again."));
+        return;
+      }
+      notifyTrashChanged();
+      const nextSelected = new Set(useNoteTreeStore.getState().selectedIds);
+      nextSelected.delete(id);
+      setSelectedIds(nextSelected);
+      onDeleteSelectionCleared();
+      if (
+        activeId &&
+        (activeId === id || treeItemContainsId(tree, id, activeId))
+      ) {
+        router.push("/notes");
       }
       return;
     }
@@ -303,186 +293,141 @@ export function useSidebarActions(deps: {
     toast.error(t("Could not complete that action. Please try again."));
     setSelectedIds(new Set(target.ids));
     await refreshTree();
-  }, [
-    activeId,
-    deleteConfirmTarget,
-    onDeleteSelectionCleared,
-    refreshTree,
-    removeNote,
-    router,
-    setDeleteConfirmTarget,
-    setSelectedIds,
-    t,
-    tree,
-  ]);
+  };
 
   // duplicate a note next to the original
-  const handleDuplicate = useCallback(
-    async (id: string) => {
-      try {
-        const original = useNoteTreeStore.getState().tree.items[id];
-        const noteAPI = useNoteStore.getState().noteAPI;
-        if (!original?.data || !noteAPI) throw new Error("Note unavailable");
-        // tree rows carry no content, so copy the stored note. its response
-        // has no parent, which is why placement comes from the tree row
-        const source = await noteAPI.find(id, { deduplicate: false });
-        // an uploaded file's object belongs to the original; an empty note
-        // with its name would not be a copy
-        if (!source || source.isFolder || source.s3Key) {
-          throw new Error("Note cannot be duplicated");
-        }
-        const newId = genNewId();
-        const newNote = await createNote({
-          id: newId,
-          title: t("{title} (Copy)", { title: source.title }),
-          content: source.content || "\n",
-          pid: original.data.pid,
-        });
-        if (newNote) router.push(`/notes/${newId}`);
-      } catch {
-        toast.error(t("Failed to duplicate"));
-      }
-    },
-    [genNewId, createNote, router, t],
-  );
+  const handleDuplicate = async (id: string) => {
+    try {
+      const copy = await readDuplicateSource(id);
+      const newId = genNewId();
+      const newNote = await createNote({
+        id: newId,
+        title: t("{title} (Copy)", { title: copy.title }),
+        content: copy.content,
+        pid: copy.pid,
+      });
+      if (newNote) router.push(`/notes/${newId}`);
+    } catch {
+      toast.error(t("Failed to duplicate"));
+    }
+  };
 
   // toggle pin/unpin
-  const handleTogglePin = useCallback(
-    async (id: string) => {
-      const item = tree.items[id];
-      if (!item?.data) return;
-      const newPinned =
-        item.data.pinned === NOTE_PINNED.PINNED
-          ? NOTE_PINNED.UNPINNED
-          : NOTE_PINNED.PINNED;
-      await mutateNote(id, { pinned: newPinned });
-    },
-    [tree.items, mutateNote],
-  );
+  const handleTogglePin = async (id: string) => {
+    const item = tree.items[id];
+    if (!item?.data) return;
+    const newPinned =
+      item.data.pinned === NOTE_PINNED.PINNED
+        ? NOTE_PINNED.UNPINNED
+        : NOTE_PINNED.PINNED;
+    await mutateNote(id, { pinned: newPinned });
+  };
 
   // create note inside a folder (from context menu)
-  const handleContextCreateNote = useCallback(
-    (parentId: string) => createNoteAndStartRename(parentId),
-    [createNoteAndStartRename],
-  );
+  const handleContextCreateNote = (parentId: string) => createNoteAndStartRename(parentId);
 
   // create folder inside a folder (from context menu)
-  const handleCreateFolder = useCallback(
-    (parentId: string) => createFolderAndStartRename(parentId),
-    [createFolderAndStartRename],
-  );
+  const handleCreateFolder = (parentId: string) => createFolderAndStartRename(parentId);
 
   // open in split pane
-  const handleOpenInSplit = useCallback(
-    (id: string) => {
-      const item = tree.items[id];
-      if (!item?.data) return;
-      const { setPaneB, setActivePane } = useLayoutStore.getState();
-      setPaneB(buildFileSpec(item.data));
-      setActivePane("B");
-    },
-    [tree.items],
-  );
+  const handleOpenInSplit = (id: string) => {
+    const item = tree.items[id];
+    if (!item?.data) return;
+    const { setPaneB, setActivePane } = useLayoutStore.getState();
+    setPaneB(buildFileSpec(item.data));
+    setActivePane("B");
+  };
 
   // navigate to AI chat with note/folder context
-  const handleOpenInAIChat = useCallback(
-    (id: string, nodeData: NoteModel | undefined, isFolder: boolean) => {
-      const title = encodeURIComponent(
-        nodeData?.title || (isFolder ? t("Folder") : t("Untitled")),
-      );
-      const param = isFolder
-        ? `folderId=${id}&folderTitle=${title}`
-        : `noteId=${id}&noteTitle=${title}`;
-      router.push(`/chat?${param}`);
-    },
-    [router, t],
-  );
+  const handleOpenInAIChat = (id: string, nodeData: NoteModel | undefined, isFolder: boolean) => {
+    const title = encodeURIComponent(
+      nodeData?.title || (isFolder ? t("Folder") : t("Untitled")),
+    );
+    const param = isFolder
+      ? `folderId=${id}&folderTitle=${title}`
+      : `noteId=${id}&noteTitle=${title}`;
+    router.push(`/chat?${param}`);
+  };
 
   // open context menu on right-click
-  const handleItemContextMenu = useCallback(
-    (
-      e: React.MouseEvent,
-      itemId: string,
-      isFolder: boolean,
-      isPinned: boolean,
-    ) => {
-      e.preventDefault();
-      const selectedGroup =
-        selectedIds.has(itemId) && selectedIds.size > 1
-          ? Array.from(selectedIds).filter((id) => id !== "root")
-          : [itemId];
+  const handleItemContextMenu = (
+    e: React.MouseEvent,
+    itemId: string,
+    isFolder: boolean,
+    isPinned: boolean,
+  ) => {
+    e.preventDefault();
+    const selectedGroup =
+      selectedIds.has(itemId) && selectedIds.size > 1
+        ? Array.from(selectedIds).filter((id) => id !== "root")
+        : [itemId];
 
-      if (selectedGroup.length === 1) {
-        setSelectedIds(new Set([itemId]));
-        setSelectionAnchorId(itemId);
-      }
+    if (selectedGroup.length === 1) {
+      setSelectedIds(new Set([itemId]));
+      setSelectionAnchorId(itemId);
+    }
 
-      useContextMenuStore
-        .getState()
-        .setOpenMenu(
-          itemId,
-          e.clientX,
-          e.clientY,
-          isFolder,
-          isPinned,
-          selectedGroup,
-        );
-    },
-    [selectedIds, setSelectedIds, setSelectionAnchorId],
-  );
+    useContextMenuStore
+      .getState()
+      .setOpenMenu(
+        itemId,
+        e.clientX,
+        e.clientY,
+        isFolder,
+        isPinned,
+        selectedGroup,
+      );
+  };
 
   // drag and drop handler
-  const handleDrop = useCallback(
-    (
-      draggedItems: ComplexTreeItem<NoteModel | undefined>[],
-      target: DraggingPosition,
-    ) => {
-      if (draggedItems.length === 0) return;
+  const handleDrop = (
+    draggedItems: ComplexTreeItem<NoteModel | undefined>[],
+    target: DraggingPosition,
+  ) => {
+    if (draggedItems.length === 0) return;
 
-      const currentItems = useNoteTreeStore.getState().tree.items;
-      const dragId = draggedItems[0]?.index;
-      if (typeof dragId !== "string") return;
+    const currentItems = useNoteTreeStore.getState().tree.items;
+    const dragId = draggedItems[0]?.index;
+    if (typeof dragId !== "string") return;
 
-      let sourceParentId = "";
-      for (const itemId in currentItems) {
-        if (currentItems[itemId].children.includes(dragId)) {
-          sourceParentId = itemId;
-          break;
-        }
+    let sourceParentId = "";
+    for (const itemId in currentItems) {
+      if (currentItems[itemId].children.includes(dragId)) {
+        sourceParentId = itemId;
+        break;
       }
-      if (!sourceParentId) return;
+    }
+    if (!sourceParentId) return;
 
-      let destParentId: string;
+    let destParentId: string;
 
-      if (target.targetType === "item") {
-        if (typeof target.targetItem !== "string") return;
-        destParentId = target.targetItem;
-      } else if (target.targetType === "between-items") {
-        if (typeof target.parentItem !== "string") return;
-        destParentId = target.parentItem;
-      } else {
-        destParentId = "root";
-      }
+    if (target.targetType === "item") {
+      if (typeof target.targetItem !== "string") return;
+      destParentId = target.targetItem;
+    } else if (target.targetType === "between-items") {
+      if (typeof target.parentItem !== "string") return;
+      destParentId = target.parentItem;
+    } else {
+      destParentId = "root";
+    }
 
-      if (typeof destParentId !== "string") return;
-      if (
-        wouldCreateTreeCycle(
-          useNoteTreeStore.getState().tree,
-          dragId,
-          destParentId,
-        )
-      ) {
-        return;
-      }
+    if (typeof destParentId !== "string") return;
+    if (
+      wouldCreateTreeCycle(
+        useNoteTreeStore.getState().tree,
+        dragId,
+        destParentId,
+      )
+    ) {
+      return;
+    }
 
-      void moveItem({
-        noteId: dragId,
-        expectedParentId: sourceParentId === "root" ? null : sourceParentId,
-        parentId: destParentId === "root" ? null : destParentId,
-      });
-    },
-    [moveItem],
-  );
+    void moveItem({
+      noteId: dragId,
+      expectedParentId: sourceParentId === "root" ? null : sourceParentId,
+      parentId: destParentId === "root" ? null : destParentId,
+    });
+  };
 
   return {
     // tree store state/methods passed through
@@ -494,41 +439,32 @@ export function useSidebarActions(deps: {
     mutateItem,
     mutateNote,
     // view state helpers
-    handleExpandItem: useCallback(
-      (item: ComplexTreeItem<NoteModel | undefined>) => {
-        const itemId = item.index;
+    handleExpandItem: (item: ComplexTreeItem<NoteModel | undefined>) => {
+      const itemId = item.index;
+      if (typeof itemId === "string") {
+        mutateItem(itemId, { isExpanded: true });
+        const treeItem = useNoteTreeStore.getState().tree.items[itemId];
+        if (treeItem?.isFolder && !treeItem.childrenLoaded) {
+          loadChildren(itemId);
+        }
+      }
+    },
+    handleCollapseItem: (item: ComplexTreeItem<NoteModel | undefined>) => {
+      const itemId = item.index;
+      if (typeof itemId === "string") {
+        mutateItem(itemId, { isExpanded: false });
+      }
+    },
+    onMissingItems: async (itemIds: import("react-complex-tree").TreeItemIndex[]) => {
+      for (const itemId of itemIds) {
         if (typeof itemId === "string") {
-          mutateItem(itemId, { isExpanded: true });
-          const treeItem = useNoteTreeStore.getState().tree.items[itemId];
-          if (treeItem?.isFolder && !treeItem.childrenLoaded) {
-            loadChildren(itemId);
+          const item = useNoteTreeStore.getState().tree.items[itemId];
+          if (item && item.isFolder && item.children.length === 0) {
+            await loadChildren(itemId);
           }
         }
-      },
-      [mutateItem, loadChildren],
-    ),
-    handleCollapseItem: useCallback(
-      (item: ComplexTreeItem<NoteModel | undefined>) => {
-        const itemId = item.index;
-        if (typeof itemId === "string") {
-          mutateItem(itemId, { isExpanded: false });
-        }
-      },
-      [mutateItem],
-    ),
-    onMissingItems: useCallback(
-      async (itemIds: import("react-complex-tree").TreeItemIndex[]) => {
-        for (const itemId of itemIds) {
-          if (typeof itemId === "string") {
-            const item = useNoteTreeStore.getState().tree.items[itemId];
-            if (item && item.isFolder && item.children.length === 0) {
-              await loadChildren(itemId);
-            }
-          }
-        }
-      },
-      [loadChildren],
-    ),
+      }
+    },
     // CRUD actions
     handleQuickNewNote,
     handleQuickNewFolder,

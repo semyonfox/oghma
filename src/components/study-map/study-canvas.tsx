@@ -1,12 +1,12 @@
 "use client";
 
 import {
-  useCallback,
   useEffect,
-  useMemo,
+  useLayoutEffect,
   useRef,
   useState,
   type ReactNode,
+  useEffectEvent,
 } from "react";
 import { z } from "zod";
 import type {
@@ -73,8 +73,12 @@ export default function StudyCanvas({
   const [entries, setEntries] = useState<Record<string, BoardEntry>>(() => ({
     [snapshot.map.id]: adopt(snapshot),
   }));
+  // save timers and the pagehide flush read the latest boards; every
+  // setEntries updater writes this too, so the ref never waits for a commit
   const entriesRef = useRef(entries);
-  entriesRef.current = entries;
+  useLayoutEffect(() => {
+    entriesRef.current = entries;
+  });
   const timers = useRef(new Map<string, number>());
   const inflight = useRef(new Set<string>());
   const [others, setOthers] = useState<Record<string, StudyMapSnapshot>>({});
@@ -82,21 +86,18 @@ export default function StudyCanvas({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [scopeNoticeHidden, setScopeNoticeHidden] = useState(false);
 
-  const update = useCallback(
-    (mapId: string, change: (entry: BoardEntry) => BoardEntry) => {
-      setEntries((current) => {
-        const entry = current[mapId];
-        if (!entry) return current;
-        const next = { ...current, [mapId]: change(entry) };
-        entriesRef.current = next;
-        return next;
-      });
-    },
-    [],
-  );
+  const update = (mapId: string, change: (entry: BoardEntry) => BoardEntry) => {
+    setEntries((current) => {
+      const entry = current[mapId];
+      if (!entry) return current;
+      const next = { ...current, [mapId]: change(entry) };
+      entriesRef.current = next;
+      return next;
+    });
+  };
 
   // a refreshed snapshot replaces the board only when nothing local is waiting to be saved
-  const receive = useCallback((incoming: StudyMapSnapshot) => {
+  const receive = (incoming: StudyMapSnapshot) => {
     setEntries((current) => {
       const entry = current[incoming.map.id];
       // a newer server board under local edits surfaces as a 409 on the next save
@@ -110,70 +111,72 @@ export default function StudyCanvas({
       entriesRef.current = next;
       return next;
     });
-  }, []);
+  };
 
+  const receiveSnapshot = useEffectEvent(receive);
   useEffect(() => {
-    receive(snapshot);
+    receiveSnapshot(snapshot);
     clearNoteCache();
-  }, [receive, snapshot]);
+  }, [snapshot]);
 
-  const save = useCallback(
-    async (mapId: string) => {
-      const entry = entriesRef.current[mapId];
-      if (!entry || entry.status === "conflict" || inflight.current.has(mapId))
-        return;
-      inflight.current.add(mapId);
-      const submitted = entry.board;
+  // one PUT of the current board; true when it changed again meanwhile
+  const saveOnce = async (mapId: string): Promise<boolean> => {
+    const entry = entriesRef.current[mapId];
+    if (!entry || entry.status === "conflict" || inflight.current.has(mapId))
+      return false;
+    inflight.current.add(mapId);
+    const submitted = entry.board;
+    update(mapId, (current) => ({
+      ...current,
+      status: "saving",
+      message: null,
+    }));
+    const outcome = await requestJson(`/api/study-maps/${mapId}/board`, {
+      method: "PUT",
+      body: JSON.stringify({ version: entry.version, board: submitted }),
+    })
+      .then((value) => versionSchema.parse(value))
+      .then(
+        (result) => ({ result }),
+        (error: unknown) => ({ error }),
+      );
+    inflight.current.delete(mapId);
+    if ("error" in outcome) {
+      const { error } = outcome;
       update(mapId, (current) => ({
         ...current,
-        status: "saving",
-        message: null,
+        status:
+          error instanceof RequestError && error.status === 409
+            ? "conflict"
+            : "error",
+        message: messageFor(error),
       }));
-      try {
-        const result = versionSchema.parse(
-          await requestJson(`/api/study-maps/${mapId}/board`, {
-            method: "PUT",
-            body: JSON.stringify({ version: entry.version, board: submitted }),
-          }),
-        );
-        inflight.current.delete(mapId);
-        const changed = entriesRef.current[mapId]?.board !== submitted;
-        update(mapId, (current) => ({
-          ...current,
-          version: result.version,
-          status: changed ? "pending" : "saved",
-        }));
-        if (changed) void save(mapId);
-      } catch (error) {
-        inflight.current.delete(mapId);
-        update(mapId, (current) => ({
-          ...current,
-          status:
-            error instanceof RequestError && error.status === 409
-              ? "conflict"
-              : "error",
-          message: messageFor(error),
-        }));
-      }
-    },
-    [update],
-  );
+      return false;
+    }
+    const changed = entriesRef.current[mapId]?.board !== submitted;
+    update(mapId, (current) => ({
+      ...current,
+      version: outcome.result.version,
+      status: changed ? "pending" : "saved",
+    }));
+    return changed;
+  };
+  const save = async (mapId: string) => {
+    while (await saveOnce(mapId));
+  };
 
-  const change = useCallback(
-    (mapId: string, board: StudyBoard) => {
-      update(mapId, (entry) => ({
-        ...entry,
-        board,
-        status: entry.status === "conflict" ? "conflict" : "pending",
-      }));
-      window.clearTimeout(timers.current.get(mapId));
-      timers.current.set(
-        mapId,
-        window.setTimeout(() => void save(mapId), SAVE_DELAY),
-      );
-    },
-    [save, update],
-  );
+  const change = (mapId: string, board: StudyBoard) => {
+    update(mapId, (entry) => ({
+      ...entry,
+      board,
+      status: entry.status === "conflict" ? "conflict" : "pending",
+    }));
+    window.clearTimeout(timers.current.get(mapId));
+    timers.current.set(
+      mapId,
+      window.setTimeout(() => void save(mapId), SAVE_DELAY),
+    );
+  };
 
   // leaving the page should not lose a move made in the last moment
   useEffect(() => {
@@ -198,45 +201,42 @@ export default function StudyCanvas({
     };
   }, []);
 
-  const resolve = useCallback(
-    async (mapId: string, keepMine: boolean) => {
-      try {
-        const incoming = snapshotSchema.parse(
-          await requestJson(`/api/study-maps/${mapId}`),
-        );
-        if (mapId !== snapshot.map.id)
-          setOthers((current) => ({ ...current, [mapId]: incoming }));
-        if (keepMine) {
-          update(mapId, (entry) => ({
-            ...entry,
-            version: incoming.map.boardVersion,
-            status: "pending",
-            message: null,
-          }));
-          void save(mapId);
-        } else {
-          setEntries((current) => {
-            const next = { ...current, [mapId]: adopt(incoming) };
-            entriesRef.current = next;
-            return next;
-          });
-        }
-      } catch (error) {
-        update(mapId, (entry) => ({ ...entry, message: messageFor(error) }));
-      }
-    },
-    [save, snapshot.map.id, update],
-  );
+  const resolve = async (mapId: string, keepMine: boolean) => {
+    const fetched = await requestJson(`/api/study-maps/${mapId}`)
+      .then((value) => snapshotSchema.parse(value))
+      .then(
+        (incoming) => ({ incoming }),
+        (error: unknown) => ({ error }),
+      );
+    if ("error" in fetched) {
+      update(mapId, (entry) => ({ ...entry, message: messageFor(fetched.error) }));
+      return;
+    }
+    const { incoming } = fetched;
+    if (mapId !== snapshot.map.id)
+      setOthers((current) => ({ ...current, [mapId]: incoming }));
+    if (keepMine) {
+      update(mapId, (entry) => ({
+        ...entry,
+        version: incoming.map.boardVersion,
+        status: "pending",
+        message: null,
+      }));
+      void save(mapId);
+    } else {
+      setEntries((current) => {
+        const next = { ...current, [mapId]: adopt(incoming) };
+        entriesRef.current = next;
+        return next;
+      });
+    }
+  };
 
-  const otherIds = useMemo(
-    () =>
-      maps
-        .filter((map) => map.id !== snapshot.map.id)
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .slice(0, MAX_MODULES - 1)
-        .map((map) => map.id),
-    [maps, snapshot.map.id],
-  );
+  const otherIds = maps
+    .filter((map) => map.id !== snapshot.map.id)
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .slice(0, MAX_MODULES - 1)
+    .map((map) => map.id);
   const otherKey = otherIds.join(",");
 
   useEffect(() => {
@@ -262,14 +262,14 @@ export default function StudyCanvas({
         if (controller.signal.aborted) return;
         for (const result of batch) {
           if (result.status === "rejected") {
-            failures++;
+            failures += 1;
             continue;
           }
           setOthers((current) => ({
             ...current,
             [result.value.map.id]: result.value,
           }));
-          receive(result.value);
+          receiveSnapshot(result.value);
         }
       }
       setLoading(false);
@@ -279,22 +279,20 @@ export default function StudyCanvas({
         );
     })();
     return () => controller.abort();
-  }, [otherKey, receive, scope]);
+  }, [otherKey, scope]);
 
-  const modules = useMemo<FlowModule[]>(() => {
-    const snapshots = [
-      snapshot,
-      ...(scope === "all"
-        ? otherIds
-            .map((id) => others[id])
-            .filter((entry): entry is StudyMapSnapshot => Boolean(entry))
-        : []),
-    ];
-    return snapshots.map((entry) => ({
-      snapshot: entry,
-      board: entries[entry.map.id]?.board ?? entry.map.board,
-    }));
-  }, [entries, otherIds, others, scope, snapshot]);
+  const moduleSnapshots = [
+    snapshot,
+    ...(scope === "all"
+      ? otherIds
+          .map((id) => others[id])
+          .filter((entry): entry is StudyMapSnapshot => Boolean(entry))
+      : []),
+  ];
+  const modules: FlowModule[] = moduleSnapshots.map((entry) => ({
+    snapshot: entry,
+    board: entries[entry.map.id]?.board ?? entry.map.board,
+  }));
 
   const statuses = modules.map((module) => ({
     module,
