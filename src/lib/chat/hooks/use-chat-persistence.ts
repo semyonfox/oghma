@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { Message } from "@/lib/chat/types";
 import { normalizeMessageParts, decodeStoredChatJson } from "@/lib/chat/types";
 import { nextLlmThinkingMode, type LlmThinkingMode } from "@/lib/ai-config";
@@ -213,6 +213,41 @@ export function mapStoredChatMessages(messages: unknown[]): Message[] {
   });
 }
 
+// a partial assistant reply saved to sessionStorage on unload, unless the
+// durable session already has a newer answer. reading it consumes it
+function takeInterruptedDraft(
+  sessionId: string,
+  messages: Message[],
+): Message | null {
+  const draftKey = `chat-draft:${sessionId}`;
+  try {
+    const raw = sessionStorage.getItem(draftKey);
+    if (!raw) return null;
+    sessionStorage.removeItem(draftKey);
+    const draft = JSON.parse(raw) as {
+      content: string;
+      thinking?: string;
+      sources?: { id: string; title: string }[];
+      timestamp: number;
+    };
+    const alreadyHas = messages.some(
+      (m) => m.role === "assistant" && m.timestamp >= draft.timestamp,
+    );
+    if (alreadyHas || !draft.content) return null;
+    return {
+      id: `draft-${Date.now()}`,
+      role: "assistant",
+      content: `${draft.content}\n\n*[partial — response was interrupted]*`,
+      thinking: draft.thinking,
+      sources: draft.sources ?? [],
+      timestamp: draft.timestamp,
+    };
+  } catch {
+    // malformed draft or storage unavailable
+    return null;
+  }
+}
+
 /**
  * Manages thinking mode persistence (localStorage) and
  * session restore + draft save/restore (sessionStorage).
@@ -226,9 +261,9 @@ export function useChatPersistence(
   const [thinkingMode, setThinkingMode] = useState<LlmThinkingMode>("auto");
 
   // Toggle normal high-effort reasoning on or off.
-  const toggleThinking = useCallback(() => {
+  const toggleThinking = () => {
     setThinkingMode(nextLlmThinkingMode);
-  }, []);
+  };
 
   // restore thinking mode from localStorage on mount
   useEffect(() => {
@@ -246,9 +281,9 @@ export function useChatPersistence(
   // note retrieval (RAG) toggle — defaults on
   const [useRag, setUseRag] = useState<boolean>(true);
 
-  const toggleRag = useCallback(() => {
+  const toggleRag = () => {
     setUseRag((current) => !current);
-  }, []);
+  };
 
   // restore RAG preference from localStorage on mount
   useEffect(() => {
@@ -286,25 +321,22 @@ export function useChatPersistence(
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   );
-  const claimBackgroundGeneration = useCallback((generationId: string) => {
+  const claimBackgroundGeneration = (generationId: string) => {
     claimedGenerationRef.current = generationId;
     if (pollTimerRef.current) {
       clearTimeout(pollTimerRef.current);
       pollTimerRef.current = undefined;
     }
-  }, []);
-  const retryRestore = useCallback(() => {
+  };
+  const retryRestore = () => {
     setRestored(false);
     setRestoreAttempt((attempt) => attempt + 1);
-  }, []);
-  const finishBackgroundGeneration = useCallback(
-    (generationId?: string) => {
-      finishedGenerationRef.current = generationId ?? backgroundGenerationId;
-      setBackgroundLoading(false);
-      setBackgroundGenerationId(null);
-    },
-    [backgroundGenerationId],
-  );
+  };
+  const finishBackgroundGeneration = (generationId?: string) => {
+    finishedGenerationRef.current = generationId ?? backgroundGenerationId;
+    setBackgroundLoading(false);
+    setBackgroundGenerationId(null);
+  };
 
   useEffect(() => {
     finishedGenerationRef.current = null;
@@ -330,78 +362,51 @@ export function useChatPersistence(
     setBackgroundLoading(false);
     setBackgroundGenerationId(null);
 
-    const restore = async (): Promise<void> => {
-      try {
-        const snapshot = await fetchChatSessionSnapshot(
-          controlledSessionId,
-          controller.signal,
-        );
-        if (cancelled) return;
-        if (
-          snapshot.activeGenerationId &&
-          snapshot.activeGenerationId === finishedGenerationRef.current
-        ) return;
-        setRestoredSessionId(controlledSessionId);
-        setRestoredGenerating(snapshot.generating);
-        setRestoreError(false);
-        setRestored(true);
-        setBackgroundLoading(snapshot.generating);
-        setBackgroundGenerationId(snapshot.activeGenerationId);
+    const load = async () => {
+      const snapshot = await fetchChatSessionSnapshot(
+        controlledSessionId,
+        controller.signal,
+      );
+      if (cancelled) return;
+      if (
+        snapshot.activeGenerationId &&
+        snapshot.activeGenerationId === finishedGenerationRef.current
+      ) return;
+      setRestoredSessionId(controlledSessionId);
+      setRestoredGenerating(snapshot.generating);
+      setRestoreError(false);
+      setRestored(true);
+      setBackgroundLoading(snapshot.generating);
+      setBackgroundGenerationId(snapshot.activeGenerationId);
 
-        // check sessionStorage for a partial assistant message saved on unload
-        const draftKey = `chat-draft:${controlledSessionId}`;
-        let draftMsg: Message | null = null;
-        try {
-          const raw = sessionStorage.getItem(draftKey);
-          if (firstLoad && !snapshot.generating && raw) {
-            const draft = JSON.parse(raw) as {
-              content: string;
-              thinking?: string;
-              sources?: { id: string; title: string }[];
-              timestamp: number;
-            };
-            const alreadyHas = snapshot.messages.some(
-              (m) => m.role === "assistant" && m.timestamp >= draft.timestamp,
-            );
-            if (!alreadyHas && draft.content) {
-              draftMsg = {
-                id: `draft-${Date.now()}`,
-                role: "assistant",
-                content: `${draft.content}\n\n*[partial — response was interrupted]*`,
-                thinking: draft.thinking,
-                sources: draft.sources ?? [],
-                timestamp: draft.timestamp,
-              };
-            }
-            sessionStorage.removeItem(draftKey);
-          }
-        } catch {
-          // malformed draft or storage unavailable
-        }
+      const draftMsg = firstLoad && !snapshot.generating
+        ? takeInterruptedDraft(controlledSessionId, snapshot.messages)
+        : null;
 
-        setRestoredMessages([
-          ...snapshot.messages,
-          ...(draftMsg ? [draftMsg] : []),
-        ]);
-        firstLoad = false;
-        if (
-          snapshot.generating &&
-          snapshot.activeGenerationId !== claimedGenerationRef.current
-        ) {
-          pollTimerRef.current = setTimeout(() => void restore(), 1_500);
-        }
-      } catch (error) {
-        if (cancelled || controller.signal.aborted) return;
-        logChatPersistence("session restore failed", {
-          sessionId: controlledSessionId,
-          error: error instanceof Error ? error.message : String(error),
-        });
-        setRestored(false);
-        setRestoreError(true);
-        setBackgroundLoading(false);
-        setBackgroundGenerationId(null);
+      setRestoredMessages([
+        ...snapshot.messages,
+        ...(draftMsg ? [draftMsg] : []),
+      ]);
+      firstLoad = false;
+      if (
+        snapshot.generating &&
+        snapshot.activeGenerationId !== claimedGenerationRef.current
+      ) {
+        pollTimerRef.current = setTimeout(() => void restore(), 1_500);
       }
     };
+    const fail = (error: unknown) => {
+      if (cancelled || controller.signal.aborted) return;
+      logChatPersistence("session restore failed", {
+        sessionId: controlledSessionId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      setRestored(false);
+      setRestoreError(true);
+      setBackgroundLoading(false);
+      setBackgroundGenerationId(null);
+    };
+    const restore = () => load().catch(fail);
     void restore();
     return () => {
       cancelled = true;
@@ -418,11 +423,11 @@ export function useChatPersistence(
   const sessionIdRef = useRef<string | null>(null);
   const loadingRef = useRef(false);
 
-  const updateRefs = useCallback((refs: PersistenceRefs) => {
+  const updateRefs = (refs: PersistenceRefs) => {
     messagesRef.current = refs.messages;
     sessionIdRef.current = refs.sessionId;
     loadingRef.current = refs.loading;
-  }, []);
+  };
 
   // save partial draft on unload / visibility change
   useEffect(() => {

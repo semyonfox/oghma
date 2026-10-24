@@ -24,7 +24,7 @@ export function useSignedUrl(sourcePath?: string, fileId?: string) {
     setError(null);
 
     const loadUrl = async () => {
-      try {
+      const run = async () => {
         const key = await resolveStorageKey(sourcePath, fileId);
         if (cancelled) return;
         if ("error" in key) {
@@ -35,11 +35,14 @@ export function useSignedUrl(sourcePath?: string, fileId?: string) {
         if (cancelled) return;
         if ("error" in resolved) setError(resolved.error);
         else setUrl(resolved.value);
-      } catch {
-        if (!cancelled) setError("network");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+      };
+      await run()
+        .catch(() => {
+          if (!cancelled) setError("network");
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
     };
 
     void loadUrl();

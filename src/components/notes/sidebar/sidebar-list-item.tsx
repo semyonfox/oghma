@@ -2,7 +2,7 @@
 // rewritten for App Router + Tailwind (no MUI); now only renders Favorites rows
 import { NoteModel } from "@/lib/notes/types/note";
 import Link from "next/link";
-import React, { FC, memo, useCallback, useMemo } from "react";
+import React, { FC } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import IconButton from "@/components/icon-button";
 import useNoteTreeStore from "@/lib/notes/state/tree";
@@ -36,43 +36,31 @@ const SidebarListItem: FC<{
   const isFolder = item.isFolder === true || hasChildren;
   const linkHref = isFolder ? "#" : `/notes/${item.id}`;
 
-  const handleClickIcon = useCallback(
-    (e: Pick<React.SyntheticEvent, "preventDefault" | "stopPropagation">) => {
+  const handleClickIcon = (e: Pick<React.SyntheticEvent, "preventDefault" | "stopPropagation">) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onToggle();
+  };
+
+  const handleClickItem = (e: React.MouseEvent) => {
+    // folders toggle; files navigate through the Link
+    if (isFolder) {
       e.preventDefault();
-      e.stopPropagation();
       onToggle();
-    },
-    [onToggle],
-  );
+    }
+  };
 
-  const handleClickItem = useCallback(
-    (e: React.MouseEvent) => {
-      // folders toggle; files navigate through the Link
-      if (isFolder) {
-        e.preventDefault();
-        onToggle();
-      }
-    },
-    [isFolder, onToggle],
-  );
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    if (!isFolder) {
+      e.preventDefault();
+      setPaneA(buildFileSpec(item));
+      setActivePane("A");
+      router.push(linkHref);
+    }
+  };
 
-  const handleDoubleClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (!isFolder) {
-        e.preventDefault();
-        setPaneA(buildFileSpec(item));
-        setActivePane("A");
-        router.push(linkHref);
-      }
-    },
-    [isFolder, item, linkHref, router, setActivePane, setPaneA],
-  );
-
-  const emoji = useMemo(() => {
-    const emoji = item.title?.match(/\p{Emoji}/u);
-    if (emoji?.length === 1) return emoji[0];
-    return undefined;
-  }, [item.title]);
+  const emojiMatch = item.title?.match(/\p{Emoji}/u);
+  const emoji = emojiMatch?.length === 1 ? emojiMatch[0] : undefined;
 
   return (
     <>
@@ -167,4 +155,4 @@ const SidebarListItem: FC<{
   );
 };
 
-export default memo(SidebarListItem);
+export default SidebarListItem;

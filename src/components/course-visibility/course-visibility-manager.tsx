@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { MagnifyingGlassIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
@@ -176,10 +176,7 @@ function CourseVisibilityManager({
   const [query, setQuery] = useState("");
   const [busyCourseId, setBusyCourseId] = useState<string | null>(null);
   const [bulkBusy, setBulkBusy] = useState<false | "archive" | "restore">(false);
-  const grouped = useMemo(
-    () => groupCourseVisibilityItems(items, query),
-    [items, query],
-  );
+  const grouped = groupCourseVisibilityItems(items, query);
 
   const archivableNoDue = grouped.active.filter((item) => item.hasDueItems === false);
   const sectionCardClass = inline
@@ -188,17 +185,17 @@ function CourseVisibilityManager({
 
   const handleToggle = async (item: CourseVisibilityItem, nextActive: boolean) => {
     setBusyCourseId(item.courseId);
-    try {
-      await onToggleCourse(item, nextActive);
-    } catch {
-      toast.error(
-        nextActive
-          ? t("Could not restore this course. Please try again.")
-          : t("Could not archive this course. Please try again."),
-      );
-    } finally {
-      setBusyCourseId(null);
-    }
+    await onToggleCourse(item, nextActive)
+      .catch(() => {
+        toast.error(
+          nextActive
+            ? t("Could not restore this course. Please try again.")
+            : t("Could not archive this course. Please try again."),
+        );
+      })
+      .finally(() => {
+        setBusyCourseId(null);
+      });
   };
 
   const handleBulk = async (
@@ -208,17 +205,17 @@ function CourseVisibilityManager({
   ) => {
     if (!handler || batch.length === 0) return;
     setBulkBusy(mode);
-    try {
-      await handler(batch);
-    } catch {
-      toast.error(
-        mode === "archive"
-          ? t("Could not archive the selected courses. Please try again.")
-          : t("Could not restore the selected courses. Please try again."),
-      );
-    } finally {
-      setBulkBusy(false);
-    }
+    await handler(batch)
+      .catch(() => {
+        toast.error(
+          mode === "archive"
+            ? t("Could not archive the selected courses. Please try again.")
+            : t("Could not restore the selected courses. Please try again."),
+        );
+      })
+      .finally(() => {
+        setBulkBusy(false);
+      });
   };
 
   return (

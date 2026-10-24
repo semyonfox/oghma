@@ -100,7 +100,7 @@ export default function StudyBlockDialog({
 
     setSaving(true);
     setError(null);
-    try {
+    const run = async () => {
       const created = await createTimeBlock({
         title: title.trim() || undefined,
         starts_at: startsAt.toISOString(),
@@ -111,9 +111,11 @@ export default function StudyBlockDialog({
         return;
       }
       onClose();
-    } finally {
-      setSaving(false);
-    }
+    };
+    await run()
+      .finally(() => {
+        setSaving(false);
+      });
   };
 
   const inputClassName =

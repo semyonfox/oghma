@@ -6,7 +6,7 @@ WORKDIR /app
 RUN apt-get update \
     && apt-get install -y --no-install-recommends python3 make g++ \
     && rm -rf /var/lib/apt/lists/*
-COPY package.json package-lock.json* .npmrc* ./
+COPY package.json package-lock.json* ./
 RUN npm pkg delete scripts.prepare && npm ci
 COPY . .
 # Fetch the pinned Android release before Next.js indexes public files.

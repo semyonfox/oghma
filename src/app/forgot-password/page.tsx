@@ -18,7 +18,7 @@ export default function ForgotPasswordPage() {
     setMessage("");
     setError("");
 
-    try {
+    const run = async () => {
       const res = await fetch("/api/auth/password-reset/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -36,9 +36,11 @@ export default function ForgotPasswordPage() {
             t("An error occurred. Please try again."),
         );
       }
-    } catch (_err) {
-      setError(t("An error occurred. Please try again."));
-    }
+    };
+    await run()
+      .catch((_err: unknown) => {
+        setError(t("An error occurred. Please try again."));
+      });
 
     setLoading(false);
   };

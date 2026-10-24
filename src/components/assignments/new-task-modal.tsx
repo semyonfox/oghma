@@ -77,7 +77,7 @@ export default function NewTaskModal({
 
     setSaving(true);
     setError(null);
-    try {
+    const run = async () => {
       const data = {
         title: title.trim(),
         course_name: courseName.trim() || null,
@@ -114,9 +114,11 @@ export default function NewTaskModal({
         `${assignment ? t("Task updated") : t("Task created")} · ${status} · ${due}`,
       );
       onClose();
-    } finally {
-      setSaving(false);
-    }
+    };
+    await run()
+      .finally(() => {
+        setSaving(false);
+      });
   };
 
   const inputClassName =

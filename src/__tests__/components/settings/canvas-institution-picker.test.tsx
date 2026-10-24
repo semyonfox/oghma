@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CanvasInstitutionPicker from "@/components/settings/canvas/canvas-institution-picker";

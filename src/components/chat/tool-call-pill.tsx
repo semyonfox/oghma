@@ -103,18 +103,22 @@ export function WorkLog({
 
   if (notes.length === 0 && !showProgress && !searched) return null;
 
-  const summary = [
-    foundIds.size > 0
-      ? t(foundIds.size === 1 ? "Found {count} note" : "Found {count} notes", {
-          count: foundIds.size,
-        })
-      : null,
-    readCount > 0
-      ? t(readCount === 1 ? "Read {count} note" : "Read {count} notes", {
-          count: readCount,
-        })
-      : null,
-  ].filter(Boolean).join(" · ") || t("No matching notes");
+  const summaryParts: string[] = [];
+  if (foundIds.size > 0) {
+    summaryParts.push(
+      t(foundIds.size === 1 ? "Found {count} note" : "Found {count} notes", {
+        count: foundIds.size,
+      }),
+    );
+  }
+  if (readCount > 0) {
+    summaryParts.push(
+      t(readCount === 1 ? "Read {count} note" : "Read {count} notes", {
+        count: readCount,
+      }),
+    );
+  }
+  const summary = summaryParts.join(" · ") || t("No matching notes");
   const label = showProgress
     ? running?.name === "getChunks" || running?.name === "ragSearch"
       ? t("Searching notes...")

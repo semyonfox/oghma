@@ -5,7 +5,7 @@ import useNoteTreeStore from "@/lib/notes/state/tree";
 import useLayoutStore from "@/lib/notes/state/layout";
 import useContextMenuStore from "@/lib/notes/state/context-menu";
 import { buildFileSpec } from "@/lib/notes/utils/file-spec";
-import React, { memo, useMemo, useState, useCallback, useRef } from "react";
+import React, { useState, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import useMediaQuery from "@/lib/hooks/use-media-query";
 import useI18n from "@/lib/notes/hooks/use-i18n";
@@ -38,6 +38,13 @@ interface SidebarListProps {
   onOpenNote?: () => void;
 }
 
+// active note from URL
+function activeIdFromPath(pathname: string | null) {
+  if (!pathname || pathname === "/") return null;
+  const segs = pathname.split("/").filter(Boolean);
+  return segs[0] === "notes" ? (segs[1] ?? null) : (segs[0] ?? null);
+}
+
 const SidebarList = ({ onOpenNote }: SidebarListProps) => {
   const { t } = useI18n();
   const router = useRouter();
@@ -64,12 +71,7 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
     null,
   );
 
-  // active note from URL
-  const activeId = useMemo(() => {
-    if (!pathname || pathname === "/") return null;
-    const segs = pathname.split("/").filter(Boolean);
-    return segs[0] === "notes" ? (segs[1] ?? null) : (segs[0] ?? null);
-  }, [pathname]);
+  const activeId = activeIdFromPath(pathname);
 
   const treeData = useTreeData();
 
@@ -106,15 +108,9 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
     onDeleteSelectionCleared: () => setSelectionAnchorId(null),
   });
 
-  const visibleIds = useMemo(
-    () => getVisibleTreeItemIds(tree, expandedIds),
-    [tree, expandedIds],
-  );
+  const visibleIds = getVisibleTreeItemIds(tree, expandedIds);
 
-  const selectedItemIds = useMemo(
-    () => Array.from(selectedIds).filter((id) => id !== ROOT_ID && tree.items[id]),
-    [selectedIds, tree.items],
-  );
+  const selectedItemIds = Array.from(selectedIds).filter((id) => id !== ROOT_ID && tree.items[id]);
   const selectedCount = selectedItemIds.length;
   const deleteIds = deleteConfirmTarget?.ids ?? [];
   const deleteHasFolder = deleteIds.some(
@@ -123,97 +119,79 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
   const singleDeleteId =
     deleteConfirmTarget?.mode === "single" ? deleteConfirmTarget.ids[0] : null;
 
-  const handleRowClick = useCallback(
-    (
-      e: React.MouseEvent,
-      itemId: string,
-      isFolder: boolean,
-      nodeData: NoteModel | undefined,
-      isExpanded: boolean,
-    ) => {
-      if (e.shiftKey) {
-        setSelectedIds(
-          new Set(
-            getVisibleRangeSelection(visibleIds, selectionAnchorId, itemId),
-          ),
-        );
-        return;
-      }
+  const handleRowClick = (
+    e: React.MouseEvent,
+    itemId: string,
+    isFolder: boolean,
+    nodeData: NoteModel | undefined,
+    isExpanded: boolean,
+  ) => {
+    if (e.shiftKey) {
+      setSelectedIds(
+        new Set(
+          getVisibleRangeSelection(visibleIds, selectionAnchorId, itemId),
+        ),
+      );
+      return;
+    }
 
-      if (e.metaKey || e.ctrlKey) {
-        setSelectedIds(toggleSelectedId(selectedIds, itemId));
-        setSelectionAnchorId(itemId);
-        return;
-      }
-
-      setSelectedIds(new Set([itemId]));
+    if (e.metaKey || e.ctrlKey) {
+      setSelectedIds(toggleSelectedId(selectedIds, itemId));
       setSelectionAnchorId(itemId);
+      return;
+    }
 
-      const bundle = nodeData?.bundle;
-      if (isFolder && bundle) {
-        // a PDF bundle opens as one document: the editable note, with the
-        // original beside it on desktop. the chevron still expands the folder
-        const { setPaneA, setPaneB, setActivePane } = useLayoutStore.getState();
-        const title = nodeData?.title;
-        const pdf = { fileId: bundle.pdfId, fileType: "pdf" as const, title: title ? `${title}.pdf` : undefined };
-        const primaryId = bundle.noteId ?? bundle.pdfId;
-        setPaneA(bundle.noteId
-          ? { fileId: bundle.noteId, fileType: "note", title: title ? `${title}.md` : undefined }
-          : pdf);
-        if (bundle.noteId && isDesktop === true) setPaneB(pdf);
-        setActivePane("A");
-        router.push(pathname?.startsWith("/notes") ? `/notes/${primaryId}` : `/${primaryId}`);
-        onOpenNote?.();
-        return;
-      }
+    setSelectedIds(new Set([itemId]));
+    setSelectionAnchorId(itemId);
 
-      if (isFolder) {
-        const next = new Set(expandedIds);
-        if (isExpanded) {
-          next.delete(itemId);
-        } else {
-          next.add(itemId);
-          const ti = useNoteTreeStore.getState().tree.items[itemId];
-          if (ti && !ti.childrenLoaded) loadChildren(itemId);
-        }
-        setExpandedIds(next);
-      } else if (nodeData) {
-        const { setPaneA, setActivePane } = useLayoutStore.getState();
-        setPaneA(buildFileSpec(nodeData));
-        setActivePane("A");
-        const href = pathname?.startsWith("/notes")
-          ? `/notes/${itemId}`
-          : `/${itemId}`;
-        router.push(href);
-        onOpenNote?.();
+    const bundle = nodeData?.bundle;
+    if (isFolder && bundle) {
+      // a PDF bundle opens as one document: the editable note, with the
+      // original beside it on desktop. the chevron still expands the folder
+      const { setPaneA, setPaneB, setActivePane } = useLayoutStore.getState();
+      const title = nodeData?.title;
+      const pdf = { fileId: bundle.pdfId, fileType: "pdf" as const, title: title ? `${title}.pdf` : undefined };
+      const primaryId = bundle.noteId ?? bundle.pdfId;
+      setPaneA(bundle.noteId
+        ? { fileId: bundle.noteId, fileType: "note", title: title ? `${title}.md` : undefined }
+        : pdf);
+      if (bundle.noteId && isDesktop === true) setPaneB(pdf);
+      setActivePane("A");
+      router.push(pathname?.startsWith("/notes") ? `/notes/${primaryId}` : `/${primaryId}`);
+      onOpenNote?.();
+      return;
+    }
+
+    if (isFolder) {
+      const next = new Set(expandedIds);
+      if (isExpanded) {
+        next.delete(itemId);
+      } else {
+        next.add(itemId);
+        const ti = useNoteTreeStore.getState().tree.items[itemId];
+        if (ti && !ti.childrenLoaded) loadChildren(itemId);
       }
-    },
-    [
-      expandedIds,
-      isDesktop,
-      loadChildren,
-      onOpenNote,
-      pathname,
-      router,
-      selectedIds,
-      selectionAnchorId,
-      setExpandedIds,
-      setSelectedIds,
-      visibleIds,
-    ],
-  );
+      setExpandedIds(next);
+    } else if (nodeData) {
+      const { setPaneA, setActivePane } = useLayoutStore.getState();
+      setPaneA(buildFileSpec(nodeData));
+      setActivePane("A");
+      const href = pathname?.startsWith("/notes")
+        ? `/notes/${itemId}`
+        : `/${itemId}`;
+      router.push(href);
+      onOpenNote?.();
+    }
+  };
 
   // view state for react-complex-tree
-  const viewState = useMemo(
-    () => ({
-      "notes-tree": {
-        expandedItems: Array.from(expandedIds),
-        selectedItems: Array.from(selectedIds),
-        focusedItem: focusedId ?? undefined,
-      },
-    }),
-    [expandedIds, selectedIds, focusedId],
-  );
+  const viewState = {
+    "notes-tree": {
+      expandedItems: Array.from(expandedIds),
+      selectedItems: Array.from(selectedIds),
+      focusedItem: focusedId ?? undefined,
+    },
+  };
 
   return (
     <>
@@ -554,4 +532,4 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
   );
 };
 
-export default memo(SidebarList);
+export default SidebarList;

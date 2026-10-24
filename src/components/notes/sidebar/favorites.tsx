@@ -1,9 +1,9 @@
 // rewritten for react-complex-tree + Tailwind
 import IconButton from "@/components/icon-button";
-import { ROOT_ID } from "@/lib/notes/types/tree";
+import { ROOT_ID, type TreeModel } from "@/lib/notes/types/tree";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import useNoteTreeStore from "@/lib/notes/state/tree";
-import { FC, useCallback, useMemo, useState } from "react";
+import { useState } from "react";
 import SidebarListItem from "./sidebar-list-item";
 import {
   ControlledTreeEnvironment,
@@ -19,74 +19,67 @@ import {
   NOTE_SHARED,
 } from "@/lib/notes/types/meta";
 
-export const Favorites: FC = () => {
+// convert flat tree to react-complex-tree format
+function toFavoritesTree(pinnedTree: TreeModel) {
+  const result: Record<TreeItemIndex, TreeItem<NoteModel | undefined>> = {};
+
+  // Add root
+  const root = pinnedTree.items["root"];
+  if (root) {
+    result["root"] = {
+      index: "root",
+      canMove: false,
+      children: root.children,
+      data: undefined,
+    };
+  }
+
+  // Add all other pinned items
+  for (const id in pinnedTree.items) {
+    if (id === "root") continue;
+    const item = pinnedTree.items[id];
+    if (!item) continue;
+
+    result[id] = {
+      index: id,
+      canMove: false,
+      children: item.children,
+      data: item.data,
+    };
+  }
+
+  return result;
+}
+
+export function Favorites() {
   const { t } = useI18n();
   const { pinnedTree } = useNoteTreeStore();
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [isFold, setFold] = useState(false);
 
-  // convert flat tree to react-complex-tree format
-  const treeData = useMemo(() => {
-    const result: Record<TreeItemIndex, TreeItem<NoteModel | undefined>> = {};
+  const treeData = toFavoritesTree(pinnedTree);
 
-    // Add root
-    const root = pinnedTree.items["root"];
-    if (root) {
-      result["root"] = {
-        index: "root",
-        canMove: false,
-        children: root.children,
-        data: undefined,
-      };
-    }
+  const hasPinned = pinnedTree.items[ROOT_ID]?.children.length > 0;
 
-    // Add all other pinned items
-    for (const id in pinnedTree.items) {
-      if (id === "root") continue;
-      const item = pinnedTree.items[id];
-      if (!item) continue;
-
-      result[id] = {
-        index: id,
-        canMove: false,
-        children: item.children,
-        data: item.data,
-      };
-    }
-
-    return result;
-  }, [pinnedTree]);
-
-  const hasPinned = useMemo(
-    () => pinnedTree.items[ROOT_ID]?.children.length > 0,
-    [pinnedTree],
-  );
-
-  const viewState = useMemo(
-    () => ({
-      "favorites-tree": {
-        expandedItems: Array.from(expandedIds),
-        selectedItems: [],
-      },
-    }),
-    [expandedIds],
-  );
-
-  const handleToggleExpanded = useCallback(
-    (item: TreeItem<NoteModel | undefined>) => {
-      const itemId = item.index;
-      if (typeof itemId === "string") {
-        const newExpandedIds = new Set(expandedIds);
-        if (expandedIds.has(itemId)) {
-          newExpandedIds.delete(itemId);
-        } else {
-          newExpandedIds.add(itemId);
-        }
-        setExpandedIds(newExpandedIds);
-      }
+  const viewState = {
+    "favorites-tree": {
+      expandedItems: Array.from(expandedIds),
+      selectedItems: [],
     },
-    [expandedIds],
-  );
+  };
+
+  const handleToggleExpanded = (item: TreeItem<NoteModel | undefined>) => {
+    const itemId = item.index;
+    if (typeof itemId === "string") {
+      const newExpandedIds = new Set(expandedIds);
+      if (expandedIds.has(itemId)) {
+        newExpandedIds.delete(itemId);
+      } else {
+        newExpandedIds.add(itemId);
+      }
+      setExpandedIds(newExpandedIds);
+    }
+  };
 
   if (!hasPinned) {
     return null;

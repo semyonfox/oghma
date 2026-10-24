@@ -105,13 +105,15 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
     if (focusActive || focusStartPending.current) return;
     focusStartPending.current = true;
     setFocusStarting(true);
-    try {
+    const run = async () => {
       await startPomodoro({});
       onNavigate?.();
-    } finally {
-      focusStartPending.current = false;
-      setFocusStarting(false);
-    }
+    };
+    await run()
+      .finally(() => {
+        focusStartPending.current = false;
+        setFocusStarting(false);
+      });
   };
 
   const derivedActiveSection: NavItem["section"] = pathname?.startsWith(

@@ -83,14 +83,17 @@ export default function MobileNoteActions({
   const run = async (action: () => Promise<void>) => {
     setBusy(true);
     setError("");
-    try {
+    const attempt = async () => {
       await action();
       onClose();
-    } catch {
-      setError(t("Could not complete that action. Please try again."));
-    } finally {
-      setBusy(false);
-    }
+    };
+    await attempt()
+      .catch(() => {
+        setError(t("Could not complete that action. Please try again."));
+      })
+      .finally(() => {
+        setBusy(false);
+      });
   };
   const heading = deleteTarget
     ? t("Move to Trash")

@@ -54,7 +54,7 @@ export function usePdfCache(
       setError(null);
       setData(null);
 
-      try {
+      const run = async () => {
         const key = await resolveStorageKey(sourcePath, fileId);
         if (cancelled) return;
         if ("error" in key) return fail(key.error);
@@ -101,9 +101,11 @@ export function usePdfCache(
         })
           .then(() => runEviction())
           .catch(() => {});
-      } catch {
-        fail("network");
-      }
+      };
+      return await run()
+        .catch(() => {
+          fail("network");
+        });
     };
 
     void load();

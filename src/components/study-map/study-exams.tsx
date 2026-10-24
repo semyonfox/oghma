@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useId, useState } from "react";
 import type { z } from "zod";
 import {
   analyseExamStructure,
@@ -126,23 +126,20 @@ function PaperEditor({
   const [status, setStatus] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
 
-  const structure = useMemo<ExamStructure>(
-    () => ({
-      ...draft,
-      year: Number(year),
-      statedTotalMarks: numberOrUnknown(totalMarks),
-      questions: draft.questions.map((question, index) => ({
-        ...question,
-        marks: numberOrUnknown(questionMarks[index] ?? ""),
-      })),
-      sections: draft.sections.map((section, index) => ({
-        ...section,
-        answerCount: numberOrUnknown(answerCounts[index] ?? ""),
-      })),
-    }),
-    [draft, year, totalMarks, questionMarks, answerCounts],
-  );
-  const analysis = useMemo(() => analyseExamStructure(structure), [structure]);
+  const structure: ExamStructure = {
+    ...draft,
+    year: Number(year),
+    statedTotalMarks: numberOrUnknown(totalMarks),
+    questions: draft.questions.map((question, index) => ({
+      ...question,
+      marks: numberOrUnknown(questionMarks[index] ?? ""),
+    })),
+    sections: draft.sections.map((section, index) => ({
+      ...section,
+      answerCount: numberOrUnknown(answerCounts[index] ?? ""),
+    })),
+  };
+  const analysis = analyseExamStructure(structure);
   const payload = {
     noteId: paper.noteId,
     sourceHash: paper.currentHash,
@@ -227,21 +224,24 @@ function PaperEditor({
       return;
     }
     setSaving(reviewed ? "approve" : "draft");
-    try {
-      await onSavePaper(result.data);
+    const saved = await onSavePaper(result.data).then(
+      () => true,
+      (cause: unknown) => {
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : "The paper could not be saved. Try again.",
+        );
+        return false;
+      },
+    );
+    setSaving(null);
+    if (saved) {
       setStatus(
         reviewed
           ? "Paper approved. Its current review can be included in historical coverage."
           : "Draft saved. This paper is excluded from coverage until approved.",
       );
-    } catch (cause) {
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : "The paper could not be saved. Try again.",
-      );
-    } finally {
-      setSaving(null);
     }
   }
 
@@ -797,20 +797,11 @@ export default function StudyExams({
   const selectedPapers = snapshot.papers.filter(
     (paper) => paper.structure.syllabusVersion === selectedVersion,
   );
-  const summary = useMemo(
-    () =>
-      summariseExamCorpus(
-        selectedPapers,
-        snapshot.map.topics,
-        snapshot.map.taxonomyVersion,
-        selectedVersion,
-      ),
-    [
-      selectedPapers,
-      snapshot.map.topics,
-      snapshot.map.taxonomyVersion,
-      selectedVersion,
-    ],
+  const summary = summariseExamCorpus(
+    selectedPapers,
+    snapshot.map.topics,
+    snapshot.map.taxonomyVersion,
+    selectedVersion,
   );
   const [showBounds, setShowBounds] = useState(false);
   const [openedPapers, setOpenedPapers] = useState<string[]>([]);
@@ -848,29 +839,28 @@ export default function StudyExams({
       delete next[noteId];
       return next;
     });
-    try {
-      await onAnalyse(noteId);
-      setMessages((current) => ({
-        ...current,
-        [noteId]: {
-          error: false,
-          text: "Analysis requested. Review the extracted paper when it is ready.",
-        },
-      }));
-    } catch (cause) {
-      setMessages((current) => ({
-        ...current,
-        [noteId]: {
-          error: true,
-          text:
-            cause instanceof Error
-              ? cause.message
-              : "Analysis failed. Try again.",
-        },
-      }));
-    } finally {
-      setAnalysing((current) => current.filter((id) => id !== noteId));
-    }
+    await onAnalyse(noteId).then(
+      () =>
+        setMessages((current) => ({
+          ...current,
+          [noteId]: {
+            error: false,
+            text: "Analysis requested. Review the extracted paper when it is ready.",
+          },
+        })),
+      (cause: unknown) =>
+        setMessages((current) => ({
+          ...current,
+          [noteId]: {
+            error: true,
+            text:
+              cause instanceof Error
+                ? cause.message
+                : "Analysis failed. Try again.",
+          },
+        })),
+    );
+    setAnalysing((current) => current.filter((id) => id !== noteId));
   }
 
   function analysisButton(noteId: string, reanalyse: boolean) {
