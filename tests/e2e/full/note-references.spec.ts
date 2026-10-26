@@ -29,7 +29,8 @@ test("a toolbar user can reference a note and create a backlink", async ({
     .first();
   await expect(content).toContainText(target.title);
   await editor.getByRole("button", { name: "Save (Ctrl+S)", exact: true }).click();
-  await expect(editor.getByLabel("Saved", { exact: true })).toBeVisible();
+  // the mobile and desktop headers both render the indicator, one hidden by css
+  await expect(editor.getByLabel("Saved", { exact: true }).filter({ visible: true })).toBeVisible();
 
   await expect
     .poll(async () => {

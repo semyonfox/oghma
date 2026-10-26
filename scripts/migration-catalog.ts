@@ -101,3 +101,24 @@ export function readMigrationFiles(migrationsDir: PathLike): string[] {
   assertUniqueMigrationVersions(files);
   return files;
 }
+
+// a rollback redeploys the previous image against the migrated schema, so a migration
+// must not break the release before it. drops, renames and tightened columns belong
+// in a later release than the code that stops using them
+const rollbackBreakingPatterns: ReadonlyArray<[string, RegExp]> = [
+  ["drops a table", /\bdrop\s+table\b/i],
+  ["drops a column", /\bdrop\s+column\b/i],
+  ["renames a table or column", /\brename\s+(column\b|to\b|[a-z_"])/i],
+  ["changes a column type", /\balter\s+column\s+\S+\s+(set\s+data\s+)?type\b/i],
+  ["adds a not-null constraint", /\bset\s+not\s+null\b/i],
+];
+
+// the last migration released before this guard; earlier history is not rechecked
+export const rollbackGuardBaseline = 82;
+
+/** reasons a migration would break the previous release, unless it says why it is safe */
+export function rollbackBreakingChanges(contents: string): string[] {
+  if (/^--\s*rollback-safe:\s*\S/im.test(contents)) return [];
+  const sql = contents.replace(/--.*$/gm, "");
+  return rollbackBreakingPatterns.filter(([, pattern]) => pattern.test(sql)).map(([reason]) => reason);
+}

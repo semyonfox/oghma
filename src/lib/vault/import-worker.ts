@@ -76,10 +76,6 @@ function isProcessable(filename: string | null | undefined): boolean {
   return Boolean(ext && PROCESSABLE_EXTS.has(ext));
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 /**
  * Every archive entry gets its own object, even when the ZIP repeats a path.
  * Two notes sharing one key would let deleting either remove the other's
@@ -289,8 +285,8 @@ export async function processRagPipeline(
         AND user_id = ${userId}::uuid
         AND deleted_at IS NULL
     `;
-    const count = await replaceNoteEmbeddings(noteId, userId, chunks);
-    logger.info(`[vault-import] RAG: ${count} chunks for text note ${noteId}`);
+    await replaceNoteEmbeddings(noteId, userId, chunks);
+    logger.info("vault import text note indexed");
     return;
   }
 
@@ -323,10 +319,7 @@ export async function processRagPipeline(
     // known note namespace immediately instead of leaving untracked objects.
     await storage.deletePrefix(markerAssetPrefix(userId, mdNoteId)).catch(
       (cleanupError) => {
-        logger.warn(
-          `[vault-import] failed to clean Marker assets for deleted note ${mdNoteId}:`,
-          errorMessage(cleanupError),
-        );
+        logger.warn("vault import marker asset cleanup failed", { error: cleanupError });
       },
     );
     return;
@@ -340,10 +333,8 @@ export async function processRagPipeline(
       AND user_id = ${userId}::uuid
       AND deleted_at IS NULL
   `;
-  const count = await replaceNoteEmbeddings(mdNoteId, userId, chunks);
-  logger.info(
-    `[vault-import] RAG: ${count} chunks for MD note ${mdNoteId} (source: ${noteId}, marker images: ${markerAssets.imageCount})`,
-  );
+  await replaceNoteEmbeddings(mdNoteId, userId, chunks);
+  logger.info("vault import markdown note indexed");
 }
 
 interface VaultImportMessage {
@@ -391,8 +382,8 @@ async function seedQuizFromImport(userId: string, jobId: string): Promise<void> 
   const chunkIds = chunks.map((row) => row.id);
   if (chunkIds.length === 0) return;
   const { seedQuestionsAfterImport } = await import("../quiz/generate-background.ts");
-  const seeded = await seedQuestionsAfterImport(userId, chunkIds, 5);
-  logger.info(`[vault-import] quiz seed: ${seeded} questions generated`);
+  await seedQuestionsAfterImport(userId, chunkIds, 5);
+  logger.info("vault import quiz seed completed");
 }
 
 /**
@@ -400,8 +391,7 @@ async function seedQuizFromImport(userId: string, jobId: string): Promise<void> 
  */
 export async function processVaultImport(msg: Record<string, unknown>): Promise<void> {
   const { jobId, userId, s3Key } = requireVaultImportMessage(msg);
-  const ts = () => new Date().toISOString();
-  logger.info(`[${ts()}] Starting vault import: job=${jobId}`);
+  logger.info("vault import started");
   let cancelled = false;
 
   try {
@@ -419,7 +409,7 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
       RETURNING id
     `;
     if (!claimed) {
-      logger.info(`[${ts()}] Vault import ${jobId} is already claimed, cancelled, or missing`);
+      logger.info("vault import skipped: claimed, cancelled or missing");
       return;
     }
 
@@ -435,10 +425,10 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
       if (state === "cancel-requested") {
         await markVaultJobCancelled(jobId, totalFiles);
       }
-      logger.info(`[${ts()}] Vault import ${jobId} stopped after ${totalFiles} files`);
+      logger.info("vault import stopped");
     };
 
-    logger.info(`[${ts()}] Streaming zip from S3: ${s3Key}`);
+    logger.info("vault import streaming archive");
 
     const totalEntries = await streamAndProcessZip(
       s3Key,
@@ -486,15 +476,12 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
                 s3Key: s3FileKey,
               });
             } catch (ragErr) {
-              logger.error(
-                `[${ts()}] RAG failed for ${filename}:`,
-                errorMessage(ragErr),
-              );
+              logger.error("vault import indexing failed", { error: ragErr });
             }
           }
 
           totalFiles++;
-          logger.info(`[${ts()}] Imported: ${cleanPath}`);
+          logger.info("vault import file imported");
         } catch (err) {
           if (
             err instanceof VaultImportCancelledError ||
@@ -506,10 +493,7 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
             // note row from which to discover it.
             if (uploadedFileKey) {
               await storage.deleteObject(uploadedFileKey).catch((cleanupError) => {
-                logger.warn(
-                  `[${ts()}] Failed to remove cancelled vault object ${uploadedFileKey}:`,
-                  errorMessage(cleanupError),
-                );
+                logger.warn("vault import cancelled object cleanup failed", { error: cleanupError });
               });
             }
             if (err instanceof VaultImportCancelledError) {
@@ -518,10 +502,7 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
             return;
           }
           failedFiles++;
-          logger.error(
-            `[${ts()}] Failed to import ${cleanPath}:`,
-            errorMessage(err),
-          );
+          logger.error("vault import file failed", { error: err });
         }
         // the heartbeat doubles as the cancel poll, so small imports stay cancellable
         await stopIfNoLongerActive();
@@ -530,7 +511,7 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
     );
 
     if (cancelled) {
-      logger.info(`[${ts()}] Import cancelled for ${jobId}; skipping completion`);
+      logger.info("vault import cancelled: skipping completion");
       return;
     }
 
@@ -546,9 +527,7 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
     try {
       await seedQuizFromImport(userId, jobId);
     } catch (seedErr) {
-      logger.warn(
-        `[${ts()}] Quiz seed failed (non-fatal): ${errorMessage(seedErr)}`,
-      );
+      logger.warn("vault import quiz seed failed", { error: seedErr });
     }
 
     const completed = await sql`
@@ -558,7 +537,7 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
       RETURNING id
     `;
     if (completed.length === 0) {
-      logger.info(`[${ts()}] Import ${jobId} finished but row was already terminal (cancelled/failed); skipping email`);
+      logger.info("vault import finished after terminal state: skipping email");
       return;
     }
 
@@ -573,18 +552,16 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
         });
       }
     } catch (emailErr) {
-      logger.error(`[${ts()}] Email notification failed:`, errorMessage(emailErr));
+      logger.error("vault import email notification failed", { error: emailErr });
     }
 
-    logger.info(
-      `[${ts()}] Vault import complete: ${totalFiles} files, ${folderCache.size} folders`,
-    );
+    logger.info("vault import completed");
   } catch (error) {
     if (cancelled) {
-      logger.warn(`[${ts()}] Ignoring error after cancel for ${jobId}: ${errorMessage(error)}`);
+      logger.warn("vault import error ignored after cancel", { error });
       return;
     }
-    logger.error(`[${ts()}] Vault import failed:`, error);
+    logger.error("vault import failed", { error });
     // only archive problems the user can act on are shown verbatim; internal
     // errors can carry hostnames or SQL details
     await markVaultJobFailed(

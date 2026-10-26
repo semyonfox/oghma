@@ -119,7 +119,7 @@ export async function syncCanvasPlannerItems(params: SyncCanvasPlannerItemsParam
   const effectiveEnd = endDate ?? defaultEndDate(now);
   const result = await client.getPlannerItems(effectiveStart, effectiveEnd);
   if (result?.error || result?.forbidden || !Array.isArray(result?.data)) {
-    logger.warn("worker_event");
+    logger.warn("canvas planner items unavailable");
     return { synced: 0, tombstoned: 0, errors: 1, partial: true };
   }
   let synced = 0;
@@ -131,8 +131,8 @@ export async function syncCanvasPlannerItems(params: SyncCanvasPlannerItemsParam
       await upsertPlannerItem(userId, item);
       seenKeys.push({ type: item.plannable_type, id: item.plannable_id });
       synced++;
-    } catch {
-      logger.error("worker_event");
+    } catch (error) {
+      logger.error("canvas planner item upsert failed", { error });
       errors++;
     }
   }

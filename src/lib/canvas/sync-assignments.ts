@@ -113,7 +113,7 @@ export async function syncAssignmentMetadata(
     : await client.getAssignments(courseId);
 
   if (fetched.error || fetched.forbidden || !fetched.data) {
-    logger.warn("worker_event");
+    logger.warn("canvas assignments unavailable");
     return { synced: 0, errors: 1, removed: 0 };
   }
   const assignments = fetched.data;
@@ -165,8 +165,8 @@ export async function syncAssignmentMetadata(
           updated_at = NOW()
       `);
       return true;
-    } catch {
-      logger.error("worker_event");
+    } catch (error) {
+      logger.error("canvas assignment upsert failed", { error });
       return false;
     }
   })));

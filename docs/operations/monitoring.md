@@ -27,7 +27,8 @@ Since 2026-10-25 both env files set `SENTRY_DSN`. The token is the `jenkins-oghm
 
 - Next.js instrumentation captures request failures and browser errors. The root, route and editor error boundaries report rendering failures.
 - `npm run worker` preloads the Node SDK before importing worker code. The worker image uses this same command and flushes pending events on graceful shutdown.
-- Caught Winston errors are captured before log redaction. Existing console/file redaction remains in place. Pass the original exception as `{ error }` to retain its stack; a message-only log has only the logging call stack.
+- Caught Winston errors are captured before log redaction, including an exception passed as a positional argument. A message-only log has only the logging call stack.
+- Log messages are fixed strings. An ESLint rule rejects template literals and variables as the first `logger` argument, so ids, file names and error text go in metadata. Production logs keep the message plus validated `task`, `operation` and `stage` names, the error class, the error code (a PostgreSQL SQLSTATE such as `25P03`, or a Node code such as `ECONNRESET`), a status class and `durationMs`. Everything else, including identifiers and error text, is still dropped. Error events carry the same names, the code and the log message as Sentry tags.
 - Study jobs, Canvas jobs and chat jobs have named processing spans. Their child HTTP/database spans show where time is spent. Idle study polling does not create a processing span.
 - A failed chat marks its processing span as an error even when partial output is saved and the queue handler returns normally. Explicit cancellation remains outside error reporting. Worker and chat failure handlers pass the original exception to retain its stack.
 - Errors are unsampled. Traces are sampled. A 10% setting cannot guarantee that every slow operation is captured. Routine health-check spans are excluded.

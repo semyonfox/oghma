@@ -28,10 +28,10 @@ export async function withCanvasExecution<T>(owner: CanvasExecution, work: () =>
     const heartbeat = setInterval(() => {
       if (renewing) return;
       renewing = true;
-      void renewCanvasExecution(owner).catch(() => {
+      void renewCanvasExecution(owner).catch((error: unknown) => {
         // Publication checks the durable owner again; a heartbeat failure
         // never grants permission to continue writing.
-        logger.warn("worker_event");
+        logger.warn("canvas execution heartbeat failed", { error });
       }).finally(() => { renewing = false; });
     }, 30_000);
     try { return await work(); } finally { clearInterval(heartbeat); }

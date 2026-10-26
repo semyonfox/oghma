@@ -4,6 +4,7 @@
 import { getStorageProvider } from "@/lib/storage/init";
 import { cacheGet, cacheSet, cacheInvalidate, cacheKeys } from "@/lib/cache";
 import type { StoredSettings } from "@/lib/notes/types/settings";
+import logger from "@/lib/logger";
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -44,7 +45,7 @@ export async function getSettingsFromS3(
     await cacheSet(key, settings, 300);
     return settings;
   } catch (error) {
-    console.error(`Error reading settings for user ${userId} from S3:`, error);
+    logger.error("settings read failed", { error });
     return {};
   }
 }
@@ -65,7 +66,7 @@ export async function saveSettingsToS3(
     });
     await cacheInvalidate(cacheKeys.settings(userId));
   } catch (error) {
-    console.error(`Error saving settings for user ${userId} to S3:`, error);
+    logger.error("settings save failed", { error });
     throw error;
   }
 }

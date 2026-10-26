@@ -727,7 +727,7 @@ export async function autoConfigureStudyMapSafely(
     return null;
   } catch (error) {
     if (error instanceof ApiError) return error.userMessage;
-    logger.warn("study map automatic setup failed");
+    logger.warn("study map automatic setup failed", { error });
     return null;
   }
 }

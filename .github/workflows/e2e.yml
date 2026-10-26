@@ -394,3 +394,31 @@ jobs:
           if [ -f fake-ai.pid ]; then kill "$(cat fake-ai.pid)" 2>/dev/null || true; fi
           docker rm -f oghma-e2e-rustfs 2>/dev/null || true
           docker rm -f oghma-e2e-qdrant 2>/dev/null || true
+
+  # a red nightly only emails whoever last touched the schedule, so keep one open issue instead
+  nightly-alert:
+    name: Track nightly E2E result
+    needs: full
+    if: ${{ always() && github.event_name == 'schedule' && needs.full.result != 'skipped' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TITLE: Nightly full E2E is failing
+      RESULT: ${{ needs.full.result }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Open, update or close the tracking issue
+        run: |
+          issue=$(gh issue list --state open --label ci --search "\"$TITLE\" in:title" --json number --jq '.[0].number // empty')
+          if [ "$RESULT" = success ]; then
+            if [ -n "$issue" ]; then gh issue close "$issue" --comment "Passed again in $RUN_URL"; fi
+          elif [ -n "$issue" ]; then
+            gh issue comment "$issue" --body "Still failing ($RESULT): $RUN_URL"
+          else
+            gh issue create --title "$TITLE" --label ci --label tests \
+              --body "The scheduled full E2E run ended with \`$RESULT\`: $RUN_URL. This issue closes itself on the next passing night."
+          fi
