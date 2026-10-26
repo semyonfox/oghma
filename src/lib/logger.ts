@@ -39,18 +39,6 @@ const transports: winston.transport[] = [
   }),
 ];
 
-if (isProduction) {
-  transports.push(
-    new winston.transports.DailyRotateFile({
-      filename: "logs/app-%DATE%.log",
-      datePattern: "YYYY-MM-DD",
-      maxSize: "100m",
-      maxFiles: "14d",
-      format: winston.format.json(),
-    }),
-  );
-}
-
 const logger = winston.createLogger({
   level: isProduction ? "info" : "debug",
   defaultMeta: { service: "oghmanotes" },
@@ -60,5 +48,24 @@ const logger = winston.createLogger({
   ),
   transports,
 });
+
+if (isProduction) {
+  const file = new winston.transports.DailyRotateFile({
+    filename: "logs/app-%DATE%.log",
+    datePattern: "YYYY-MM-DD",
+    maxSize: "100m",
+    maxFiles: "14d",
+    format: winston.format.json(),
+  });
+  // nothing listens on the file stream, so a write failing on a full disk
+  // (ENOSPC) was an uncaught exception that killed the process. stdout still
+  // reaches docker, so drop the file copy and report it once
+  file.logStream.on("error", (error) => {
+    if (!logger.transports.includes(file)) return;
+    logger.remove(file);
+    captureException(error);
+  });
+  logger.add(file);
+}
 
 export default logger;
