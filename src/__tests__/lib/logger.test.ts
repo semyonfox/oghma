@@ -65,6 +65,15 @@ describe("operational diagnostics privacy", () => {
     expect(JSON.stringify(output)).not.toContain("private");
     expect(captureException).toHaveBeenLastCalledWith(error, expect.anything());
   });
+  it("keeps a Redis reply's error prefix and command but not its arguments", async () => {
+    const error = Object.assign(new Error("MISCONF unable to persist, script: private-key"), { command: { name: "eval", args: ["private-key"] } });
+    const output = await logged(() => logger.error("worker queue error", { error }));
+    expect(output).toMatchObject({ message: "worker queue error", errorCode: "MISCONF", redisCommand: "eval" });
+    expect(JSON.stringify(output)).not.toContain("private");
+    expect(captureException).toHaveBeenLastCalledWith(error, {
+      tags: { errorCode: "MISCONF", redisCommand: "eval", logMessage: "worker queue error" },
+    });
+  });
   it("strips a plain object's message that winston appends", async () => {
     const output = await logged(() => logger.error("redis connection error", { message: "Private lecture notes.pdf" }));
     expect(output).toEqual({ level: "error", message: "redis connection error", service: "oghmanotes" });

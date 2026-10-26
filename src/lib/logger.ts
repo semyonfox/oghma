@@ -1,6 +1,7 @@
 import winston from "winston";
 import "winston-daily-rotate-file";
 import { captureException } from "@sentry/core";
+import { errorTags } from "./monitoring/privacy";
 // operational logs are separate from optional anonymous counters and security audit tables
 const LEVELS = ["error", "warn", "info", "debug"] as const;
 
@@ -42,9 +43,10 @@ function safeContext(info: LogInfo): Record<string, string | number> {
   if (typeof duration === "number" && Number.isFinite(duration) && duration >= 0) context.durationMs = Math.round(duration);
   const errorType = safe(error?.constructor.name, SAFE_TYPE);
   if (errorType) context.errorType = errorType;
-  // postgres sqlstates and node/system codes say what failed without saying about whom
-  const errorCode = safe(error && "code" in error ? error.code : info.code, SAFE_CODE);
+  // postgres sqlstates, node/system codes and redis reply prefixes say what failed without saying about whom
+  const { errorCode = safe(info.code, SAFE_CODE), redisCommand } = errorTags(error);
   if (errorCode) context.errorCode = errorCode;
+  if (redisCommand) context.redisCommand = redisCommand;
   return context;
 }
 
@@ -68,8 +70,8 @@ function safeMessage(info: LogInfo): string | undefined {
 // capture the stack before the operational log boundary removes error metadata
 const reportError = winston.format((info) => {
   if (info.level === "error") {
-    const { task, operation, stage, errorCode } = safeContext(info);
-    const tags = Object.fromEntries(Object.entries({ task, operation, stage, errorCode, logMessage: safeMessage(info) })
+    const { task, operation, stage, errorCode, redisCommand } = safeContext(info);
+    const tags = Object.fromEntries(Object.entries({ task, operation, stage, errorCode, redisCommand, logMessage: safeMessage(info) })
       .filter((entry): entry is [string, string] => typeof entry[1] === "string"));
     captureException(loggedError(info) ?? new Error("Application operation failed"), { tags });
   }
@@ -98,18 +100,6 @@ const transports: winston.transport[] = [
   }),
 ];
 
-if (isProduction) {
-  transports.push(
-    new winston.transports.DailyRotateFile({
-      filename: "logs/app-%DATE%.log",
-      datePattern: "YYYY-MM-DD",
-      maxSize: "100m",
-      maxFiles: "14d",
-      format: winston.format.json(),
-    }),
-  );
-}
-
 const logger = winston.createLogger({
   level: isProduction ? "info" : "debug",
   defaultMeta: { service: "oghmanotes" },
@@ -119,5 +109,24 @@ const logger = winston.createLogger({
   ),
   transports,
 });
+
+if (isProduction) {
+  const file = new winston.transports.DailyRotateFile({
+    filename: "logs/app-%DATE%.log",
+    datePattern: "YYYY-MM-DD",
+    maxSize: "100m",
+    maxFiles: "14d",
+    format: winston.format.json(),
+  });
+  // nothing listens on the file stream, so a write failing on a full disk
+  // (ENOSPC) was an uncaught exception that killed the process. stdout still
+  // reaches docker, so drop the file copy and report it once
+  file.logStream.on("error", (error) => {
+    if (!logger.transports.includes(file)) return;
+    logger.remove(file);
+    captureException(error, { tags: errorTags(error) });
+  });
+  logger.add(file);
+}
 
 export default logger;
