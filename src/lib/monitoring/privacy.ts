@@ -1,4 +1,4 @@
-import type { ErrorEvent, StreamedSpanJSON } from "@sentry/core";
+import type { ErrorEvent, EventHint, StreamedSpanJSON } from "@sentry/core";
 
 // unknown path segments can contain note titles, share tokens or storage keys
 const routeSegments = new Set(
@@ -26,8 +26,26 @@ const tagPatterns = {
   task: /^[a-z][a-z0-9 ._:-]{0,79}$/,
   stage: /^[a-z][a-z0-9 ._:-]{0,79}$/,
   errorCode: /^[A-Za-z0-9_.-]{1,40}$/,
+  redisCommand: /^[A-Za-z][A-Za-z0-9_.:-]{0,39}$/,
   logMessage: /^[A-Za-z][A-Za-z0-9 ,.:;()'/_-]{0,119}$/,
 };
+
+/**
+ * What failed, without the message: a node or postgres code (ENOSPC, 23505),
+ * or for a Redis reply the server's error prefix (MISCONF, WRONGTYPE) and the
+ * rejected command's name. ioredis leaves `code` unset on replies
+ */
+export function errorTags(error: unknown): { errorCode?: string; redisCommand?: string } {
+  if (!(error instanceof Error)) return {};
+  const code = "code" in error ? error.code : undefined;
+  const command = "command" in error ? error.command : undefined;
+  const redisCommand =
+    typeof command === "object" && command !== null && "name" in command && typeof command.name === "string"
+      ? command.name
+      : undefined;
+  const redisCode = redisCommand && /^[A-Z][A-Z_]{1,31}(?= )/.exec(error.message)?.[0];
+  return safeTags({ errorCode: typeof code === "string" ? code : redisCode, redisCommand });
+}
 
 function safeTags(tags: ErrorEvent["tags"]): Record<string, string> {
   const kept: Record<string, string> = {};
@@ -38,7 +56,7 @@ function safeTags(tags: ErrorEvent["tags"]): Record<string, string> {
   return kept;
 }
 
-export function sanitizeError(event: ErrorEvent): ErrorEvent {
+export function sanitizeError(event: ErrorEvent, hint?: EventHint): ErrorEvent {
   const trace = event.contexts?.trace;
   return {
     type: undefined,
@@ -87,7 +105,8 @@ export function sanitizeError(event: ErrorEvent): ErrorEvent {
           },
         }
       : undefined,
-    tags: safeTags(event.tags),
+    // uncaught errors and library errors arrive without the logger's tags
+    tags: safeTags({ ...errorTags(hint?.originalException), ...event.tags }),
     request: event.request && {
       method: event.request.method,
       url: event.request.url ? monitoringPath(event.request.url) : undefined,

@@ -42,6 +42,11 @@ function positiveIntegerEnv(name: string, fallback: number): number {
 // that the database rejects or resumes
 const BULLMQ_LOCK = { lockDuration: 60_000, stalledInterval: 30_000 };
 
+// BullMQ 6 refetches straight away when Redis rejects the fetch script (MISCONF
+// on a full disk, OOM), so one fault emits hundreds of errors a second per
+// queue. report the first each minute rather than flooding logs and Sentry
+const QUEUE_ERROR_REPORT_INTERVAL_MS = 60_000;
+
 async function startBullMqConsumers(options: ConsumerOptions): Promise<QueueConsumers> {
   const { Worker } = await import("bullmq");
   const connection = getQueueConnection();
@@ -85,7 +90,11 @@ async function startBullMqConsumers(options: ConsumerOptions): Promise<QueueCons
     worker.on("failed", (job, error) => {
       logger.error("worker job failed", { queue: worker.name, jobName: job?.name, error });
     });
+    let lastReportedAt = -Infinity;
     worker.on("error", (error) => {
+      const now = Date.now();
+      if (now - lastReportedAt < QUEUE_ERROR_REPORT_INTERVAL_MS) return;
+      lastReportedAt = now;
       logger.error("worker queue error", { queue: worker.name, error });
     });
   }
