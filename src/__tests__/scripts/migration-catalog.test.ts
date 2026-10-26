@@ -72,11 +72,16 @@ describe("rollback-safe migrations", () => {
     expect(rollbackBreakingChanges("ALTER TABLE app.notes DROP legacy;")).toEqual(["drops a column"]);
     expect(rollbackBreakingChanges("ALTER TABLE app.notes ALTER legacy TYPE bigint;")).toEqual(["changes a column type"]);
     expect(rollbackBreakingChanges("ALTER TABLE app.notes ADD COLUMN required text NOT NULL;")).toEqual(["adds a required column without a default"]);
+    expect(rollbackBreakingChanges("ALTER TABLE app.notes ADD COLUMN kind text NOT NULL CHECK (kind IN ('manual', 'generated'));")).toEqual(["adds a required column without a default"]);
+    expect(rollbackBreakingChanges("DO $$ BEGIN ALTER TABLE app.notes DROP COLUMN legacy; END $$;")).toEqual(["drops a column"]);
+    expect(rollbackBreakingChanges("/* cleanup */ ALTER TABLE app.notes DROP COLUMN legacy;")).toEqual(["drops a column"]);
+    expect(rollbackBreakingChanges("EXECUTE format('ALTER TABLE app.assignments ALTER COLUMN %I TYPE double precision', col);")).toEqual(["changes a column type"]);
   });
 
   it("allows additive changes, comments and an explained exception", () => {
     expect(rollbackBreakingChanges("-- drop column later\nALTER TABLE app.notes ADD COLUMN pinned boolean NOT NULL DEFAULT false;\nDROP INDEX IF EXISTS app.idx_old;")).toEqual([]);
     expect(rollbackBreakingChanges("ALTER TABLE app.notes DROP CONSTRAINT notes_old_check, ALTER COLUMN title DROP NOT NULL, ADD COLUMN size numeric(10,2);")).toEqual([]);
+    expect(rollbackBreakingChanges("ALTER TABLE app.notes ADD COLUMN total int NOT NULL GENERATED ALWAYS AS (a + b) STORED;")).toEqual([]);
     expect(rollbackBreakingChanges("-- rollback-safe: nothing has read this table since 079\nDROP TABLE app.old_cache;")).toEqual([]);
   });
 

@@ -114,10 +114,13 @@ const alterTableBreakingPatterns: ReadonlyArray<[string, RegExp]> = [
   ["adds a not-null constraint", /\bset\s+not\s+null\b/i],
 ];
 
-// an added NOT NULL column without a default rejects the previous release's inserts
+// an added NOT NULL column without a default rejects the previous release's inserts.
+// literals and parenthesised expressions go first so a CHECK or type modifier can't fake a DEFAULT
 function addsRequiredColumn(statement: string): boolean {
-  return statement
-    .split(/,(?![^(]*\))/)
+  let flat = statement.replace(/'(?:[^']|'')*'/g, "''");
+  while (/\([^()]*\)/.test(flat)) flat = flat.replace(/\([^()]*\)/g, " ");
+  return flat
+    .split(",")
     .some((clause) => /\badd\s+(?:column\s+)?/i.test(clause) && !/\badd\s+(?:constraint|primary|unique|foreign|check)\b/i.test(clause)
       && /\bnot\s+null\b/i.test(clause) && !/\b(?:default|generated)\b/i.test(clause));
 }
@@ -129,11 +132,15 @@ export const rollbackGuardBaseline = 82;
 export function rollbackBreakingChanges(contents: string): string[] {
   if (/^--\s*rollback-safe:\s*\S/im.test(contents)) return [];
   const reasons = new Set<string>();
-  for (const statement of contents.replace(/--.*$/gm, "").split(";")) {
-    if (/^\s*drop\s+table\b/i.test(statement)) reasons.add("drops a table");
-    if (!/^\s*alter\s+table\b/i.test(statement)) continue;
-    for (const [reason, pattern] of alterTableBreakingPatterns) if (pattern.test(statement)) reasons.add(reason);
-    if (addsRequiredColumn(statement)) reasons.add("adds a required column without a default");
+  // DO blocks and EXECUTE strings are scanned like any other SQL, since dynamic DDL breaks rollback too
+  const sql = contents.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/--.*$/gm, "");
+  for (const statement of sql.split(";")) {
+    if (/\bdrop\s+table\b/i.test(statement)) reasons.add("drops a table");
+    const alter = statement.search(/\balter\s+table\b/i);
+    if (alter < 0) continue;
+    const command = statement.slice(alter);
+    for (const [reason, pattern] of alterTableBreakingPatterns) if (pattern.test(command)) reasons.add(reason);
+    if (addsRequiredColumn(command)) reasons.add("adds a required column without a default");
   }
   return [...reasons];
 }
