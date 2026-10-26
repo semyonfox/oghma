@@ -1497,7 +1497,7 @@ export async function processCanvasExtract({
               AND status = 'indexing'
           `);
         }
-        logger.error("canvas-import-extraction-error", { jobId, importRecordId, error: message });
+        logger.error("canvas-import-extraction-error", { jobId, importRecordId, error });
       }
     });
     await checkAndCompleteJob(jobId, userId);

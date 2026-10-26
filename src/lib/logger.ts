@@ -49,11 +49,19 @@ function safeContext(info: LogInfo): Record<string, string | number> {
 }
 
 function safeMessage(info: LogInfo): string | undefined {
-  const error = loggedError(info);
-  // winston appends a positional error's message to the log message
-  const message = typeof info.message === "string" && error?.message && info.message.endsWith(` ${error.message}`)
-    ? info.message.slice(0, -error.message.length - 1)
-    : info.message;
+  if (typeof info.message !== "string") return undefined;
+  let message = info.message;
+  // winston appends a positional argument's own `message`, from an error or a plain object
+  const splat: unknown = info[SPLAT];
+  const appended = Array.isArray(splat) ? splat[0] : undefined;
+  if (typeof appended === "object" && appended !== null && "message" in appended) {
+    // mirrors winston's `if (meta.message)` check and template interpolation
+    if (appended.message) {
+      const text = String(appended.message);
+      if (!message.endsWith(` ${text}`)) return undefined;
+      message = message.slice(0, -text.length - 1);
+    }
+  }
   return safe(message, SAFE_MESSAGE);
 }
 

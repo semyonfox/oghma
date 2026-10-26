@@ -105,13 +105,22 @@ export function readMigrationFiles(migrationsDir: PathLike): string[] {
 // a rollback redeploys the previous image against the migrated schema, so a migration
 // must not break the release before it. drops, renames and tightened columns belong
 // in a later release than the code that stops using them
-const rollbackBreakingPatterns: ReadonlyArray<[string, RegExp]> = [
-  ["drops a table", /\bdrop\s+table\b/i],
-  ["drops a column", /\bdrop\s+column\b/i],
-  ["renames a table or column", /\brename\s+(column\b|to\b|[a-z_"])/i],
-  ["changes a column type", /\balter\s+column\s+\S+\s+(set\s+data\s+)?type\b/i],
+// ALTER TABLE subcommands. COLUMN is optional in postgres, so `DROP legacy` and
+// `ALTER legacy TYPE` count too, while constraint, default and identity drops do not
+const alterTableBreakingPatterns: ReadonlyArray<[string, RegExp]> = [
+  ["drops a column", /\bdrop\s+(?:column\b|(?!constraint\b|default\b|not\s+null\b|expression\b|identity\b)[a-z_"])/i],
+  ["renames a table or column", /\brename\b/i],
+  ["changes a column type", /\balter\s+(?:column\s+)?\S+\s+(?:set\s+data\s+)?type\b/i],
   ["adds a not-null constraint", /\bset\s+not\s+null\b/i],
 ];
+
+// an added NOT NULL column without a default rejects the previous release's inserts
+function addsRequiredColumn(statement: string): boolean {
+  return statement
+    .split(/,(?![^(]*\))/)
+    .some((clause) => /\badd\s+(?:column\s+)?/i.test(clause) && !/\badd\s+(?:constraint|primary|unique|foreign|check)\b/i.test(clause)
+      && /\bnot\s+null\b/i.test(clause) && !/\b(?:default|generated)\b/i.test(clause));
+}
 
 // the last migration released before this guard; earlier history is not rechecked
 export const rollbackGuardBaseline = 82;
@@ -119,6 +128,12 @@ export const rollbackGuardBaseline = 82;
 /** reasons a migration would break the previous release, unless it says why it is safe */
 export function rollbackBreakingChanges(contents: string): string[] {
   if (/^--\s*rollback-safe:\s*\S/im.test(contents)) return [];
-  const sql = contents.replace(/--.*$/gm, "");
-  return rollbackBreakingPatterns.filter(([, pattern]) => pattern.test(sql)).map(([reason]) => reason);
+  const reasons = new Set<string>();
+  for (const statement of contents.replace(/--.*$/gm, "").split(";")) {
+    if (/^\s*drop\s+table\b/i.test(statement)) reasons.add("drops a table");
+    if (!/^\s*alter\s+table\b/i.test(statement)) continue;
+    for (const [reason, pattern] of alterTableBreakingPatterns) if (pattern.test(statement)) reasons.add(reason);
+    if (addsRequiredColumn(statement)) reasons.add("adds a required column without a default");
+  }
+  return [...reasons];
 }

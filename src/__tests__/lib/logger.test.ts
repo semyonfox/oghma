@@ -65,6 +65,11 @@ describe("operational diagnostics privacy", () => {
     expect(JSON.stringify(output)).not.toContain("private");
     expect(captureException).toHaveBeenLastCalledWith(error, expect.anything());
   });
+  it("strips a plain object's message that winston appends", async () => {
+    const output = await logged(() => logger.error("redis connection error", { message: "Private lecture notes.pdf" }));
+    expect(output).toEqual({ level: "error", message: "redis connection error", service: "oghmanotes" });
+    expect(captureException).toHaveBeenLastCalledWith(expect.any(Error), { tags: { logMessage: "redis connection error" } });
+  });
   it("drops names and codes that could carry user content", () => {
     const result = redactSensitive.transform({
       level: "warn", message: "Lecture 3 notes.pdf for jane@example.test", task: "Jane's Notes.pdf", stage: "x".repeat(81),
