@@ -41,7 +41,7 @@ export async function pooled<T>(tasks: Array<() => Promise<T>>, limit: number) {
   const settled = await Promise.allSettled(tasks.map((task) => run(task)));
   for (const result of settled) {
     if (result.status === "rejected") {
-      logger.error("worker_event");
+      logger.error("limited task failed", { error: result.reason });
     }
   }
   return settled;

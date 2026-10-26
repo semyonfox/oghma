@@ -1,8 +1,25 @@
 import { describe, it, expect, vi } from "vitest";
 import winston from "winston";
 import { PassThrough } from "node:stream";
+import { captureException } from "@sentry/core";
 import logger, { redactSensitive } from "@/lib/logger";
 vi.mock("winston-daily-rotate-file", () => ({ default: vi.fn() }));
+vi.mock("@sentry/core", () => ({ captureException: vi.fn() }));
+
+async function logged(write: () => void): Promise<Record<string, unknown>> {
+  const stream = new PassThrough(); let output = "";
+  stream.on("data", (data: Buffer) => { output += data.toString(); });
+  const transport = new winston.transports.Stream({ stream, format: winston.format.json() });
+  logger.add(transport);
+  write();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  logger.remove(transport); stream.end();
+  return JSON.parse(output);
+}
+
+class PostgresError extends Error {
+  code = "25P03";
+}
 
 describe("operational diagnostics privacy", () => {
   it("drops text, stacks, identifiers, symbols and arbitrary nested fields", () => {
@@ -29,5 +46,35 @@ describe("operational diagnostics privacy", () => {
     await new Promise<void>((resolve) => setImmediate(resolve));
     logger.remove(transport); stream.end();
     expect(output).toContain("operation_failed"); expect(output).not.toMatch(/private|secret|email|user_ids|traceId|timestamp|stack/);
+  });
+  it("keeps the fixed message, task and error class and code so a failure can be traced", async () => {
+    const error = new PostgresError("terminating connection for student@example.test");
+    const output = await logged(() => logger.error("worker periodic task failed", { task: "study map reconciliation", error, durationMs: 31_250.4, statusCode: 500 }));
+    expect(output).toEqual({
+      level: "error", message: "worker periodic task failed", service: "oghmanotes", task: "study map reconciliation",
+      errorType: "PostgresError", errorCode: "25P03", durationMs: 31_250, statusClass: "5xx",
+    });
+    expect(captureException).toHaveBeenLastCalledWith(error, {
+      tags: { task: "study map reconciliation", errorCode: "25P03", logMessage: "worker periodic task failed" },
+    });
+  });
+  it("strips a positional error's text from the message and still reports the real exception", async () => {
+    const error = Object.assign(new Error("private note body"), { code: "ECONNRESET" });
+    const output = await logged(() => logger.error("cache set failed", error));
+    expect(output).toMatchObject({ message: "cache set failed", errorType: "Error", errorCode: "ECONNRESET" });
+    expect(JSON.stringify(output)).not.toContain("private");
+    expect(captureException).toHaveBeenLastCalledWith(error, expect.anything());
+  });
+  it("strips a plain object's message that winston appends", async () => {
+    const output = await logged(() => logger.error("redis connection error", { message: "Private lecture notes.pdf" }));
+    expect(output).toEqual({ level: "error", message: "redis connection error", service: "oghmanotes" });
+    expect(captureException).toHaveBeenLastCalledWith(expect.any(Error), { tags: { logMessage: "redis connection error" } });
+  });
+  it("drops names and codes that could carry user content", () => {
+    const result = redactSensitive.transform({
+      level: "warn", message: "Lecture 3 notes.pdf for jane@example.test", task: "Jane's Notes.pdf", stage: "x".repeat(81),
+      code: "private code with spaces", durationMs: Number.NaN,
+    });
+    expect(result).toEqual({ level: "warn", [Symbol.for("level")]: "warn", message: "operation_warning", service: "oghmanotes" });
   });
 });

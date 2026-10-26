@@ -87,6 +87,12 @@ export default [
           selector: "TaggedTemplateExpression TemplateElement[value.raw=/^\\s*::jsonb/]",
           message: "Bind JSON as ${JSON.stringify(value)}::text::jsonb so it is stored as an object, not a string.",
         },
+        {
+          // production logs keep the message, so it must be a code constant. ids and
+          // names go in metadata, where only the safe fields in logger.ts survive
+          selector: "CallExpression[callee.object.name='logger'][callee.property.name=/^(error|warn|info|debug)$/][arguments.0.type!='Literal']",
+          message: "Log a fixed string message and pass context as metadata, e.g. logger.error(\"import failed\", { jobId, error }).",
+        },
       ],
       "no-console": "off",
       ...reactCompilerRules,

@@ -61,7 +61,7 @@ describe("monitoring privacy", () => {
           data: { note: "private" },
         },
       },
-      tags: { service: "worker", operation: "study.classify", note: "private" },
+      tags: { service: "worker", operation: "study.classify", task: "study map reconciliation", errorCode: "25P03", logMessage: "worker periodic task failed", note: "private", stage: "private Notes.pdf" },
     });
     expect(JSON.stringify(result)).not.toContain("private");
     expect(result.user).toEqual({ ip_address: "0.0.0.0" });
@@ -76,6 +76,9 @@ describe("monitoring privacy", () => {
     expect(result.tags).toEqual({
       service: "worker",
       operation: "study.classify",
+      task: "study map reconciliation",
+      errorCode: "25P03",
+      logMessage: "worker periodic task failed",
     });
   });
 

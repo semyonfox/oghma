@@ -48,8 +48,8 @@ async function sendOrRestore(
           AND email_verified = false
           AND verification_token = ${tokenHash}
       `;
-    } catch {
-      logger.error("failed to restore verification token after resend failure");
+    } catch (error) {
+      logger.error("failed to restore verification token after resend failure", { error });
     }
     logger.error("resend verification email failed", {
       reason:

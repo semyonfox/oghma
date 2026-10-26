@@ -54,7 +54,7 @@ export async function stageCanvasExtractionRetry(msg: ExtractionRetryMessage, er
   if (!staged || staged.status === "error") return;
   await enqueueExtractRetryJob({ ...msg, attempt: staged.retry_attempts + 1, retrySeq: staged.retry_seq },
     Math.max(0, Math.ceil((new Date(staged.next_attempt_at).getTime() - Date.now()) / 1000)))
-    .catch(() => logger.warn("worker_event"));
+    .catch((error: unknown) => logger.warn("extraction retry enqueue failed", { error }));
 }
 
 function getExtractionRetryDelaySeconds(attempt: number): number {

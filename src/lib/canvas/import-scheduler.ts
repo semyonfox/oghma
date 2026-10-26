@@ -104,7 +104,7 @@ export async function dispatchFairCanvasFiles(limit = 10): Promise<number> {
   `;
   const recovered = await recoverStaleCanvasDispatches();
   if (recovered > 0) {
-    logger.warn("worker_event");
+    logger.warn("stale canvas dispatches recovered");
   }
   const selected = await sql.begin(async (tx: postgres.TransactionSql) => {
     await tx`SELECT pg_advisory_xact_lock(hashtext('oghma-import-fair-dispatch'))`;
@@ -208,12 +208,12 @@ export async function dispatchFairCanvasFiles(limit = 10): Promise<number> {
         userId: record.user_id,
       });
       enqueued += 1;
-    } catch {
+    } catch (error) {
       await sql`
         UPDATE app.canvas_imports SET dispatched_at = NULL
         WHERE id = ${record.id}::uuid AND status = 'pending'
       `;
-      logger.error("worker_event");
+      logger.error("canvas file enqueue failed", { error });
     }
   }
   return enqueued;

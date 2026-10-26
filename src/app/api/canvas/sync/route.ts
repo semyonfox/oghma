@@ -154,7 +154,7 @@ export const POST = withErrorHandler(async (request) => {
     }, { status: 409 });
     if (started.kind === "created") {
       await enqueueCanvasDiscoverJob(started.jobId, user.user_id)
-        .catch((error: unknown) => logger.warn("Sync publication deferred to recovery", { error: errorMessage(error) }));
+        .catch((error: unknown) => logger.warn("Sync publication deferred to recovery", { error }));
     }
     return NextResponse.json({ queued: true, jobId: started.jobId, alreadyActive: started.kind === "existing" });
   }

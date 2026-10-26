@@ -19,6 +19,25 @@ export function monitoringPath(value: string): string {
   }
 }
 
+// set from code by monitorOperation and the logger, revalidated because any SDK caller can tag
+const tagPatterns = {
+  service: /^[a-z][a-z0-9-]{0,39}$/,
+  operation: /^[a-z][a-z0-9 ._:-]{0,79}$/,
+  task: /^[a-z][a-z0-9 ._:-]{0,79}$/,
+  stage: /^[a-z][a-z0-9 ._:-]{0,79}$/,
+  errorCode: /^[A-Za-z0-9_.-]{1,40}$/,
+  logMessage: /^[A-Za-z][A-Za-z0-9 ,.:;()'/_-]{0,119}$/,
+};
+
+function safeTags(tags: ErrorEvent["tags"]): Record<string, string> {
+  const kept: Record<string, string> = {};
+  for (const [name, pattern] of Object.entries(tagPatterns)) {
+    const value = tags?.[name];
+    if (typeof value === "string" && pattern.test(value)) kept[name] = value;
+  }
+  return kept;
+}
+
 export function sanitizeError(event: ErrorEvent): ErrorEvent {
   const trace = event.contexts?.trace;
   return {
@@ -68,10 +87,7 @@ export function sanitizeError(event: ErrorEvent): ErrorEvent {
           },
         }
       : undefined,
-    tags: {
-      service: event.tags?.service,
-      operation: event.tags?.operation,
-    },
+    tags: safeTags(event.tags),
     request: event.request && {
       method: event.request.method,
       url: event.request.url ? monitoringPath(event.request.url) : undefined,

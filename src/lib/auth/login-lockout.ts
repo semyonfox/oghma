@@ -60,7 +60,7 @@ async function canUseRedis(): Promise<boolean> {
   } catch (err) {
     logger.error("redis rate-limit readiness check failed", {
       fn: "canUseRedis",
-      message: errorMessage(err),
+      error: err,
     });
     return false;
   }
@@ -73,7 +73,7 @@ function storeUnavailable(
   const message = errorMessage(err);
   logger.error("redis auth lockout store unavailable", {
     fn,
-    message,
+    error: err,
     failOpen: failOpen(),
   });
   return new AuthLockoutStoreUnavailableError(message);
@@ -91,7 +91,7 @@ async function withStore<T>(
       if (!failOpen()) throw storeUnavailable(fn, err);
       logger.warn("redis lockout store failed, falling back to memory", {
         fn,
-        message: errorMessage(err),
+        error: err,
       });
       return null;
     }
