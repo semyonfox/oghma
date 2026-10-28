@@ -24,6 +24,33 @@ export const toFriendlyCanvasError = (value: unknown) => {
   return "Canvas sync hit an issue. Please try again.";
 };
 
+// first connect only. "reconnect" means nothing to someone who has never connected, and the
+// server's reason says exactly what to fix
+export const toFriendlyCanvasConnectError = (value: unknown) => {
+  const message = normalize(value).toLowerCase();
+
+  if (message.includes("invalid or expired canvas token")) {
+    return "Canvas didn't accept that access token. In Canvas, go to Account, Settings, New access token, then copy and paste the whole token.";
+  }
+  if (message.includes("token and domain are required")) {
+    return "Enter your Canvas address and access token.";
+  }
+  if (message.includes("token is too long")) {
+    return "That doesn't look like a Canvas access token. Paste only the token Canvas generated.";
+  }
+  if (message.includes("valid https canvas address")) {
+    return "Enter the address you use to log in to Canvas, for example universityofgalway.instructure.com.";
+  }
+  if (message.includes("canvas api error: 404")) {
+    return "Canvas wasn't found at that address. Use the address you log in to Canvas with.";
+  }
+  if (message.includes("access restricted")) {
+    return "Canvas wouldn't let this token list your courses. Ask your school's Canvas admin whether access tokens are allowed.";
+  }
+
+  return toFriendlyCanvasError(value);
+};
+
 export const toFriendlyCanvasLogMessage = (value: unknown, courseSection = false) => {
   const message = normalize(value).toLowerCase();
 
