@@ -12,6 +12,7 @@ import { checkRateLimit } from "@/lib/rate-limiter";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
 import { discoverCanvasCourses } from "@/lib/canvas/sync-courses";
 import { canvasHostFromInput } from "@/lib/canvas/institution-search";
+import logger from "@/lib/logger";
 
 const CANVAS_TOKEN_MAX_LENGTH = 4096;
 
@@ -140,6 +141,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       (previousCourseRows ?? []).map((row) => String(row.canvas_course_id)),
     );
     if (discovery.error) {
+      // the reason never contains the token, and without it a failed connect cannot be diagnosed
+      logger.warn("canvas connect rejected", { reason: discovery.error, domain: normalizedDomain });
       throw new ApiError(400, `Canvas connection failed: ${discovery.error}`);
     }
     normalizedCourses = discovery.data;
