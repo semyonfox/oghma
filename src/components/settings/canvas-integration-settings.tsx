@@ -15,7 +15,7 @@ import CanvasConnectionForm from "./canvas/canvas-connection-form";
 import CanvasProgressPanel from "./canvas/canvas-progress-panel";
 import CanvasCourseSelector from "./canvas/canvas-course-selector";
 import useCanvasImport from "./canvas/use-canvas-import";
-import { toFriendlyCanvasError } from "@/lib/friendly-errors";
+import { toFriendlyCanvasConnectError, toFriendlyCanvasError } from "@/lib/friendly-errors";
 import {
   reportTelemetry,
 } from "@/lib/marketing/client";
@@ -254,7 +254,7 @@ export default function CanvasIntegrationSettings() {
 
       if (!res.ok) {
         reportTelemetry({ kind: "error", name: "request_failed", route: "settings" });
-        setConnectionError(toFriendlyCanvasError(data.error));
+        setConnectionError(toFriendlyCanvasConnectError(data.error));
         return;
       }
 
@@ -487,7 +487,7 @@ export default function CanvasIntegrationSettings() {
 
           {/* Import error */}
           {connectionError && (
-            <div className="flex items-center gap-2 text-sm text-red-400">
+            <div role="alert" className="flex items-center gap-2 text-sm text-red-400">
               <ExclamationCircleIcon className="size-4 shrink-0" />
               {connectionError}
             </div>
