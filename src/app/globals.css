@@ -175,8 +175,31 @@
   --md-syntax-invalid: #f87171;
 }
 
+/* topic colours for the study map and tree marks. 400 shades read on dark.
+   kept out of @theme because tailwind drops theme variables no class uses,
+   and these are only read through var() */
+:root {
+  --color-topic-0: #818cf8;
+  --color-topic-1: #fbbf24;
+  --color-topic-2: #2dd4bf;
+  --color-topic-3: #fb7185;
+  --color-topic-4: #38bdf8;
+  --color-topic-5: #fb923c;
+  --color-topic-6: #a3e635;
+  --color-topic-7: #e879f9;
+}
+
 /* light mode overrides */
 html.light {
+  /* 400 shades wash out on white, so light uses the 600 shades */
+  --color-topic-0: #4f46e5;
+  --color-topic-1: #d97706;
+  --color-topic-2: #0d9488;
+  --color-topic-3: #e11d48;
+  --color-topic-4: #0284c7;
+  --color-topic-5: #ea580c;
+  --color-topic-6: #65a30d;
+  --color-topic-7: #c026d3;
   --color-background: #f8fafc;
   --color-surface: #ffffff;
   --color-surface-elevated: #f1f5f9;

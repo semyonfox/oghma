@@ -9,6 +9,7 @@ import {
   discoverCanvasCourses,
   isCanvasCourseImportable,
 } from "@/lib/canvas/sync-courses";
+import { recordCanvasCourseStatuses } from "@/lib/canvas/course-status";
 
 /**
  * POST /api/assignments/sync
@@ -40,6 +41,7 @@ export const POST = withErrorHandler(async () => {
       reason: discovery.error,
     });
   }
+  await recordCanvasCourseStatuses(user.user_id, discovery.data);
   const courses = discovery.data.filter(isCanvasCourseImportable);
 
   let totalSynced = 0;

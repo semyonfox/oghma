@@ -14,6 +14,7 @@ import {
 import { getLlmModel } from "@/lib/ai-config";
 import { normalizeEditorSize } from "@/lib/notes/editor-width";
 import { LOCALE_COOKIE_NAME, normalizeLocale } from "@/locales";
+import { treeViewSettingsSchema } from "@/lib/notes/tree-view-settings";
 
 // settings live in one S3 JSON object and feed cookies and the theme script,
 // so only typed values for known keys are stored. unknown keys are ignored
@@ -27,6 +28,8 @@ const settingsUpdateSchema = z
     lastName: z.string().max(100),
     timezone: z.string().max(64),
     ai_canvas_access: z.boolean(),
+    tree_view: treeViewSettingsSchema.partial(),
+    tree_view_hint_seen: z.boolean(),
     // normalized below: unsupported values fall back instead of failing the save
     editorsize: z.unknown(),
     locale: z.unknown(),

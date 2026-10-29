@@ -12,6 +12,7 @@ import {
 } from "vitest";
 import sql from "@/database/pgsql";
 import { createNoteWithTree } from "@/lib/notes/storage/create-note";
+import { readTopicMarks } from "@/lib/notes/storage/tree-topics";
 import * as classification from "@/lib/study-map/classification";
 import * as generation from "@/lib/study-map/generation";
 import { anchorFromQuote } from "@/lib/study-map/evidence";
@@ -656,6 +657,36 @@ describe("study map storage and durable jobs", () => {
         origin: "manual",
       }),
     );
+  });
+
+  it("keeps a file's unreviewed stale picks when another topic on it is saved", async () => {
+    const second = topicSchema.parse({ ...topic, id: randomUUID(), name: "Definitions", includes: "precise descriptions" });
+    await saveStudyTopics(userId, mapId, { version: 2, topics: [topic, second] });
+    await reviewStudyMaterial(userId, mapId, await correctionInput());
+    // a topic list change makes the saved pick stale, so it waits for review
+    const third = topicSchema.parse({ ...topic, id: randomUUID(), name: "Complexity", includes: "running time" });
+    await saveStudyTopics(userId, mapId, { version: 3, topics: [topic, second, third] });
+    expect((await readTopicMarks(userId, [noteId])).get(noteId)).toEqual([
+      expect.objectContaining({ topicId: topic.id, suggested: true }),
+    ]);
+
+    await reviewStudyMaterial(userId, mapId, {
+      ...(await correctionInput()),
+      topics: { [second.id]: "supporting" },
+    });
+
+    expect((await readTopicMarks(userId, [noteId])).get(noteId)).toEqual([
+      expect.objectContaining({ topicId: second.id, suggested: false }),
+      expect.objectContaining({ topicId: topic.id, suggested: true }),
+    ]);
+    // answering the pick, either way, takes it out of review
+    await reviewStudyMaterial(userId, mapId, {
+      ...(await correctionInput()),
+      topics: { [second.id]: "supporting", [topic.id]: "excluded" },
+    });
+    expect((await readTopicMarks(userId, [noteId])).get(noteId)).toEqual([
+      expect.objectContaining({ topicId: second.id, suggested: false }),
+    ]);
   });
 
   it("keeps the saved board when another tab submits an older board version", async () => {

@@ -1,7 +1,7 @@
 // extracted from Notea (MIT License)
 // adapted for oghma - removed @atlaskit/tree and lodash dependencies
 
-import { DocumentBundle, NoteModel } from "./note";
+import { CourseState, DocumentBundle, NoteModel, TopicMark } from "./note";
 
 export interface TreeItem {
   id: string;
@@ -34,6 +34,9 @@ export interface TreeItemSummary {
   mimeType?: string | null;
   pinned?: number;
   bundle?: DocumentBundle;
+  updatedAt?: string;
+  topics?: TopicMark[];
+  course?: CourseState;
 }
 
 export interface TreeModel extends TreeData {

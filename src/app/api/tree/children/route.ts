@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import type postgres from "postgres";
 import { withErrorHandler, requireAuth, requireValidId, ApiError } from '@/lib/api-error';
 import sql from '@/database/pgsql';
+import { readTopicMarks } from '@/lib/notes/storage/tree-topics';
+import type { CanvasCourseStatus, CourseState } from '@/lib/notes/types/note';
 
 const database = sql as postgres.Sql;
 
@@ -20,6 +22,35 @@ interface TreeChildRow {
   pinned: number;
   bundlePdfId: string | null;
   bundleNoteId: string | null;
+  updatedAt: Date | string | null;
+  // only the root listing selects these, for its top-level folders
+  isCanvasCourse?: boolean;
+  canvasStatus?: string | null;
+  courseOverride?: boolean | null;
+  academicYear?: string | null;
+}
+
+const COURSE_STATUSES: readonly string[] = ['current', 'past', 'pending', 'inaccessible'];
+
+function isCourseStatus(value: string | null | undefined): value is CanvasCourseStatus {
+  return typeof value === 'string' && COURSE_STATUSES.includes(value);
+}
+
+function courseState(row: TreeChildRow): CourseState | undefined {
+  if (!row.isFolder || row.isCanvasCourse === undefined) return undefined;
+  const canvasStatus = isCourseStatus(row.canvasStatus) ? row.canvasStatus : null;
+  return {
+    canvasStatus,
+    isCanvasCourse: row.isCanvasCourse === true,
+    override: row.courseOverride ?? null,
+    academicYear: row.academicYear ?? null,
+  };
+}
+
+function isoTimestamp(value: Date | string | null): string | undefined {
+  if (!value) return undefined;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 }
 
 function sortTreeChildren<T extends Pick<TreeChildRow, 'id' | 'title'>>(
@@ -117,7 +148,8 @@ export const GET = withErrorHandler(async (request) => {
              LIMIT 1) as "mimeType",
             n.pinned,
             bundle.pdf_id as "bundlePdfId",
-            bundle.note_id as "bundleNoteId"
+            bundle.note_id as "bundleNoteId",
+            n.updated_at as "updatedAt"
           FROM app.tree_items ti
           JOIN app.notes n ON ti.note_id = n.note_id
           ${documentBundleJoin()}
@@ -138,31 +170,57 @@ export const GET = withErrorHandler(async (request) => {
              LIMIT 1) as "mimeType",
             n.pinned,
             bundle.pdf_id as "bundlePdfId",
-            bundle.note_id as "bundleNoteId"
+            bundle.note_id as "bundleNoteId",
+            n.updated_at as "updatedAt",
+            (n.canvas_course_id IS NOT NULL AND n.canvas_module_id IS NULL
+              AND n.canvas_assignment_id IS NULL) as "isCanvasCourse",
+            course.status as "canvasStatus",
+            n.course_finished_override as "courseOverride",
+            n.canvas_academic_year as "academicYear"
           FROM app.tree_items ti
           JOIN app.notes n ON ti.note_id = n.note_id
           ${documentBundleJoin()}
+          LEFT JOIN app.canvas_course_status course
+            ON course.user_id = n.user_id
+           AND course.canvas_course_id = n.canvas_course_id
+           AND n.is_folder
+           AND n.canvas_module_id IS NULL
+           AND n.canvas_assignment_id IS NULL
           WHERE ti.user_id = ${user.user_id}::uuid
             AND ti.parent_id IS NULL
             AND n.deleted_at IS NULL
           ORDER BY n.title ASC
         `;
 
+    // a document bundle is marked by its PDF, which pairs with its note below
+    const markIds = rows.flatMap((row) =>
+      row.bundlePdfId ? [row.bundlePdfId] : row.isFolder ? [] : [row.id],
+    );
+    const marks = await readTopicMarks(user.user_id, markIds);
+
     const body = {
       parentId: parentId || 'root',
       items: sortTreeChildren(
-        rows.map((row) => ({
-          id: row.id,
-          title: row.title,
-          isFolder: row.isFolder,
-          isExpanded: row.isExpanded,
-          s3Key: row.s3Key || null,
-          mimeType: row.mimeType || null,
-          pinned: row.pinned ?? 0,
-          ...(row.bundlePdfId
-            ? { bundle: { pdfId: row.bundlePdfId, noteId: row.bundleNoteId } }
-            : {}),
-        })),
+        rows.map((row) => {
+          const updatedAt = isoTimestamp(row.updatedAt);
+          const topics = marks.get(row.bundlePdfId ?? row.id);
+          const course = courseState(row);
+          return {
+            id: row.id,
+            title: row.title,
+            isFolder: row.isFolder,
+            isExpanded: row.isExpanded,
+            s3Key: row.s3Key || null,
+            mimeType: row.mimeType || null,
+            pinned: row.pinned ?? 0,
+            ...(row.bundlePdfId
+              ? { bundle: { pdfId: row.bundlePdfId, noteId: row.bundleNoteId } }
+              : {}),
+            ...(updatedAt ? { updatedAt } : {}),
+            ...(topics ? { topics } : {}),
+            ...(course ? { course } : {}),
+          };
+        }),
       ),
     };
 

@@ -42,6 +42,7 @@ import {
   type ModuleLayout,
   type TopicBridge,
 } from "@/lib/study-map/flow";
+import { topicColour } from "@/lib/study-map/topic-colours";
 import type {
   StudyAssignment,
   StudyBoard,
@@ -85,18 +86,6 @@ export interface StudyFlowProps {
   onShowAllModules?: () => void;
 }
 
-const TOPIC_COLOURS = [
-  "#6366f1",
-  "#0d9488",
-  "#0284c7",
-  "#a855f7",
-  "#059669",
-  "#e11d48",
-  "#ea580c",
-  "#db2777",
-  "#65a30d",
-  "#0891b2",
-];
 const COMPACT_ZOOM = 0.42;
 const FAR_ZOOM = 0.24;
 const MIN_ZOOM = 0.06;
@@ -239,7 +228,7 @@ function buildModel(modules: FlowModule[]): Model {
       layout,
       topics: snapshot.map.topics.map((topic, index) => ({
         ...topic,
-        colour: TOPIC_COLOURS[index % TOPIC_COLOURS.length],
+        colour: topicColour(index),
         mapId: snapshot.map.id,
         exam: exams.get(topic.id) ?? null,
       })),
