@@ -121,7 +121,9 @@ describe("tool budget controls", () => {
     });
 
     expect(result?.activeTools).toBeUndefined();
-    expect(result?.toolChoice).toBe("none");
+    // the provider gets tool_choice none via the wrapped model, see tool-budget-provider.test.ts
+    expect(result?.toolChoice).toBeUndefined();
+    expect(result?.model).toBeDefined();
     expect(result?.messages).toBeUndefined();
     expect(result?.instructions).toEqual(
       expect.stringContaining("Base instructions"),
