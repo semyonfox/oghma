@@ -3,7 +3,7 @@
 import { useLayoutEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Popover, PopoverButton, PopoverPanel } from "@headlessui/react";
-import { AdjustmentsHorizontalIcon, CheckIcon } from "@heroicons/react/24/outline";
+import { AdjustmentsHorizontalIcon, ArrowPathIcon, CheckIcon } from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import type { TreeViewSettings } from "@/lib/notes/tree-view-settings";
 
@@ -42,6 +42,9 @@ interface TreeViewMenuProps {
   /** classified topics across the user's study maps, shown beside Tags while Folders is on */
   topicsReady: number;
   showHint: boolean;
+  /** the tree keeps itself current, so a manual refresh lives here instead of in the header */
+  refreshing: boolean;
+  onRefresh: () => void;
   onChange: (patch: Partial<TreeViewSettings>) => void;
   onDismissHint: () => void;
 }
@@ -91,7 +94,7 @@ function ViewHint({ anchor, onDismiss }: { anchor: HTMLElement; onDismiss: () =>
   );
 }
 
-export function TreeViewMenu({ view, topicsReady, showHint, onChange, onDismissHint }: TreeViewMenuProps) {
+export function TreeViewMenu({ view, topicsReady, showHint, refreshing, onRefresh, onChange, onDismissHint }: TreeViewMenuProps) {
   const { t } = useI18n();
   const [wrapper, setWrapper] = useState<HTMLDivElement | null>(null);
   const markOptions: Array<{ value: TreeViewSettings["marks"]; label: string }> = [
@@ -180,6 +183,18 @@ export function TreeViewMenu({ view, topicsReady, showHint, onChange, onDismissH
               {t("Recently edited")}
             </Option>
           </div>
+          <div className="my-1 h-px bg-border-subtle" />
+          <button
+            type="button"
+            role="menuitem"
+            className={`${optionClass} disabled:opacity-50`}
+            disabled={refreshing}
+            aria-busy={refreshing}
+            onClick={onRefresh}
+          >
+            <ArrowPathIcon className={`h-4 w-4 shrink-0 ${refreshing ? "animate-spin" : ""}`} aria-hidden="true" />
+            <span className="min-w-0 flex-1 truncate">{t("Refresh notes")}</span>
+          </button>
         </PopoverPanel>
       </Popover>
 
