@@ -1,4 +1,6 @@
 import {
+  wrapLanguageModel,
+  type LanguageModel,
   type PrepareStepFunction,
   type StopCondition,
   type Tool,
@@ -51,7 +53,7 @@ export function buildToolBudgetControls(
   return {
     tools: wrapToolsWithBudget(tools, budget),
     stopWhen: ({ steps }) => steps.length >= safetyStepLimit,
-    prepareStep: ({ instructions }) => {
+    prepareStep: ({ model, instructions }) => {
       if (!budget.exhausted) return undefined;
 
       const limitInstruction = {
@@ -71,15 +73,34 @@ export function buildToolBudgetControls(
               limitInstruction,
             ];
 
+      // keep schemas in the request: the OpenRouter adapter omits tool_choice
+      // entirely when activeTools is empty. tool_choice "none" goes to the
+      // provider through the model rather than the step, because the SDK throws
+      // ToolChoiceViolationError when a step's toolChoice is ignored, and some
+      // models do ignore it. the execution wrapper rejects those calls instead
+      if (typeof model === "string") {
+        return { toolChoice: "none", instructions: nextInstructions };
+      }
       return {
-        // Keep schemas in the request: the OpenRouter adapter omits tool_choice
-        // entirely when activeTools is empty. The execution wrapper still rejects
-        // over-budget calls if a provider ignores the explicit prohibition.
-        toolChoice: "none",
+        model: withProviderToolChoiceNone(model),
         instructions: nextInstructions,
       };
     },
   };
+}
+
+function withProviderToolChoiceNone(
+  model: Exclude<LanguageModel, string>,
+): LanguageModel {
+  return wrapLanguageModel({
+    model,
+    middleware: {
+      transformParams: async ({ params }) => ({
+        ...params,
+        toolChoice: { type: "none" },
+      }),
+    },
+  });
 }
 
 interface ToolCallLimitResult {
