@@ -23,10 +23,14 @@ function reactCompilerPlugin(): Plugin {
                 babelrc: false,
                 configFile: false,
                 sourceMaps: true,
-                parserOpts: { plugins: ['typescript', 'jsx'] },
+                // babel 8 honours jsx in .ts files, where it misreads generic arrows like <T>() =>
+                parserOpts: { plugins: file.endsWith('.ts') ? ['typescript'] : ['typescript', 'jsx'] },
                 plugins: [reactCompiler],
             });
-            return result?.code ? { code: result.code, map: result.map } : null;
+            if (!result?.code) return null;
+            // babel 8 types its map arrays as readonly, rollup's object form wants
+            // mutable ones, so hand it over in the string form it also accepts
+            return { code: result.code, map: result.map ? JSON.stringify(result.map) : null };
         },
     };
 }
