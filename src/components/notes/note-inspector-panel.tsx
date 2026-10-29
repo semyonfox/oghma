@@ -12,6 +12,7 @@ import useLayoutStore, {
 } from "@/lib/notes/state/layout";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { extractTags } from "@/lib/notes/utils/file-spec";
+import { addTagLine, removeTagLine } from "@/lib/notes/tag-editing";
 import dynamic from "next/dynamic";
 import {
   readSidebarChatSession,
@@ -275,11 +276,7 @@ export default function NoteInspectorPanel({
     if (!tag || !tagNote || !canEditTags) return;
     setIsSavingTag(true);
     const run = async () => {
-      const tagLine = `#${tag}`;
-      const updatedContent = tagNote.content
-        ? `${tagNote.content.trimEnd()}\n${tagLine}\n`
-        : `${tagLine}\n`;
-      await saveTaggedContent(tagNote.id, updatedContent);
+      await saveTaggedContent(tagNote.id, addTagLine(tagNote.content ?? "", tag));
       setNewTag("");
     };
     await run()
@@ -296,11 +293,7 @@ export default function NoteInspectorPanel({
     const { id: noteId, content } = tagNote;
     setIsSavingTag(true);
     const run = async () => {
-      const updatedContent = content
-        .split("\n")
-        .filter((line) => line.trim() !== `#${tagToRemove}`)
-        .join("\n");
-      await saveTaggedContent(noteId, updatedContent);
+      await saveTaggedContent(noteId, removeTagLine(content, tagToRemove));
     };
     await run()
       .catch(() => {

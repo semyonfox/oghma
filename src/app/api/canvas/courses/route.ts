@@ -3,6 +3,7 @@ import { withErrorHandler, requireAuth, ApiError } from '@/lib/api-error';
 import { CanvasClient } from '@/lib/canvas/client';
 import { loadCanvasCredentials } from '@/lib/canvas/credentials';
 import { discoverCanvasCourses } from '@/lib/canvas/sync-courses';
+import { recordCanvasCourseStatuses } from '@/lib/canvas/course-status';
 import sql from '@/database/pgsql';
 
 /**
@@ -41,6 +42,7 @@ export const GET = withErrorHandler(async () => {
     }
     courses = discovery.data;
     courseDiscoveryDegraded = Boolean(discovery.degraded);
+    await recordCanvasCourseStatuses(user.user_id, courses);
   } catch (error) {
     if (error instanceof ApiError) throw error;
     throw new ApiError(502, 'Canvas returned an invalid course ID');

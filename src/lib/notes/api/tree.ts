@@ -24,6 +24,15 @@ export class TreeRequestError extends Error {
   }
 }
 
+const topicMarkSchema = z.object({
+  mapId: z.string(),
+  topicId: z.string(),
+  name: z.string(),
+  topicIndex: z.number().int().nonnegative(),
+  main: z.boolean(),
+  suggested: z.boolean(),
+});
+
 const childrenSchema = z.object({
   parentId: z.string(),
   items: z.array(z.object({
@@ -35,6 +44,14 @@ const childrenSchema = z.object({
     mimeType: z.string().nullable().optional(),
     pinned: z.union([z.literal(0), z.literal(1)]).optional(),
     bundle: z.object({ pdfId: z.string(), noteId: z.string().nullable() }).optional(),
+    updatedAt: z.string().optional(),
+    topics: z.array(topicMarkSchema).optional(),
+    course: z.object({
+      canvasStatus: z.enum(["current", "past", "pending", "inaccessible"]).nullable(),
+      isCanvasCourse: z.boolean(),
+      override: z.boolean().nullable(),
+      academicYear: z.string().nullable(),
+    }).optional(),
   })),
 });
 const successSchema = z.object({ success: z.literal(true) });

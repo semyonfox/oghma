@@ -17,6 +17,7 @@ import {
   startCanvasRun,
 } from "@/lib/canvas/import-runs";
 import { isValidUUID } from "@/lib/utils/uuid";
+import { recordCanvasCourseStatuses } from "@/lib/canvas/course-status";
 
 const ACTIVE_CANVAS_JOB_STATUSES = new Set([
   "queued",
@@ -127,6 +128,7 @@ export const POST = withErrorHandler(async (request) => {
         isCanvasCourseAvailabilityUnresolved(course),
     );
     courses = buildCanvasSyncCourses(prevCourseIds, discovery.data);
+    await recordCanvasCourseStatuses(user.user_id, discovery.data);
   } catch (error) {
     if (error instanceof ApiError) throw error;
     throw new ApiError(502, "Canvas returned invalid course metadata");

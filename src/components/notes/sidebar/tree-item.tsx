@@ -22,6 +22,8 @@ import {
 } from "@heroicons/react/24/outline";
 import type { FileType } from "@/lib/notes/state/layout";
 import type { TreeItemRenderContext } from "react-complex-tree";
+import type { TreeMarkStyle } from "@/lib/notes/tree-view-settings";
+import { TopicBadge, TopicDots } from "./topic-marks";
 
 const INDENT_PX = 14;
 
@@ -64,6 +66,7 @@ interface TreeItemProps {
   context: TreeItemRenderContext;
   children: React.ReactNode;
   initLoaded: boolean;
+  markStyle: TreeMarkStyle;
   onContextMenu: (e: React.MouseEvent) => void;
   onToggle: () => void;
   onClick: (e: React.MouseEvent) => void;
@@ -87,6 +90,7 @@ function TreeItem({
   context,
   children,
   initLoaded,
+  markStyle,
   onContextMenu,
   onToggle,
   onClick,
@@ -114,6 +118,14 @@ function TreeItem({
     : isFolder
       ? { Icon: isExpanded ? FolderOpenIcon : FolderIcon, className: "text-text-tertiary" }
       : FILE_ICONS[fileType ?? "note"];
+
+  const topics = nodeData?.topics ?? [];
+  const rowIcon = (
+    <RowIcon
+      className={`mr-1.5 h-4 w-4 shrink-0 md:h-3.5 md:w-3.5 ${rowIconClass}`}
+      aria-hidden="true"
+    />
+  );
 
   useEffect(() => {
     renameValueRef.current = renameValue;
@@ -235,10 +247,11 @@ function TreeItem({
             />
           ) : null}
         </span>
-        <RowIcon
-          className={`mr-1.5 h-4 w-4 shrink-0 md:h-3.5 md:w-3.5 ${rowIconClass}`}
-          aria-hidden="true"
-        />
+        {markStyle === "badge" && topics.length > 0 ? (
+          <TopicBadge marks={topics}>{rowIcon}</TopicBadge>
+        ) : (
+          rowIcon
+        )}
 
         {isRenaming ? (
           <div
@@ -285,6 +298,8 @@ function TreeItem({
             )}
           </span>
         )}
+
+        {!isRenaming && markStyle === "dots" && <TopicDots marks={topics} />}
 
         {!isRenaming &&
           (syncStatus === "modified" || syncStatus === "new") && (

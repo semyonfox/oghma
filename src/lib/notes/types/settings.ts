@@ -4,6 +4,7 @@ import {
   DEFAULT_EDITOR_SIZE,
   type EditorSize,
 } from "@/lib/notes/editor-width";
+import type { TreeViewSettings } from "@/lib/notes/tree-view-settings";
 
 export interface Settings {
   sidebar_is_fold?: boolean;
@@ -17,6 +18,9 @@ export interface Settings {
   editorsize?: EditorSize;
   ai_canvas_access?: boolean;
   ai_model?: string;
+  tree_view?: Partial<TreeViewSettings>;
+  /** the one-off pointer to the View menu after the first Canvas import */
+  tree_view_hint_seen?: boolean;
 }
 
 /**

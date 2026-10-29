@@ -4,8 +4,8 @@ import TreeItem from "./tree-item";
 import useNoteTreeStore from "@/lib/notes/state/tree";
 import useLayoutStore from "@/lib/notes/state/layout";
 import useContextMenuStore from "@/lib/notes/state/context-menu";
-import { buildFileSpec } from "@/lib/notes/utils/file-spec";
-import React, { useState, useRef } from "react";
+import { buildFileSpec, inferFileType } from "@/lib/notes/utils/file-spec";
+import React, { useEffect, useState, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import useMediaQuery from "@/lib/hooks/use-media-query";
 import useI18n from "@/lib/notes/hooks/use-i18n";
@@ -33,6 +33,18 @@ import {
   toggleSelectedId,
 } from "./selection-utils";
 import { ROOT_ID } from "@/lib/notes/types/tree";
+import { applyTreeView, topLevelAncestor } from "@/lib/notes/tree-view";
+import { isFinishedCourse, nextFinishedOverride } from "@/lib/notes/tree-topics";
+import useTagEditorStore, { type TagTarget } from "@/lib/notes/state/tag-editor";
+import type { TagsViewFile } from "@/lib/notes/tags-view";
+import { useCanvasImportNotification } from "@/components/canvas/canvas-import-notifications";
+import { summarySchema } from "@/components/study-map/study-client";
+import { toast } from "sonner";
+import { z } from "zod";
+import { TreeViewMenu } from "./tree-view-menu";
+import { TagsView } from "./tags-view";
+import { TagEditor } from "./tag-editor";
+import { useTreeViewSettings } from "./use-tree-view-settings";
 
 interface SidebarListProps {
   onOpenNote?: () => void;
@@ -73,7 +85,17 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
 
   const activeId = activeIdFromPath(pathname);
 
-  const treeData = useTreeData();
+  const storeTree = useNoteTreeStore((state) => state.tree);
+  const { loaded: viewLoaded, view, hintSeen, updateView, dismissHint } = useTreeViewSettings();
+  const [revealFinished, setRevealFinished] = useState(false);
+  const shaped = applyTreeView(storeTree, view, { revealFinished, activeId });
+  const treeData = useTreeData(shaped.tree);
+  const activeRootId = topLevelAncestor(storeTree, activeId);
+  const importing = useCanvasImportNotification()?.isImporting ?? false;
+  const hasCanvasCourse = (storeTree.items[ROOT_ID]?.children ?? []).some(
+    (id) => storeTree.items[id]?.data?.course?.isCanvasCourse,
+  );
+  const topicsReady = useTopicsReady();
 
   const {
     tree,
@@ -108,7 +130,72 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
     onDeleteSelectionCleared: () => setSelectionAnchorId(null),
   });
 
-  const visibleIds = getVisibleTreeItemIds(tree, expandedIds);
+  const visibleIds = getVisibleTreeItemIds(shaped.tree, expandedIds);
+
+  const tagTargetFor = (id: string): TagTarget | null => {
+    const data = tree.items[id]?.data;
+    if (!data || (data.isFolder && !data.bundle)) return null;
+    const isNote = !data.bundle && inferFileType(data.title, data.mimeType, data.s3Key) === "note";
+    return {
+      id,
+      title: data.bundle ? data.title : data.title.replace(/\.md$/i, ""),
+      materialId: data.bundle?.pdfId ?? id,
+      noteId: data.bundle ? data.bundle.noteId : isNote ? id : null,
+      courseId: topLevelAncestor(tree, id),
+    };
+  };
+
+  const openTagEditor = (ids: string[]) => {
+    const targets = ids.flatMap((id) => tagTargetFor(id) ?? []);
+    if (targets.length === 0) return;
+    const { position } = useContextMenuStore.getState();
+    useTagEditorStore.getState().open(targets, position);
+  };
+
+  const toggleFinished = (id: string) => {
+    const course = tree.items[id]?.data?.course;
+    if (!course) return;
+    const override = nextFinishedOverride(course);
+    void fetch("/api/tree/course", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folderId: id, finished: override }),
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error("course status not saved");
+        return refreshTree();
+      })
+      .catch(() => toast.error(t("This change could not be saved. Try again.")));
+  };
+
+  const courseToggle = (id: string): { label: string; hint?: string } | null => {
+    if (!storeTree.items[ROOT_ID]?.children.includes(id)) return null;
+    const course = tree.items[id]?.data?.course;
+    if (!course || tree.items[id]?.data?.bundle) return null;
+    if (!isFinishedCourse(course)) return { label: t("Mark as finished") };
+    return course.isCanvasCourse && course.canvasStatus === "past" && course.override === null
+      ? { label: t("Keep as active"), hint: t("Canvas says finished") }
+      : { label: t("Mark as active") };
+  };
+
+  const openTagsViewFile = (file: TagsViewFile) => {
+    const { setPaneA, setPaneB, setActivePane } = useLayoutStore.getState();
+    if (file.isFile && file.noteId) {
+      // a PDF and its note open together, the way a document row does in the tree
+      setPaneA({ fileId: file.noteId, fileType: "note", title: `${file.title}.md` });
+      if (isDesktop === true) setPaneB({ fileId: file.id, fileType: "pdf", title: file.title });
+    } else {
+      setPaneA({
+        fileId: file.id,
+        fileType: file.isFile ? inferFileType(file.title, file.mimeType) : "note",
+        title: file.title,
+      });
+    }
+    setActivePane("A");
+    const target = file.isFile && file.noteId ? file.noteId : file.id;
+    router.push(pathname?.startsWith("/notes") ? `/notes/${target}` : `/${target}`);
+    onOpenNote?.();
+  };
 
   const selectedItemIds = Array.from(selectedIds).filter((id) => id !== ROOT_ID && tree.items[id]);
   const selectedCount = selectedItemIds.length;
@@ -213,6 +300,13 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
           </span>
           {/* action buttons - always visible */}
           <div className="flex w-full items-center gap-1 md:w-auto md:gap-0.5">
+            <TreeViewMenu
+              view={view}
+              topicsReady={topicsReady}
+              showHint={viewLoaded && !hintSeen && hasCanvasCourse && !importing}
+              onChange={updateView}
+              onDismissHint={dismissHint}
+            />
             <button
               type="button"
               onClick={() => {
@@ -312,7 +406,9 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
           </div>
         )}
 
-        {/* Tree */}
+        {view.group === "tags" ? (
+          <TagsView activeRootId={activeRootId} onOpenFile={openTagsViewFile} />
+        ) : (
         <div className="flex-1 pb-4">
           <ControlledTreeEnvironment
             items={treeData}
@@ -436,6 +532,7 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
                       }
                     }}
                     initLoaded={initLoaded}
+                    markStyle={view.marks}
                   >
                     {children}
                   </TreeItem>
@@ -443,8 +540,27 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
               }}
             />
           </ControlledTreeEnvironment>
+          {(shaped.hiddenFinished.length > 0 || (revealFinished && shaped.shownFinished.length > 0)) && (
+            <div className="mx-0.5 mt-1 flex min-h-12 items-center gap-2 rounded-radius-sm px-2 text-sm text-text-tertiary md:min-h-7 md:text-[13px]">
+              <span className="min-w-0 flex-1 truncate">
+                {t("{count} finished courses", {
+                  count: revealFinished ? shaped.shownFinished.length : shaped.hiddenFinished.length,
+                })}
+              </span>
+              <button
+                type="button"
+                onClick={() => setRevealFinished(!revealFinished)}
+                className="min-h-11 shrink-0 rounded-radius-sm px-2 font-medium text-primary-700 hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 dark:text-primary-300 md:min-h-6"
+              >
+                {revealFinished ? t("Hide") : t("Show")}
+              </button>
+            </div>
+          )}
         </div>
+        )}
       </section>
+
+      <TagEditor />
 
       <NoteContextMenu
         onRename={handleRename}
@@ -460,6 +576,10 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
         onCreateNote={handleContextCreateNote}
         onCreateFolder={handleCreateFolder}
         onOpenInSplit={handleOpenInSplit}
+        canEditTags={(id) => tagTargetFor(id) !== null}
+        onEditTags={openTagEditor}
+        courseToggle={courseToggle}
+        onToggleFinished={toggleFinished}
         onOpenInAIChat={(id) => {
           const item = tree.items[id];
           const nodeData = item?.data;
@@ -531,5 +651,23 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
     </>
   );
 };
+
+/** classified topics across the user's study maps, for the Tags entry in the View menu */
+function useTopicsReady(): number {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    const request = new AbortController();
+    void fetch("/api/study-maps", { signal: request.signal, cache: "no-store" })
+      .then(async (response) => (response.ok ? z.array(summarySchema).parse(await response.json()) : []))
+      .then((maps) => {
+        if (!request.signal.aborted) {
+          setCount(maps.reduce((sum, map) => sum + (map.materialCount > 0 ? map.topicCount : 0), 0));
+        }
+      })
+      .catch(() => {});
+    return () => request.abort();
+  }, []);
+  return count;
+}
 
 export default SidebarList;

@@ -1,4 +1,3 @@
-import useNoteTreeStore from "@/lib/notes/state/tree";
 import type { TreeModel } from "@/lib/notes/types/tree";
 import { getCycleSafeChildren } from "@/lib/notes/state/tree-cycle";
 import type { NoteModel } from "@/lib/notes/types/note";
@@ -49,7 +48,7 @@ function toSidebarTree(tree: TreeModel) {
   return result;
 }
 
-export function useTreeData() {
-  const tree = useNoteTreeStore((s) => s.tree);
+/** react-complex-tree items for the tree as the View menu shapes it */
+export function useTreeData(tree: TreeModel) {
   return toSidebarTree(tree);
 }

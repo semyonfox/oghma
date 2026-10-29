@@ -97,6 +97,8 @@ export const materialOverridesSchema = z.object({
   topics: z
     .record(z.uuid(), z.enum(["core", "supporting", "excluded"]))
     .default({}),
+  // stale picks carried past a save that didn't answer them, still waiting for review
+  unreviewed: z.record(z.uuid(), relevanceSchema).optional(),
   sourceHash: z.string().default(""),
   taxonomyVersion: z.number().int().nonnegative().default(0),
 });
@@ -315,8 +317,9 @@ export const materialUpdateSchema = z.object({
   noteId: z.uuid(),
   sourceHash: z.string().regex(/^[a-f0-9]{64}$/),
   taxonomyVersion: z.number().int().positive(),
-  kind: documentKindSchema,
-  labels: z.array(z.string().trim().min(1).max(60)).max(20),
+  // the tag popover only edits topics, so it leaves these out and the saved ones are kept
+  kind: documentKindSchema.optional(),
+  labels: z.array(z.string().trim().min(1).max(60)).max(20).optional(),
   topics: z.record(z.uuid(), z.enum(["core", "supporting", "excluded"])),
 });
 export const jobCreateSchema = z.object({
