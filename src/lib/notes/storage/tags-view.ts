@@ -193,7 +193,7 @@ export function buildTagsView(input: {
       .sort((left, right) => right.files.length - left.files.length || left.tag.localeCompare(right.tag)),
     courses: input.roots.map((root) => {
       const maps = [...mapsById.values()].filter((map) => map.row.root_id === root.id);
-      const topics: TagsViewTopic[] = maps.flatMap((map) =>
+      const topics: Array<Omit<TagsViewTopic, "suggestedCount">> = maps.flatMap((map) =>
         map.topics.flatMap((topic, topicIndex) => {
           const files = topicFiles.get(`${map.row.id}:${topic.id}`);
           if (!files?.size) return [];
@@ -221,7 +221,12 @@ export function buildTagsView(input: {
         rootId: root.id,
         title: root.title,
         maps: maps.map((map) => ({ id: map.row.id, name: map.row.name })),
-        topics,
+        // a suggestion lives in To review until it's kept, the topic only counts it
+        topics: topics.map((topic) => ({
+          ...topic,
+          files: topic.files.filter((file) => !file.suggested),
+          suggestedCount: topic.files.filter((file) => file.suggested).length,
+        })),
         review: [...review.values()].sort(byTitle),
         untagged: documents
           .filter((document) => document.rootId === root.id && !tagged.has(document))

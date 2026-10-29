@@ -11,10 +11,7 @@ import useMediaQuery from "@/lib/hooks/use-media-query";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { Favorites } from "./favorites";
 import {
-  ArrowPathIcon,
-  ArrowUpTrayIcon,
   DocumentPlusIcon,
-  FolderPlusIcon,
   TrashIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
@@ -42,6 +39,7 @@ import { summarySchema } from "@/components/study-map/study-client";
 import { toast } from "sonner";
 import { z } from "zod";
 import { TreeViewMenu } from "./tree-view-menu";
+import { NewMenu } from "./new-menu";
 import { TagsView } from "./tags-view";
 import { TagEditor } from "./tag-editor";
 import { useTreeViewSettings } from "./use-tree-view-settings";
@@ -304,53 +302,26 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
               view={view}
               topicsReady={topicsReady}
               showHint={viewLoaded && !hintSeen && hasCanvasCourse && !importing}
+              refreshing={loading}
+              onRefresh={() => {
+                void refreshTree().catch(() => {});
+              }}
               onChange={updateView}
               onDismissHint={dismissHint}
             />
             <button
               type="button"
-              onClick={() => {
-                void refreshTree().catch(() => {});
-              }}
-              disabled={loading}
-              className="ui-icon-button"
-              aria-busy={loading}
-              title={t("Refresh notes")}
-              aria-label={t("Refresh notes")}
-            >
-              <ArrowPathIcon
-                className={`h-[18px] w-[18px] ${loading ? "animate-spin" : ""}`}
-                aria-hidden="true"
-              />
-            </button>
-            <button
-              type="button"
               onClick={handleQuickNewNote}
-              className="order-first flex min-h-11 flex-1 items-center justify-center gap-2 rounded-radius-md bg-primary-600 px-3 text-sm font-medium text-white transition-colors hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-background md:order-none md:h-8 md:min-h-8 md:w-8 md:flex-none md:bg-transparent md:px-0 md:text-text-secondary md:hover:bg-subtle"
-              title={t("New note")}
-              aria-label={t("New note")}
+              className="order-first flex min-h-11 flex-1 items-center justify-center gap-2 rounded-radius-md bg-primary-600 px-3 text-sm font-medium text-white transition-colors hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-background md:hidden"
             >
               <DocumentPlusIcon className="h-[18px] w-[18px]" aria-hidden="true" />
-              <span className="md:hidden">{t("New note")}</span>
+              {t("New note")}
             </button>
-            <button
-              type="button"
-              onClick={handleQuickNewFolder}
-              className="ui-icon-button"
-              title={t("New folder")}
-              aria-label={t("New folder")}
-            >
-              <FolderPlusIcon className="h-[18px] w-[18px]" aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              onClick={() => uploadInputRef.current?.click()}
-              className="ui-icon-button"
-              title={t("Upload")}
-              aria-label={t("Upload")}
-            >
-              <ArrowUpTrayIcon className="h-[18px] w-[18px]" aria-hidden="true" />
-            </button>
+            <NewMenu
+              onNewNote={handleQuickNewNote}
+              onNewFolder={handleQuickNewFolder}
+              onUpload={() => uploadInputRef.current?.click()}
+            />
             <input
               ref={uploadInputRef}
               type="file"

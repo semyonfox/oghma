@@ -62,17 +62,30 @@ describe("buildTagsView", () => {
     const files = view.courses[0].topics[0].files;
     expect(files.map((file) => [file.id, file.noteId, file.title, file.path])).toEqual([
       ["pdf", "pdf-note", "Lecture 4", "Lecture Slides"],
-      ["mlfq", "mlfq", "MLFQ rules", ""],
     ]);
   });
 
-  it("keeps a suggestion hollow and confirmed topics filled", () => {
-    const files = view.courses[0].topics[0].files;
-    expect(files.map((file) => file.suggested)).toEqual([false, true]);
+  it("files only confirmed picks under a topic and counts the suggestions waiting in To review", () => {
+    expect(view.courses[0].topics.map((topic) => [topic.name, topic.files.map((file) => file.id), topic.suggestedCount])).toEqual([
+      ["Scheduling", ["pdf"], 1],
+    ]);
+    expect(view.courses[0].review.map((file) => file.id)).toEqual(["mlfq"]);
   });
 
-  it("lists only topics with files, in map order", () => {
-    expect(view.courses[0].topics.map((topic) => [topic.name, topic.files.length])).toEqual([["Scheduling", 2]]);
+  it("keeps a topic with only suggestions as a header, so the file is listed once", () => {
+    const pending = buildTagsView({
+      roots: [{ id: "ct213", title: "CT213 Operating Systems" }],
+      notes,
+      maps: [{ id: MAP, name: "CT213", root_id: "ct213", taxonomy_version: 1, topics: [{ id: SCHEDULING, name: "Scheduling" }, { id: MEMORY, name: "Memory" }] }],
+      materials: [material("mlfq", SCHEDULING, "suggested"), material("mlfq", MEMORY, "suggested")],
+    });
+    expect(pending.courses[0].topics.map((topic) => [topic.name, topic.files.length, topic.suggestedCount])).toEqual([
+      ["Scheduling", 0, 1],
+      ["Memory", 0, 1],
+    ]);
+    expect(pending.courses[0].review.map((file) => [file.id, file.topics.map((topic) => topic.name)])).toEqual([
+      ["mlfq", ["Scheduling", "Memory"]],
+    ]);
   });
 
   it("counts #tags within the scope, reading the PDF's tags from its note", () => {
@@ -125,7 +138,7 @@ describe("buildTagsView", () => {
         overrides: { kind: "past_paper", topics: {}, sourceHash: "", taxonomyVersion: 0 },
       }],
     });
-    expect(view.courses[0].topics[0].files.map((file) => file.kind)).toEqual(["slides", "notes"]);
+    expect(view.courses[0].topics[0].files.map((file) => file.kind)).toEqual(["slides"]);
     expect(corrected.courses[0].topics[0].files[0].kind).toBe("past_paper");
   });
 });

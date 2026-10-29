@@ -41,7 +41,9 @@ export const tagsViewTopicSchema = z.object({
   topicId: z.string(),
   name: z.string(),
   topicIndex: z.number().int().nonnegative(),
+  /** confirmed files only, suggestions are listed under To review */
   files: z.array(tagsViewFileSchema),
+  suggestedCount: z.number().int().nonnegative(),
 });
 export type TagsViewTopic = z.infer<typeof tagsViewTopicSchema>;
 

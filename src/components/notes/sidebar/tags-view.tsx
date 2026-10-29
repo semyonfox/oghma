@@ -218,13 +218,6 @@ function FileRow({
         title={file.title}
       >
         <FileIcon file={file} />
-        {topic && file.suggested && (
-          <span
-            className="h-1.5 w-1.5 shrink-0 rounded-full"
-            style={{ border: `1.5px solid ${topicColour(topic.topicIndex)}` }}
-            aria-label={t("suggested")}
-          />
-        )}
         <span className="min-w-0 flex-1 truncate text-base md:text-[13px]">{file.title}</span>
         {/* review rows give the room to their dots, the path is in the topic groups below */}
         {file.path && !aside && (
@@ -297,25 +290,39 @@ function Group({
   label,
   count,
   marker,
+  aside,
   defaultOpen = false,
   children,
 }: {
   label: ReactNode;
   count: number;
   marker?: ReactNode;
+  aside?: ReactNode;
   defaultOpen?: boolean;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  // a topic with only suggestions has nothing to open, they wait in To review
+  const empty = count === 0;
   return (
     <li>
-      <button type="button" className={rowClass} aria-expanded={open} onClick={() => setOpen(!open)}>
-        <ChevronRightIcon className={`h-3 w-3 shrink-0 text-text-tertiary transition-transform ${open ? "rotate-90" : ""}`} aria-hidden="true" />
+      <button
+        type="button"
+        className={`${rowClass} disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-text-secondary`}
+        aria-expanded={empty ? undefined : open}
+        disabled={empty}
+        onClick={() => setOpen(!open)}
+      >
+        <ChevronRightIcon
+          className={`h-3 w-3 shrink-0 text-text-tertiary transition-transform ${open && !empty ? "rotate-90" : ""} ${empty ? "opacity-0" : ""}`}
+          aria-hidden="true"
+        />
         {marker}
-        <span className="min-w-0 flex-1 truncate text-base md:text-[13px]">{label}</span>
-        <span className="shrink-0 pr-1 text-xs tabular-nums text-text-tertiary">{count}</span>
+        <span className={`min-w-0 flex-1 truncate text-base md:text-[13px] ${empty ? "text-text-tertiary" : ""}`}>{label}</span>
+        {aside}
+        {!empty && <span className="shrink-0 pr-1 text-xs tabular-nums text-text-tertiary">{count}</span>}
       </button>
-      {open && <ul>{children}</ul>}
+      {open && !empty && <ul>{children}</ul>}
     </li>
   );
 }
@@ -394,6 +401,19 @@ function TopicGroups({
             key={`${topic.mapId}:${topic.topicId}`}
             label={topic.name}
             count={topic.files.length}
+            aside={
+              topic.suggestedCount > 0 && (
+                // hollow like the suggestion dots, so it doesn't read as part of the count
+                <span
+                  className="mr-1 shrink-0 rounded-full px-1.5 text-[11px] leading-4 tabular-nums text-text-tertiary"
+                  style={{ border: `1px solid ${topicColour(topic.topicIndex)}` }}
+                  title={`${topic.suggestedCount} ${t("suggested")}`}
+                >
+                  {topic.suggestedCount}
+                  <span className="sr-only"> {t("suggested")}</span>
+                </span>
+              )
+            }
             marker={
               <span
                 className="h-1.5 w-1.5 shrink-0 rounded-full"
