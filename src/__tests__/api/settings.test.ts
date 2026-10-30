@@ -14,6 +14,7 @@ vi.mock("@/lib/notes/storage/s3-storage", () => ({
 vi.mock("@/lib/logger", () => ({
   default: {
     error: vi.fn(),
+    warn: vi.fn(),
   },
 }));
 

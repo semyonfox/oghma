@@ -88,7 +88,9 @@ function extractErrorInfo(error: unknown) {
 
 function apiErrorResponse(error: unknown): NextResponse {
   const { userMessage, statusCode, logMeta } = extractErrorInfo(error);
-  logger.error("operation_failed", logMeta);
+  // a 4xx is the request's fault, only a 5xx is ours to report, with its real stack
+  if (statusCode < 500) logger.warn("operation_failed", logMeta);
+  else logger.error("operation_failed", { ...logMeta, error });
   return NextResponse.json(
     { error: userMessage, traceId: getTraceId() },
     { status: statusCode },
