@@ -650,12 +650,17 @@ function reviewState(material: StudyMaterial, taxonomyVersion: number): string {
   )
     return "reviewed";
   if (material.status === "unclassified") return "unclassified";
-  return "suggested";
+  return material.associations.some(
+    (association) => association.status === "suggested",
+  )
+    ? "suggested"
+    : "tagged";
 }
 
 const reviewLabels: Record<string, string> = {
   reviewed: "Reviewed by you",
   suggested: "Suggestions to review",
+  tagged: "Tagged automatically",
   stale: "Needs fresh review",
   unclassified: "Not classified",
   failed: "Classification failed",

@@ -6,6 +6,7 @@ import type { TagsViewData, TagsViewFile, TagsViewReview, TagsViewTopic } from "
 import {
   documentKindSchema,
   materialOverridesSchema,
+  settleAssociations,
   topicAssociationSchema,
 } from "@/lib/study-map/types";
 
@@ -41,7 +42,9 @@ export interface ScopeMaterialRow {
 
 const MAX_SCOPE_NOTES = 5_000;
 const topicNamesSchema = z.array(z.object({ id: z.string(), name: z.string() }));
-const associationsSchema = z.array(topicAssociationSchema);
+const associationsSchema = z
+  .array(topicAssociationSchema)
+  .transform(settleAssociations);
 
 const titleCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 const byTitle = (left: TagsViewFile, right: TagsViewFile) =>

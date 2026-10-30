@@ -410,7 +410,7 @@ test("a student adds a module and its notes, and topics and classification follo
   );
   expect(
     classified?.associations.some(
-      (entry) => entry.status === "suggested" && entry.evidence.length > 0,
+      (entry) => entry.status === "accepted" && entry.evidence.length > 0,
     ),
   ).toBe(true);
   const materials = await openModulePanel(page, "Materials");
@@ -418,7 +418,7 @@ test("a student adds a module and its notes, and topics and classification follo
     name: new RegExp(lecture.title),
   });
   await expect(lectureCard).toBeVisible();
-  await expect(lectureCard).toContainText("Suggestions to review");
+  await expect(lectureCard).toContainText("Tagged automatically");
   await lectureCard.scrollIntoViewIfNeeded();
   await expectNoPageOverflow(page);
   await screenshot(page, testInfo, "desktop-classified-materials");
