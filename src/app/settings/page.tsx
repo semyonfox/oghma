@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -149,15 +149,14 @@ export default function SettingsPage() {
 
   // Read the displayed language without making the settings fetch depend on
   // it; saving a language changes it and would otherwise refetch the form.
-  const activeLocaleRef = useRef(activeLocale);
-  activeLocaleRef.current = activeLocale;
+  const readActiveLocale = useEffectEvent(() => activeLocale);
 
   const navigation = NAVIGATION_ITEMS.map(({ label, ...item }) => ({
     ...item,
     name: t(label),
   }));
 
-  const loadCourseVisibility = useCallback(async () => {
+  const loadCourseVisibility = async () => {
     setCourseVisibilityError(false);
 
     const [coursesResponse] = await Promise.all([
@@ -171,35 +170,31 @@ export default function SettingsPage() {
 
     const data = await coursesResponse.json();
     setQuizCourses(mapQuizCourses(data.courses || []));
-  }, [fetchSettings]);
+  };
 
-  const courseVisibilityItems = useMemo(
-    () =>
-      mergeCourseVisibilityItems(
-        quizCourses.map((course) => ({
-          ...course,
-          contextText:
-            course.totalCards > 0
-              ? t("{dueCount} due · {totalCards} cards", {
-                  dueCount: course.dueCount,
-                  totalCards: course.totalCards,
-                })
-              : t("No quiz cards yet"),
-        })),
-        courseSettings,
-      ),
-    [courseSettings, quizCourses, t],
+  const courseVisibilityItems = mergeCourseVisibilityItems(
+    quizCourses.map((course) => ({
+      ...course,
+      contextText:
+        course.totalCards > 0
+          ? t("{dueCount} due · {totalCards} cards", {
+              dueCount: course.dueCount,
+              totalCards: course.totalCards,
+            })
+          : t("No quiz cards yet"),
+    })),
+    courseSettings,
   );
 
   useEffect(() => {
     const loadUserData = async () => {
-      try {
+      const run = async () => {
         let profile: SavedProfile = {
           firstName: "",
           lastName: "",
           email: "",
           timezone: "UTC",
-          locale: activeLocaleRef.current ?? Locale.EN,
+          locale: readActiveLocale() ?? Locale.EN,
         };
         let editorSettings: SavedEditorSettings = {
           theme: "system",
@@ -232,7 +227,7 @@ export default function SettingsPage() {
             timezone: settingsData.timezone || "UTC",
             locale:
               normalizeLocale(settingsData.locale) ??
-              activeLocaleRef.current ??
+              readActiveLocale() ??
               Locale.EN,
             ...(Object.hasOwn(settingsData, "firstName")
               ? { firstName: settingsData.firstName || "" }
@@ -254,28 +249,31 @@ export default function SettingsPage() {
         }));
         setSavedProfile(profile);
         setSavedEditorSettings(editorSettings);
-      } catch (error) {
-        console.error("Failed to load user data:", error);
-      }
+      };
+      await run()
+        .catch((error: unknown) => {
+          console.error("Failed to load user data:", error);
+        });
     };
     void loadUserData();
   }, [setSettings]);
 
+  const loadCourseVisibilityOnMount = useEffectEvent(loadCourseVisibility);
   useEffect(() => {
     const loadVisibility = async () => {
       setCourseVisibilityLoading(true);
-      try {
-        await loadCourseVisibility();
-      } catch (error) {
-        console.error("Failed to load course visibility:", error);
-        setCourseVisibilityError(true);
-      } finally {
-        setCourseVisibilityLoading(false);
-      }
+      await loadCourseVisibilityOnMount()
+        .catch((error: unknown) => {
+          console.error("Failed to load course visibility:", error);
+          setCourseVisibilityError(true);
+        })
+        .finally(() => {
+          setCourseVisibilityLoading(false);
+        });
     };
 
     void loadVisibility();
-  }, [loadCourseVisibility]);
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -353,7 +351,7 @@ export default function SettingsPage() {
     let continuationGeneration = mutationGeneration;
     setIsSigningOut(true);
     postNativeOfflineAccount(null);
-    try {
+    const run = async () => {
       const response = await fetch("/api/auth/logout", { method: "POST" });
       if (!response.ok) throw new Error(`logout failed: ${response.status}`);
       if (!isCurrentWorkspace(mutationOwner, mutationGeneration)) {
@@ -378,12 +376,14 @@ export default function SettingsPage() {
       localStorage.removeItem("ogma-theme");
       document.cookie = "ogma-theme=; path=/; max-age=0";
       window.location.href = "/login";
-    } catch {
-      if (isCurrentWorkspace(continuationOwner, continuationGeneration)) {
-        toast.error(t("Failed to sign out"));
-      }
-      setIsSigningOut(false);
-    }
+    };
+    await run()
+      .catch(() => {
+        if (isCurrentWorkspace(continuationOwner, continuationGeneration)) {
+          toast.error(t("Failed to sign out"));
+        }
+        setIsSigningOut(false);
+      });
   };
 
   const handleSetCourseVisibility = async (item: { courseId: string; courseName: string }, nextActive: boolean) => {

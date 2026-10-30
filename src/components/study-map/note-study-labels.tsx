@@ -336,7 +336,7 @@ function LabelsForNote({ noteId, compact = false }: NoteStudyLabelsProps) {
     setAdding(true);
     setAddError(null);
     setMessage(null);
-    try {
+    const run = async () => {
       const response = await fetch(
         `/api/study-maps/${encodeURIComponent(selected)}/materials`,
         {
@@ -361,14 +361,17 @@ function LabelsForNote({ noteId, compact = false }: NoteStudyLabelsProps) {
           "Added to the study map. Topic assignments are available after classification or manual review.",
         );
       }
-    } catch {
-      if (!request.signal.aborted)
-        setAddError(
-          "The change could not be confirmed. Reload study labels before trying again.",
-        );
-    } finally {
-      if (!request.signal.aborted) setAdding(false);
-    }
+    };
+    await run()
+      .catch(() => {
+        if (!request.signal.aborted)
+          setAddError(
+            "The change could not be confirmed. Reload study labels before trying again.",
+          );
+      })
+      .finally(() => {
+        if (!request.signal.aborted) setAdding(false);
+      });
   }
 
   return (

@@ -134,6 +134,9 @@ The local job definitions use this candidate flow in both environments:
     images per app/worker repository and environment. Every stage deploys the
     commit tag, so `-latest` only ever names the last build that passed.
 
+App and worker containers use the `json-file` log driver capped at three 10 MB
+files each.
+
 The candidate container proves that the image can start before the fixed
 runtime is replaced. There is still a short swap window; do not describe it as
 universally zero-downtime.
@@ -219,13 +222,31 @@ During a Jenkins build, the pipeline restores the build-specific `previous`
 app or worker when the final container fails health checks. After a successful
 live smoke, those temporary containers are removed.
 
-For a regression discovered later:
+For a regression that passes health checks and is found later, roll back first
+and fix second:
 
-1. revert the offending change on `dev`;
-2. let Jenkins deploy and verify the revert;
-3. promote the revert through the normal pull request to `main`;
-4. use a retained image only for an immediate server-health emergency, then
-   reconcile source control.
+1. List the retained images: `docker images | grep -E '^oghma(-worker)? '`.
+   Each environment keeps its three newest commit tags.
+2. Run the environment's Jenkins job with **Build with Parameters** and set
+   `ROLLBACK_TO` to the 7-character commit to restore, for example `cd889ff`.
+   The job skips the CI wait, image build, migrations and the retry drain, then
+   runs the normal candidate, swap, health and `-latest` promotion stages, so a
+   bad rollback target restores the running release.
+3. Revert or fix the change on `dev`, let Jenkins deploy it, and promote it to
+   `main` through the normal pull request. The next push deploy replaces the
+   rolled-back release.
+
+`ROLLBACK_TO` was added on 2026-10-26 and has not been exercised against a
+live environment yet. The first parameterised build registers the parameter.
+
+Migrations are not rolled back. An older image runs against the newer schema,
+so a migration must not break the release before it.
+`src/__tests__/scripts/migration-catalog.test.ts` fails on new migrations that
+drop or rename tables or columns, change a column type, or add `NOT NULL`.
+Ship those as a later migration once no deployed release reads the old shape,
+or add `-- rollback-safe: <reason>` when the old release is unaffected. If a
+deployed migration is the problem, write a new forward migration. Do not edit
+applied migrations or `app.schema_migrations`.
 
 Do not use retired AWS commands or edit migrations to imitate a rollback.
 

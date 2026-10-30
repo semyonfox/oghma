@@ -11,6 +11,7 @@ import { encrypt } from "@/lib/crypto";
 import { checkRateLimit } from "@/lib/rate-limiter";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
 import { discoverCanvasCourses } from "@/lib/canvas/sync-courses";
+import { recordCanvasCourseStatuses } from "@/lib/canvas/course-status";
 import { canvasHostFromInput } from "@/lib/canvas/institution-search";
 import logger from "@/lib/logger";
 
@@ -69,6 +70,7 @@ export const GET = withErrorHandler(async () => {
     }
     courses = discovery.data;
     courseDiscoveryDegraded = Boolean(discovery.degraded);
+    await recordCanvasCourseStatuses(user.user_id, courses);
   } catch (error) {
     if (error instanceof ApiError) throw error;
     throw new ApiError(502, "Canvas returned an invalid course ID");
@@ -159,6 +161,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
           SET canvas_token = ${encryptedToken}, canvas_domain = ${normalizedDomain}
           WHERE user_id = ${user.user_id}
       `;
+  await recordCanvasCourseStatuses(user.user_id, normalizedCourses);
 
   return noStoreJson({
     success: true,

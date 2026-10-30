@@ -18,7 +18,7 @@ export default function PasswordSection({
 
   const handlePasswordChange = async (): Promise<void> => {
     setSavingSection("password");
-    try {
+    const run = async () => {
       const response = await fetch("/api/auth/change-password", {
         method: "POST",
       });
@@ -35,12 +35,15 @@ export default function PasswordSection({
           await readResponseError(response, t("An error occurred. Please try again.")),
         );
       }
-    } catch (error) {
-      console.error("Failed to request a password change:", error);
-      toast.error(t("An error occurred. Please try again."));
-    } finally {
-      setSavingSection(null);
-    }
+    };
+    await run()
+      .catch((error: unknown) => {
+        console.error("Failed to request a password change:", error);
+        toast.error(t("An error occurred. Please try again."));
+      })
+      .finally(() => {
+        setSavingSection(null);
+      });
   };
 
   return (

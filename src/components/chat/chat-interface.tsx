@@ -7,7 +7,7 @@ import {
   useState,
   useRef,
   useEffect,
-  useCallback,
+  useEffectEvent,
   KeyboardEvent,
   FormEvent,
   PointerEvent,
@@ -166,19 +166,16 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     controlledSessionId,
   });
 
-  const retryConversation = useCallback(() => {
+  const retryConversation = () => {
     recoveringMessagesRef.current = true;
     resumedGenerationRef.current = null;
     retryRestore();
-  }, [retryRestore]);
+  };
 
-  const handleStreamComplete = useCallback(
-    (completedSessionId: string | null, generationId?: string) => {
-      finishBackgroundGeneration(generationId);
-      onStreamComplete?.(completedSessionId);
-    },
-    [finishBackgroundGeneration, onStreamComplete],
-  );
+  const handleStreamComplete = (completedSessionId: string | null, generationId?: string) => {
+    finishBackgroundGeneration(generationId);
+    onStreamComplete?.(completedSessionId);
+  };
 
   const {
     messages,
@@ -221,7 +218,9 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     }
     cancel();
   };
-  useEffect(() => {
+  // This reset belongs to navigation, not token or session-state updates, so
+  // it reads the live session through an effect event.
+  const resetForNavigation = useEffectEvent(() => {
     resumedGenerationRef.current = null;
     appliedSnapshotRef.current = null;
     appliedMessagesRef.current = null;
@@ -232,8 +231,9 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
         messages.length > 0,
     );
     if (!ownsMessagesRef.current) recoveringMessagesRef.current = false;
-    // This reset belongs to navigation, not token or session-state updates.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+  useEffect(() => {
+    resetForNavigation();
   }, [controlledSessionId]);
 
   // Hydrate once. After streaming starts, only an explicit recovery may adopt
@@ -326,22 +326,23 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
   const input = composer.key === draftKey
     ? composer.value
     : draftKey ? noteComposerDrafts.get(draftKey) ?? "" : "";
-  const setInput = useCallback((value: string) => {
+  const setInput = (value: string) => {
     if (draftKey) {
       if (value) noteComposerDrafts.set(draftKey, value);
       else noteComposerDrafts.delete(draftKey);
     }
     setComposer({ key: draftKey, value });
-  }, [draftKey]);
+  };
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
   const previousSessionId = useRef(controlledSessionId);
+  const clearInput = useEffectEvent(() => setInput(""));
   useEffect(() => {
     if (previousSessionId.current === controlledSessionId) return;
     previousSessionId.current = controlledSessionId;
-    setInput("");
+    clearInput();
     pinnedToBottomRef.current = true;
-  }, [controlledSessionId, setInput]);
+  }, [controlledSessionId]);
 
   const thinkingActive = thinkingMode !== "off";
   const thinkingLabel = thinkingActive ? t("Thinking on") : t("Thinking off");

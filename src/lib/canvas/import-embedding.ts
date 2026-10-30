@@ -98,7 +98,7 @@ async function invalidateExtractedNote(userId: string, noteId: string) {
 
 async function queueExtractionRetry(retryOpts: ExtractionRetryMessage) {
   await enqueueExtractionRetry(retryOpts);
-  logger.info("worker_event");
+  logger.info("extraction retry queued");
 }
 
 async function isActiveNote(noteId: string, userId: string): Promise<boolean> {
@@ -259,11 +259,11 @@ export async function processRagPipeline(
     });
 
     if (source === "text") {
-      logger.info("worker_event");
+      logger.info("note indexed from text", { stage: "text" });
     } else if (source === "marker") {
-      logger.info("worker_event");
+      logger.info("note indexed from marker output", { stage: "marker" });
     } else {
-      logger.info("worker_event");
+      logger.info("note indexed", { stage: "other" });
     }
 
     return await withCanvasPublication(async () => {
@@ -306,7 +306,7 @@ export async function processRagPipeline(
         elapsedSecs: (embeddingElapsedMs / 1000).toFixed(2),
       });
 
-      logger.info("worker_event");
+      logger.info("note indexing completed");
       return finish({ noteId, chunksStored: count });
     }
 
@@ -394,7 +394,7 @@ export async function processRagPipeline(
       elapsedSecs: (embeddingElapsedMs / 1000).toFixed(2),
     });
 
-    logger.info("worker_event");
+    logger.info("note indexing completed");
     return finish({ noteId: mdNoteId, chunksStored: count });
     });
   } catch (error) {
@@ -402,7 +402,7 @@ export async function processRagPipeline(
     if (error instanceof MarkerSubmissionCancelledError) {
       // Cancellation won the durable submission fence. Do not turn that into
       // a generic extraction retry, which could revive the cancelled import.
-      logger.info("worker_event");
+      logger.info("note indexing stopped: marker submission cancelled");
       return null;
     }
     if (retryOnFailure && jobId && importRecordId) {
@@ -435,11 +435,11 @@ export async function processRagPipeline(
         RETURNING id
       `;
       if (jobId && stagedImports.length === 0) {
-        logger.info("worker_event");
+        logger.info("extraction retry skipped: import no longer active");
         return null;
       }
       if (!jobId && stagedImports.length === 0 && stagedIngestion.length === 0) {
-        logger.info("worker_event");
+        logger.info("extraction retry skipped: nothing to retry");
         return null;
       }
       try {
@@ -475,10 +475,10 @@ export async function processRagPipeline(
         `;
         throw enqueueError;
       }
-      logger.info("worker_event");
+      logger.info("extraction retry staged after indexing failure", { error });
       return null;
     }
-    logger.error("worker_event");
+    logger.error("note indexing failed", { error });
     throw error;
   }
 }

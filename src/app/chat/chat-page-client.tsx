@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useState,
+  useRef,
+  useEffectEvent,
+} from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ChatBubbleLeftRightIcon, PlusIcon } from "@heroicons/react/24/outline";
 import ChatInterface from "@/components/chat/chat-interface";
@@ -124,6 +130,32 @@ function sortConversations(conversations: Conversation[]): Conversation[] {
   );
 }
 
+function routeScopeFrom(searchParams: URLSearchParams) {
+  return {
+    paramNoteIds: searchParams.getAll("noteId").filter(Boolean),
+    paramNoteTitles: searchParams.getAll("noteTitle"),
+    paramFolderIds: searchParams.getAll("folderId").filter(Boolean),
+    paramFolderTitles: searchParams.getAll("folderTitle"),
+  };
+}
+
+// null keeps the current list: a network error just means the user starts a new chat
+async function fetchConversations(): Promise<Conversation[] | null> {
+  try {
+    const res = await fetch("/api/chat/sessions");
+    if (!res.ok) return null;
+    const data: unknown = await res.json();
+    if (!isRecord(data) || !Array.isArray(data.sessions)) return null;
+    return data.sessions
+      .map(conversationFrom)
+      .filter(
+        (conversation): conversation is Conversation => conversation !== null,
+      );
+  } catch {
+    return null;
+  }
+}
+
 export default function ChatPageClient() {
   const { t } = useI18n();
   const router = useRouter();
@@ -134,15 +166,7 @@ export default function ChatPageClient() {
     typeof params?.sessionId === "string" ? params.sessionId : null;
 
   const { paramNoteIds, paramNoteTitles, paramFolderIds, paramFolderTitles } =
-    useMemo(
-      () => ({
-        paramNoteIds: searchParams.getAll("noteId").filter(Boolean),
-        paramNoteTitles: searchParams.getAll("noteTitle"),
-        paramFolderIds: searchParams.getAll("folderId").filter(Boolean),
-        paramFolderTitles: searchParams.getAll("folderTitle"),
-      }),
-      [searchParams],
-    );
+    routeScopeFrom(searchParams);
   const paramNoteId = paramNoteIds[0] ?? undefined;
   const paramNoteTitle = paramNoteTitles[0] ?? undefined;
   const paramFolderId = paramFolderIds[0] ?? undefined;
@@ -150,7 +174,10 @@ export default function ChatPageClient() {
   const hasRouteScope = paramNoteIds.length > 0 || paramFolderIds.length > 0;
 
   const routeSessionIdRef = useRef<string | null>(routeSessionId);
-  routeSessionIdRef.current = routeSessionId;
+  // async navigation handlers compare against the latest route
+  useLayoutEffect(() => {
+    routeSessionIdRef.current = routeSessionId;
+  });
   const pendingNavRef = useRef<PendingChatNavigation | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(routeSessionId);
@@ -174,18 +201,21 @@ export default function ChatPageClient() {
     }
   }, [routeSessionId]);
 
+  // keyed on searchParams, which only changes with the URL; arrays derived
+  // above are rebuilt each render and would loop this effect
   useEffect(() => {
-    const notes: ContextItem[] = paramNoteIds.map((id, i) => ({
+    const scope = routeScopeFrom(searchParams);
+    const notes: ContextItem[] = scope.paramNoteIds.map((id, i) => ({
       id,
-      title: paramNoteTitles[i] || t("Untitled"),
+      title: scope.paramNoteTitles[i] || t("Untitled"),
     }));
-    const folders: ContextItem[] = paramFolderIds.map((id, i) => ({
+    const folders: ContextItem[] = scope.paramFolderIds.map((id, i) => ({
       id,
-      title: paramFolderTitles[i] || t("Folder"),
+      title: scope.paramFolderTitles[i] || t("Folder"),
     }));
     setSelectedNotes(notes);
     setSelectedFolders(folders);
-  }, [paramNoteIds, paramNoteTitles, paramFolderIds, paramFolderTitles, t]);
+  }, [searchParams, t]);
 
   useEffect(() => {
     if (!activeId || hasRouteScope || !activeConv?.context?.scope) return;
@@ -193,172 +223,126 @@ export default function ChatPageClient() {
     setSelectedFolders(activeConv.context.scope.folders ?? []);
   }, [activeConv, activeId, hasRouteScope]);
 
-  const draftRouteContext = useMemo(
-    () => ({
+  const draftRouteContext = {
+    noteId: paramNoteId,
+    noteTitle: paramNoteTitle,
+    folderId: paramFolderId,
+    folderTitle: paramFolderTitle,
+    selectedNotes,
+    selectedFolders,
+  };
+
+  const draftHref = buildNewChatHref(draftRouteContext);
+
+  const syncScopeUrl = (nextNotes: ContextItem[], nextFolders: ContextItem[]) => {
+    const nextContext = {
       noteId: paramNoteId,
       noteTitle: paramNoteTitle,
       folderId: paramFolderId,
       folderTitle: paramFolderTitle,
-      selectedNotes,
-      selectedFolders,
-    }),
-    [
-      paramNoteId,
-      paramNoteTitle,
-      paramFolderId,
-      paramFolderTitle,
-      selectedNotes,
-      selectedFolders,
-    ],
-  );
+      selectedNotes: nextNotes,
+      selectedFolders: nextFolders,
+    };
 
-  const draftHref = useMemo(
-    () => buildNewChatHref(draftRouteContext),
-    [draftRouteContext],
-  );
+    const href = activeId
+      ? buildChatSessionHref(activeId, nextContext)
+      : buildNewChatHref(nextContext);
 
-  const syncScopeUrl = useCallback(
-    (nextNotes: ContextItem[], nextFolders: ContextItem[]) => {
-      const nextContext = {
-        noteId: paramNoteId,
-        noteTitle: paramNoteTitle,
-        folderId: paramFolderId,
-        folderTitle: paramFolderTitle,
-        selectedNotes: nextNotes,
-        selectedFolders: nextFolders,
-      };
-
-      const href = activeId
-        ? buildChatSessionHref(activeId, nextContext)
-        : buildNewChatHref(nextContext);
-
-      if (activeId) {
-        setConversations((prev) =>
-          prev.map((conversation) =>
-            conversation.id === activeId
-              ? {
-                  ...conversation,
-                  noteId:
-                    nextNotes.length === 1 && nextFolders.length === 0
-                      ? nextNotes[0].id
-                      : undefined,
-                  noteTitle:
-                    nextNotes.length === 1 && nextFolders.length === 0
-                      ? nextNotes[0].title
-                      : undefined,
-                  context: {
-                    scope: {
-                      notes: nextNotes,
-                      folders: nextFolders,
-                    },
+    if (activeId) {
+      setConversations((prev) =>
+        prev.map((conversation) =>
+          conversation.id === activeId
+            ? {
+                ...conversation,
+                noteId:
+                  nextNotes.length === 1 && nextFolders.length === 0
+                    ? nextNotes[0].id
+                    : undefined,
+                noteTitle:
+                  nextNotes.length === 1 && nextFolders.length === 0
+                    ? nextNotes[0].title
+                    : undefined,
+                context: {
+                  scope: {
+                    notes: nextNotes,
+                    folders: nextFolders,
                   },
-                }
-              : conversation,
-          ),
-        );
-      }
-
-      router.replace(href);
-    },
-    [
-      activeId,
-      paramFolderId,
-      paramFolderTitle,
-      paramNoteId,
-      paramNoteTitle,
-      router,
-    ],
-  );
-
-  const loadSessions = useCallback(async () => {
-    try {
-      const res = await fetch("/api/chat/sessions");
-      if (!res.ok) return;
-      const data: unknown = await res.json();
-      if (isRecord(data) && Array.isArray(data.sessions)) {
-        const mapped = data.sessions
-          .map(conversationFrom)
-          .filter(
-            (conversation): conversation is Conversation =>
-              conversation !== null,
-          );
-        setConversations(mapped);
-      }
-    } catch {
-      // network error — fine, user can start a new chat
-    } finally {
-      setLoaded(true);
+                },
+              }
+            : conversation,
+        ),
+      );
     }
+
+    router.replace(href);
+  };
+
+  const loadSessions = async () => {
+    const sessions = await fetchConversations();
+    if (sessions) setConversations(sessions);
+    setLoaded(true);
+  };
+
+  const loadSessionsOnMount = useEffectEvent(() => void loadSessions());
+  useEffect(() => {
+    loadSessionsOnMount();
   }, []);
 
-  useEffect(() => {
-    void loadSessions();
-  }, [loadSessions]);
-
-  const newConversation = useCallback(() => {
+  const newConversation = () => {
     pendingNavRef.current = null;
     setHistoryOpen(false);
     if (!routeSessionId) setMountKey((prev) => prev + 1);
     setActiveId(null);
     router.push(draftHref);
-  }, [draftHref, routeSessionId, router]);
+  };
 
-  const clearContextAndStartNewChat = useCallback(() => {
+  const clearContextAndStartNewChat = () => {
     pendingNavRef.current = null;
     if (!routeSessionId) setMountKey((prev) => prev + 1);
     setSelectedNotes([]);
     setSelectedFolders([]);
     setActiveId(null);
     router.push("/chat");
-  }, [routeSessionId, router]);
+  };
 
-  const handleSessionCreated = useCallback(
-    (sessionId: string, title: string) => {
-      setConversations((prev) => {
-        if (prev.some((c) => c.id === sessionId)) return prev;
-        return [
-          {
-            id: sessionId,
-            title,
-            noteId:
-              selectedNotes.length === 1 && selectedFolders.length === 0
-                ? selectedNotes[0].id
-                : paramNoteId,
-            noteTitle:
-              selectedNotes.length === 1 && selectedFolders.length === 0
-                ? selectedNotes[0].title
-                : paramNoteTitle,
-            context: {
-              scope: {
-                notes: selectedNotes,
-                folders: selectedFolders,
-              },
+  const handleSessionCreated = (sessionId: string, title: string) => {
+    setConversations((prev) => {
+      if (prev.some((c) => c.id === sessionId)) return prev;
+      return [
+        {
+          id: sessionId,
+          title,
+          noteId:
+            selectedNotes.length === 1 && selectedFolders.length === 0
+              ? selectedNotes[0].id
+              : paramNoteId,
+          noteTitle:
+            selectedNotes.length === 1 && selectedFolders.length === 0
+              ? selectedNotes[0].title
+              : paramNoteTitle,
+          context: {
+            scope: {
+              notes: selectedNotes,
+              folders: selectedFolders,
             },
-            messageCount: 1,
-            createdAt: Date.now(),
-            pinned: false,
           },
-          ...prev,
-        ];
-      });
-      setActiveId(sessionId);
-      // Publish the permanent URL once the first reply has settled.
-      pendingNavRef.current = {
-        sessionId,
-        href: buildChatSessionHref(sessionId, draftRouteContext),
-        originRouteSessionId: routeSessionIdRef.current,
-      };
-    },
-    [
-      draftRouteContext,
-      paramNoteId,
-      paramNoteTitle,
-      selectedFolders,
-      selectedNotes,
-    ],
-  );
+          messageCount: 1,
+          createdAt: Date.now(),
+          pinned: false,
+        },
+        ...prev,
+      ];
+    });
+    setActiveId(sessionId);
+    // Publish the permanent URL once the first reply has settled.
+    pendingNavRef.current = {
+      sessionId,
+      href: buildChatSessionHref(sessionId, draftRouteContext),
+      originRouteSessionId: routeSessionIdRef.current,
+    };
+  };
 
-  const handleStreamComplete = useCallback((completedSessionId: string | null) => {
+  const handleStreamComplete = (completedSessionId: string | null) => {
     void loadSessions();
     const pending = pendingNavRef.current;
     if (
@@ -374,7 +358,7 @@ export default function ChatPageClient() {
     } else if (pending?.sessionId === completedSessionId) {
       pendingNavRef.current = null;
     }
-  }, [loadSessions, router]);
+  };
 
   const deleteConversation = async (id: string) => {
     const res = await fetch(`/api/chat/sessions/${id}`, { method: "DELETE" });

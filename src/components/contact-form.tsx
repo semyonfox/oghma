@@ -23,7 +23,7 @@ export default function ContactForm({ source = "contact", centered = false }: Co
       source,
     };
 
-    try {
+    const run = async () => {
       const response = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -45,12 +45,15 @@ export default function ContactForm({ source = "contact", centered = false }: Co
         reportTelemetry({ kind: "error", name: "request_failed", route: "help" });
         setResult({ status: "error", message: t("Error sending message. Please try again.") });
       }
-    } catch {
-      reportTelemetry({ kind: "error", name: "request_failed", route: "help" });
-      setResult({ status: "error", message: t("Error sending message. Please try again.") });
-    } finally {
-      setIsLoading(false);
-    }
+    };
+    await run()
+      .catch(() => {
+        reportTelemetry({ kind: "error", name: "request_failed", route: "help" });
+        setResult({ status: "error", message: t("Error sending message. Please try again.") });
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
   };
 
   return (

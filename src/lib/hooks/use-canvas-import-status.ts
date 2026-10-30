@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef, useEffectEvent } from "react";
 import {
   DEFAULT_CANVAS_POLL_MS,
   canvasPollInterval,
@@ -214,7 +214,7 @@ export function useCanvasImportStatus(
   const dismissedRef = useRef(false);
   const wasActiveRef = useRef(false);
 
-  const runTreeSync = useCallback(async (paths: string[][], generation: number) => {
+  const runTreeSync = async (paths: string[][], generation: number) => {
     // A terminal refresh must run after any older snapshot. Rechecking in a
     // loop also serializes multiple waiters that resume on the same promise.
     while (treeSyncInFlightRef.current) {
@@ -226,62 +226,66 @@ export function useCanvasImportStatus(
 
     const refresh = useNoteTreeStore.getState().refreshTreePaths(paths);
     treeSyncInFlightRef.current = refresh;
-    try {
+    const run = async () => {
       await refresh;
       return mountedRef.current && ownerGenerationRef.current === generation;
-    } finally {
-      if (treeSyncInFlightRef.current === refresh) {
-        treeSyncInFlightRef.current = null;
-      }
-    }
-  }, []);
-
-  const scheduleTreeSync = useCallback(
-    (logs: CanvasImportLog[], immediate = false) => {
-      for (const log of logs) {
-        const treePath = Array.isArray(log.treePath)
-          ? log.treePath.filter((id) => typeof id === "string" && id.length > 0)
-          : [];
-        // A missing path means the durable tree row is not observable yet.
-        // Do not turn it into a root refresh on every progress snapshot; the
-        // next response with a real path will publish the affected branch.
-        if (treePath.length === 0) continue;
-        const key = treePath.join("/");
-        pendingTreePathsRef.current.set(key, treePath);
-      }
-
-      if (pendingTreePathsRef.current.size === 0) return;
-      if (immediate && treeSyncTimerRef.current) {
-        clearTimeout(treeSyncTimerRef.current);
-        treeSyncTimerRef.current = null;
-      }
-      if (treeSyncTimerRef.current || treeSyncInFlightRef.current) return;
-
-      const generation = ownerGenerationRef.current;
-      const flush = async (): Promise<void> => {
-        treeSyncTimerRef.current = null;
-        if (
-          !mountedRef.current ||
-          ownerGenerationRef.current !== generation ||
-          treeSyncInFlightRef.current
-        ) {
-          return;
+    };
+    return await run()
+      .finally(() => {
+        if (treeSyncInFlightRef.current === refresh) {
+          treeSyncInFlightRef.current = null;
         }
+      });
+  };
 
-        const paths = [...pendingTreePathsRef.current.values()];
-        if (paths.length === 0) return;
+  const scheduleTreeSync = (logs: CanvasImportLog[], immediate = false) => {
+    for (const log of logs) {
+      const treePath = Array.isArray(log.treePath)
+        ? log.treePath.filter((id) => typeof id === "string" && id.length > 0)
+        : [];
+      // A missing path means the durable tree row is not observable yet.
+      // Do not turn it into a root refresh on every progress snapshot; the
+      // next response with a real path will publish the affected branch.
+      if (treePath.length === 0) continue;
+      const key = treePath.join("/");
+      pendingTreePathsRef.current.set(key, treePath);
+    }
 
-        try {
-          const applied = await runTreeSync(paths, generation);
-          if (!applied) return;
-          for (const path of paths) {
-            pendingTreePathsRef.current.delete(path.join("/"));
-          }
-          treeSyncRetryCountRef.current = 0;
-        } catch (error) {
+    if (pendingTreePathsRef.current.size === 0) return;
+    if (immediate && treeSyncTimerRef.current) {
+      clearTimeout(treeSyncTimerRef.current);
+      treeSyncTimerRef.current = null;
+    }
+    if (treeSyncTimerRef.current || treeSyncInFlightRef.current) return;
+
+    const generation = ownerGenerationRef.current;
+    const flush = async (): Promise<void> => {
+      treeSyncTimerRef.current = null;
+      if (
+        !mountedRef.current ||
+        ownerGenerationRef.current !== generation ||
+        treeSyncInFlightRef.current
+      ) {
+        return;
+      }
+
+      const paths = [...pendingTreePathsRef.current.values()];
+      if (paths.length === 0) return;
+
+      const run = async () => {
+        const applied = await runTreeSync(paths, generation);
+        if (!applied) return;
+        for (const path of paths) {
+          pendingTreePathsRef.current.delete(path.join("/"));
+        }
+        treeSyncRetryCountRef.current = 0;
+      };
+      await run()
+        .catch((error: unknown) => {
           treeSyncRetryCountRef.current += 1;
           console.error("Failed to refresh Canvas note branches:", error);
-        } finally {
+        })
+        .finally(() => {
           if (
             mountedRef.current &&
             ownerGenerationRef.current === generation &&
@@ -293,63 +297,60 @@ export function useCanvasImportStatus(
               void flush();
             }, TREE_SYNC_DELAY);
           }
-        }
-      };
+        });
+    };
 
-      treeSyncTimerRef.current = setTimeout(
-        () => void flush(),
-        immediate ? 0 : TREE_SYNC_DELAY,
-      );
-    },
-    [runTreeSync],
-  );
+    treeSyncTimerRef.current = setTimeout(
+      () => void flush(),
+      immediate ? 0 : TREE_SYNC_DELAY,
+    );
+  };
 
-  const refreshTerminalTree = useCallback(
-    async (logs: CanvasImportLog[]) => {
-      const pathsByKey = new Map<string, string[]>();
-      for (const log of logs) {
-        const treePath = Array.isArray(log.treePath)
-          ? log.treePath.filter(
-              (id) => typeof id === "string" && id.length > 0,
-            )
-          : [];
-        if (treePath.length > 0) pathsByKey.set(treePath.join("/"), treePath);
-      }
-      for (const [key, path] of pendingTreePathsRef.current) {
-        pathsByKey.set(key, path);
-      }
-      if (pathsByKey.size === 0) return true;
+  const refreshTerminalTree = async (logs: CanvasImportLog[]) => {
+    const pathsByKey = new Map<string, string[]>();
+    for (const log of logs) {
+      const treePath = Array.isArray(log.treePath)
+        ? log.treePath.filter(
+            (id) => typeof id === "string" && id.length > 0,
+          )
+        : [];
+      if (treePath.length > 0) pathsByKey.set(treePath.join("/"), treePath);
+    }
+    for (const [key, path] of pendingTreePathsRef.current) {
+      pathsByKey.set(key, path);
+    }
+    if (pathsByKey.size === 0) return true;
 
-      // A terminal publication is acknowledged only after the affected tree
-      // branches have actually been refreshed. Cancel any queued batch so the
-      // same paths are not replayed after the job token is cleared.
-      if (treeSyncTimerRef.current) {
-        clearTimeout(treeSyncTimerRef.current);
-        treeSyncTimerRef.current = null;
+    // A terminal publication is acknowledged only after the affected tree
+    // branches have actually been refreshed. Cancel any queued batch so the
+    // same paths are not replayed after the job token is cleared.
+    if (treeSyncTimerRef.current) {
+      clearTimeout(treeSyncTimerRef.current);
+      treeSyncTimerRef.current = null;
+    }
+    const generation = ownerGenerationRef.current;
+    const paths = [...pathsByKey.values()];
+    const run = async () => {
+      const applied = await runTreeSync(paths, generation);
+      if (!applied) return false;
+      for (const path of paths) {
+        pendingTreePathsRef.current.delete(path.join("/"));
       }
-      const generation = ownerGenerationRef.current;
-      const paths = [...pathsByKey.values()];
-      try {
-        const applied = await runTreeSync(paths, generation);
-        if (!applied) return false;
-        for (const path of paths) {
-          pendingTreePathsRef.current.delete(path.join("/"));
-        }
-        treeSyncRetryCountRef.current = 0;
-        return true;
-      } catch (error) {
+      treeSyncRetryCountRef.current = 0;
+      return true;
+    };
+    return await run()
+      .catch((error: unknown) => {
         treeSyncRetryCountRef.current += 1;
         for (const path of paths) {
           pendingTreePathsRef.current.set(path.join("/"), path);
         }
         console.error("Failed to publish completed Canvas branches:", error);
         return false;
-      }
-    },
-    [runTreeSync],
-  );
+      });
+  };
 
-  const checkStatus = useCallback(async (): Promise<void> => {
+  const checkStatus = async (): Promise<void> => {
     if (!enabled || !mountedRef.current) return;
     const existingRequest = statusRequestRef.current?.promise;
     if (existingRequest) return existingRequest;
@@ -360,7 +361,7 @@ export function useCanvasImportStatus(
     const requestSlot: StatusRequest = { promise: null };
     statusRequestRef.current = requestSlot;
     const request = (async (): Promise<void> => {
-      try {
+      const run = async () => {
         const storedJobId = getStoredActiveJob()?.jobId;
         if (storedJobId && storedJobId !== trackedJobIdRef.current) {
           trackedJobIdRef.current = storedJobId;
@@ -602,27 +603,30 @@ export function useCanvasImportStatus(
           setShowToast(false);
         }
         setStatusSnapshot(data);
-      } catch (error: unknown) {
-        if (
-          (error instanceof DOMException && error.name === "AbortError") ||
-          controller.signal.aborted
-        ) {
-          return;
-        }
-        console.error("Failed to check Canvas import status:", error);
-      } finally {
-        if (abortRef.current === controller) abortRef.current = null;
-        if (statusRequestRef.current === requestSlot) {
-          statusRequestRef.current = null;
-        }
-      }
+      };
+      await run()
+        .catch((error: unknown) => {
+          if (
+            (error instanceof DOMException && error.name === "AbortError") ||
+            controller.signal.aborted
+          ) {
+            return;
+          }
+          console.error("Failed to check Canvas import status:", error);
+        })
+        .finally(() => {
+          if (abortRef.current === controller) abortRef.current = null;
+          if (statusRequestRef.current === requestSlot) {
+            statusRequestRef.current = null;
+          }
+        });
     })();
 
     requestSlot.promise = request;
     return request;
-  }, [enabled, refreshTerminalTree, scheduleTreeSync]);
+  };
 
-  const trackJob = useCallback((jobId: string, jobType = "import") => {
+  const trackJob = (jobId: string, jobType = "import") => {
     ownerGenerationRef.current += 1;
     abortRef.current?.abort();
     autoSyncAbortRef.current?.abort();
@@ -654,9 +658,9 @@ export function useCanvasImportStatus(
     setIsDiscovering(true);
     setIsImporting(true);
     setShowToast(true);
-  }, []);
+  };
 
-  const resetStatus = useCallback(() => {
+  const resetStatus = () => {
     ownerGenerationRef.current += 1;
     abortRef.current?.abort();
     autoSyncAbortRef.current?.abort();
@@ -679,9 +683,9 @@ export function useCanvasImportStatus(
     setIsDiscovering(false);
     setIsImporting(false);
     setShowToast(false);
-  }, []);
+  };
 
-  const maybeAutoSync = useCallback(async () => {
+  const maybeAutoSync = async () => {
     if (
       !enabled ||
       !mountedRef.current ||
@@ -700,7 +704,7 @@ export function useCanvasImportStatus(
       mountedRef.current &&
       !controller.signal.aborted &&
       ownerGenerationRef.current === generation;
-    try {
+    const run = async () => {
       const res = await fetch("/api/canvas/sync", {
         signal: controller.signal,
       });
@@ -740,20 +744,23 @@ export function useCanvasImportStatus(
         );
         trackJob(jobId, "sync");
       }
-    } catch (error) {
-      if (
-        controller.signal.aborted ||
-        (error instanceof DOMException && error.name === "AbortError")
-      ) {
-        return;
-      }
-      // Auto-sync is best-effort.
-    } finally {
-      if (autoSyncAbortRef.current === controller) {
-        autoSyncAbortRef.current = null;
-      }
-    }
-  }, [enabled, trackJob]);
+    };
+    await run()
+      .catch((error: unknown) => {
+        if (
+          controller.signal.aborted ||
+          (error instanceof DOMException && error.name === "AbortError")
+        ) {
+          return;
+        }
+        // Auto-sync is best-effort.
+      })
+      .finally(() => {
+        if (autoSyncAbortRef.current === controller) {
+          autoSyncAbortRef.current = null;
+        }
+      });
+  };
 
   useEffect(() => {
     mountedRef.current = true;
@@ -765,6 +772,9 @@ export function useCanvasImportStatus(
       autoSyncAbortRef.current?.abort();
     };
   }, []);
+
+  const checkFromEffect = useEffectEvent(checkStatus);
+  const autoSyncFromEffect = useEffectEvent(maybeAutoSync);
 
   useEffect(() => {
     if (!autoCheckOnMount || !enabled) return;
@@ -779,8 +789,8 @@ export function useCanvasImportStatus(
     let cancelled = false;
     const timer = window.setTimeout(() => {
       void (async () => {
-        await checkStatus();
-        if (!cancelled) await maybeAutoSync();
+        await checkFromEffect();
+        if (!cancelled) await autoSyncFromEffect();
       })();
     }, 0);
 
@@ -789,7 +799,7 @@ export function useCanvasImportStatus(
       window.clearTimeout(timer);
       autoSyncAbortRef.current?.abort();
     };
-  }, [autoCheckOnMount, checkStatus, enabled, maybeAutoSync]);
+  }, [autoCheckOnMount, enabled]);
 
   // Poll again only once the current request settles. This avoids slow OCR
   // responses racing each other and triggering rapid/out-of-order tree work.
@@ -809,11 +819,9 @@ export function useCanvasImportStatus(
     const poll = async () => {
       timer = null;
       inFlight = true;
-      try {
-        await checkStatus();
-      } finally {
+      await checkFromEffect().finally(() => {
         inFlight = false;
-      }
+      });
       schedule();
     };
     const onVisibilityChange = () => {
@@ -829,7 +837,7 @@ export function useCanvasImportStatus(
       if (timer) clearTimeout(timer);
       abortRef.current?.abort();
     };
-  }, [enabled, isImporting, checkStatus]);
+  }, [enabled, isImporting]);
 
   return {
     progress,

@@ -1,9 +1,13 @@
+import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   findAppliedMigration,
   findChangedMigrations,
   isLegacyMigration,
   migrationChecksum,
+  migrationVersion,
+  rollbackBreakingChanges,
+  rollbackGuardBaseline,
 } from "../../../scripts/migration-catalog";
 
 describe("migration catalog", () => {
@@ -54,5 +58,39 @@ describe("migration catalog", () => {
         applied,
       ),
     ).toEqual([]);
+  });
+});
+
+describe("rollback-safe migrations", () => {
+  it("flags changes the previous release cannot run against", () => {
+    expect(rollbackBreakingChanges("ALTER TABLE app.notes DROP COLUMN legacy;")).toEqual(["drops a column"]);
+    expect(rollbackBreakingChanges("ALTER TABLE app.notes RENAME COLUMN a TO b;")).toContain("renames a table or column");
+    expect(rollbackBreakingChanges("ALTER TABLE app.notes ALTER COLUMN size TYPE bigint;")).toEqual(["changes a column type"]);
+    expect(rollbackBreakingChanges("ALTER TABLE app.notes ALTER COLUMN title SET NOT NULL;")).toEqual(["adds a not-null constraint"]);
+    expect(rollbackBreakingChanges("DROP TABLE IF EXISTS app.old_cache;")).toEqual(["drops a table"]);
+    // postgres lets COLUMN be omitted
+    expect(rollbackBreakingChanges("ALTER TABLE app.notes DROP legacy;")).toEqual(["drops a column"]);
+    expect(rollbackBreakingChanges("ALTER TABLE app.notes ALTER legacy TYPE bigint;")).toEqual(["changes a column type"]);
+    expect(rollbackBreakingChanges("ALTER TABLE app.notes ADD COLUMN required text NOT NULL;")).toEqual(["adds a required column without a default"]);
+    expect(rollbackBreakingChanges("ALTER TABLE app.notes ADD COLUMN kind text NOT NULL CHECK (kind IN ('manual', 'generated'));")).toEqual(["adds a required column without a default"]);
+    expect(rollbackBreakingChanges("DO $$ BEGIN ALTER TABLE app.notes DROP COLUMN legacy; END $$;")).toEqual(["drops a column"]);
+    expect(rollbackBreakingChanges("/* cleanup */ ALTER TABLE app.notes DROP COLUMN legacy;")).toEqual(["drops a column"]);
+    expect(rollbackBreakingChanges("EXECUTE format('ALTER TABLE app.assignments ALTER COLUMN %I TYPE double precision', col);")).toEqual(["changes a column type"]);
+  });
+
+  it("allows additive changes, comments and an explained exception", () => {
+    expect(rollbackBreakingChanges("-- drop column later\nALTER TABLE app.notes ADD COLUMN pinned boolean NOT NULL DEFAULT false;\nDROP INDEX IF EXISTS app.idx_old;")).toEqual([]);
+    expect(rollbackBreakingChanges("ALTER TABLE app.notes DROP CONSTRAINT notes_old_check, ALTER COLUMN title DROP NOT NULL, ADD COLUMN size numeric(10,2);")).toEqual([]);
+    expect(rollbackBreakingChanges("ALTER TABLE app.notes ADD COLUMN total int NOT NULL GENERATED ALWAYS AS (a + b) STORED;")).toEqual([]);
+    expect(rollbackBreakingChanges("-- rollback-safe: nothing has read this table since 079\nDROP TABLE app.old_cache;")).toEqual([]);
+  });
+
+  it("keeps every new migration safe to roll back over", () => {
+    const directory = new URL("../../../database/migrations/", import.meta.url);
+    const breaking = readdirSync(directory)
+      .filter((file) => Number(migrationVersion(file)) > rollbackGuardBaseline)
+      .flatMap((file) => rollbackBreakingChanges(readFileSync(new URL(file, directory), "utf8")).map((reason) => `${file} ${reason}`));
+    // split the change across releases, or add `-- rollback-safe: <why>` to the migration
+    expect(breaking).toEqual([]);
   });
 });

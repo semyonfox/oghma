@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { ErrorEvent } from "@sentry/core";
 import {
+  errorTags,
   monitoringPath,
   privateDataCollection,
   sanitizeError,
@@ -61,7 +63,7 @@ describe("monitoring privacy", () => {
           data: { note: "private" },
         },
       },
-      tags: { service: "worker", operation: "study.classify", note: "private" },
+      tags: { service: "worker", operation: "study.classify", task: "study map reconciliation", errorCode: "25P03", logMessage: "worker periodic task failed", note: "private", stage: "private Notes.pdf" },
     });
     expect(JSON.stringify(result)).not.toContain("private");
     expect(result.user).toEqual({ ip_address: "0.0.0.0" });
@@ -76,7 +78,31 @@ describe("monitoring privacy", () => {
     expect(result.tags).toEqual({
       service: "worker",
       operation: "study.classify",
+      task: "study map reconciliation",
+      errorCode: "25P03",
+      logMessage: "worker periodic task failed",
     });
+  });
+
+  it("tags untagged library and uncaught errors with their code and Redis command", () => {
+    // ioredis replies carry the rejected command and its private arguments, and no code
+    const reply = Object.assign(
+      new Error("MISCONF Redis is unable to persist to disk, script: private-key"),
+      { name: "ReplyError", command: { name: "evalsha", args: ["private-key", "private note"] } },
+    );
+    const event = {
+      type: undefined,
+      exception: { values: [{ type: "ReplyError", value: reply.message }] },
+      tags: { service: "worker" },
+    } satisfies ErrorEvent;
+    const result = sanitizeError(event, { originalException: reply });
+    expect(result.tags).toEqual({ service: "worker", errorCode: "MISCONF", redisCommand: "evalsha" });
+    expect(JSON.stringify(result)).not.toContain("private");
+
+    const disk = Object.assign(new Error("ENOSPC: no space left on device, write"), { code: "ENOSPC" });
+    expect(sanitizeError({ type: undefined, level: "fatal" }, { originalException: disk }).tags).toEqual({ errorCode: "ENOSPC" });
+    // the leading word of an ordinary message may be user content
+    expect(errorTags(new Error("JANE uploaded private.pdf"))).toEqual({});
   });
 
   it("keeps duration and status without SQL, payloads, URLs or span links", () => {

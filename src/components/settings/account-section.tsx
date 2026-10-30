@@ -85,15 +85,17 @@ export default function AccountSection({
 
   useEffect(() => {
     const loadAvatar = async () => {
-      try {
+      const run = async () => {
         const avatarResponse = await fetch("/api/auth/avatar");
         if (avatarResponse.ok) {
           const { avatarUrl: url } = await avatarResponse.json();
           if (url) setAvatarUrl(url);
         }
-      } catch (error) {
-        console.error("Failed to load avatar:", error);
-      }
+      };
+      await run()
+        .catch((error: unknown) => {
+          console.error("Failed to load avatar:", error);
+        });
     };
     void loadAvatar();
 
@@ -107,7 +109,7 @@ export default function AccountSection({
   const handleProfileSave = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSavingSection("profile");
-    try {
+    const run = async () => {
       // Load the dictionary before saving so a missing translation bundle
       // fails the save instead of leaving a stored locale the UI cannot show.
       const nextLocale = formState.locale;
@@ -137,12 +139,15 @@ export default function AccountSection({
         router.refresh();
       }
       toast.success(t("Profile updated successfully"));
-    } catch (error) {
-      console.error("Failed to save profile:", error);
-      toast.error(t("Failed to save profile"));
-    } finally {
-      setSavingSection(null);
-    }
+    };
+    await run()
+      .catch((error: unknown) => {
+        console.error("Failed to save profile:", error);
+        toast.error(t("Failed to save profile"));
+      })
+      .finally(() => {
+        setSavingSection(null);
+      });
   };
 
   const handleAvatarFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -153,7 +158,7 @@ export default function AccountSection({
     replaceAvatarPreview(objectUrl);
 
     setIsUploadingAvatar(true);
-    try {
+    const run = async () => {
       const formData = new FormData();
       formData.append("avatar", file);
 
@@ -173,14 +178,17 @@ export default function AccountSection({
           await readResponseError(response, t("Failed to upload avatar")),
         );
       }
-    } catch (error) {
-      console.error("Avatar upload failed:", error);
-      replaceAvatarPreview(null);
-      toast.error(t("Failed to upload avatar"));
-    } finally {
-      setIsUploadingAvatar(false);
-      if (avatarInputRef.current) avatarInputRef.current.value = "";
-    }
+    };
+    await run()
+      .catch((error: unknown) => {
+        console.error("Avatar upload failed:", error);
+        replaceAvatarPreview(null);
+        toast.error(t("Failed to upload avatar"));
+      })
+      .finally(() => {
+        setIsUploadingAvatar(false);
+        if (avatarInputRef.current) avatarInputRef.current.value = "";
+      });
   };
 
   return (

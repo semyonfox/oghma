@@ -50,7 +50,7 @@ export default function CanvasInstitutionPicker({
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       setStatus("loading");
-      try {
+      const run = async () => {
         const url = new URL("https://canvas.instructure.com/api/v1/accounts/search");
         url.searchParams.set("name", term);
         const response = await fetch(url, {
@@ -64,11 +64,13 @@ export default function CanvasInstitutionPicker({
         if (controller.signal.aborted) return;
         setResults(parseCanvasInstitutions(body));
         setStatus("ready");
-      } catch {
-        if (controller.signal.aborted) return;
-        setResults([]);
-        setStatus("error");
-      }
+      };
+      await run()
+        .catch(() => {
+          if (controller.signal.aborted) return;
+          setResults([]);
+          setStatus("error");
+        });
     }, 800);
 
     return () => {

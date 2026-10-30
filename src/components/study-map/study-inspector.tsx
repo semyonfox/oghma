@@ -200,7 +200,7 @@ function NoteInspector({
     setBusy(action);
     setError(null);
     setMessage(null);
-    try {
+    const run = async () => {
       await operation();
       if (action === "remove") onClose();
       else
@@ -209,11 +209,14 @@ function NoteInspector({
             ? "Corrections saved."
             : "Classification requested. Your saved corrections are kept.",
         );
-    } catch (error) {
-      setError(errorMessage(error));
-    } finally {
-      setBusy(null);
-    }
+    };
+    await run()
+      .catch((error: unknown) => {
+        setError(errorMessage(error));
+      })
+      .finally(() => {
+        setBusy(null);
+      });
   }
 
   function save(event: FormEvent<HTMLFormElement>) {
@@ -555,7 +558,7 @@ function TopicInspector({
     setBusy(action);
     setError(null);
     setMessage(null);
-    try {
+    const run = async () => {
       await onSaveTopics(topics);
       if (action === "delete") onClose();
       else
@@ -564,11 +567,14 @@ function TopicInspector({
             ? "Topic saved and approved."
             : "Topic saved. Approval is pending.",
         );
-    } catch (error) {
-      setError(errorMessage(error));
-    } finally {
-      setBusy(null);
-    }
+    };
+    await run()
+      .catch((error: unknown) => {
+        setError(errorMessage(error));
+      })
+      .finally(() => {
+        setBusy(null);
+      });
   }
 
   function save(event: FormEvent<HTMLFormElement>) {

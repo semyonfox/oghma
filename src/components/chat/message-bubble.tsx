@@ -170,15 +170,14 @@ const CopyMessageButton: FC<{ content: string }> = ({ content }) => {
 
   const handleCopy = async () => {
     if (busy || !content.trim() || !navigator.clipboard?.writeText) return;
-    try {
-      await navigator.clipboard.writeText(content);
-      toast.success(t("Copied"), { duration: 1200 });
-    } catch {
-      toast.error(t("Couldn't copy"));
-    } finally {
-      setBusy(true);
-      window.setTimeout(() => setBusy(false), 1200);
-    }
+    const copied = await navigator.clipboard.writeText(content).then(
+      () => true,
+      () => false,
+    );
+    if (copied) toast.success(t("Copied"), { duration: 1200 });
+    else toast.error(t("Couldn't copy"));
+    setBusy(true);
+    window.setTimeout(() => setBusy(false), 1200);
   };
 
   return (
@@ -264,6 +263,7 @@ const FullMessageBubbleComponent: FC<{
   );
 };
 
+// memo stays: messages render from a .map that changes on every streamed token
 export const FullMessageBubble = memo(FullMessageBubbleComponent);
 
 // compact message bubble (sidebar variant)

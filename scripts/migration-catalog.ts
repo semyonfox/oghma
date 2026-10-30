@@ -101,3 +101,46 @@ export function readMigrationFiles(migrationsDir: PathLike): string[] {
   assertUniqueMigrationVersions(files);
   return files;
 }
+
+// a rollback redeploys the previous image against the migrated schema, so a migration
+// must not break the release before it. drops, renames and tightened columns belong
+// in a later release than the code that stops using them
+// ALTER TABLE subcommands. COLUMN is optional in postgres, so `DROP legacy` and
+// `ALTER legacy TYPE` count too, while constraint, default and identity drops do not
+const alterTableBreakingPatterns: ReadonlyArray<[string, RegExp]> = [
+  ["drops a column", /\bdrop\s+(?:column\b|(?!constraint\b|default\b|not\s+null\b|expression\b|identity\b)[a-z_"])/i],
+  ["renames a table or column", /\brename\b/i],
+  ["changes a column type", /\balter\s+(?:column\s+)?\S+\s+(?:set\s+data\s+)?type\b/i],
+  ["adds a not-null constraint", /\bset\s+not\s+null\b/i],
+];
+
+// an added NOT NULL column without a default rejects the previous release's inserts.
+// literals and parenthesised expressions go first so a CHECK or type modifier can't fake a DEFAULT
+function addsRequiredColumn(statement: string): boolean {
+  let flat = statement.replace(/'(?:[^']|'')*'/g, "''");
+  while (/\([^()]*\)/.test(flat)) flat = flat.replace(/\([^()]*\)/g, " ");
+  return flat
+    .split(",")
+    .some((clause) => /\badd\s+(?:column\s+)?/i.test(clause) && !/\badd\s+(?:constraint|primary|unique|foreign|check)\b/i.test(clause)
+      && /\bnot\s+null\b/i.test(clause) && !/\b(?:default|generated)\b/i.test(clause));
+}
+
+// the last migration released before this guard; earlier history is not rechecked
+export const rollbackGuardBaseline = 82;
+
+/** reasons a migration would break the previous release, unless it says why it is safe */
+export function rollbackBreakingChanges(contents: string): string[] {
+  if (/^--\s*rollback-safe:\s*\S/im.test(contents)) return [];
+  const reasons = new Set<string>();
+  // DO blocks and EXECUTE strings are scanned like any other SQL, since dynamic DDL breaks rollback too
+  const sql = contents.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/--.*$/gm, "");
+  for (const statement of sql.split(";")) {
+    if (/\bdrop\s+table\b/i.test(statement)) reasons.add("drops a table");
+    const alter = statement.search(/\balter\s+table\b/i);
+    if (alter < 0) continue;
+    const command = statement.slice(alter);
+    for (const [reason, pattern] of alterTableBreakingPatterns) if (pattern.test(command)) reasons.add(reason);
+    if (addsRequiredColumn(command)) reasons.add("adds a required column without a default");
+  }
+  return [...reasons];
+}

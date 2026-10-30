@@ -1,6 +1,6 @@
 "use client";
 
-import { FC, useState, useCallback, useEffect, useRef } from "react";
+import { FC, useState, useEffect, useRef } from "react";
 import { FileSpec } from "@/lib/notes/state/layout";
 import {
   MagnifyingGlassMinusIcon,
@@ -18,6 +18,9 @@ interface ImageViewerProps {
  * Image viewer component with zoom and pan
  * Supports zoom in/out and reset
  */
+const zoomIn = (zoom: number) => Math.min(zoom + 0.2, 5);
+const zoomOut = (zoom: number) => Math.max(zoom - 0.2, 0.5);
+
 const ImageViewer: FC<ImageViewerProps> = ({ file }) => {
   const { t } = useI18n();
   const [zoom, setZoom] = useState(1);
@@ -27,19 +30,14 @@ const ImageViewer: FC<ImageViewerProps> = ({ file }) => {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const { url: imageSrc, loading } = useSignedUrl(file.sourcePath);
 
-  const handleZoomIn = useCallback(() => {
-    setZoom((z) => Math.min(z + 0.2, 5));
-  }, []);
+  const handleZoomIn = () => setZoom(zoomIn);
+  const handleZoomOut = () => setZoom(zoomOut);
 
-  const handleZoomOut = useCallback(() => {
-    setZoom((z) => Math.max(z - 0.2, 0.5));
-  }, []);
-
-  const handleReset = useCallback(() => {
+  const handleReset = () => {
     setZoom(1);
     setPanX(0);
     setPanY(0);
-  }, []);
+  };
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (zoom > 1) {
@@ -67,12 +65,11 @@ const ImageViewer: FC<ImageViewerProps> = ({ file }) => {
     if (!container) return;
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
-      if (e.deltaY < 0) handleZoomIn();
-      else handleZoomOut();
+      setZoom(e.deltaY < 0 ? zoomIn : zoomOut);
     };
     container.addEventListener("wheel", handleWheel, { passive: false });
     return () => container.removeEventListener("wheel", handleWheel);
-  }, [handleZoomIn, handleZoomOut]);
+  }, []);
 
   return (
     <div className="h-full flex flex-col bg-surface">

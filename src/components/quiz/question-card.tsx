@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useEffectEvent } from "react";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { BLOOM_NAMES } from "@/lib/quiz/types";
 import type { QuizSessionQuestion } from "@/lib/quiz/types";
@@ -30,10 +30,7 @@ export default function QuestionCard({
   onAnswer,
 }: QuestionCardProps) {
   const { t } = useI18n();
-  const options = useMemo(
-    () => (Array.isArray(question.options) ? question.options : []),
-    [question.options],
-  );
+  const options = (Array.isArray(question.options) ? question.options : []);
   // a choice question whose options could not be read is answered by typing
   const typed = answersByTyping(question);
   const hasOptions = !typed;
@@ -46,7 +43,7 @@ export default function QuestionCard({
     setSelected(index);
   };
 
-  const handleSubmit = useCallback(() => {
+  const handleSubmit = () => {
     if (submitted) return;
     const answer = typed
       ? fillInAnswer
@@ -57,9 +54,10 @@ export default function QuestionCard({
 
     setSubmitted(true);
     onAnswer(answer, gradeAnswer(question, answer));
-  }, [submitted, typed, fillInAnswer, selected, options, question, onAnswer]);
+  };
 
   // keyboard shortcuts for MCQ selection and submission
+  const submitFromKeyboard = useEffectEvent(handleSubmit);
   useEffect(() => {
     if (submitted) return;
     const handler = (e: KeyboardEvent) => {
@@ -89,12 +87,12 @@ export default function QuestionCard({
       }
       if (e.key === "Enter" && selected !== null) {
         e.preventDefault();
-        handleSubmit();
+        submitFromKeyboard();
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [submitted, hasOptions, options.length, selected, handleSubmit]);
+  }, [submitted, hasOptions, options.length, selected]);
 
   return (
     <div className="flex-1 flex flex-col justify-center gap-5">

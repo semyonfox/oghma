@@ -71,9 +71,9 @@ export const POST = withErrorHandler(async (_request, context: RouteParamsContex
       // the same dedupe id the worker's republish uses, so a recovery pass
       // can't publish a second discovery for this job
       await enqueueCanvasDiscoverJob(result.jobId, userId);
-    } catch {
+    } catch (error) {
       // The worker's database poll also dispatches queued imports.
-      logger.warn("Assignment import queued in database; queue dispatch unavailable", { jobId: result.jobId });
+      logger.warn("Assignment import queued in database; queue dispatch unavailable", { jobId: result.jobId, error });
     }
   }
   return NextResponse.json({ queued: true, jobId: result.jobId });

@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import {
-  useCallback,
   useEffect,
   useRef,
   useState,
   type FormEvent,
   type ReactNode,
+  useEffectEvent,
 } from "react";
 import {
   Menu,
@@ -155,25 +155,25 @@ function useLibrarySearch(query: string, enabled: boolean) {
   useEffect(() => {
     if (!enabled) return;
     const controller = new AbortController();
-    const timeout = window.setTimeout(async () => {
+    const timeout = window.setTimeout(() => {
       setLoading(true);
       setError(null);
-      try {
-        const params = new URLSearchParams({
-          fields: "id,title,isFolder",
-          limit: "200",
+      const params = new URLSearchParams({
+        fields: "id,title,isFolder",
+        limit: "200",
+      });
+      if (query.trim()) params.set("q", query.trim());
+      requestJson(`/api/notes?${params}`, { signal: controller.signal })
+        .then((data) => {
+          if (!controller.signal.aborted)
+            setNotes(noteSchema.array().parse(data));
+        })
+        .catch((error: unknown) => {
+          if (!controller.signal.aborted) setError(messageFor(error));
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setLoading(false);
         });
-        if (query.trim()) params.set("q", query.trim());
-        const data = await requestJson(`/api/notes?${params}`, {
-          signal: controller.signal,
-        });
-        if (!controller.signal.aborted)
-          setNotes(noteSchema.array().parse(data));
-      } catch (error) {
-        if (!controller.signal.aborted) setError(messageFor(error));
-      } finally {
-        if (!controller.signal.aborted) setLoading(false);
-      }
     }, 250);
     return () => {
       controller.abort();
@@ -972,14 +972,21 @@ function describeSetup(
   };
 }
 
-function menuEntry(
-  label: string,
-  Icon: typeof TagIcon,
-  onClick: () => void,
-  { detail, disabled = false }: { detail?: string; disabled?: boolean } = {},
-) {
+function MenuEntry({
+  label,
+  icon: Icon,
+  onClick,
+  detail,
+  disabled = false,
+}: {
+  label: string;
+  icon: typeof TagIcon;
+  onClick: () => void;
+  detail?: string;
+  disabled?: boolean;
+}) {
   return (
-    <MenuItem key={label} disabled={disabled}>
+    <MenuItem disabled={disabled}>
       <button
         type="button"
         className={menuItemClass}
@@ -1046,55 +1053,53 @@ function ModuleWorkspace({
   const [topicForm, setTopicForm] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [noteOfferHidden, setNoteOfferHidden] = useState(false);
-  const closeInspector = useCallback(() => {
+  const closeInspector = () => {
     setSelection(null);
     updateLocation({ note: null });
-  }, []);
-  const selectInspector = useCallback((selection: Selection | null) => {
+  };
+  const selectInspector = (selection: Selection | null) => {
     setSelection(selection);
     updateLocation({ note: selection?.kind === "note" ? selection.id : null });
-  }, []);
+  };
   // a drawer opened from the menu replaces the inspector; one opened from a drawer sits on top of it
   function openPanel(next: Panel) {
     closeInspector();
     onPanelChange(next);
   }
-  const closePanel = useCallback(() => onPanelChange(null), [onPanelChange]);
+  const closePanel = () => onPanelChange(null);
 
-  const refresh = useCallback(
-    async (signal?: AbortSignal) => {
-      const sequence = ++requestSequence.current;
-      const incoming = snapshotSchema.parse(
-        await requestJson(`/api/study-maps/${mapId}`, { signal }),
-      );
-      if (
-        !mounted.current ||
-        signal?.aborted ||
-        sequence !== requestSequence.current
-      )
-        return;
-      snapshotRef.current = incoming;
-      setSnapshot(incoming);
-    },
-    [mapId],
-  );
+  const refresh = async (signal?: AbortSignal) => {
+    const sequence = ++requestSequence.current;
+    const incoming = snapshotSchema.parse(
+      await requestJson(`/api/study-maps/${mapId}`, { signal }),
+    );
+    if (
+      !mounted.current ||
+      signal?.aborted ||
+      sequence !== requestSequence.current
+    )
+      return;
+    snapshotRef.current = incoming;
+    setSnapshot(incoming);
+  };
 
   useEffect(() => {
     if (initialNoteId) setSelection({ kind: "note", id: initialNoteId });
     else setSelection((current) => (current?.kind === "note" ? null : current));
   }, [initialNoteId, noteRequest]);
 
+  const refreshSnapshot = useEffectEvent(refresh);
   useEffect(() => {
     mounted.current = true;
     const controller = new AbortController();
-    void refresh(controller.signal).catch((error) => {
+    void refreshSnapshot(controller.signal).catch((error) => {
       if (!controller.signal.aborted) setError(messageFor(error));
     });
     return () => {
       mounted.current = false;
       controller.abort();
     };
-  }, [refresh]);
+  }, [mapId]);
 
   const hasActiveJobs =
     snapshot?.jobs.some(
@@ -1103,19 +1108,19 @@ function ModuleWorkspace({
   useEffect(() => {
     if (!hasActiveJobs) return;
     let polling = false;
-    const timer = window.setInterval(async () => {
+    const timer = window.setInterval(() => {
       if (polling || operationRef.current) return;
       polling = true;
-      try {
-        await refresh();
-      } catch (error) {
-        if (mounted.current) setError(messageFor(error));
-      } finally {
-        polling = false;
-      }
+      void refreshSnapshot()
+        .catch((error: unknown) => {
+          if (mounted.current) setError(messageFor(error));
+        })
+        .finally(() => {
+          polling = false;
+        });
     }, 3000);
     return () => window.clearInterval(timer);
-  }, [hasActiveJobs, refresh]);
+  }, [hasActiveJobs]);
 
   async function operate(
     name: string,
@@ -1130,35 +1135,34 @@ function ModuleWorkspace({
     onBusyChange(true);
     setError(null);
     setMessage(null);
-    try {
+    const run = async () => {
       await operation();
       if (reload) {
-        try {
-          await refresh();
-        } catch (error) {
+        await refresh().catch((error: unknown) => {
           if (mounted.current)
             setError(
               `${success} The latest view could not be refreshed. ${messageFor(error)}`,
             );
-        }
+        });
       }
       if (mounted.current) setMessage(success);
-      try {
-        await onRefreshMaps();
-      } catch (error) {
+      await onRefreshMaps().catch((error: unknown) => {
         if (mounted.current)
           setError(
             `${success} The module list could not be refreshed. ${messageFor(error)}`,
           );
-      }
-    } catch (error) {
-      if (mounted.current) setError(messageFor(error));
-      throw error;
-    } finally {
-      operationRef.current = false;
-      if (mounted.current) setBusy(null);
-      onBusyChange(false);
-    }
+      });
+    };
+    await run()
+      .catch((error: unknown) => {
+        if (mounted.current) setError(messageFor(error));
+        throw error;
+      })
+      .finally(() => {
+        operationRef.current = false;
+        if (mounted.current) setBusy(null);
+        onBusyChange(false);
+      });
   }
 
   function launch(operation: Promise<void>) {
@@ -1312,49 +1316,54 @@ function ModuleWorkspace({
             <MenuHeading className={`${menuHeadingClass} truncate`}>
               {map.name}
             </MenuHeading>
-            {menuEntry("Topics", TagIcon, () => openPanel("topics"), {
-              detail:
-                toCheck > 0 ? `${toCheck} to check` : `${map.topics.length}`,
-            })}
-            {menuEntry(
-              "Materials",
-              QueueListIcon,
-              () => openPanel("materials"),
-              {
-                detail: `${snapshot.materials.length}`,
-              },
-            )}
-            {menuEntry("Exam history", AcademicCapIcon, () =>
-              openPanel("exams"),
-            )}
+            <MenuEntry
+              label="Topics"
+              icon={TagIcon}
+              onClick={() => openPanel("topics")}
+              detail={
+                toCheck > 0 ? `${toCheck} to check` : `${map.topics.length}`
+              }
+            />
+            <MenuEntry
+              label="Materials"
+              icon={QueueListIcon}
+              onClick={() => openPanel("materials")}
+              detail={`${snapshot.materials.length}`}
+            />
+            <MenuEntry
+              label="Exam history"
+              icon={AcademicCapIcon}
+              onClick={() => openPanel("exams")}
+            />
           </MenuSection>
           <MenuSeparator className={menuSeparatorClass} />
-          {menuEntry(
-            "Add materials",
-            DocumentPlusIcon,
-            () => openPanel("add"),
-            {
-              disabled: busy !== null,
-            },
-          )}
-          {menuEntry("Module settings", Cog6ToothIcon, () =>
-            openPanel("settings"),
-          )}
+          <MenuEntry
+            label="Add materials"
+            icon={DocumentPlusIcon}
+            onClick={() => openPanel("add")}
+            disabled={busy !== null}
+          />
+          <MenuEntry
+            label="Module settings"
+            icon={Cog6ToothIcon}
+            onClick={() => openPanel("settings")}
+          />
           {(snapshot.provider.generationReady || !map.autoClassify) && (
             <MenuSeparator className={menuSeparatorClass} />
           )}
-          {snapshot.provider.generationReady &&
-            menuEntry(
-              map.topics.length > 0 ? "Find topics again" : "Find topics",
-              SparklesIcon,
-              findTopics,
-              { disabled: busy !== null || findingTopics },
-            )}
-          {!map.autoClassify &&
-            menuEntry(
-              "Sync sources",
-              ArrowPathIcon,
-              () =>
+          {snapshot.provider.generationReady && (
+            <MenuEntry
+              label={map.topics.length > 0 ? "Find topics again" : "Find topics"}
+              icon={SparklesIcon}
+              onClick={findTopics}
+              disabled={busy !== null || findingTopics}
+            />
+          )}
+          {!map.autoClassify && (
+            <MenuEntry
+              label="Sync sources"
+              icon={ArrowPathIcon}
+              onClick={() =>
                 launch(
                   mutation(
                     "/refresh",
@@ -1362,35 +1371,36 @@ function ModuleWorkspace({
                     {},
                     "Source folder and course materials synced.",
                   ),
-                ),
-              {
-                disabled:
-                  busy !== null || (!map.rootNoteId && !map.canvasCourseId),
-              },
-            )}
-          {!map.autoClassify &&
-            menuEntry(
-              "Classify materials",
-              SparklesIcon,
-              () => launch(queue("classify")),
-              {
-                disabled:
-                  busy !== null ||
-                  !snapshot.provider.ready ||
-                  reviewedTopics === 0 ||
-                  snapshot.materials.length === 0 ||
-                  activeJobs.some((job) => job.kind === "classify"),
-              },
-            )}
+                )
+              }
+              disabled={
+                busy !== null || (!map.rootNoteId && !map.canvasCourseId)
+              }
+            />
+          )}
+          {!map.autoClassify && (
+            <MenuEntry
+              label="Classify materials"
+              icon={SparklesIcon}
+              onClick={() => launch(queue("classify"))}
+              disabled={
+                busy !== null ||
+                !snapshot.provider.ready ||
+                reviewedTopics === 0 ||
+                snapshot.materials.length === 0 ||
+                activeJobs.some((job) => job.kind === "classify")
+              }
+            />
+          )}
           {failedJobs.length > 0 && (
             <>
               <MenuSeparator className={menuSeparatorClass} />
-              {menuEntry(
-                "Processing errors",
-                ExclamationTriangleIcon,
-                () => openPanel("topics"),
-                { detail: `${failedJobs.length}` },
-              )}
+              <MenuEntry
+                label="Processing errors"
+                icon={ExclamationTriangleIcon}
+                onClick={() => openPanel("topics")}
+                detail={`${failedJobs.length}`}
+              />
             </>
           )}
         </MenuItems>
@@ -1762,17 +1772,17 @@ export default function StudyWorkspace({
       tab: null,
     });
   }, []);
-  const choosePanel = useCallback((next: Panel | null) => {
+  const choosePanel = (next: Panel | null) => {
     setPanel(next);
     updateLocation({ panel: next });
-  }, []);
+  };
 
-  const refreshMaps = useCallback(async () => {
+  const refreshMaps = async () => {
     const incoming = summarySchema
       .array()
       .parse(await requestJson("/api/study-maps"));
     setMaps(incoming);
-  }, []);
+  };
 
   // a ref rather than a cancel flag: strict mode reruns the effect, and the
   // first request may already have created the modules the second one would miss
@@ -1780,38 +1790,35 @@ export default function StudyWorkspace({
   useEffect(() => {
     if (setupStarted.current) return;
     setupStarted.current = true;
-    void (async () => {
-      try {
-        const { created } = z
-          .object({ created: z.number().int().nonnegative() })
-          .parse(
-            await requestJson("/api/study-maps/setup", {
-              method: "POST",
-              body: "{}",
-            }),
-          );
-        if (created === 0) return;
-        const incoming = summarySchema
-          .array()
-          .parse(await requestJson("/api/study-maps"));
-        setMaps(incoming);
-        setMapId((current) => current || incoming[0]?.id || "");
-        setMessage(
-          `Added ${created} ${created === 1 ? "module" : "modules"} from your Canvas courses.`,
+    const setup = async () => {
+      const { created } = z
+        .object({ created: z.number().int().nonnegative() })
+        .parse(
+          await requestJson("/api/study-maps/setup", {
+            method: "POST",
+            body: "{}",
+          }),
         );
-      } catch (error) {
-        setError(messageFor(error));
-      } finally {
-        setSettingUp(false);
-      }
-    })();
+      if (created === 0) return;
+      const incoming = summarySchema
+        .array()
+        .parse(await requestJson("/api/study-maps"));
+      setMaps(incoming);
+      setMapId((current) => current || incoming[0]?.id || "");
+      setMessage(
+        `Added ${created} ${created === 1 ? "module" : "modules"} from your Canvas courses.`,
+      );
+    };
+    void setup()
+      .catch((error: unknown) => setError(messageFor(error)))
+      .finally(() => setSettingUp(false));
   }, []);
 
   async function create(fields: MapFields) {
     setBusy(true);
     setError(null);
     setMessage(null);
-    try {
+    const run = async () => {
       const result = z
         .object({ mapId: z.uuid(), warning: z.string().nullable() })
         .parse(
@@ -1829,12 +1836,13 @@ export default function StudyWorkspace({
         setMessage(
           `Module created. Source sync needs attention: ${result.warning}`,
         );
-    } catch (error) {
-      setError(messageFor(error));
-      throw error;
-    } finally {
-      setBusy(false);
-    }
+    };
+    await run()
+      .catch((error: unknown) => {
+        setError(messageFor(error));
+        throw error;
+      })
+      .finally(() => setBusy(false));
   }
 
   async function deleted() {
@@ -1852,10 +1860,10 @@ export default function StudyWorkspace({
     choosePanel(null);
   }
 
-  const changeScope = useCallback((next: FlowScope) => {
+  const changeScope = (next: FlowScope) => {
     setScope(next);
     updateLocation({ scope: next === "all" ? "all" : null });
-  }, []);
+  };
   // rendered once at page level so an open switcher menu survives the map loading or changing
   const island = (
     <div className="pointer-events-none absolute left-3 top-3 z-40 flex max-w-[calc(100%-1.5rem)]">

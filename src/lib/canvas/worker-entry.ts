@@ -108,7 +108,7 @@ export async function processCanvasJob(job: CanvasJob): Promise<void> {
     }),
   );
   if (!handled) {
-    logger.warn("worker_event");
+    logger.warn("worker received an unknown queue job");
   }
 }
 
@@ -234,7 +234,7 @@ const tasks: PeriodicTask[] = [
   startPeriodicTask("study map reconciliation", reconcileStudyMaps, MINUTE_MS, { runNow: true }),
   startPeriodicTask("daily maintenance", runDailyMaintenance, DAY_MS, { runNow: true }),
 ];
-logger.info("worker_event");
+logger.info("worker started");
 
 function withinGrace(work: Promise<unknown>): Promise<void> {
   return new Promise((resolve) => {
@@ -249,7 +249,7 @@ function withinGrace(work: Promise<unknown>): Promise<void> {
 async function shutdown(): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
-  logger.info("worker_event");
+  logger.info("worker shutting down");
   for (const task of tasks) task.stop();
   await clearWorkerHeartbeat().catch(() => undefined);
   await withinGrace(Promise.allSettled([

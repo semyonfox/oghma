@@ -134,7 +134,7 @@ export function usePollingJob({
       const controller = new AbortController();
       activeController = controller;
 
-      try {
+      const run = async () => {
         const res = await fetch(url, { signal: controller.signal });
         if (!active || controller.signal.aborted) return;
         if (!res.ok) return;
@@ -149,15 +149,18 @@ export function usePollingJob({
           stoppedRef.current = true;
           if (timer) clearInterval(timer);
         }
-      } catch (err) {
-        if (active && !controller.signal.aborted) {
-          onErrorRef.current?.(err);
-        }
-      } finally {
-        if (activeController === controller) {
-          activeController = undefined;
-        }
-      }
+      };
+      await run()
+        .catch((err: unknown) => {
+          if (active && !controller.signal.aborted) {
+            onErrorRef.current?.(err);
+          }
+        })
+        .finally(() => {
+          if (activeController === controller) {
+            activeController = undefined;
+          }
+        });
     };
 
     timer = setInterval(() => {

@@ -11,6 +11,7 @@ import {
 } from "./exam-evidence";
 import {
   currentBoard,
+  materialOverridesSchema,
   taxonomyMeaning,
   topicSchema,
   type StudyTopic,
@@ -508,10 +509,41 @@ export async function reviewStudyMaterial(
     const topicIds = new Set(topics.map((topic) => topic.id));
     if (Object.keys(input.topics).some((id) => !topicIds.has(id)))
       throw new ApiError(400, "Unknown topic");
+    // an omitted kind or label list keeps the saved correction, unless it was made against an older source or topic list
+    const [saved] = await tx<{ overrides: unknown }[]>`
+      SELECT overrides FROM app.study_materials
+      WHERE user_id = ${userId}::uuid AND map_id = ${mapId}::uuid AND note_id = ${input.noteId}::uuid
+    `;
+    const previous = materialOverridesSchema.safeParse(saved?.overrides);
+    const kept =
+      previous.success &&
+      previous.data.sourceHash === source.hash &&
+      previous.data.taxonomyVersion === map.taxonomy_version
+        ? previous.data
+        : null;
+    const kind = input.kind ?? kept?.kind;
+    const labels = input.labels ?? kept?.labels;
+    // stale picks this save doesn't answer stay waiting for review instead of vanishing
+    const waiting = previous.success
+      ? {
+          ...previous.data.unreviewed,
+          ...(kept
+            ? {}
+            : Object.fromEntries(
+                Object.entries(previous.data.topics).flatMap(([id, choice]) =>
+                  choice === "excluded" ? [] : [[id, choice] as const],
+                ),
+              )),
+        }
+      : {};
+    const unreviewed = Object.fromEntries(
+      Object.entries(waiting).filter(([id]) => topicIds.has(id) && input.topics[id] === undefined),
+    );
     const overrides = {
-      kind: input.kind,
-      labels: [...new Set(input.labels)],
+      ...(kind === undefined ? {} : { kind }),
+      ...(labels === undefined ? {} : { labels: [...new Set(labels)] }),
       topics: input.topics,
+      ...(Object.keys(unreviewed).length ? { unreviewed } : {}),
       sourceHash: source.hash,
       taxonomyVersion: map.taxonomy_version,
     };

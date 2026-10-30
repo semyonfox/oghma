@@ -8,6 +8,32 @@ export interface DocumentBundle {
   noteId: string | null;
 }
 
+/** one study-map topic on a file, as the tree marks it */
+export interface TopicMark {
+  mapId: string;
+  topicId: string;
+  name: string;
+  /** position in the map's topic list, which is also where its colour comes from */
+  topicIndex: number;
+  /** the core topic. at most one per file per map */
+  main: boolean;
+  /** waiting for review: a classifier suggestion or a correction gone stale */
+  suggested: boolean;
+}
+
+export type CanvasCourseStatus = "current" | "past" | "pending" | "inaccessible";
+
+/** finished-course facts for a top-level folder */
+export interface CourseState {
+  /** null when this isn't a canvas course, or canvas hasn't said yet */
+  canvasStatus: CanvasCourseStatus | null;
+  isCanvasCourse: boolean;
+  /** true marks it finished, false keeps it active, null follows canvas */
+  override: boolean | null;
+  /** canvas academic year as stored on the folder, like "2526" */
+  academicYear: string | null;
+}
+
 export interface NoteModel {
   id: string; // UUID v7 format
   title: string;
@@ -24,6 +50,8 @@ export interface NoteModel {
   s3Key?: string; // S3 storage path for attached files/PDFs
   mimeType?: string; // Persisted attachment MIME type; independent of editable title
   bundle?: DocumentBundle;
+  topics?: TopicMark[];
+  course?: CourseState;
   deleted: NOTE_DELETED;
   shared: NOTE_SHARED;
   pinned: NOTE_PINNED;

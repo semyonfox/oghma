@@ -11,6 +11,11 @@ const nextConfig = {
     agentRules: false,
     // standalone output keeps Docker/Node deployments small and portable
     output: 'standalone',
+    // memoisation is left to the compiler, so components skip useMemo/useCallback/memo.
+    // compiler 1.0 skips any component or hook containing try/finally, a throw inside
+    // try or a conditional inside try, so async work there is a promise chain
+    // (.then/.catch/.finally) or a plain function outside the component
+    reactCompiler: true,
 
     // next 16 defaults to the tsc-cli type checker, which needs typescript/bin/tsc;
     // our `typescript` alias (@typescript/typescript6) only ships bin/tsc6,

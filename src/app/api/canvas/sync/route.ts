@@ -17,6 +17,7 @@ import {
   startCanvasRun,
 } from "@/lib/canvas/import-runs";
 import { isValidUUID } from "@/lib/utils/uuid";
+import { recordCanvasCourseStatuses } from "@/lib/canvas/course-status";
 
 const ACTIVE_CANVAS_JOB_STATUSES = new Set([
   "queued",
@@ -127,6 +128,7 @@ export const POST = withErrorHandler(async (request) => {
         isCanvasCourseAvailabilityUnresolved(course),
     );
     courses = buildCanvasSyncCourses(prevCourseIds, discovery.data);
+    await recordCanvasCourseStatuses(user.user_id, discovery.data);
   } catch (error) {
     if (error instanceof ApiError) throw error;
     throw new ApiError(502, "Canvas returned invalid course metadata");
@@ -154,7 +156,7 @@ export const POST = withErrorHandler(async (request) => {
     }, { status: 409 });
     if (started.kind === "created") {
       await enqueueCanvasDiscoverJob(started.jobId, user.user_id)
-        .catch((error: unknown) => logger.warn("Sync publication deferred to recovery", { error: errorMessage(error) }));
+        .catch((error: unknown) => logger.warn("Sync publication deferred to recovery", { error }));
     }
     return NextResponse.json({ queued: true, jobId: started.jobId, alreadyActive: started.kind === "existing" });
   }

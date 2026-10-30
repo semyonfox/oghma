@@ -15,7 +15,7 @@ import {
   TrashIcon,
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useEffectEvent } from "react";
 import { toast } from "sonner";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import useNoteTreeStore from "@/lib/notes/state/tree";
@@ -100,110 +100,117 @@ export default function TrashPage() {
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
   const restoreButtonRefs = useRef(new Map<string, HTMLButtonElement>());
 
-  const loadItems = useCallback(async () => {
+  const loadItems = async () => {
     setLoading(true);
     setError(false);
 
-    try {
+    const run = async () => {
       const response = await fetch("/api/trash", { cache: "no-store" });
       if (!response.ok) throw new Error(`Failed to load trash: ${response.status}`);
 
       const data = (await response.json()) as { items?: TrashRoot[] };
       setItems(Array.isArray(data.items) ? data.items : []);
-    } catch (loadError) {
-      console.error("Failed to load trash:", loadError);
-      setError(true);
-    } finally {
-      setLoading(false);
-    }
+    };
+    await run()
+      .catch((loadError: unknown) => {
+        console.error("Failed to load trash:", loadError);
+        setError(true);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  };
+
+  const loadItemsOnMount = useEffectEvent(() => void loadItems());
+  useEffect(() => {
+    loadItemsOnMount();
   }, []);
 
-  useEffect(() => {
-    void loadItems();
-  }, [loadItems]);
+  const focusAfterRemoval = (itemId: string) => {
+    const itemIndex = items.findIndex((item) => item.id === itemId);
+    const nextItem = items[itemIndex + 1] ?? items[itemIndex - 1];
 
-  const focusAfterRemoval = useCallback(
-    (itemId: string) => {
-      const itemIndex = items.findIndex((item) => item.id === itemId);
-      const nextItem = items[itemIndex + 1] ?? items[itemIndex - 1];
+    window.requestAnimationFrame(() => {
+      if (nextItem) {
+        restoreButtonRefs.current.get(nextItem.id)?.focus();
+        return;
+      }
+      headingRef.current?.focus();
+    });
+  };
 
-      window.requestAnimationFrame(() => {
-        if (nextItem) {
-          restoreButtonRefs.current.get(nextItem.id)?.focus();
-          return;
-        }
-        headingRef.current?.focus();
-      });
-    },
-    [items],
-  );
-
-  const handleRestore = useCallback(
-    async (item: TrashRoot) => {
-      const itemTitle = item.title || t("Untitled");
-      setBusyId(item.id);
-      try {
-        await requestTrashAction("restore", item.id);
-        setItems((current) => current.filter((entry) => entry.id !== item.id));
-        await refreshTree();
-        setStatusMessage(`${t("Restore")}: ${itemTitle}`);
-        toast.success(`${t("Restore")}: ${itemTitle}`);
-        notifyTrashChanged();
-        focusAfterRemoval(item.id);
-      } catch (restoreError) {
+  const handleRestore = async (item: TrashRoot) => {
+    const itemTitle = item.title || t("Untitled");
+    setBusyId(item.id);
+    const run = async () => {
+      await requestTrashAction("restore", item.id);
+      setItems((current) => current.filter((entry) => entry.id !== item.id));
+      await refreshTree();
+      setStatusMessage(`${t("Restore")}: ${itemTitle}`);
+      toast.success(`${t("Restore")}: ${itemTitle}`);
+      notifyTrashChanged();
+      focusAfterRemoval(item.id);
+    };
+    await run()
+      .catch((restoreError: unknown) => {
         console.error("Failed to restore trash item:", restoreError);
         toast.error(t("Could not complete that action. Please try again."));
         // another tab may have restored or purged it; show what is left
         void loadItems();
-      } finally {
+      })
+      .finally(() => {
         setBusyId(null);
-      }
-    },
-    [focusAfterRemoval, loadItems, refreshTree, t],
-  );
+      });
+  };
 
-  const confirmPendingAction = useCallback(async () => {
+  const confirmPendingAction = async () => {
     if (!pendingAction) return;
 
     if (pendingAction.kind === "empty") {
       setBusyId("empty");
-      try {
+      const attempt = async () => {
         await requestTrashAction("empty");
         setItems([]);
         setStatusMessage(t("Empty Trash"));
         toast.success(t("Empty Trash"));
         notifyTrashChanged();
         window.requestAnimationFrame(() => headingRef.current?.focus());
-      } catch (emptyError) {
-        console.error("Failed to empty trash:", emptyError);
-        toast.error(t("Could not complete that action. Please try again."));
-        void loadItems();
-      } finally {
-        setBusyId(null);
-        setPendingAction(null);
-      }
+      };
+      await attempt()
+        .catch((emptyError: unknown) => {
+          console.error("Failed to empty trash:", emptyError);
+          toast.error(t("Could not complete that action. Please try again."));
+          void loadItems();
+        })
+        .finally(() => {
+          setBusyId(null);
+          setPendingAction(null);
+        });
       return;
     }
 
     const { item } = pendingAction;
     const itemTitle = item.title || t("Untitled");
     setBusyId(item.id);
-    try {
+    const run = async () => {
       await requestTrashAction("delete", item.id);
       setItems((current) => current.filter((entry) => entry.id !== item.id));
       setStatusMessage(`${t("Delete permanently")}: ${itemTitle}`);
       toast.success(`${t("Delete permanently")}: ${itemTitle}`);
       notifyTrashChanged();
       focusAfterRemoval(item.id);
-    } catch (deleteError) {
-      console.error("Failed to permanently delete trash item:", deleteError);
-      toast.error(t("Could not complete that action. Please try again."));
-      void loadItems();
-    } finally {
-      setBusyId(null);
-      setPendingAction(null);
-    }
-  }, [focusAfterRemoval, loadItems, pendingAction, t]);
+    };
+    await run()
+      .catch((deleteError: unknown) => {
+        console.error("Failed to permanently delete trash item:", deleteError);
+        toast.error(t("Could not complete that action. Please try again."));
+        void loadItems();
+      })
+      .finally(() => {
+        setBusyId(null);
+        setPendingAction(null);
+      });
+  };
 
   const isMutating = busyId !== null;
   const pendingItem = pendingAction?.kind === "delete" ? pendingAction.item : null;

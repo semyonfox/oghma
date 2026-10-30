@@ -45,7 +45,7 @@ function initRedis(): RedisConnection {
 
   _redis.on('error', (err) => {
     redisReady = false;
-    logger.error('redis connection error', { message: err.message });
+    logger.error('redis connection error', { error: err });
   });
 
   _redis.on('close', () => {

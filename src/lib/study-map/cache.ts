@@ -14,8 +14,8 @@ export const decisionCache: StudyDecisionCache = {
         SELECT key, value FROM app.study_decision_cache WHERE key = ANY(${keys}::text[])
       `;
       return new Map(rows.map((row) => [row.key, row.value]));
-    } catch {
-      logger.warn("study decision cache read failed");
+    } catch (error) {
+      logger.warn("study decision cache read failed", { error });
       return new Map();
     }
   },
@@ -30,8 +30,8 @@ export const decisionCache: StudyDecisionCache = {
           ON CONFLICT (key) DO NOTHING
         `;
       }
-    } catch {
-      logger.warn("study decision cache write failed");
+    } catch (error) {
+      logger.warn("study decision cache write failed", { error });
     }
   },
 };
@@ -44,8 +44,8 @@ export const generationCache: StudyGenerationCache = {
         SELECT value FROM app.study_generation_cache WHERE key = ${key}
       `;
       return row?.value;
-    } catch {
-      logger.warn("study generation cache read failed");
+    } catch (error) {
+      logger.warn("study generation cache read failed", { error });
       return undefined;
     }
   },
@@ -56,8 +56,8 @@ export const generationCache: StudyGenerationCache = {
         VALUES (${key}, ${JSON.stringify(value)}::text::jsonb)
         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, created_at = NOW()
       `;
-    } catch {
-      logger.warn("study generation cache write failed");
+    } catch (error) {
+      logger.warn("study generation cache write failed", { error });
     }
   },
 };

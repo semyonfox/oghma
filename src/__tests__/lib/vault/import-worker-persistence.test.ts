@@ -127,7 +127,7 @@ describe("persistVaultSourceFile", () => {
     await expect(processVaultImport({ jobId: "private-job", userId: "private-user", s3Key: "vault/private-note.pdf" })).rejects.toBe(error);
     await new Promise<void>((resolve) => setImmediate(resolve));
     logger.remove(transport); stream.end();
-    expect(output).toContain("operation_failed");
+    expect(output).toContain('"message":"vault import failed"');
     expect(output).not.toMatch(/private|email|timestamp|stack|traceId/);
   });
 

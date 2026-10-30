@@ -139,7 +139,7 @@ class S3MultipartZipUploader {
           }),
         );
       } catch (error) {
-        logger.error("worker_event", { error });
+        logger.error("vault export multipart abort failed", { error });
       }
     }
   }
@@ -219,7 +219,7 @@ export async function processVaultExport(
 ): Promise<void> {
   const jobId = requireMessageString(msg, "jobId");
   const userId = requireMessageString(msg, "userId");
-  logger.info("worker_event");
+  logger.info("vault export started");
 
   const outputKey = vaultExportKey(userId, jobId);
   // multipart isn't wrapped by the provider, so it writes the prefixed key directly
@@ -242,7 +242,7 @@ export async function processVaultExport(
     if (!claimed) return;
 
     const entries = await buildExportPathMap(userId);
-    logger.info("worker_event");
+    logger.info("vault export paths built");
     await sql`
       UPDATE app.canvas_import_jobs
       SET expected_total = ${entries.length}, updated_at = NOW()
@@ -268,7 +268,7 @@ export async function processVaultExport(
       try {
         await writeZipEntry(zip, uploader, entry, chunks);
       } catch (error) {
-        logger.error("worker_event", { error });
+        logger.error("vault export entry failed", { error });
         failedPaths.push(entry.path);
       }
 
@@ -276,7 +276,7 @@ export async function processVaultExport(
       // the heartbeat doubles as the cancel poll, so small exports stay cancellable
       const state = await heartbeatVaultJob(jobId, userId, processed);
       if (state !== "active") {
-        logger.info("worker_event");
+        logger.info("vault export stopped: job no longer active");
         await uploader.abort();
         if (state === "cancel-requested") await markVaultJobCancelled(jobId, processed);
         return;
@@ -345,12 +345,12 @@ export async function processVaultExport(
         await sendVaultExportCompleteEmail(user.email, { downloadUrl });
       }
     } catch (error) {
-      logger.error("worker_event", { error });
+      logger.error("vault export email failed", { error });
     }
 
-    logger.info("worker_event");
+    logger.info("vault export completed");
   } catch (error) {
-    logger.error("worker_event", { error });
+    logger.error("vault export failed", { error });
     await uploader.abort();
     // only the partial-archive message is meant for users; internal errors can carry hostnames
     await markVaultJobFailed(

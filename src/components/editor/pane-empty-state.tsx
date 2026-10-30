@@ -1,6 +1,6 @@
 "use client";
 
-import { FC, useCallback, useState } from "react";
+import { FC, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DocumentIcon } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
@@ -19,32 +19,27 @@ const FirstNoteOnboarding: FC = () => {
   const createNote = useNoteStore((s) => s.createNote);
   const [isCreating, setIsCreating] = useState(false);
 
-  const handleCreateFirstNote = useCallback(async () => {
+  const handleCreateFirstNote = async () => {
     if (isCreating) return;
     setIsCreating(true);
 
     const id = genNewId();
-    try {
-      const note = await createNote({
-        id,
-        title: t("My first note"),
-        content: t("# Welcome to OghmaNotes\n\nStart typing here."),
-      });
+    const note = await createNote({
+      id,
+      title: t("My first note"),
+      content: t("# Welcome to OghmaNotes\n\nStart typing here."),
+    }).catch(() => undefined);
+    setIsCreating(false);
 
-      if (!note) {
-        toast.error(t("Could not create your first note. Please try again."));
-        return;
-      }
-
-      setPaneA(buildFileSpec(note));
-      setRenamingId(id);
-      router.push(`/notes/${id}`);
-    } catch {
+    if (!note) {
       toast.error(t("Could not create your first note. Please try again."));
-    } finally {
-      setIsCreating(false);
+      return;
     }
-  }, [createNote, genNewId, isCreating, router, setPaneA, setRenamingId, t]);
+
+    setPaneA(buildFileSpec(note));
+    setRenamingId(id);
+    router.push(`/notes/${id}`);
+  };
 
   return (
     <div className="flex h-full flex-col overflow-y-auto p-6">

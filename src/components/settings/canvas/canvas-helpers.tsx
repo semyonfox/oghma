@@ -35,8 +35,10 @@ export function ChevronDownIcon({ className, open }: SVGProps<SVGSVGElement> & {
   );
 }
 
+const untranslated: Translate = (value) => value;
+
 /** Status badge for each course */
-export function CourseBadge({ status, errorMsg, t = (value: string) => value }: { status: CourseStatus; errorMsg?: string; t?: Translate }) {
+export function CourseBadge({ status, errorMsg, t = untranslated }: { status: CourseStatus; errorMsg?: string; t?: Translate }) {
   const config: Record<CourseStatus, { color: string; text: string; ring: string; label: string; pulse?: boolean } | null> = {
     synced: {
       color: "fill-success-500",
@@ -102,7 +104,7 @@ export function CanvasAvailabilityBadge({
   status,
   reasonCode,
   describedBy,
-  t = (value: string) => value,
+  t = untranslated,
 }: {
   status?: string;
   reasonCode?: string;
@@ -158,7 +160,7 @@ export function CanvasAvailabilityBadge({
 }
 
 /** Status dot + label for a single log entry */
-export function LogStatusIcon({ status, t = (value: string) => value }: { status: string; t?: Translate }) {
+export function LogStatusIcon({ status, t = untranslated }: { status: string; t?: Translate }) {
   const map: Record<string, { dot: string; label: string }> = {
     complete: { dot: "bg-green-400", label: t("done") },
     processing: { dot: "bg-blue-400 animate-pulse", label: t("processing") },

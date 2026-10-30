@@ -3,7 +3,17 @@
 import tseslint from "@typescript-eslint/eslint-plugin";
 import tsparser from "@typescript-eslint/parser";
 import reactHooks from "eslint-plugin-react-hooks";
-import react from "eslint-plugin-react";
+
+// components rely on React Compiler for memoisation, so anything that makes it
+// skip a component is an error. `todo` covers syntax compiler 1.0 can't compile
+// yet, such as try/finally inside a component
+const reactCompilerRules = {
+  ...reactHooks.configs.recommended.rules,
+  "react-hooks/todo": "error",
+  // a lint-only rule that does not stop compilation; the existing loading-state
+  // resets in effects are left as they are
+  "react-hooks/set-state-in-effect": "off",
+};
 
 export default [
   {
@@ -41,19 +51,12 @@ export default [
       },
     },
     plugins: {
-      react,
       "react-hooks": reactHooks,
     },
     rules: {
-      "react/jsx-uses-react": "warn",
-      "react/jsx-uses-vars": "warn",
       "no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_", destructuredArrayIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" }],
       "no-console": "off",
-      ...reactHooks.configs.recommended.rules,
-      "react-hooks/immutability": "off",
-      "react-hooks/preserve-manual-memoization": "off",
-      "react-hooks/refs": "off",
-      "react-hooks/set-state-in-effect": "off",
+      ...reactCompilerRules,
     },
   },
   {
@@ -69,13 +72,10 @@ export default [
       },
     },
     plugins: {
-      react,
       "@typescript-eslint": tseslint,
       "react-hooks": reactHooks,
     },
     rules: {
-      "react/jsx-uses-react": "warn",
-      "react/jsx-uses-vars": "warn",
       "no-unused-vars": "off",
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_", destructuredArrayIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" }],
       "@typescript-eslint/no-explicit-any": "error",
@@ -87,13 +87,22 @@ export default [
           selector: "TaggedTemplateExpression TemplateElement[value.raw=/^\\s*::jsonb/]",
           message: "Bind JSON as ${JSON.stringify(value)}::text::jsonb so it is stored as an object, not a string.",
         },
+        {
+          // production logs keep the message, so it must be a code constant. ids and
+          // names go in metadata, where only the safe fields in logger.ts survive
+          selector: "CallExpression[callee.object.name='logger'][callee.property.name=/^(error|warn|info|debug)$/][arguments.0.type!='Literal']",
+          message: "Log a fixed string message and pass context as metadata, e.g. logger.error(\"import failed\", { jobId, error }).",
+        },
       ],
       "no-console": "off",
-      ...reactHooks.configs.recommended.rules,
-      "react-hooks/immutability": "off",
-      "react-hooks/preserve-manual-memoization": "off",
-      "react-hooks/refs": "off",
-      "react-hooks/set-state-in-effect": "off",
+      ...reactCompilerRules,
+    },
+  },
+  {
+    // the Expo app does not run React Compiler, so its try/finally is fine
+    files: ["apps/mobile/**/*.{ts,tsx}"],
+    rules: {
+      "react-hooks/todo": "off",
     },
   },
   {

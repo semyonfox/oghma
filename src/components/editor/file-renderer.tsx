@@ -1,6 +1,6 @@
 "use client";
 
-import { FC, memo, Suspense } from "react";
+import { FC, Suspense } from "react";
 import dynamic from "next/dynamic";
 import { FileSpec } from "@/lib/notes/state/layout";
 import MarkdownEditor from "./markdown-editor";
@@ -91,4 +91,4 @@ const FileRenderer: FC<FileRendererProps> = ({ pane, file }) => {
   }
 };
 
-export default memo(FileRenderer);
+export default FileRenderer;

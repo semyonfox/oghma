@@ -34,7 +34,7 @@ describe("production log file", () => {
     expect(logger.transports).not.toContain(file);
     expect(logger.transports).toHaveLength(1);
     expect(captureException).toHaveBeenCalledOnce();
-    expect(captureException).toHaveBeenCalledWith(full);
+    expect(captureException).toHaveBeenCalledWith(full, { tags: { errorCode: "ENOSPC" } });
     vi.unstubAllEnvs();
   });
 });

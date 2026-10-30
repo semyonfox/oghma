@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useEffectEvent, useRef } from "react";
 import { ExclamationCircleIcon } from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import {
@@ -137,88 +137,89 @@ export default function CanvasIntegrationSettings() {
     t,
   });
 
+  // a one-time check on mount, reading the latest translations
+  const checkConnection = useEffectEvent(async () => {
+    const run = async () => {
+      const res = await fetch("/api/canvas/connect");
+      if (res.status === 401) {
+        setConnectionWarning(
+          t("Your session has expired. Please log in again."),
+        );
+        return;
+      }
+      const data = await res.json() as {
+        connected?: boolean;
+        connectionState?:
+          | "connected"
+          | "not-configured"
+          | "needs-reconnection"
+          | "temporarily-unavailable";
+        domain?: string;
+        courses?: Course[];
+        forbiddenCourseIds?: Array<string | number>;
+        courseDiscoveryDegraded?: boolean;
+      };
+
+      if (res.ok && data.connected) {
+        setIsConnected(true);
+        setConnectedDomain(data.domain ?? "");
+        setCourses(data.courses ?? []);
+        setCourseDiscoveryDegraded(Boolean(data.courseDiscoveryDegraded));
+
+        // use server-side forbidden courses as source of truth
+        const serverForbidden: Record<string, boolean> = {};
+        if (Array.isArray(data.forbiddenCourseIds)) {
+          for (const id of data.forbiddenCourseIds)
+            serverForbidden[String(id)] = true;
+          setForbiddenCourses(serverForbidden);
+          localStorage.setItem(LS_FORBIDDEN, JSON.stringify(serverForbidden));
+        } else {
+          // Older servers did not expose this contract. Do not reuse stale
+          // client state as if it were a server-confirmed restriction.
+          setForbiddenCourses({});
+          localStorage.removeItem(LS_FORBIDDEN);
+        }
+
+        setSelectedCourseIds(initialSelection(data.courses ?? []));
+
+        fetch("/api/canvas/sync")
+          .then((r) => r.json())
+          .then((d: { available?: boolean }) => {
+            setSyncAvailable(d.available ?? false);
+          })
+          .catch(() => {})
+          .finally(() => setSyncChecked(true));
+
+      } else if (res.ok && data.connectionState === "needs-reconnection") {
+        setDomain(data.domain ?? "");
+        setConnectionWarning(
+          t("Your Canvas token is invalid or expired. Please reconnect."),
+        );
+      } else if (res.ok && data.connectionState === "not-configured") {
+        setConnectionWarning(null);
+      } else {
+        setDomain(data.domain ?? "");
+        setConnectionWarning(
+          t("Could not check Canvas right now. Reload this page to try again."),
+        );
+      }
+    };
+    await run()
+      .catch(() => {
+        setConnectionWarning(
+          t("Could not check Canvas right now. Reload this page to try again."),
+        );
+      })
+      .finally(() => {
+        setIsCheckingConnection(false);
+      });
+  });
+
   // ── On mount: restore state + check connection ────────────────────────────
   useEffect(() => {
     setCourseErrors(readStoredFlags(LS_ERRORS, isString));
     setSyncedCourses(readStoredFlags(LS_SYNCED, isTrue));
-
-    const checkConnection = async () => {
-      try {
-        const res = await fetch("/api/canvas/connect");
-        if (res.status === 401) {
-          setConnectionWarning(
-            t("Your session has expired. Please log in again."),
-          );
-          return;
-        }
-        const data = await res.json() as {
-          connected?: boolean;
-          connectionState?:
-            | "connected"
-            | "not-configured"
-            | "needs-reconnection"
-            | "temporarily-unavailable";
-          domain?: string;
-          courses?: Course[];
-          forbiddenCourseIds?: Array<string | number>;
-          courseDiscoveryDegraded?: boolean;
-        };
-
-        if (res.ok && data.connected) {
-          setIsConnected(true);
-          setConnectedDomain(data.domain ?? "");
-          setCourses(data.courses ?? []);
-          setCourseDiscoveryDegraded(Boolean(data.courseDiscoveryDegraded));
-
-          // use server-side forbidden courses as source of truth
-          const serverForbidden: Record<string, boolean> = {};
-          if (Array.isArray(data.forbiddenCourseIds)) {
-            for (const id of data.forbiddenCourseIds)
-              serverForbidden[String(id)] = true;
-            setForbiddenCourses(serverForbidden);
-            localStorage.setItem(LS_FORBIDDEN, JSON.stringify(serverForbidden));
-          } else {
-            // Older servers did not expose this contract. Do not reuse stale
-            // client state as if it were a server-confirmed restriction.
-            setForbiddenCourses({});
-            localStorage.removeItem(LS_FORBIDDEN);
-          }
-
-          setSelectedCourseIds(initialSelection(data.courses ?? []));
-
-          fetch("/api/canvas/sync")
-            .then((r) => r.json())
-            .then((d: { available?: boolean }) => {
-              setSyncAvailable(d.available ?? false);
-            })
-            .catch(() => {})
-            .finally(() => setSyncChecked(true));
-
-        } else if (res.ok && data.connectionState === "needs-reconnection") {
-          setDomain(data.domain ?? "");
-          setConnectionWarning(
-            t("Your Canvas token is invalid or expired. Please reconnect."),
-          );
-        } else if (res.ok && data.connectionState === "not-configured") {
-          setConnectionWarning(null);
-        } else {
-          setDomain(data.domain ?? "");
-          setConnectionWarning(
-            t("Could not check Canvas right now. Reload this page to try again."),
-          );
-        }
-      } catch {
-        setConnectionWarning(
-          t("Could not check Canvas right now. Reload this page to try again."),
-        );
-      } finally {
-        setIsCheckingConnection(false);
-      }
-    };
-
-    checkConnection();
-    // one-time connection check on mount; t is stable
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    void checkConnection();
   }, []);
 
   // ── Persist selected courses whenever they change ────────────────────────
@@ -234,7 +235,7 @@ export default function CanvasIntegrationSettings() {
     setIsConnecting(true);
     setConnectionError(null);
 
-    try {
+    const run = async () => {
       const token = rawToken;
       if (tokenInputRef.current) {
         tokenInputRef.current.value = "";
@@ -266,21 +267,24 @@ export default function CanvasIntegrationSettings() {
       setCourseDiscoveryDegraded(Boolean(data.courseDiscoveryDegraded));
 
       setSelectedCourseIds(initialSelection(data.courses ?? []));
-    } catch {
-      reportTelemetry({ kind: "error", name: "request_failed", route: "settings" });
-      setConnectionError(toFriendlyCanvasError("network"));
-    } finally {
-      setIsConnecting(false);
-    }
+    };
+    await run()
+      .catch(() => {
+        reportTelemetry({ kind: "error", name: "request_failed", route: "settings" });
+        setConnectionError(toFriendlyCanvasError("network"));
+      })
+      .finally(() => {
+        setIsConnecting(false);
+      });
   };
 
   const handleDisconnect = async () => {
     // only forget local state once the server has dropped the token, otherwise
     // the page would show disconnected while imports can still use it
-    try {
-      const response = await fetch("/api/canvas/connect", { method: "DELETE" });
-      if (!response.ok) throw new Error("disconnect failed");
-    } catch {
+    const disconnected = await fetch("/api/canvas/connect", { method: "DELETE" })
+      .then((response) => response.ok)
+      .catch(() => false);
+    if (!disconnected) {
       setConnectionError(toFriendlyCanvasError("network"));
       return;
     }
@@ -309,7 +313,7 @@ export default function CanvasIntegrationSettings() {
     setIsDownloadingCanvasFiles(true);
     setConnectionError(null);
 
-    try {
+    const run = async () => {
       const selectedCourses =
         selectedCourseIds.length > 0
           ? courses
@@ -339,10 +343,14 @@ export default function CanvasIntegrationSettings() {
 
       if (!res.ok) {
         let message = "download failed";
-        try {
+        const attempt = async () => {
           const data = await res.json();
           message = data.error ?? message;
-        } catch {}
+        };
+        await attempt()
+          .catch(() => {
+
+          });
         setConnectionError(toFriendlyCanvasError(message));
         return;
       }
@@ -359,11 +367,14 @@ export default function CanvasIntegrationSettings() {
       link.click();
       link.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
-    } catch {
-      setConnectionError(toFriendlyCanvasError("network"));
-    } finally {
-      setIsDownloadingCanvasFiles(false);
-    }
+    };
+    await run()
+      .catch(() => {
+        setConnectionError(toFriendlyCanvasError("network"));
+      })
+      .finally(() => {
+        setIsDownloadingCanvasFiles(false);
+      });
   };
 
   const toggleCourse = (courseId: string | number) => {

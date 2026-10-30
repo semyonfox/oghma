@@ -140,8 +140,10 @@ Verified 2026-09-15 against the npm registry and local checks:
 - Mobile uses Expo 57's recommended React, React Native, native modules and
   TypeScript versions. Run `npm exec -- expo install --check` from `apps/mobile`
   after updates. See the [Expo upgrade guide](https://docs.expo.dev/workflow/upgrading-expo-sdk-walkthrough/).
-- Vitest 5 requires Vite as a peer. Both test packages list Vite explicitly so
-  installation also works when npm's `legacy-peer-deps` setting is enabled.
+- Vitest 5 requires Vite as a peer, so both test packages list Vite
+  explicitly. Root installs resolve peers normally, without `legacy-peer-deps`.
+- Vitest runs React Compiler over `src` (see `vitest.config.ts`), so component
+  tests exercise the same memoisation as production builds.
 - The root `lodash-es` override patches Mermaid/Chevrotain's pinned vulnerable
   copy. Mobile's scoped `xcode > uuid` override uses the patched CommonJS v11
   release. Recheck these overrides when the upstream packages update.

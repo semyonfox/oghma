@@ -44,6 +44,7 @@ export const APP_GUIDE_TOPICS: readonly AppGuideTopic[] = [
       "Create an access token in Canvas under Account → Settings → Approved Integrations. Set an expiration date and time, then paste the token into OghmaNotes' API Token field.",
       "Connect Canvas, choose your courses, and start the import. The course list scrolls, and Select all is available.",
       "Open an imported PDF and its extracted note when ready, then add your own notes or ask Chat about the material.",
+      "To group files by topic, open the View menu above your files and pick Tags. Topics appear once a study map has sorted the course.",
     ],
     tips: ["Try one current course first. You can add more courses later."],
     limitations: ["The import continues in the background. PDF text may take longer to appear in notes, search, and chat."],
@@ -206,6 +207,10 @@ Connect Canvas to bring your courses into OghmaNotes. Start with one course you 
 
 Choose the courses you want to import. Scroll the list to see them all, or use **Select all**. The import runs in the background, so you can leave the page while it works. A PDF may appear before its text is ready in search or chat.
 
+## Group your files by topic
+
+Your files arrive in the folders Canvas had them in. Open the View menu above your files and pick **Tags** to see them grouped by topic instead. Topics appear once a study map has sorted the course, and your own #tags sit at the top.
+
 ## Try it with a note
 
 Open an imported PDF in Notes. When its extracted note is ready, open it beside the PDF, correct anything the extraction missed, and add your own explanation. You can then ask Chat a question about that note.
@@ -285,6 +290,10 @@ Verbinden Sie Canvas, damit Ihre Kurse in OghmaNotes erscheinen. Beginnen Sie mi
 ## Einen Kurs importieren
 
 Wählen Sie die Kurse aus, die Sie brauchen. Scrollen Sie in der Liste, um alle Kurse zu sehen, oder nutzen Sie **Alles auswählen**. Der Import läuft im Hintergrund weiter. Eine PDF-Datei kann schon sichtbar sein, bevor ihr Text in der Suche oder im Chat verfügbar ist.
+
+## Dateien nach Themen ordnen
+
+Ihre Dateien kommen in den Ordnern an, die sie in Canvas hatten. Öffnen Sie das Ansichtsmenü über Ihren Dateien und wählen Sie **Schlagworte**, um sie nach Themen zu sehen. Themen erscheinen, sobald eine Lernkarte den Kurs sortiert hat. Ihre eigenen #Schlagworte stehen oben.
 
 ## Mit einer Notiz anfangen
 
