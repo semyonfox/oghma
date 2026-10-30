@@ -11,6 +11,7 @@ import {
   documentKindSchema,
   examStructureSchema,
   materialOverridesSchema,
+  settleAssociations,
   topicAssociationSchema,
   topicSchema,
   type MaterialReference,
@@ -55,6 +56,7 @@ interface NoteRow {
   created_at: Date | string;
   folder_title: string | null;
   imported: boolean;
+  content_hash: string | null;
 }
 
 interface AssignmentRow {
@@ -122,7 +124,10 @@ interface JobRow {
 }
 
 const topicsSchema = z.array(topicSchema).max(80);
-const associationsSchema = z.array(topicAssociationSchema).max(80);
+const associationsSchema = z
+  .array(topicAssociationSchema)
+  .max(80)
+  .transform(settleAssociations);
 const labelsSchema = z.array(z.string().max(60)).max(20);
 const statusSchema = z.enum(["unclassified", "classified", "stale", "failed"]);
 const jobKindSchema = z.enum(["taxonomy", "classify", "paper"]);
@@ -175,6 +180,8 @@ async function readNotes(
     SELECT n.note_id, n.title, n.content, n.extracted_text, n.s3_key,
       n.extracted_from_note_id, n.updated_at, n.created_at,
       (n.canvas_course_id IS NOT NULL OR n.canvas_import_id IS NOT NULL) AS imported,
+      (SELECT cache.sha256 FROM app.imported_file_cache cache
+       WHERE cache.id = n.imported_file_cache_id) AS content_hash,
       (SELECT parent.title FROM app.tree_items tree
        JOIN app.notes parent ON parent.note_id = tree.parent_id AND parent.user_id = tree.user_id
        WHERE tree.note_id = n.note_id AND tree.user_id = n.user_id AND parent.deleted_at IS NULL
@@ -199,6 +206,8 @@ async function readDerivedNotes(
     SELECT n.note_id, n.title, n.content, n.extracted_text, n.s3_key,
       n.extracted_from_note_id, n.updated_at, n.created_at,
       (n.canvas_course_id IS NOT NULL OR n.canvas_import_id IS NOT NULL) AS imported,
+      (SELECT cache.sha256 FROM app.imported_file_cache cache
+       WHERE cache.id = n.imported_file_cache_id) AS content_hash,
       (SELECT parent.title FROM app.tree_items tree
        JOIN app.notes parent ON parent.note_id = tree.parent_id AND parent.user_id = tree.user_id
        WHERE tree.note_id = n.note_id AND tree.user_id = n.user_id AND parent.deleted_at IS NULL
@@ -354,6 +363,9 @@ async function mapFromRow(userId: string, row: MapRow): Promise<StudyMap> {
       links: board.links.filter(
         (link) => cardIds.has(link.source) && cardIds.has(link.target),
       ),
+      ...(board.unfolded
+        ? { unfolded: board.unfolded.filter((ref) => cardIds.has(ref)) }
+        : {}),
     },
   };
 }
@@ -668,6 +680,7 @@ async function loadMaterials(
         folder: note.folder_title,
         createdAt: timestamp(note.created_at),
         imported: note.imported,
+        contentHash: note.content_hash,
       },
     ];
   });
@@ -804,6 +817,11 @@ export async function getStudyMapSnapshot(
         links: map.board.links.filter(
           (link) => cardIds.has(link.source) && cardIds.has(link.target),
         ),
+        ...(map.board.unfolded
+          ? {
+              unfolded: map.board.unfolded.filter((ref) => cardIds.has(ref)),
+            }
+          : {}),
       },
     },
     materials,

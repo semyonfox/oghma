@@ -36,7 +36,8 @@ const notes: ScopeNoteRow[] = [
 const material = (noteId: string, topicId: string, status: "accepted" | "suggested", kind = "notes") => ({
   map_id: MAP,
   note_id: noteId,
-  associations: [{ topicId, relevance: "core", probability: 0.9, evidence: [], status, origin: "automatic" }],
+  // a suggestion only still waits for a person when the model gave no probability
+  associations: [{ topicId, relevance: "core", probability: status === "suggested" ? null : 0.9, evidence: [], status, origin: "automatic" }],
   overrides: { topics: {}, sourceHash: "", taxonomyVersion: 0 },
   taxonomy_version: 1,
   kind,
@@ -97,6 +98,22 @@ describe("buildTagsView", () => {
 
   it("puts files with no topic at all under not tagged yet", () => {
     expect(view.courses[0].untagged.map((file) => file.id)).toEqual(["random"]);
+  });
+
+  it("applies a confident stored tag and drops the rest, so neither waits for review", () => {
+    const stored = (noteId: string, probability: number) => ({
+      ...material(noteId, SCHEDULING, "suggested"),
+      associations: [{ topicId: SCHEDULING, relevance: "core", probability, evidence: [], status: "suggested", origin: "automatic" }],
+    });
+    const settled = buildTagsView({
+      roots: [{ id: "ct213", title: "CT213 Operating Systems" }],
+      notes,
+      maps: [{ id: MAP, name: "CT213", root_id: "ct213", taxonomy_version: 1, topics: [{ id: SCHEDULING, name: "Scheduling" }] }],
+      materials: [stored("mlfq", 0.85), stored("random", 0.7)],
+    });
+    expect(settled.courses[0].review).toEqual([]);
+    expect(settled.courses[0].topics[0].files.map((file) => file.id)).toEqual(["mlfq"]);
+    expect(settled.courses[0].untagged.map((file) => file.id)).toContain("random");
   });
 
   it("lists files with suggestions to review, and nothing when all are confirmed", () => {

@@ -2,7 +2,11 @@ import { z } from "zod";
 import sql from "@/database/pgsql";
 import type { TopicMark } from "@/lib/notes/types/note";
 import { orderTopicMarks, summariseMaterialTopics, type TopicName } from "@/lib/notes/tree-topics";
-import { materialOverridesSchema, topicAssociationSchema } from "@/lib/study-map/types";
+import {
+  materialOverridesSchema,
+  settleAssociations,
+  topicAssociationSchema,
+} from "@/lib/study-map/types";
 
 interface MaterialMarkRow {
   row_id: string;
@@ -18,7 +22,9 @@ interface MapTopicsRow {
   topics: unknown;
 }
 
-const associationsSchema = z.array(topicAssociationSchema);
+const associationsSchema = z
+  .array(topicAssociationSchema)
+  .transform(settleAssociations);
 const topicNamesSchema = z.array(z.object({ id: z.string(), name: z.string() }));
 
 /**

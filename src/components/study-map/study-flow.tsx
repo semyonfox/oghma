@@ -12,6 +12,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
+  type CSSProperties,
   type ReactNode,
 } from "react";
 import { Popover, PopoverButton, PopoverPanel } from "@headlessui/react";
@@ -24,7 +25,20 @@ import {
   Squares2X2Icon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
+import Link from "next/link";
 import AssignmentDetails from "@/components/assignments/assignment-details";
+import {
+  DECK_COLUMNS,
+  DECK_COLUMNS_NARROW,
+  DECK_MODULE_GAP,
+  FAN_CARD_HEIGHT,
+  FAN_CARD_WIDTH,
+  FAN_MAX_CARDS,
+  fanPositions,
+  layoutDecks,
+  type Deck,
+  type DeckTable,
+} from "@/lib/study-map/decks";
 import { summariseExamCorpus } from "@/lib/study-map/exam-stats";
 import {
   assignmentSources,
@@ -48,7 +62,7 @@ import type {
   StudyBoard,
   StudyMapSnapshot,
 } from "@/lib/study-map/types";
-import { StudyFlowCard, readableExcerpt } from "./study-board-card";
+import { StudyFlowCard, cardLabel, readableExcerpt } from "./study-board-card";
 import { NoticeStack, islandButton, islandClass } from "./study-chrome";
 import {
   ItemActions,
@@ -86,8 +100,9 @@ export interface StudyFlowProps {
   onShowAllModules?: () => void;
 }
 
-const COMPACT_ZOOM = 0.42;
-const FAR_ZOOM = 0.24;
+// below this the board is a table of topic decks, in its own coordinates. crossing it keeps the same topic under the pointer
+const DECK_ZOOM = 0.5;
+const COMPACT_ZOOM = 0.72;
 const MIN_ZOOM = 0.06;
 const MAX_ZOOM = 1.8;
 const CULL_THRESHOLD = 260;
@@ -136,6 +151,8 @@ interface ModuleModel {
   originY: number;
   syllabusCount: number;
   paperCount: number;
+  /** marks per topic across the reviewed papers, sizes the decks */
+  examMarks: Map<string, number>;
 }
 
 interface Placed extends PlacedItem {
@@ -153,7 +170,6 @@ interface Model {
   links: FlowLink[];
   bridges: TopicBridge[];
   topics: Map<string, ColouredTopic>;
-  linkCount: Map<string, number>;
   usedBy: Map<string, FlowItem[]>;
   sources: Map<string, FlowItem[]>;
   width: number;
@@ -172,11 +188,11 @@ function filterKey(item: FlowItem): FilterKey {
   return "lectures";
 }
 
-function examLines(snapshot: StudyMapSnapshot): Map<string, string> {
+function examCorpus(snapshot: StudyMapSnapshot) {
   const versions = [
     ...new Set(snapshot.papers.map((paper) => paper.structure.syllabusVersion)),
   ];
-  if (!versions.length) return new Map();
+  if (!versions.length) return null;
   // the module's own academic year is the syllabus most worth comparing against
   const version = versions.includes(snapshot.map.academicYear)
     ? snapshot.map.academicYear
@@ -189,13 +205,71 @@ function examLines(snapshot: StudyMapSnapshot): Map<string, string> {
     snapshot.map.taxonomyVersion,
     version,
   );
-  if (!summary.eligibleCount) return new Map();
+  return summary.eligibleCount ? { summary, version } : null;
+}
+
+function examLines(
+  corpus: ReturnType<typeof examCorpus>,
+): Map<string, string> {
+  if (!corpus) return new Map();
+  const { summary, version } = corpus;
   return new Map(
     summary.topics.map((row) => [
       row.topicId,
       `In ${row.paperCount} of ${summary.eligibleCount} reviewed ${summary.eligibleCount === 1 ? "paper" : "papers"} (${version})`,
     ]),
   );
+}
+
+interface TableModule {
+  module: ModuleModel;
+  table: DeckTable;
+  originY: number;
+}
+
+interface Table {
+  modules: TableModule[];
+  width: number;
+  height: number;
+}
+
+function deckTableFor(models: ModuleModel[], columns: number): Table {
+  let originY = 0;
+  const modules = models.map((module) => {
+    // a deck holds everything confirmed under its topic. a card sits in one cluster, but a topic is a lens
+    const clusters = module.layout.clusters.map((cluster) => ({
+      ...cluster,
+      refs: [
+        ...cluster.refs,
+        ...module.items
+          .filter(
+            (item) =>
+              module.layout.primary.get(item.ref) !== cluster.key &&
+              item.tags.some(
+                (tag) => tag.topicId === cluster.key && !tag.suggested,
+              ),
+          )
+          .map((item) => item.ref),
+      ],
+    }));
+    const laid = layoutDecks(clusters, module.examMarks, columns);
+    const table = {
+      ...laid,
+      decks: laid.decks.map((deck) =>
+        deck.cluster.topic
+          ? deck
+          : { ...deck, id: `${module.mapId}:${deck.key}` },
+      ),
+    };
+    const entry = { module, table, originY };
+    originY += table.height + DECK_MODULE_GAP;
+    return entry;
+  });
+  return {
+    modules,
+    width: Math.max(1200, ...modules.map((entry) => entry.table.width)),
+    height: Math.max(0, originY - DECK_MODULE_GAP),
+  };
 }
 
 function buildModel(modules: FlowModule[]): Model {
@@ -217,7 +291,8 @@ function buildModel(modules: FlowModule[]): Model {
       board.placements,
       links,
     );
-    const exams = examLines(snapshot);
+    const corpus = examCorpus(snapshot);
+    const exams = examLines(corpus);
     const model: ModuleModel = {
       mapId: snapshot.map.id,
       name: snapshot.map.name,
@@ -239,6 +314,12 @@ function buildModel(modules: FlowModule[]): Model {
       paperCount: snapshot.materials.filter(
         (material) => material.kind === "past_paper",
       ).length,
+      examMarks: new Map(
+        corpus?.summary.topics.map((row) => [
+          row.topicId,
+          row.exclusiveMarks + row.sharedMarks,
+        ]) ?? [],
+      ),
     };
     originY += layout.height + MODULE_GAP;
     return model;
@@ -278,10 +359,6 @@ function buildModel(modules: FlowModule[]): Model {
           links,
         )
       : [];
-  const linkCount = new Map<string, number>();
-  for (const link of links)
-    for (const ref of [link.source, link.target])
-      linkCount.set(ref, (linkCount.get(ref) ?? 0) + 1);
   const usedBy = new Map<string, FlowItem[]>();
   const sources = new Map<string, FlowItem[]>();
   for (const module of models) {
@@ -305,7 +382,6 @@ function buildModel(modules: FlowModule[]): Model {
         module.topics.map((topic) => [topic.id, topic] as const),
       ),
     ),
-    linkCount,
     usedBy,
     sources,
     width: Math.max(1200, ...models.map((module) => module.layout.width)),
@@ -420,7 +496,7 @@ function cullToView(
 function readSavedCamera(viewKey: string): Camera | null {
   try {
     const raw = window.sessionStorage.getItem(
-      `oghma-study-flow-camera:${viewKey}`,
+      `oghma-study-flow-camera-v2:${viewKey}`,
     );
     if (!raw) return null;
     const value: unknown = JSON.parse(raw);
@@ -448,11 +524,7 @@ function readSavedCamera(viewKey: string): Camera | null {
 
 interface CardLayerProps {
   placed: Placed[];
-  topics: Map<string, ColouredTopic>;
-  linkCount: Map<string, number>;
-  usedBy: Map<string, FlowItem[]>;
   compact: boolean;
-  far: boolean;
   state: Map<string, string>;
   stops: Map<string, number>;
   focusColour: string | null;
@@ -460,11 +532,7 @@ interface CardLayerProps {
 
 function CardLayer({
   placed,
-  topics,
-  linkCount,
-  usedBy,
   compact,
-  far,
   state,
   stops,
   focusColour,
@@ -477,9 +545,6 @@ function CardLayer({
           (placement) => placement.id === item.ref && placement.pinned,
         );
         const stop = stops.get(item.ref);
-        const primary = item.tags[0]
-          ? topics.get(item.tags[0].topicId)
-          : undefined;
         return (
           <article
             key={item.ref}
@@ -496,28 +561,11 @@ function CardLayer({
               cursor: pinned ? "default" : "grab",
             }}
           >
-            {far ? (
-              <div
-                className="h-full w-full rounded-radius-lg"
-                style={{
-                  background: primary?.colour ?? "var(--color-text-tertiary)",
-                  opacity: 0.22,
-                }}
-              />
-            ) : (
-              <StudyFlowCard
-                item={item}
-                topics={topics}
-                linkCount={linkCount.get(item.ref) ?? 0}
-                usedBy={(usedBy.get(item.ref) ?? []).map((assignment) => ({
-                  id: assignment.id,
-                  short: shortName(assignment.title),
-                  title: assignment.title,
-                }))}
-                compact={compact}
-                pinned={pinned}
-              />
-            )}
+            <StudyFlowCard
+              item={item}
+              compact={compact}
+              pinned={pinned}
+            />
             {stop !== undefined && (
               <span
                 className="absolute -left-2.5 -top-2.5 grid h-5 w-5 place-items-center rounded-full text-[11px] font-semibold text-white"
@@ -535,17 +583,189 @@ function CardLayer({
   );
 }
 
-function shortName(title: string): string {
-  const numbered =
-    /(assignment|project|lab|quiz|homework|coursework|ca)\s*([0-9]+)/i.exec(
-      title,
-    );
-  if (numbered) return `${numbered[1][0].toUpperCase()}${numbered[2]}`;
-  return title
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((word) => word[0]?.toUpperCase() ?? "")
-    .join("");
+interface DeckLayerProps {
+  table: Table;
+  topics: Map<string, ColouredTopic>;
+  visibleRefs: (deck: Deck) => string[];
+  byRef: Map<string, Placed>;
+  openKey: string | null;
+  selected: string | null;
+  lit: Set<string>;
+  query: string;
+  matches: (ref: string) => boolean;
+  lines: Array<{ key: string; d: string; x: number; y: number; label: string }>;
+}
+
+/** the far view: every topic is one deck, sized by the exam and thicker with more files */
+function DeckLayer({
+  table,
+  topics,
+  visibleRefs,
+  byRef,
+  openKey,
+  selected,
+  lit,
+  query,
+  matches,
+  lines,
+}: DeckLayerProps) {
+  const opened = table.modules.flatMap((entry) =>
+    entry.table.decks
+      .filter((deck) => deck.id === openKey)
+      .map((deck) => ({ deck, originY: entry.originY })),
+  )[0];
+  const openRefs = opened ? visibleRefs(opened.deck) : [];
+  const shownRefs = openRefs.slice(0, FAN_MAX_CARDS);
+  const more = openRefs.length - shownRefs.length;
+  const slots = opened
+    ? fanPositions(
+        { x: opened.deck.x, y: opened.originY + opened.deck.y },
+        shownRefs.length + (more > 0 ? 1 : 0),
+        table.width,
+      )
+    : [];
+  return (
+    <div className="study-layer-in">
+      {table.modules.flatMap(({ module, table: moduleTable, originY }) =>
+        moduleTable.decks.map((deck) => {
+          const topic = deck.cluster.topic
+            ? topics.get(deck.cluster.topic.id)
+            : undefined;
+          const refs = visibleRefs(deck);
+          const name = topic?.name ?? "Not sorted yet";
+          const quiet =
+            (openKey !== null && !lit.has(deck.id)) ||
+            (query.length > 0 &&
+              !name.toLocaleLowerCase().includes(query) &&
+              !refs.some(matches));
+          const exam =
+            deck.share !== null
+              ? `${Math.round(deck.share * 100)}%`
+              : module.examMarks.size > 0 && topic
+                ? "no exam data"
+                : null;
+          return (
+            <div
+              key={deck.id}
+              role="button"
+              tabIndex={0}
+              data-deck={deck.id}
+              aria-expanded={openKey === deck.id}
+              aria-label={`${name}, ${refs.length} ${refs.length === 1 ? "file" : "files"}${deck.share !== null ? `, ${Math.round(deck.share * 100)}% of exam marks` : ""}`}
+              className={`study-deck study-deck-${deck.tier} absolute cursor-pointer outline-offset-8 transition-opacity duration-200 focus-visible:outline-8 focus-visible:outline focus-visible:outline-primary-500 ${quiet ? "opacity-20" : ""}`}
+              style={
+                {
+                  left: deck.x,
+                  top: originY + deck.y,
+                  width: deck.width,
+                  height: deck.height,
+                  "--deck-colour": topic?.colour ?? "var(--color-text-tertiary)",
+                } as CSSProperties
+              }
+            >
+              {deck.layers >= 2 && <i className="study-deck-under study-deck-under-2" />}
+              {deck.layers >= 1 && <i className="study-deck-under study-deck-under-1" />}
+              <div className="study-deck-face">
+                <b>{name}</b>
+                <span>
+                  {refs.length} {refs.length === 1 ? "file" : "files"}
+                </span>
+                {exam && (
+                  <em>
+                    {exam}
+                    {deck.share !== null && (
+                      <span className="sr-only"> of exam marks</span>
+                    )}
+                  </em>
+                )}
+              </div>
+            </div>
+          );
+        }),
+      )}
+      {lines.length > 0 && (
+        <svg
+          className="pointer-events-none absolute left-0 top-0 z-10 overflow-visible"
+          width={1}
+          height={1}
+          aria-hidden="true"
+        >
+          {lines.map((line) => (
+            <path
+              key={line.key}
+              d={line.d}
+              fill="none"
+              stroke="var(--color-primary-400)"
+              strokeWidth={7}
+              strokeLinecap="round"
+            />
+          ))}
+        </svg>
+      )}
+      {lines
+        .filter((line) => line.label)
+        .map((line) => (
+          <div
+            key={`${line.key}-label`}
+            className="absolute z-20 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full bg-background px-5 py-1 font-semibold text-primary-700 dark:text-primary-300"
+            style={{ left: line.x, top: line.y, fontSize: 34 }}
+          >
+            {line.label}
+          </div>
+        ))}
+      {shownRefs.map((ref, index) => {
+        const placed = byRef.get(ref);
+        if (!placed) return null;
+        const slot = slots[index];
+        return (
+          <div
+            key={ref}
+            role="button"
+            tabIndex={0}
+            data-fan={ref}
+            aria-pressed={selected === ref}
+            aria-label={placed.item.title || "Untitled"}
+            className={`study-fan-card absolute z-20 cursor-pointer ${selected === ref ? "study-fan-card-selected" : ""}`}
+            style={{
+              left: slot.x,
+              top: slot.y,
+              width: FAN_CARD_WIDTH,
+              height: FAN_CARD_HEIGHT,
+              transform: `rotate(${slot.rotate}deg)`,
+            }}
+          >
+            <small>{cardLabel(placed.item)}</small>
+            <b>{placed.item.title || "Untitled"}</b>
+            <p>
+              {readableExcerpt(
+                (placed.item.material?.excerpt ?? "").replace(
+                  /^\s*#\s+[^\n]*\n+/,
+                  "",
+                ),
+              )}
+            </p>
+          </div>
+        );
+      })}
+      {more > 0 && opened && (
+        <div
+          role="button"
+          tabIndex={0}
+          data-deck-all={opened.deck.id}
+          className="study-fan-card study-fan-more absolute z-20 cursor-pointer"
+          style={{
+            left: slots[shownRefs.length].x,
+            top: slots[shownRefs.length].y,
+            width: FAN_CARD_WIDTH,
+            height: FAN_CARD_HEIGHT,
+          }}
+        >
+          <b>+{more} more</b>
+          <small>Zoom in to see them all</small>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function StudyFlow({
@@ -565,16 +785,25 @@ export default function StudyFlow({
   // pan frame. A memoised value is immutable to it, which also lets it cache
   // everything derived from the model
   const model = useMemo(() => buildModel(modules), [modules]);
+  const [openDeck, setOpenDeck] = useState<string | null>(null);
   const boardRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
-  const camera = useRef<Camera>({ x: 40, y: 20, z: 0.7 });
+  const camera = useRef<Camera>({ x: 40, y: 20, z: 0.3 });
   const [view, setView] = useState<Camera & { w: number; h: number }>({
     x: 40,
     y: 20,
-    z: 0.7,
+    z: 0.3,
     w: 1200,
     h: 800,
   });
+  const deckTable = useMemo(
+    () =>
+      deckTableFor(
+        model.modules,
+        view.w < 640 ? DECK_COLUMNS_NARROW : DECK_COLUMNS,
+      ),
+    [model, view.w],
+  );
   const frame = useRef(0);
   const animation = useRef(0);
   const [hovered, setHovered] = useState<string | null>(null);
@@ -648,9 +877,64 @@ export default function StudyFlow({
   // the camera only touches refs and the DOM, so effects call the latest one
   const applyCamera = useEffectEvent(apply);
 
+  // decks and clusters have different coordinates, so crossing the threshold keeps the same topic at the same spot on screen
+  const crossWorlds = (
+    from: Camera,
+    to: Camera,
+    px: number,
+    py: number,
+  ): Camera => {
+    const wasDecks = from.z < DECK_ZOOM;
+    if (wasDecks === to.z < DECK_ZOOM) return to;
+    const anchors = deckTable.modules.flatMap(({ module, table, originY }) =>
+      table.decks.map((deck) => ({
+        deck: {
+          x: deck.x + deck.width / 2,
+          y: originY + deck.y + deck.height / 2,
+          w: deck.width,
+          h: deck.height,
+        },
+        cluster: {
+          x: deck.cluster.x + deck.cluster.width / 2,
+          y: module.originY + deck.cluster.y + Math.min(deck.cluster.height / 2, 200),
+          // measured from the centre above, so the box is only ever used for containing the pointer
+          w: deck.cluster.width,
+          h: deck.cluster.height,
+          top: module.originY + deck.cluster.y,
+        },
+      })),
+    );
+    if (!anchors.length) return to;
+    const wx = (px - from.x) / from.z;
+    const wy = (py - from.y) / from.z;
+    // the topic under the pointer wins. only a pointer in a gap falls back to the closest one
+    const under = anchors.find(({ deck, cluster }) =>
+      wasDecks
+        ? Math.abs(wx - deck.x) <= deck.w / 2 &&
+          Math.abs(wy - deck.y) <= deck.h / 2
+        : Math.abs(wx - cluster.x) <= cluster.w / 2 &&
+          wy >= cluster.top &&
+          wy <= cluster.top + cluster.h,
+    );
+    const distance = (point: { x: number; y: number }) =>
+      Math.hypot(point.x - wx, point.y - wy);
+    const nearest =
+      under ??
+      anchors.reduce((best, anchor) =>
+        distance(wasDecks ? anchor.deck : anchor.cluster) <
+        distance(wasDecks ? best.deck : best.cluster)
+          ? anchor
+          : best,
+      );
+    const point = wasDecks ? nearest.cluster : nearest.deck;
+    return { x: px - point.x * to.z, y: py - point.y * to.z, z: to.z };
+  };
+
   const flyTo = (target: Camera, ms = 380) => {
     cancelAnimationFrame(animation.current);
-    if (reducedMotion() || ms === 0) {
+    // no sliding between two coordinate systems: the layers cross-fade instead
+    const crossing = camera.current.z < DECK_ZOOM !== target.z < DECK_ZOOM;
+    if (reducedMotion() || ms === 0 || crossing) {
       camera.current = target;
       apply();
       return;
@@ -692,13 +976,14 @@ export default function StudyFlow({
     padding = 48,
     leftInset = 0,
     topInset = TOP_INSET,
+    minZoom = MIN_ZOOM,
   ) => {
     const board = boardRef.current;
     const w = (board?.clientWidth ?? 1200) - leftInset;
     const h = (board?.clientHeight ?? 800) - topInset;
     const z = clamp(
       Math.min((w - padding * 2) / rect.w, (h - padding * 2) / rect.h),
-      MIN_ZOOM,
+      minZoom,
       maxZoom,
     );
     return {
@@ -711,8 +996,8 @@ export default function StudyFlow({
   const fit = () => {
     flyTo(
       frameRect(
-        { x: 0, y: 0, w: model.width, h: Math.max(model.height, 400) },
-        1,
+        { x: 0, y: 0, w: deckTable.width, h: Math.max(deckTable.height, 400) },
+        DECK_ZOOM - 0.02,
       ),
     );
   };
@@ -724,11 +1009,16 @@ export default function StudyFlow({
     const py = sy ?? board.clientHeight / 2;
     const { x, y, z } = camera.current;
     const next = clamp(z * factor, MIN_ZOOM, MAX_ZOOM);
-    camera.current = {
-      x: px - ((px - x) / z) * next,
-      y: py - ((py - y) / z) * next,
-      z: next,
-    };
+    camera.current = crossWorlds(
+      camera.current,
+      {
+        x: px - ((px - x) / z) * next,
+        y: py - ((py - y) / z) * next,
+        z: next,
+      },
+      px,
+      py,
+    );
     apply();
   };
 
@@ -737,35 +1027,19 @@ export default function StudyFlow({
   // starts, so the latest model is read through an effect event
   const placeInitialCamera = useEffectEvent((board: HTMLElement) => {
     const restored = readSavedCamera(viewKey);
-    const first = model.modules[0];
-    const start = first
-      ? frameRect(
-          {
-            x: 0,
-            y: 0,
-            w: Math.min(first.layout.width, 1600),
-            h: Math.min(first.layout.height, 900),
-          },
-          0.85,
-          16,
-        )
-      : null;
-    const firstCluster = first?.layout.clusters[0];
-    // a phone shows the title and the first cluster at a readable size and pans, rather than a whole unreadable module
+    // decks first, so opening a module starts from the overview. a phone gets two columns and pans
+    const table = deckTableFor(
+      model.modules,
+      board.clientWidth < 640 ? DECK_COLUMNS_NARROW : DECK_COLUMNS,
+    );
+    const start = frameRect(
+      { x: 0, y: 0, w: table.width, h: Math.min(Math.max(table.height, 400), 1900) },
+      DECK_ZOOM - 0.02,
+      16,
+    );
     camera.current =
       restored ??
-      (start && start.z < 0.5
-        ? {
-            x: 8,
-            y: TOP_INSET + 4,
-            z: clamp(
-              (board.clientWidth - 16) /
-                ((firstCluster?.x ?? 0) + (firstCluster?.width ?? 284) + 16),
-              0.5,
-              0.85,
-            ),
-          }
-        : (start ?? { x: 40, y: 20, z: 0.7 }));
+      (board.clientWidth < 640 ? { ...start, y: TOP_INSET + 4 } : start);
     apply();
   });
   useLayoutEffect(() => {
@@ -778,7 +1052,7 @@ export default function StudyFlow({
     const save = () => {
       try {
         window.sessionStorage.setItem(
-          `oghma-study-flow-camera:${viewKey}`,
+          `oghma-study-flow-camera-v2:${viewKey}`,
           JSON.stringify(camera.current),
         );
       } catch {
@@ -848,8 +1122,8 @@ export default function StudyFlow({
     return () => board.removeEventListener("wheel", onWheel);
   }, []);
 
+  const deckMode = view.z < DECK_ZOOM;
   const compact = view.z < COMPACT_ZOOM;
-  const far = view.z < FAR_ZOOM;
   const lowerQuery = query.trim().toLocaleLowerCase();
 
   const visible = useCallback(
@@ -884,18 +1158,28 @@ export default function StudyFlow({
     );
   }, [focus, model, tagsShown, visible]);
 
-  const related = useMemo(() => {
-    const active = hovered ?? selected;
-    const set = new Set<string>();
-    if (!active) return set;
-    for (const link of model.links) {
-      if (link.source === active) set.add(link.target);
-      if (link.target === active) set.add(link.source);
-    }
-    for (const item of model.sources.get(active) ?? []) set.add(item.ref);
-    for (const item of model.usedBy.get(active) ?? []) set.add(item.ref);
-    return set;
-  }, [hovered, model, selected]);
+  const relatedTo = useCallback(
+    (active: string | null) => {
+      const set = new Set<string>();
+      if (!active) return set;
+      for (const link of model.links) {
+        if (link.source === active) set.add(link.target);
+        if (link.target === active) set.add(link.source);
+      }
+      for (const item of model.sources.get(active) ?? []) set.add(item.ref);
+      for (const item of model.usedBy.get(active) ?? []) set.add(item.ref);
+      return set;
+    },
+    [model],
+  );
+  const related = useMemo(
+    () => relatedTo(hovered ?? selected),
+    [hovered, relatedTo, selected],
+  );
+  const selectedRelated = useMemo(
+    () => relatedTo(selected),
+    [relatedTo, selected],
+  );
 
   const cardState = useMemo(() => {
     const state = new Map<string, string>();
@@ -905,6 +1189,15 @@ export default function StudyFlow({
       const { ref } = placed.item;
       if (ref === selected) flags.push("selected");
       if (related.has(ref)) flags.push("related");
+      // a picked card fades everything it has nothing to do with
+      if (
+        !focus &&
+        !connect &&
+        selected &&
+        ref !== selected &&
+        !selectedRelated.has(ref)
+      )
+        flags.push("dim");
       if (ref === flash) flags.push("flash");
       if (lowerQuery && !matchesQuery(placed, lowerQuery, model.topics))
         flags.push("dim");
@@ -930,6 +1223,7 @@ export default function StudyFlow({
     model,
     related,
     selected,
+    selectedRelated,
     tagsShown,
     trail,
   ]);
@@ -1027,7 +1321,9 @@ export default function StudyFlow({
     const y = Math.min(...rects.map((rect) => rect.y));
     const width = Math.max(...rects.map((rect) => rect.x + rect.w)) - x;
     const height = Math.max(...rects.map((rect) => rect.y + rect.h)) - y;
-    flyTo(frameRect({ x, y, w: width, h: height }, 0.9, 40, 340));
+    flyTo(
+      frameRect({ x, y, w: width, h: height }, 0.9, 40, 340, TOP_INSET, DECK_ZOOM),
+    );
     setAnnouncement(
       `Following ${topic.name}: ${items.length} ${items.length === 1 ? "stop" : "stops"}`,
     );
@@ -1115,6 +1411,14 @@ export default function StudyFlow({
         ),
       };
     });
+  };
+
+  const splitOut = (ref: string, copyRef: string) => {
+    updateBoard(ref, (board) => ({
+      ...board,
+      unfolded: [...(board.unfolded ?? []), copyRef],
+    }));
+    setAnnouncement("Split out. It has its own card again.");
   };
 
   const tidy = () => {
@@ -1230,7 +1534,15 @@ export default function StudyFlow({
       );
       const wx = (current.startX - current.camera.x) / current.camera.z;
       const wy = (current.startY - current.camera.y) / current.camera.z;
-      camera.current = { x: centre.x - wx * z, y: centre.y - wy * z, z };
+      const pinched = { x: centre.x - wx * z, y: centre.y - wy * z, z };
+      camera.current = crossWorlds(camera.current, pinched, centre.x, centre.y);
+      // the gesture continues from the other side of the threshold
+      if (camera.current !== pinched) {
+        current.camera = { ...camera.current };
+        current.startX = centre.x;
+        current.startY = centre.y;
+        current.distance = distance;
+      }
       apply();
       return;
     }
@@ -1291,10 +1603,6 @@ export default function StudyFlow({
     }
     const target = event.target instanceof Element ? event.target : null;
     if (!target || target.closest("[data-flow-overlay]")) return;
-    const go = target.closest<HTMLElement>("[data-go]");
-    if (go?.dataset.go) return goTo(go.dataset.go, true);
-    const chip = target.closest<HTMLElement>("[data-topic]");
-    if (chip?.dataset.topic) return follow(chip.dataset.topic);
     const legend = target.closest<HTMLElement>("[data-legend]");
     if (legend?.dataset.legend) {
       if (focus?.topicId === legend.dataset.legend) setFocus(null);
@@ -1303,6 +1611,23 @@ export default function StudyFlow({
     }
     const open = target.closest<HTMLElement>("[data-open-module]");
     if (open?.dataset.openModule) return onOpenModule(open.dataset.openModule);
+    const all = target.closest<HTMLElement>("[data-deck-all]");
+    if (all?.dataset.deckAll) return showCluster(all.dataset.deckAll);
+    const fanned = target.closest<HTMLElement>("[data-fan]");
+    if (fanned?.dataset.fan) {
+      setSelected(fanned.dataset.fan);
+      setPreview({ ref: fanned.dataset.fan, pinned: true });
+      return;
+    }
+    const deck = target.closest<HTMLElement>("[data-deck]");
+    if (deck?.dataset.deck) {
+      setOpenDeck((current) =>
+        current === deck.dataset.deck ? null : (deck.dataset.deck ?? null),
+      );
+      setSelected(null);
+      setPreview(null);
+      return;
+    }
     const card = target.closest<HTMLElement>("[data-card]");
     const ref = card?.dataset.card;
     if (ref) {
@@ -1325,14 +1650,32 @@ export default function StudyFlow({
     }
     setSelected(null);
     setPreview(null);
+    setOpenDeck(null);
     if (connect && !connect.to) setConnect(null);
   }
 
-  function onDoubleClick(event: ReactMouseEvent<HTMLDivElement>) {
-    const target = event.target instanceof Element ? event.target : null;
-    const ref = target?.closest<HTMLElement>("[data-card]")?.dataset.card;
-    if (!ref || target?.closest("button, a")) return;
-    openReader(ref);
+  function showCluster(deckId: string) {
+    for (const { module, table } of deckTable.modules) {
+      const cluster = table.decks.find((deck) => deck.id === deckId)?.cluster;
+      if (!cluster) continue;
+      setOpenDeck(null);
+      flyTo(
+        frameRect(
+          {
+            x: cluster.x,
+            y: module.originY + cluster.y,
+            w: cluster.width,
+            h: cluster.height,
+          },
+          0.9,
+          32,
+          0,
+          TOP_INSET,
+          DECK_ZOOM,
+        ),
+      );
+      return;
+    }
   }
 
   function openReader(ref: string) {
@@ -1341,6 +1684,15 @@ export default function StudyFlow({
     setPreview(null);
     if (placed.item.assignment) setAssignmentOpen(placed.item.assignment);
     else setReader(ref);
+  }
+
+  function onDoubleClick(event: ReactMouseEvent<HTMLDivElement>) {
+    const target = event.target instanceof Element ? event.target : null;
+    const ref =
+      target?.closest<HTMLElement>("[data-card]")?.dataset.card ??
+      target?.closest<HTMLElement>("[data-fan]")?.dataset.fan;
+    if (!ref || target?.closest("button, a")) return;
+    openReader(ref);
   }
 
   function onPointerOver(event: ReactPointerEvent<HTMLDivElement>) {
@@ -1364,9 +1716,7 @@ export default function StudyFlow({
       previewTimer.current = window.setTimeout(
         () =>
           setPreview((current) =>
-            current?.pinned && current.ref !== ref
-              ? current
-              : { ref, pinned: false },
+            current?.pinned ? current : { ref, pinned: false },
           ),
         450,
       );
@@ -1381,6 +1731,14 @@ export default function StudyFlow({
     const target = event.target instanceof HTMLElement ? event.target : null;
     if (target?.closest("input, textarea, select, [contenteditable=true]"))
       return;
+    if (
+      (event.key === "Enter" || event.key === " ") &&
+      target?.closest("[data-deck], [data-fan], [data-deck-all]")
+    ) {
+      event.preventDefault();
+      target.click();
+      return;
+    }
     const ref = target?.closest<HTMLElement>("[data-card]")?.dataset.card;
     if (ref) {
       if (event.key === "Enter") {
@@ -1425,6 +1783,7 @@ export default function StudyFlow({
       if (connect) setConnect(null);
       else if (preview) setPreview(null);
       else if (selected) setSelected(null);
+      else if (openDeck) setOpenDeck(null);
       else if (focus) setFocus(null);
       else return;
       event.preventDefault();
@@ -1569,18 +1928,17 @@ export default function StudyFlow({
         const lit = [focus?.topicId, hoverTopic, activeTopic].some(
           (topicId) => topicId === relation.a || topicId === relation.b,
         );
+        if (!lit) continue;
         edges.push(
           <path
             key={`relation-${relation.a}-${relation.b}`}
             data-relation={`${relation.a} ${relation.b}`}
             d={d}
             fill="none"
-            stroke={
-              lit ? "var(--color-text-secondary)" : "var(--color-text-tertiary)"
-            }
+            stroke="var(--color-text-secondary)"
             strokeWidth={1.5 + 5 * (relation.weight / (strongest || 1))}
             strokeLinecap="round"
-            opacity={lit ? 0.7 : focus || hoverTopic ? 0.12 : 0.32}
+            opacity={0.7}
           />,
         );
       }
@@ -1646,46 +2004,41 @@ export default function StudyFlow({
           activeRef === link.source ||
           activeRef === link.target ||
           (focus !== null && stops.has(link.source) && stops.has(link.target));
+        // links stay out of the way until a card that has them is picked
+        if (!strong) continue;
         const path = (
           <path
             key={link.id}
             d={geometry.d}
             fill="none"
-            stroke={
-              strong
-                ? "var(--color-text-secondary)"
-                : "var(--color-text-tertiary)"
-            }
-            strokeWidth={strong ? 2.4 : 1.4}
+            stroke="var(--color-text-secondary)"
+            strokeWidth={2.4}
             strokeDasharray={
               cross ? "8 6" : link.origin === "note" ? undefined : "2 4"
             }
-            opacity={strong ? 0.85 : focus || activeRef ? 0.08 : 0.28}
+            opacity={0.85}
             markerEnd="url(#flow-arrow)"
           />
         );
-        if (strong) {
-          over.push(
-            <path
-              key={`${link.id}-halo`}
-              d={geometry.d}
-              fill="none"
-              stroke="var(--color-background)"
-              strokeWidth={8}
-              opacity={0.8}
-            />,
-            path,
-          );
-        } else under.push(path);
-        if (strong || link.origin === "yours")
-          labels.push({
-            key: link.id,
-            x: geometry.mid.x,
-            y: geometry.mid.y,
-            text: link.label,
-            link,
-            tone: strong ? "strong" : cross ? "cross" : "plain",
-          });
+        over.push(
+          <path
+            key={`${link.id}-halo`}
+            d={geometry.d}
+            fill="none"
+            stroke="var(--color-background)"
+            strokeWidth={8}
+            opacity={0.8}
+          />,
+          path,
+        );
+        labels.push({
+          key: link.id,
+          x: geometry.mid.x,
+          y: geometry.mid.y,
+          text: link.label,
+          link,
+          tone: "strong",
+        });
       }
     }
     if (activeRef && model.sources.has(activeRef)) {
@@ -1722,19 +2075,19 @@ export default function StudyFlow({
       const on =
         [bridge.a, bridge.b].includes(focus?.topicId ?? "") ||
         [bridge.a, bridge.b].includes(hoverTopic ?? "");
-      (on ? over : edges).push(
+      if (!on) continue;
+      over.push(
         <path
           key={`bridge-${bridge.a}-${bridge.b}-${bridge.reason}`}
           d={d}
           fill="none"
           stroke="var(--color-text-tertiary)"
-          strokeWidth={on ? 2.4 : 1.6}
+          strokeWidth={2.4}
           strokeDasharray="8 6"
-          opacity={on ? 0.9 : focus ? 0.1 : 0.45}
+          opacity={0.9}
         />,
       );
-      if (on)
-        labels.push({
+      labels.push({
           key: `bridge-${bridge.a}-${bridge.b}-${bridge.reason}`,
           x: bend * 0.75 + 4,
           y: (ya + yb) / 2,
@@ -1760,8 +2113,10 @@ export default function StudyFlow({
   ]);
 
   const previewPlaced = preview ? model.byRef.get(preview.ref) : undefined;
+  const previewPin = previewPlaced?.module.board.placements.find(
+    (entry) => entry.id === previewPlaced.item.ref,
+  );
   const readerPlaced = reader ? model.byRef.get(reader) : undefined;
-  const selectedPlaced = selected ? positionOf(selected) : undefined;
   const focusTopic = focus ? model.topics.get(focus.topicId) : undefined;
   const focusModule = focusTopic
     ? model.modules.find((module) => module.mapId === focusTopic.mapId)
@@ -1774,6 +2129,16 @@ export default function StudyFlow({
 
   const previewStyle = (() => {
     if (!previewPlaced) return undefined;
+    if (deckMode) {
+      const width = Math.min(340, view.w - 16);
+      const top = view.w < 640 ? Math.max(8, view.h - 420) : TOP_INSET + 8;
+      return {
+        left: view.w - width - (view.w < 640 ? 8 : 16),
+        top,
+        width,
+        maxHeight: view.h - top - 8,
+      };
+    }
     const placed = positionOf(previewPlaced.item.ref) ?? previewPlaced;
     const topLeft = toScreen(placed.x, placed.y);
     const right = toScreen(placed.x + CARD_WIDTH, placed.y);
@@ -1795,6 +2160,77 @@ export default function StudyFlow({
 
   const filtered = hidden.size > 0 || !showSuggested || !showLinks;
 
+  const visibleRefs = (deck: Deck) =>
+    deck.cluster.refs.filter((ref) => {
+      const placed = model.byRef.get(ref);
+      return placed && visible(placed);
+    });
+  const matchesRef = (ref: string) => {
+    const placed = model.byRef.get(ref);
+    return placed ? matchesQuery(placed, lowerQuery, model.topics) : false;
+  };
+  const deckOf = (ref: string) => {
+    const placed = model.byRef.get(ref);
+    const key = placed?.module.layout.primary.get(ref);
+    const entry = deckTable.modules.find(
+      ({ module }) => module === placed?.module,
+    );
+    const deck = entry?.table.decks.find((candidate) => candidate.key === key);
+    return entry && deck ? { deck, originY: entry.originY } : null;
+  };
+  // the picked card in a fan points at the decks of whatever it links to
+  const deckLines: DeckLayerProps["lines"] = [];
+  const litDecks = new Set(openDeck ? [openDeck] : []);
+  const fanned = deckMode && openDeck && selected
+    ? deckTable.modules.flatMap((entry) =>
+        entry.table.decks
+          .filter((deck) => deck.id === openDeck)
+          .map((deck) => ({ deck, originY: entry.originY })),
+      )[0]
+    : null;
+  if (fanned && selected) {
+    const refs = visibleRefs(fanned.deck).slice(0, FAN_MAX_CARDS);
+    const index = refs.indexOf(selected);
+    const slots = fanPositions(
+      { x: fanned.deck.x, y: fanned.originY + fanned.deck.y },
+      refs.length + (visibleRefs(fanned.deck).length > refs.length ? 1 : 0),
+      deckTable.width,
+    );
+    const slot = slots[index];
+    if (slot) {
+      const labelFor = (other: string) =>
+        model.links.find(
+          (link) =>
+            (link.source === selected && link.target === other) ||
+            (link.target === selected && link.source === other),
+        )?.label ?? (model.sources.has(selected) ? "uses" : "used in");
+      const seen = new Set<string>();
+      for (const other of selectedRelated) {
+        const target = deckOf(other);
+        if (!target || target.deck.id === openDeck) continue;
+        if (seen.has(target.deck.id)) continue;
+        seen.add(target.deck.id);
+        litDecks.add(target.deck.id);
+        const geometry = connector(
+          { x: slot.x, y: slot.y, w: FAN_CARD_WIDTH, h: FAN_CARD_HEIGHT },
+          {
+            x: target.deck.x,
+            y: target.originY + target.deck.y,
+            w: target.deck.width,
+            h: target.deck.height,
+          },
+        );
+        deckLines.push({
+          key: `${selected}-${target.deck.id}`,
+          d: geometry.d,
+          x: geometry.mid.x,
+          y: geometry.mid.y,
+          label: labelFor(other),
+        });
+      }
+    }
+  }
+
   return (
     <div className="relative flex h-full min-h-0 w-full">
       <div className="relative min-h-0 min-w-0 flex-1">
@@ -1802,7 +2238,7 @@ export default function StudyFlow({
           ref={boardRef}
           role="application"
           aria-roledescription="study map"
-          aria-label="Study map. Cards are grouped by topic, with related topics side by side. Tab moves between cards, Enter reads one, Space previews it."
+          aria-label="Study map. Zoomed out, each topic is a deck: Enter fans it out. Zoomed in, cards are grouped by topic. Tab moves between them, Enter reads a card, Space previews it."
           tabIndex={0}
           className="absolute inset-0 touch-none select-none overflow-hidden bg-background focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary-500"
           style={{
@@ -1829,23 +2265,29 @@ export default function StudyFlow({
             ref={worldRef}
             className="absolute left-0 top-0 origin-top-left will-change-transform"
           >
-            {model.modules.map((module) => (
+            {model.modules.map((module) => {
+              const tabled = deckTable.modules.find(
+                (entry) => entry.module === module,
+              );
+              return (
               <section
                 key={module.mapId}
                 aria-label={`${module.name} ${module.year}`}
                 className="absolute rounded-[28px] bg-surface/40"
                 style={{
                   left: -24,
-                  top: module.originY,
-                  width: model.width + 48,
-                  height: module.layout.height,
+                  top: deckMode ? (tabled?.originY ?? 0) : module.originY,
+                  width: (deckMode ? deckTable.width : model.width) + 48,
+                  height: deckMode
+                    ? (tabled?.table.height ?? 0)
+                    : module.layout.height,
                 }}
               >
                 <header
                   className="absolute left-10 flex items-baseline gap-4 whitespace-nowrap"
                   style={{
-                    top: far ? 4 : 32,
-                    fontSize: far ? 60 : compact ? 44 : 34,
+                    top: deckMode ? 30 : 32,
+                    fontSize: deckMode ? 72 : compact ? 44 : 34,
                   }}
                 >
                   <h2 className="font-semibold tracking-tight text-text">
@@ -1876,7 +2318,23 @@ export default function StudyFlow({
                   )}
                 </header>
               </section>
-            ))}
+              );
+            })}
+            {deckMode ? (
+              <DeckLayer
+                table={deckTable}
+                topics={model.topics}
+                visibleRefs={visibleRefs}
+                byRef={model.byRef}
+                openKey={openDeck}
+                selected={selected}
+                lit={litDecks}
+                query={lowerQuery}
+                matches={matchesRef}
+                lines={deckLines}
+              />
+            ) : (
+            <div className="study-layer-in">
             <svg
               className="pointer-events-none absolute left-0 top-0 overflow-visible"
               width={1}
@@ -1920,14 +2378,12 @@ export default function StudyFlow({
                     <div
                       key={cluster.key}
                       data-cluster={cluster.key}
-                      className={`absolute rounded-[20px] border bg-surface ${on ? "border-primary-500/60" : "border-border-subtle"} ${lowerQuery && cluster.topic && !cluster.topic.name.toLocaleLowerCase().includes(lowerQuery) ? "opacity-60" : ""}`}
+                      className={`study-glass absolute rounded-[20px] ${on ? "study-glass-on" : ""} ${lowerQuery && cluster.topic && !cluster.topic.name.toLocaleLowerCase().includes(lowerQuery) ? "opacity-60" : ""}`}
                       style={{
                         left: cluster.x,
                         top: module.originY + cluster.y,
                         width: cluster.width,
                         height: cluster.height,
-                        borderTopColor: topic?.colour,
-                        borderTopWidth: topic ? 3 : 1,
                       }}
                     >
                       <button
@@ -1945,13 +2401,13 @@ export default function StudyFlow({
                       >
                         <span
                           className="flex w-full min-w-0 items-center gap-2 font-semibold leading-tight text-text"
-                          style={{ fontSize: far ? 44 : compact ? 24 : 15 }}
+                          style={{ fontSize: compact ? 24 : 15 }}
                         >
                           <span
                             className="shrink-0 rounded-full"
                             style={{
-                              width: far ? 20 : 8,
-                              height: far ? 20 : 8,
+                              width: 8,
+                              height: 8,
                               background:
                                 topic?.colour ?? "var(--color-text-tertiary)",
                             }}
@@ -1963,16 +2419,14 @@ export default function StudyFlow({
                               : "Not sorted yet"}
                           </span>
                         </span>
-                        {!far && (
-                          <span
-                            className="w-full truncate text-xs text-text-tertiary"
-                            style={{ fontSize: compact ? 16 : undefined }}
-                          >
-                            {meta}
-                          </span>
-                        )}
+                        <span
+                          className="w-full truncate text-xs text-text-tertiary"
+                          style={{ fontSize: compact ? 16 : undefined }}
+                        >
+                          {meta}
+                        </span>
                       </button>
-                      {count === 0 && !far && (
+                      {count === 0 && (
                         <p className="px-4 text-xs text-text-tertiary">
                           {elsewhere
                             ? `Covered by ${elsewhere} ${elsewhere === 1 ? "card" : "cards"} in other clusters`
@@ -2010,11 +2464,7 @@ export default function StudyFlow({
             </svg>
             <CardLayer
               placed={culled}
-              topics={model.topics}
-              linkCount={model.linkCount}
-              usedBy={model.usedBy}
               compact={compact}
-              far={far}
               state={cardState}
               stops={stops}
               focusColour={focusTopic?.colour ?? null}
@@ -2027,8 +2477,7 @@ export default function StudyFlow({
             >
               {svg.over}
             </svg>
-            {!far &&
-              svg.labels.map((label) => (
+            {svg.labels.map((label) => (
                 <div
                   key={label.key}
                   className={`absolute z-20 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 whitespace-nowrap rounded-full border bg-surface px-2 py-0.5 text-xs text-text-secondary ${label.tone === "cross" ? "border-dashed border-border" : label.tone === "strong" ? "border-text-tertiary text-text shadow" : "border-border-subtle"}`}
@@ -2049,6 +2498,8 @@ export default function StudyFlow({
                     )}
                 </div>
               ))}
+            </div>
+            )}
           </div>
 
           {focusTopic && focusModule && (
@@ -2113,107 +2564,6 @@ export default function StudyFlow({
               />
             </div>
           )}
-
-          {selectedPlaced &&
-            !compact &&
-            !connect &&
-            !(preview?.pinned && view.w < 640) &&
-            (() => {
-              const position = toScreen(
-                selectedPlaced.x + CARD_WIDTH / 2,
-                selectedPlaced.y,
-              );
-              const below = toScreen(
-                selectedPlaced.x,
-                selectedPlaced.y + selectedPlaced.item.height,
-              ).y;
-              // the islands own the top strip, so a card near it gets its toolbar underneath
-              const flip = position.y < TOP_INSET + 48;
-              if (
-                position.x < 0 ||
-                position.x > view.w ||
-                (flip && below + 56 > view.h)
-              )
-                return null;
-              const pinned = selectedPlaced.module.board.placements.find(
-                (entry) => entry.id === selectedPlaced.item.ref,
-              );
-              return (
-                <div
-                  data-flow-overlay
-                  role="toolbar"
-                  aria-label={`Actions for ${selectedPlaced.item.title}`}
-                  className={`absolute z-30 flex -translate-x-1/2 items-center gap-1 rounded-radius-lg border border-border-subtle bg-surface p-1 text-xs shadow-lg ${flip ? "translate-y-2.5" : "-translate-y-[calc(100%+10px)]"}`}
-                  style={{ left: position.x, top: flip ? below : position.y }}
-                >
-                  <button
-                    type="button"
-                    className={toolbarButton}
-                    onClick={() => openReader(selectedPlaced.item.ref)}
-                  >
-                    {selectedPlaced.item.assignment ? "Open" : "Read"}
-                  </button>
-                  <button
-                    type="button"
-                    className={toolbarButton}
-                    aria-pressed={Boolean(pinned?.pinned)}
-                    onClick={() => togglePin(selectedPlaced.item.ref)}
-                  >
-                    {pinned?.pinned ? "Unpin" : "Pin"}
-                  </button>
-                  <label className="flex items-center gap-1 px-1 text-text-secondary">
-                    <span className="sr-only">Week</span>
-                    <select
-                      className="min-h-7 rounded-radius-md border border-border-subtle bg-surface px-1 text-xs text-text"
-                      value={
-                        selectedPlaced.item.weekSource === "set"
-                          ? String(selectedPlaced.item.week ?? 0)
-                          : "detected"
-                      }
-                      onChange={(event) =>
-                        setWeek(selectedPlaced.item.ref, event.target.value)
-                      }
-                      title="Teaching week"
-                    >
-                      <option value="detected">
-                        {selectedPlaced.item.weekSource === "set"
-                          ? "Use detected week"
-                          : `Detected: ${selectedPlaced.item.week === null ? "no week" : `week ${selectedPlaced.item.week}`}`}
-                      </option>
-                      <option value="0">No week</option>
-                      {weekOptions(selectedPlaced).map((week) => (
-                        <option key={week} value={String(week)}>
-                          Week {week}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <button
-                    type="button"
-                    className={toolbarButton}
-                    onClick={() => {
-                      setConnect({
-                        from: selectedPlaced.item.ref,
-                        to: null,
-                        label: "",
-                      });
-                      setPreview(null);
-                    }}
-                  >
-                    Link to…
-                  </button>
-                  {pinned && !pinned.pinned && (
-                    <button
-                      type="button"
-                      className={toolbarButton}
-                      onClick={() => resetPosition(selectedPlaced.item.ref)}
-                    >
-                      Reset
-                    </button>
-                  )}
-                </div>
-              );
-            })()}
 
           {connect && (
             <div
@@ -2303,7 +2653,7 @@ export default function StudyFlow({
               data-flow-overlay
               role="dialog"
               aria-label={`Preview of ${previewPlaced.item.title}`}
-              className="absolute z-40 overflow-y-auto rounded-radius-xl border border-border-subtle bg-surface p-4 shadow-xl"
+              className="study-glass study-glass-blur absolute z-40 overflow-y-auto rounded-[18px] p-4"
               style={previewStyle}
               onPointerEnter={() => window.clearTimeout(leaveTimer.current)}
               onPointerLeave={() => {
@@ -2329,9 +2679,12 @@ export default function StudyFlow({
                   </button>
                 )}
               </div>
-              <div className="mt-2">
-                <ItemBody item={previewPlaced.item} full={false} />
-              </div>
+              {/* decks stay quick to scan: the file itself only shows up zoomed in */}
+              {!deckMode && (
+                <div className="mt-2">
+                  <ItemBody item={previewPlaced.item} full={false} />
+                </div>
+              )}
               <ItemRelations
                 placed={previewPlaced}
                 topics={model.topics}
@@ -2354,6 +2707,108 @@ export default function StudyFlow({
                   setAssignmentOpen(previewPlaced.item.assignment)
                 }
               />
+              {preview?.pinned && (
+                <div
+                  role="toolbar"
+                  aria-label={`Actions for ${previewPlaced.item.title}`}
+                  className="mt-2 flex flex-wrap items-center gap-1 text-xs"
+                >
+                  <button
+                    type="button"
+                    className={toolbarButton}
+                    onClick={() => {
+                      const ref = previewPlaced.item.ref;
+                      // linking picks a target card, and cards only exist zoomed in
+                      if (deckMode) goTo(ref);
+                      setConnect({ from: ref, to: null, label: "" });
+                      setPreview(null);
+                    }}
+                  >
+                    Link to…
+                  </button>
+                  {!previewPlaced.item.assignment && (
+                    <Link
+                      className={toolbarButton}
+                      href={`/chat?noteId=${previewPlaced.item.id}&noteTitle=${encodeURIComponent(previewPlaced.item.title || "Untitled")}`}
+                    >
+                      Chat
+                    </Link>
+                  )}
+                  <button
+                    type="button"
+                    className={toolbarButton}
+                    aria-pressed={Boolean(previewPin?.pinned)}
+                    onClick={() => togglePin(previewPlaced.item.ref)}
+                  >
+                    {previewPin?.pinned ? "Unpin" : "Pin"}
+                  </button>
+                  {previewPin && !previewPin.pinned && (
+                    <button
+                      type="button"
+                      className={toolbarButton}
+                      onClick={() => resetPosition(previewPlaced.item.ref)}
+                    >
+                      Reset
+                    </button>
+                  )}
+                  <label className="flex items-center gap-1 px-1 text-text-secondary">
+                    <span className="sr-only">Week</span>
+                    <select
+                      className="min-h-7 rounded-radius-md border border-border-subtle bg-surface px-1 text-xs text-text"
+                      value={
+                        previewPlaced.item.weekSource === "set"
+                          ? String(previewPlaced.item.week ?? 0)
+                          : "detected"
+                      }
+                      onChange={(event) =>
+                        setWeek(previewPlaced.item.ref, event.target.value)
+                      }
+                      title="Teaching week"
+                    >
+                      <option value="detected">
+                        {previewPlaced.item.weekSource === "set"
+                          ? "Use detected week"
+                          : `Detected: ${previewPlaced.item.week === null ? "no week" : `week ${previewPlaced.item.week}`}`}
+                      </option>
+                      <option value="0">No week</option>
+                      {weekOptions(previewPlaced).map((week) => (
+                        <option key={week} value={String(week)}>
+                          Week {week}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              )}
+              {previewPlaced.item.copies?.length ? (
+                <div className="mt-3 border-t border-[var(--study-glass-edge)] pt-2 text-xs text-text-secondary">
+                  <p>Also here, same file:</p>
+                  <ul className="mt-1 space-y-1">
+                    {previewPlaced.item.copies.map((copy) => (
+                      <li
+                        key={copy.noteId}
+                        className="flex min-w-0 items-center gap-2"
+                      >
+                        <span className="min-w-0 flex-1 truncate">
+                          {copy.title}
+                        </span>
+                        <button
+                          type="button"
+                          className="shrink-0 text-primary-700 hover:underline dark:text-primary-300"
+                          onClick={() =>
+                            splitOut(
+                              previewPlaced.item.ref,
+                              `note:${copy.noteId}`,
+                            )
+                          }
+                        >
+                          Split out
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </div>
           )}
 

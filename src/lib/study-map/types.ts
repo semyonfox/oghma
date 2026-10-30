@@ -91,6 +91,38 @@ export const topicAssociationSchema = z.object({
 });
 export type TopicAssociation = z.infer<typeof topicAssociationSchema>;
 
+/**
+ * How sure Jev must be before a tag just applies. Reviewing every tag was the
+ * bad part, so at or above this it counts as accepted and below it the tag is
+ * dropped. Picked from the CT326 benchmark (2026-10-30, one module, 310 labelled
+ * passage and topic pairs): 92% precision and 83% recall, and all six false
+ * positives came from one generated index file. 0.9 reached 100% precision but
+ * kept only 4 of 20 supporting tags against 10 here.
+ */
+export const TAG_CONFIDENCE = 0.8;
+
+/**
+ * Applies TAG_CONFIDENCE to stored classifier output, so existing maps follow it
+ * without a data migration or paying to classify again. Manual tags and rejections
+ * stay as they are. A model that gives no probability has nothing to judge, so its
+ * tags still wait for a person.
+ */
+export function settleAssociations<T extends TopicAssociation>(
+  associations: readonly T[],
+): T[] {
+  return associations.flatMap((association) => {
+    if (
+      association.status !== "suggested" ||
+      association.origin !== "automatic" ||
+      association.probability === null
+    )
+      return [association];
+    return association.probability >= TAG_CONFIDENCE
+      ? [{ ...association, status: "accepted" as const }]
+      : [];
+  });
+}
+
 export const materialOverridesSchema = z.object({
   kind: documentKindSchema.optional(),
   labels: z.array(z.string().trim().min(1).max(60)).max(20).optional(),
@@ -148,6 +180,8 @@ export interface StudyMaterial {
   createdAt: string;
   /** arrived through a Canvas import rather than being written in OghmaNotes */
   imported: boolean;
+  /** sha-256 of the file bytes where the import recorded one. the only proof two files are the same */
+  contentHash?: string | null;
 }
 
 /** an existing assignment row for the map's Canvas course, plus map materials imported from its Canvas files */
@@ -189,6 +223,11 @@ export const boardSchema = z.object({
     )
     .default({}),
   links: z.array(boardLinkSchema).max(1_000),
+  /** exact copies the user asked to keep as their own cards */
+  unfolded: z
+    .array(z.string().regex(/^note:[a-f0-9-]{36}$/))
+    .max(1_000)
+    .optional(),
   viewport: z
     .object({
       x: z.number().finite().min(-1_000_000).max(1_000_000),
@@ -347,7 +386,12 @@ export function currentBoard(board: StudyBoard): StudyBoard {
   if (board.layout === 3) return board;
   // weekly-grid positions mean nothing among topic clusters, but its links and weeks still do
   if (board.layout === 2)
-    return { ...emptyBoard(), weeks: board.weeks, links: board.links };
+    return {
+      ...emptyBoard(),
+      weeks: board.weeks,
+      links: board.links,
+      unfolded: board.unfolded,
+    };
   // the drawing editor also linked topic cards, which the map no longer shows
   return {
     ...emptyBoard(),
