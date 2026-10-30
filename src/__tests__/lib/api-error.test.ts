@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { captureException } from "@sentry/core";
 
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 vi.mock("next/headers", () => ({ cookies: vi.fn() }));
 vi.mock("@/database/pgsql", () => ({ default: vi.fn() }));
+vi.mock("winston-daily-rotate-file", () => ({ default: vi.fn() }));
+vi.mock("@sentry/core", () => ({ captureException: vi.fn() }));
 
 import {
   ApiError,
@@ -105,6 +108,29 @@ describe("assertTrustedOrigin", () => {
 });
 
 describe("withErrorHandler", () => {
+  const failWith = (error: unknown) => withErrorHandler(async () => { throw error; })(
+    new NextRequest("https://app.example.com/api/chat", { method: "POST" }),
+  );
+
+  it("reports an unexpected failure with its real exception and hides it from the client", async () => {
+    const error = new Error("private note body");
+    const response = await failWith(error);
+    expect(captureException).toHaveBeenLastCalledWith(error, expect.anything());
+    expect(response.status).toBe(500);
+    expect(await response.json()).toMatchObject({ error: "Internal server error" });
+  });
+
+  it("reports a 5xx ApiError but not a rejected request", async () => {
+    vi.mocked(captureException).mockClear();
+    const unavailable = new ApiError(503, "Try again later");
+    await failWith(unavailable);
+    expect(captureException).toHaveBeenLastCalledWith(unavailable, expect.anything());
+
+    vi.mocked(captureException).mockClear();
+    expect((await failWith(new ApiError(404, "Not found"))).status).toBe(404);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
   it("preserves and forwards the required dynamic route context", async () => {
     const handler = withErrorHandler(async (_request, context: { params: Promise<{ id: string }> }) => {
       const { id } = await context.params;
