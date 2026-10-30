@@ -60,6 +60,7 @@ export const snapshotSchema = z.object({
       folder: z.string().nullable(),
       createdAt: z.string(),
       imported: z.boolean(),
+      contentHash: z.string().nullable().optional(),
     })
     .array(),
   assignments: z

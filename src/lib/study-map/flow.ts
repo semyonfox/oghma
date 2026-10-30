@@ -49,6 +49,8 @@ export interface FlowItem {
   /** extracted Markdown shown through its original file instead of a second card */
   textVersionId: string | null;
   textVersionMaterial?: StudyMaterial | null;
+  /** files with the same bytes as this one, folded into its card */
+  copies?: StudyMaterial[];
 }
 
 export interface FlowLink {
@@ -266,6 +268,46 @@ export function mergeTags(
 }
 
 /** builds the cards for one module; syllabus and past papers belong to topics and exam history rather than the map */
+/**
+ * One card per file, proven by checksum. A similar name never folds anything:
+ * only byte-identical files do, the oldest keeps the card, and hidden collects
+ * the rest. Nothing is deleted, and Split out on the card lists it in board.unfolded.
+ */
+function foldExactCopies(
+  materials: StudyMaterial[],
+  board: StudyBoard,
+  hidden: Set<string>,
+): Map<string, StudyMaterial[]> {
+  const unfolded = new Set(board.unfolded ?? []);
+  const byHash = new Map<string, StudyMaterial[]>();
+  for (const material of materials) {
+    if (
+      !material.contentHash ||
+      hidden.has(material.noteId) ||
+      unfolded.has(`note:${material.noteId}`)
+    )
+      continue;
+    byHash.set(material.contentHash, [
+      ...(byHash.get(material.contentHash) ?? []),
+      material,
+    ]);
+  }
+  const copies = new Map<string, StudyMaterial[]>();
+  for (const group of byHash.values()) {
+    if (group.length < 2) continue;
+    const [keeper, ...rest] = group
+      .slice()
+      .sort(
+        (left, right) =>
+          left.createdAt.localeCompare(right.createdAt) ||
+          left.noteId.localeCompare(right.noteId),
+      );
+    copies.set(keeper.noteId, rest);
+    for (const copy of rest) hidden.add(copy.noteId);
+  }
+  return copies;
+}
+
 export function moduleItems(
   snapshot: StudyMapSnapshot,
   board: StudyBoard,
@@ -326,6 +368,7 @@ export function moduleItems(
   }
 
   const hidden = new Set(textVersions.values());
+  const copies = foldExactCopies(materials, board, hidden);
   const items: FlowItem[] = [];
   for (const material of materials) {
     if (hidden.has(material.noteId)) continue;
@@ -350,9 +393,14 @@ export function moduleItems(
     const secondaryTags = textVersionMaterial
       ? tagsFor(textVersionMaterial, map.taxonomyVersion, topicIds)
       : [];
-    const tags = secondaryTags.length
-      ? mergeTags(primaryTags, secondaryTags)
-      : primaryTags;
+    const folded = copies.get(material.noteId) ?? [];
+    const tags = [
+      ...folded.map((copy) => tagsFor(copy, map.taxonomyVersion, topicIds)),
+      secondaryTags,
+    ].reduce(
+      (merged, more) => (more.length ? mergeTags(merged, more) : merged),
+      primaryTags,
+    );
 
     items.push({
       ref,
@@ -369,6 +417,7 @@ export function moduleItems(
       assignment: null,
       textVersionId,
       textVersionMaterial,
+      ...(folded.length ? { copies: folded } : {}),
     });
   }
   const notes = [...items];
@@ -813,6 +862,7 @@ export function flowLinks(
     if (item.kind === "assignment") continue;
     byNote.set(item.id, item);
     if (item.textVersionId) byNote.set(item.textVersionId, item);
+    for (const copy of item.copies ?? []) byNote.set(copy.noteId, item);
   }
   const links: FlowLink[] = [];
   const seen = new Set<string>();
@@ -820,6 +870,7 @@ export function flowLinks(
     const references = [
       ...(item.material?.references ?? []),
       ...(item.textVersionMaterial?.references ?? []),
+      ...(item.copies ?? []).flatMap((copy) => copy.references),
     ];
     for (const reference of references) {
       if (reference.relation === "extraction") continue;
@@ -841,6 +892,8 @@ export function flowLinks(
   for (const item of items) {
     if (item.textVersionId)
       textVersionToRef.set(`note:${item.textVersionId}`, item.ref);
+    for (const copy of item.copies ?? [])
+      textVersionToRef.set(`note:${copy.noteId}`, item.ref);
   }
   for (const { board } of modules) {
     for (const link of board.links) {

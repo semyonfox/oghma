@@ -240,7 +240,19 @@ function studyMap(page: Page) {
   return page.getByRole("application", { name: /^Study map\./ });
 }
 
-async function openMap(page: Page, mapId: string) {
+// the map opens on decks. these tests are about the cards, so they start zoomed in
+async function openMap(page: Page, mapId: string, zoomedIn = true) {
+  if (zoomedIn)
+    await page.addInitScript((viewKey) => {
+      for (const scope of [viewKey, "all"]) {
+        const key = `oghma-study-flow-camera-v2:${scope}`;
+        if (!window.sessionStorage.getItem(key))
+          window.sessionStorage.setItem(
+            key,
+            JSON.stringify({ x: 40, y: 70, z: 0.85 }),
+          );
+      }
+    }, mapId);
   await page.goto(`/study-map?map=${mapId}`);
   await expect(studyMap(page)).toBeVisible();
   await expect(
@@ -476,16 +488,17 @@ test("notes sit in topic clusters linked by shared material, preview on hover, a
   expect(inside(bothBox, graphsBox)).toBe(true);
   expect(inside(lateBox, complexityBox)).toBe(true);
   expect(complexityBox.x).toBeGreaterThan(graphsBox.x + graphsBox.width);
-  await expect(
-    studyMap(page).locator(
-      `[data-relation~="${topics[0].id}"][data-relation~="${topics[1].id}"]`,
-    ),
-  ).toHaveCount(1);
+  const relation = studyMap(page).locator(
+    `[data-relation~="${topics[0].id}"][data-relation~="${topics[1].id}"]`,
+  );
+  // links keep out of the way until a card that has them is hovered or picked
+  await expect(relation).toHaveCount(0);
   await expect(flowCard(page, early.id)).toHaveAttribute("data-week", "1");
   await expect(flowCard(page, late.id)).toHaveAttribute("data-week", "5");
-  // the week stays a badge on the card and orders it inside its cluster
+  // the week orders a card inside its cluster
   expect(earlyBox.x).toBeLessThan(bothBox.x);
   await flowCard(page, both.id).hover();
+  await expect(relation).toHaveCount(1);
   await expect(
     studyMap(page).locator(`[data-topic-line="${topics[1].id}"]`),
   ).toHaveCount(1);
@@ -549,6 +562,66 @@ test("notes sit in topic clusters linked by shared material, preview on hover, a
       ),
     )
     .toEqual([`note:${late.id}`]);
+  expect(browserErrors).toEqual([]);
+});
+
+test("the map opens on decks, a deck fans out, and zooming in reaches its cards", async ({
+  loggedInPage: page,
+  owned,
+  browserErrors,
+}) => {
+  const suffix = randomUUID().slice(0, 8);
+  const mapId = await createMap(page, owned, `Decks ${suffix}`);
+  const topics = await addReviewedTopics(page, mapId, ["Graphs", "Complexity"]);
+  const note = await createNote(
+    page,
+    owned,
+    `Graph basics ${suffix}`,
+    "Graphs describe vertices and edges.",
+  );
+  await addMaterials(page, mapId, [note.id]);
+  await reviewMaterial(page, mapId, note.id, { [topics[0].id]: "core" }, []);
+  await openMap(page, mapId, false);
+
+  const graphs = studyMap(page).locator(`[data-deck="${topics[0].id}"]`);
+  await expect(graphs).toBeVisible();
+  await expect(graphs).toContainText("1 file");
+  await expect(studyMap(page).locator("[data-card]")).toHaveCount(0);
+
+  const open = await cardBox(graphs);
+  await page.mouse.click(open.x + open.width / 2, open.y + open.height / 2);
+  await expect(graphs).toHaveAttribute("aria-expanded", "true");
+  const fanned = studyMap(page).locator(`[data-fan="note:${note.id}"]`);
+  await expect(fanned).toBeVisible();
+  const card = await cardBox(fanned);
+  await page.mouse.click(card.x + card.width / 2, card.y + card.height / 2);
+  const toolbar = page.getByRole("toolbar", { name: /^Actions for / });
+  await expect(toolbar.getByRole("link", { name: "Chat" })).toHaveAttribute(
+    "href",
+    new RegExp(`noteId=${note.id}`),
+  );
+  await closePreview(page);
+  // escape steps back one layer at a time: the selection, then the fan
+  await studyMap(page).press("Escape");
+  await studyMap(page).press("Escape");
+  await expect(graphs).toHaveAttribute("aria-expanded", "false");
+
+  // the same topic stays under the pointer when the deck becomes its cluster
+  const zoomAt = await cardBox(graphs);
+  await page.mouse.move(zoomAt.x + 40, zoomAt.y + 40);
+  await page.keyboard.down("Control");
+  for (let attempt = 0; attempt < 8; attempt++) {
+    await page.mouse.wheel(0, -120);
+    await page.waitForTimeout(50);
+  }
+  await page.keyboard.up("Control");
+  await expect(flowCard(page, note.id)).toBeVisible();
+  await expect(studyMap(page).locator("[data-deck]")).toHaveCount(0);
+  const cluster = await cardBox(
+    studyMap(page).locator(`[data-cluster="${topics[0].id}"]`),
+  );
+  expect(cluster.x).toBeLessThan(zoomAt.x + 40);
+  expect(cluster.x + cluster.width).toBeGreaterThan(zoomAt.x + 40);
   expect(browserErrors).toEqual([]);
 });
 
@@ -704,7 +777,6 @@ test("note references, your own labelled links, week overrides and conflicts sta
     .selectOption("5");
   expect((await weekSaved).ok()).toBe(true);
   await expect(flowCard(page, target.id)).toHaveAttribute("data-week", "5");
-  await expect(flowCard(page, target.id)).toContainText("Week 5");
   expect((await readSnapshot(page, mapId)).map.board.weeks).toEqual({
     [`note:${target.id}`]: 5,
   });

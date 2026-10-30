@@ -1772,3 +1772,186 @@ html.light .glass-card-active {
 .oghma-mermaid-block pre[data-mermaid-state="fallback"] {
   margin: 0;
 }
+
+/* study map glass. quiet on purpose: edge light and a soft tint, no glow */
+:root {
+  --study-glass: rgb(255 255 255 / 0.065);
+  --study-glass-edge: rgb(255 255 255 / 0.13);
+  --study-glass-hi: rgb(255 255 255 / 0.2);
+  --study-glass-shadow: rgb(0 0 0 / 0.4);
+  --study-glass-caption: rgb(16 20 30 / 0.78);
+}
+html.light {
+  --study-glass: rgb(255 255 255 / 0.72);
+  --study-glass-edge: rgb(255 255 255 / 0.85);
+  --study-glass-hi: rgb(255 255 255 / 1);
+  --study-glass-shadow: rgb(30 41 59 / 0.14);
+  --study-glass-caption: rgb(255 255 255 / 0.82);
+}
+.study-glass {
+  background: linear-gradient(
+    145deg,
+    var(--study-glass),
+    color-mix(in srgb, var(--study-glass) 55%, transparent)
+  );
+  border: 1px solid var(--study-glass-edge);
+  box-shadow:
+    inset 0 1px 0 var(--study-glass-hi),
+    0 6px 20px var(--study-glass-shadow);
+}
+.study-glass-on {
+  border-color: color-mix(in srgb, var(--color-primary-500) 60%, transparent);
+}
+/* only overlays pay for a real backdrop blur: the map itself pans under them every frame */
+.study-glass-blur {
+  background-color: color-mix(in srgb, var(--color-surface) 62%, transparent);
+  backdrop-filter: blur(20px) saturate(120%);
+}
+.study-glass-caption {
+  background: var(--study-glass-caption);
+  backdrop-filter: blur(12px);
+}
+.study-card-page {
+  box-shadow: 0 6px 20px var(--study-glass-shadow);
+}
+html:not(.light) .study-card-page > div:first-child {
+  filter: brightness(0.93);
+}
+.study-layer-in {
+  animation: study-layer-in 180ms ease-out;
+}
+@keyframes study-layer-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* decks are drawn in table coordinates, around a third of real size, so these numbers read large */
+.study-deck-face,
+.study-deck-under,
+.study-fan-card {
+  border: 3px solid var(--study-glass-edge);
+  border-radius: 48px;
+  box-shadow:
+    inset 0 3px 0 var(--study-glass-hi),
+    0 18px 56px var(--study-glass-shadow);
+}
+.study-deck-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 36px 40px;
+  color: var(--color-text);
+  background:
+    radial-gradient(
+      120% 90% at 0 0,
+      color-mix(in srgb, var(--deck-colour) 17%, transparent),
+      transparent 62%
+    ),
+    linear-gradient(
+      145deg,
+      var(--study-glass),
+      color-mix(in srgb, var(--study-glass) 55%, transparent)
+    ),
+    var(--color-surface);
+}
+.study-deck-face b {
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-size: 40px;
+}
+.study-deck-face > span {
+  margin-top: 8px;
+  font-size: 34px;
+  color: var(--color-text-tertiary);
+}
+.study-deck-face em {
+  margin-top: auto;
+  font-style: normal;
+  font-size: 34px;
+  color: var(--color-text-secondary);
+}
+.study-deck-medium .study-deck-face b {
+  font-size: 54px;
+}
+.study-deck-large .study-deck-face b {
+  font-size: 76px;
+}
+.study-deck-large .study-deck-face em {
+  font-size: 84px;
+  font-weight: 300;
+  letter-spacing: -0.03em;
+}
+.study-deck-under {
+  position: absolute;
+  background: color-mix(in srgb, var(--deck-colour) 10%, var(--color-surface));
+}
+.study-deck-under-1 {
+  inset: 14px -12px -14px 12px;
+  transform: rotate(0.7deg);
+}
+.study-deck-under-2 {
+  inset: 26px -22px -26px 22px;
+  transform: rotate(1.5deg);
+  opacity: 0.6;
+}
+.study-fan-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 30px 32px;
+  color: var(--color-text);
+  background:
+    linear-gradient(
+      145deg,
+      var(--study-glass),
+      color-mix(in srgb, var(--study-glass) 55%, transparent)
+    ),
+    var(--color-surface);
+  transition: transform 180ms ease-out;
+}
+.study-fan-card small {
+  font-size: 28px;
+  color: var(--color-text-tertiary);
+}
+.study-fan-card b {
+  margin-top: 6px;
+  font-size: 42px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+.study-fan-card p {
+  margin-top: 16px;
+  font-size: 30px;
+  line-height: 1.35;
+  color: var(--color-text-secondary);
+}
+.study-fan-card-selected {
+  outline: 8px solid var(--color-primary-500);
+  outline-offset: 4px;
+}
+.study-fan-more {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+@media (prefers-reduced-transparency: reduce) {
+  .study-glass,
+  .study-glass-blur,
+  .study-glass-caption {
+    background: var(--color-surface);
+    backdrop-filter: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .study-layer-in {
+    animation: none;
+  }
+  .study-fan-card {
+    transition: none;
+  }
+}

@@ -148,6 +148,8 @@ export interface StudyMaterial {
   createdAt: string;
   /** arrived through a Canvas import rather than being written in OghmaNotes */
   imported: boolean;
+  /** sha-256 of the file bytes where the import recorded one. the only proof two files are the same */
+  contentHash?: string | null;
 }
 
 /** an existing assignment row for the map's Canvas course, plus map materials imported from its Canvas files */
@@ -189,6 +191,11 @@ export const boardSchema = z.object({
     )
     .default({}),
   links: z.array(boardLinkSchema).max(1_000),
+  /** exact copies the user asked to keep as their own cards */
+  unfolded: z
+    .array(z.string().regex(/^note:[a-f0-9-]{36}$/))
+    .max(1_000)
+    .optional(),
   viewport: z
     .object({
       x: z.number().finite().min(-1_000_000).max(1_000_000),
@@ -347,7 +354,12 @@ export function currentBoard(board: StudyBoard): StudyBoard {
   if (board.layout === 3) return board;
   // weekly-grid positions mean nothing among topic clusters, but its links and weeks still do
   if (board.layout === 2)
-    return { ...emptyBoard(), weeks: board.weeks, links: board.links };
+    return {
+      ...emptyBoard(),
+      weeks: board.weeks,
+      links: board.links,
+      unfolded: board.unfolded,
+    };
   // the drawing editor also linked topic cards, which the map no longer shows
   return {
     ...emptyBoard(),
