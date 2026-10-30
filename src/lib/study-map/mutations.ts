@@ -461,6 +461,7 @@ export async function saveStudyBoard(
           !valid.has(p.id) || (p.topicId !== null && !topicIds.has(p.topicId)),
       ) ||
       Object.keys(weeks).some((ref) => !valid.has(ref)) ||
+      input.board.unfolded?.some((ref) => !valid.has(ref)) ||
       links.some((link) => !valid.has(link.source) || !valid.has(link.target))
     ) {
       throw new ApiError(

@@ -203,29 +203,15 @@ function itemFor(
   return moduleItems(snapshot([current], topics), emptyBoard())[0];
 }
 
-const palette = (topics: StudyTopic[] = [topic()]) =>
-  new Map(
-    topics.map((entry, index) => [
-      entry.id,
-      { ...entry, colour: ["#6366f1", "#0d9488"][index] },
-    ]),
-  );
 
 function card(
   item: FlowItem,
-  topics: StudyTopic[] = [topic()],
-  options: {
-    compact?: boolean;
-    usedBy?: Array<{ id: string; short: string; title: string }>;
-  } = {},
+  options: { compact?: boolean } = {},
 ) {
   return (
     <article aria-label={item.title} key={item.ref}>
       <StudyFlowCard
         item={item}
-        topics={palette(topics)}
-        linkCount={0}
-        usedBy={options.usedBy ?? []}
         compact={options.compact ?? false}
         pinned={false}
       />
@@ -298,7 +284,7 @@ afterEach(() => {
 });
 
 describe("StudyFlowCard", () => {
-  it("shows the live title, readable prose and inferred week, and follows source edits", () => {
+  it("shows the live title and readable prose, and follows source edits", () => {
     const view = render(card(itemFor(material())));
     expect(
       screen.getByRole("heading", { name: "Week 3: graph search" }),
@@ -308,7 +294,7 @@ describe("StudyFlowCard", () => {
         "Graph search Breadth-first search visits each graph layer. See queues.",
       ),
     ).toBeTruthy();
-    expect(screen.getByText("Notes · Week 3")).toBeTruthy();
+    expect(screen.getByText("Notes")).toBeTruthy();
 
     view.rerender(
       card(
@@ -323,7 +309,6 @@ describe("StudyFlowCard", () => {
     expect(
       screen.getByRole("heading", { name: "Graph search revised" }),
     ).toBeTruthy();
-    expect(screen.getByText("Notes · No week")).toBeTruthy();
     expect(screen.getByText("The edited source excerpt.")).toBeTruthy();
     expect(fetchBoundary).not.toHaveBeenCalled();
   });
@@ -351,20 +336,12 @@ describe("StudyFlowCard", () => {
       ],
     });
     const topics = [topic(), topic(otherTopicId, "Queues")];
-    render(card(itemFor(suggested, topics), topics));
-    expect(screen.getByText("Your note · Week 3")).toBeTruthy();
+    render(card(itemFor(suggested, topics)));
+    expect(screen.getByText("Your note")).toBeTruthy();
     expect(screen.getByLabelText("Topics to review")).toBeTruthy();
-    const chip = screen.getByRole("button", { name: "Graphs" });
-    expect(chip.getAttribute("data-topic")).toBe(topicId);
-    expect(chip.getAttribute("title")).toBe(
-      "Graphs: core, suggested, needs review",
-    );
-    expect(
-      screen.getByRole("button", { name: "Queues" }).getAttribute("title"),
-    ).toBe("Queues: supporting");
   });
 
-  it("shows assignments with their due date, a plain-text brief and backlinks on the notes they use", () => {
+  it("shows assignments with their due date and a plain-text brief they use", () => {
     const assignment: StudyAssignment = {
       id: "40000000-0000-4000-8000-000000000001",
       canvas_course_id: "7",
@@ -391,14 +368,7 @@ describe("StudyFlowCard", () => {
       emptyBoard(),
     );
     const brief = items.find((entry) => entry.kind === "assignment")!;
-    render(
-      <>
-        {card(brief)}
-        {card(items[0], [topic()], {
-          usedBy: [{ id: assignment.id, short: "A2", title: assignment.title }],
-        })}
-      </>,
-    );
+    render(card(brief));
     const assignmentCard = screen.getByRole("article", {
       name: assignment.title,
     });
@@ -406,17 +376,6 @@ describe("StudyFlowCard", () => {
     expect(
       within(assignmentCard).getByText("Use Graphs to find shortest paths."),
     ).toBeTruthy();
-    expect(
-      within(assignmentCard)
-        .getByRole("button", { name: "Graphs" })
-        .getAttribute("title"),
-    ).toBe("Graphs: core, named in the brief");
-    const backlink = within(
-      screen.getByRole("article", { name: "Week 3: graph search" }),
-    ).getByRole("button", { name: "↩ A2" });
-    expect(backlink.getAttribute("data-go")).toBe(
-      `assignment:${assignment.id}`,
-    );
   });
 
   it("keeps only the title when zoomed out", () => {
@@ -436,7 +395,6 @@ describe("StudyFlowCard", () => {
             ],
           }),
         ),
-        [topic()],
         { compact: true },
       ),
     );
@@ -670,7 +628,7 @@ describe("StudyFlowCard", () => {
         ),
       ),
     );
-    expect(screen.getByText("File · Week 3")).toBeTruthy();
+    expect(screen.getByText("File")).toBeTruthy();
     expect(screen.getByText("Archive of lab files")).toBeTruthy();
     expect(fetchBoundary).not.toHaveBeenCalled();
     expect(screen.queryByRole("img")).toBeNull();

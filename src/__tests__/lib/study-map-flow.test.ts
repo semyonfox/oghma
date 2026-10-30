@@ -156,6 +156,111 @@ function snapshot(
   };
 }
 
+describe("exact copies", () => {
+  const hash = "a".repeat(64);
+  const first = material(1, "Lecture 6.pdf", [], {
+    isFile: true,
+    mimeType: "application/pdf",
+    contentHash: hash,
+    createdAt: "2026-01-01T00:00:00.000Z",
+  });
+  const copy = material(2, "Lecture 6 (1).pdf", [], {
+    isFile: true,
+    mimeType: "application/pdf",
+    contentHash: hash,
+    createdAt: "2026-02-01T00:00:00.000Z",
+  });
+
+  it("folds files with the same checksum into the oldest one's card", () => {
+    const items = moduleItems(snapshot([], [first, copy]), emptyBoard());
+    expect(items.map((item) => item.id)).toEqual([first.noteId]);
+    expect(items[0].copies?.map((entry) => entry.noteId)).toEqual([
+      copy.noteId,
+    ]);
+  });
+
+  it("never folds on a similar name alone", () => {
+    const sameName = material(3, "Lecture 6.pdf", [], {
+      isFile: true,
+      mimeType: "application/pdf",
+      contentHash: "b".repeat(64),
+    });
+    const unknown = material(4, "Lecture 6.pdf", [], {
+      isFile: true,
+      mimeType: "application/pdf",
+      contentHash: null,
+    });
+    const items = moduleItems(
+      snapshot([], [first, sameName, unknown]),
+      emptyBoard(),
+    );
+    expect(items).toHaveLength(3);
+    expect(items.every((item) => !item.copies)).toBe(true);
+  });
+
+  it("gives a split-out copy its own card back", () => {
+    const board = { ...emptyBoard(), unfolded: [`note:${copy.noteId}`] };
+    const items = moduleItems(snapshot([], [first, copy]), board);
+    expect(items.map((item) => item.id).sort()).toEqual(
+      [first.noteId, copy.noteId].sort(),
+    );
+    expect(items.every((item) => !item.copies)).toBe(true);
+  });
+
+  it("keeps the note references a folded copy makes", () => {
+    const target = material(5, "Paging notes", []);
+    const referencing = {
+      ...copy,
+      references: [
+        {
+          id: target.noteId,
+          title: target.title,
+          kind: "note" as const,
+          relation: "embedded" as const,
+        },
+      ],
+    };
+    const items = moduleItems(
+      snapshot([], [first, referencing, target]),
+      emptyBoard(),
+    );
+    const links = flowLinks([{ items, board: emptyBoard() }]);
+    expect(links.map((link) => [link.source, link.target])).toEqual([
+      [`note:${first.noteId}`, `note:${target.noteId}`],
+    ]);
+  });
+
+  it("keeps a folded copy's topics and its links on the surviving card", () => {
+    const topicA = topic(1, "Paging");
+    const tagged = {
+      ...copy,
+      associations: [association(topicA.id)],
+    };
+    const items = moduleItems(
+      snapshot([topicA], [first, tagged]),
+      emptyBoard(),
+    );
+    expect(items[0].tags.map((tag) => tag.topicId)).toEqual([topicA.id]);
+    const links = flowLinks([
+      {
+        items,
+        board: {
+          ...emptyBoard(),
+          links: [
+            {
+              id: id(900),
+              source: `note:${tagged.noteId}`,
+              target: items[0].ref,
+              label: "same",
+            },
+          ],
+        },
+      },
+    ]);
+    expect(links).toEqual([]);
+  });
+});
+
 describe("week inference", () => {
   it("prefers explicit weeks over session numbers and the title over its folder", () => {
     expect(inferWeek("Lecture 3: Pointers", "Week 4")).toEqual({
