@@ -1,9 +1,9 @@
 "use client";
 
 import {
-  memo,
-  useCallback,
   useEffect,
+  useEffectEvent,
+  useCallback,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -42,6 +42,7 @@ import {
   type ModuleLayout,
   type TopicBridge,
 } from "@/lib/study-map/flow";
+import { topicColour } from "@/lib/study-map/topic-colours";
 import type {
   StudyAssignment,
   StudyBoard,
@@ -85,18 +86,6 @@ export interface StudyFlowProps {
   onShowAllModules?: () => void;
 }
 
-const TOPIC_COLOURS = [
-  "#6366f1",
-  "#0d9488",
-  "#0284c7",
-  "#a855f7",
-  "#059669",
-  "#e11d48",
-  "#ea580c",
-  "#db2777",
-  "#65a30d",
-  "#0891b2",
-];
 const COMPACT_ZOOM = 0.42;
 const FAR_ZOOM = 0.24;
 const MIN_ZOOM = 0.06;
@@ -239,7 +228,7 @@ function buildModel(modules: FlowModule[]): Model {
       layout,
       topics: snapshot.map.topics.map((topic, index) => ({
         ...topic,
-        colour: TOPIC_COLOURS[index % TOPIC_COLOURS.length],
+        colour: topicColour(index),
         mapId: snapshot.map.id,
         exam: exams.get(topic.id) ?? null,
       })),
@@ -407,6 +396,56 @@ function matchesQuery(
   return haystack.includes(query);
 }
 
+// large boards only render the cards near the viewport, plus the selection
+function cullToView(
+  positioned: Placed[],
+  view: { x: number; y: number; z: number; w: number; h: number },
+  selected: string | null,
+) {
+  const margin = 600 / view.z;
+  const left = -view.x / view.z - margin;
+  const top = -view.y / view.z - margin;
+  const right = left + view.w / view.z + margin * 2;
+  const bottom = top + view.h / view.z + margin * 2;
+  return positioned.filter(
+    (placed) =>
+      placed.item.ref === selected ||
+      (placed.x + CARD_WIDTH > left &&
+        placed.x < right &&
+        placed.y + placed.item.height > top &&
+        placed.y < bottom),
+  );
+}
+
+function readSavedCamera(viewKey: string): Camera | null {
+  try {
+    const raw = window.sessionStorage.getItem(
+      `oghma-study-flow-camera:${viewKey}`,
+    );
+    if (!raw) return null;
+    const value: unknown = JSON.parse(raw);
+    if (
+      value &&
+      typeof value === "object" &&
+      "x" in value &&
+      "y" in value &&
+      "z" in value &&
+      typeof value.x === "number" &&
+      typeof value.y === "number" &&
+      typeof value.z === "number"
+    ) {
+      return {
+        x: value.x,
+        y: value.y,
+        z: clamp(value.z, MIN_ZOOM, MAX_ZOOM),
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 interface CardLayerProps {
   placed: Placed[];
   topics: Map<string, ColouredTopic>;
@@ -419,7 +458,7 @@ interface CardLayerProps {
   focusColour: string | null;
 }
 
-const CardLayer = memo(function CardLayer({
+function CardLayer({
   placed,
   topics,
   linkCount,
@@ -494,7 +533,7 @@ const CardLayer = memo(function CardLayer({
       })}
     </>
   );
-});
+}
 
 function shortName(title: string): string {
   const numbered =
@@ -521,6 +560,10 @@ export default function StudyFlow({
   onOpenModule,
   onShowAllModules,
 }: StudyFlowProps) {
+  // useMemo stays: helpers below receive parts of the model, and the compiler
+  // can't prove they don't mutate it, so it would rebuild the layout on every
+  // pan frame. A memoised value is immutable to it, which also lets it cache
+  // everything derived from the model
   const model = useMemo(() => buildModel(modules), [modules]);
   const boardRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
@@ -583,7 +626,7 @@ export default function StudyFlow({
   } | null>(null);
   const suppressClick = useRef(false);
 
-  const apply = useCallback(() => {
+  const apply = () => {
     const world = worldRef.current;
     const board = boardRef.current;
     if (!world || !board) return;
@@ -600,130 +643,100 @@ export default function StudyFlow({
         h: board.clientHeight,
       });
     });
-  }, []);
+  };
 
-  const flyTo = useCallback(
-    (target: Camera, ms = 380) => {
-      cancelAnimationFrame(animation.current);
-      if (reducedMotion() || ms === 0) {
-        camera.current = target;
-        apply();
-        return;
-      }
-      const from = { ...camera.current };
-      const start = performance.now();
-      const step = (now: number) => {
-        const t = clamp((now - start) / ms, 0, 1);
-        const ease = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-        const z = Math.exp(
-          Math.log(from.z) + (Math.log(target.z) - Math.log(from.z)) * ease,
-        );
-        // interpolate the world point at the screen centre so zooming feels anchored
-        const board = boardRef.current;
-        const w = board?.clientWidth ?? 1200;
-        const h = board?.clientHeight ?? 800;
-        const fromCentre = {
-          x: (w / 2 - from.x) / from.z,
-          y: (h / 2 - from.y) / from.z,
-        };
-        const toCentre = {
-          x: (w / 2 - target.x) / target.z,
-          y: (h / 2 - target.y) / target.z,
-        };
-        const cx = fromCentre.x + (toCentre.x - fromCentre.x) * ease;
-        const cy = fromCentre.y + (toCentre.y - fromCentre.y) * ease;
-        camera.current = { x: w / 2 - cx * z, y: h / 2 - cy * z, z };
-        apply();
-        if (t < 1) animation.current = requestAnimationFrame(step);
-      };
-      animation.current = requestAnimationFrame(step);
-    },
-    [apply],
-  );
+  // the camera only touches refs and the DOM, so effects call the latest one
+  const applyCamera = useEffectEvent(apply);
 
-  const frameRect = useCallback(
-    (
-      rect: { x: number; y: number; w: number; h: number },
-      maxZoom = 1,
-      padding = 48,
-      leftInset = 0,
-      topInset = TOP_INSET,
-    ) => {
-      const board = boardRef.current;
-      const w = (board?.clientWidth ?? 1200) - leftInset;
-      const h = (board?.clientHeight ?? 800) - topInset;
-      const z = clamp(
-        Math.min((w - padding * 2) / rect.w, (h - padding * 2) / rect.h),
-        MIN_ZOOM,
-        maxZoom,
+  const flyTo = (target: Camera, ms = 380) => {
+    cancelAnimationFrame(animation.current);
+    if (reducedMotion() || ms === 0) {
+      camera.current = target;
+      apply();
+      return;
+    }
+    const from = { ...camera.current };
+    // the first frame's timestamp starts the clock, so nothing impure runs here
+    let start: number | null = null;
+    const step = (now: number) => {
+      if (start === null) start = now;
+      const t = clamp((now - start) / ms, 0, 1);
+      const ease = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      const z = Math.exp(
+        Math.log(from.z) + (Math.log(target.z) - Math.log(from.z)) * ease,
       );
-      return {
-        x: leftInset + w / 2 - (rect.x + rect.w / 2) * z,
-        y: topInset + h / 2 - (rect.y + rect.h / 2) * z,
-        z,
+      // interpolate the world point at the screen centre so zooming feels anchored
+      const board = boardRef.current;
+      const w = board?.clientWidth ?? 1200;
+      const h = board?.clientHeight ?? 800;
+      const fromCentre = {
+        x: (w / 2 - from.x) / from.z,
+        y: (h / 2 - from.y) / from.z,
       };
-    },
-    [],
-  );
+      const toCentre = {
+        x: (w / 2 - target.x) / target.z,
+        y: (h / 2 - target.y) / target.z,
+      };
+      const cx = fromCentre.x + (toCentre.x - fromCentre.x) * ease;
+      const cy = fromCentre.y + (toCentre.y - fromCentre.y) * ease;
+      camera.current = { x: w / 2 - cx * z, y: h / 2 - cy * z, z };
+      apply();
+      if (t < 1) animation.current = requestAnimationFrame(step);
+    };
+    animation.current = requestAnimationFrame(step);
+  };
 
-  const fit = useCallback(() => {
+  const frameRect = (
+    rect: { x: number; y: number; w: number; h: number },
+    maxZoom = 1,
+    padding = 48,
+    leftInset = 0,
+    topInset = TOP_INSET,
+  ) => {
+    const board = boardRef.current;
+    const w = (board?.clientWidth ?? 1200) - leftInset;
+    const h = (board?.clientHeight ?? 800) - topInset;
+    const z = clamp(
+      Math.min((w - padding * 2) / rect.w, (h - padding * 2) / rect.h),
+      MIN_ZOOM,
+      maxZoom,
+    );
+    return {
+      x: leftInset + w / 2 - (rect.x + rect.w / 2) * z,
+      y: topInset + h / 2 - (rect.y + rect.h / 2) * z,
+      z,
+    };
+  };
+
+  const fit = () => {
     flyTo(
       frameRect(
         { x: 0, y: 0, w: model.width, h: Math.max(model.height, 400) },
         1,
       ),
     );
-  }, [flyTo, frameRect, model.height, model.width]);
+  };
 
-  const zoomBy = useCallback(
-    (factor: number, sx?: number, sy?: number) => {
-      const board = boardRef.current;
-      if (!board) return;
-      const px = sx ?? board.clientWidth / 2;
-      const py = sy ?? board.clientHeight / 2;
-      const { x, y, z } = camera.current;
-      const next = clamp(z * factor, MIN_ZOOM, MAX_ZOOM);
-      camera.current = {
-        x: px - ((px - x) / z) * next,
-        y: py - ((py - y) / z) * next,
-        z: next,
-      };
-      apply();
-    },
-    [apply],
-  );
-
-  // restore the last camera for this scope, otherwise start on the first clusters at a readable size
-  useLayoutEffect(() => {
+  const zoomBy = (factor: number, sx?: number, sy?: number) => {
     const board = boardRef.current;
     if (!board) return;
-    let restored: Camera | null = null;
-    try {
-      const raw = window.sessionStorage.getItem(
-        `oghma-study-flow-camera:${viewKey}`,
-      );
-      if (raw) {
-        const value: unknown = JSON.parse(raw);
-        if (
-          value &&
-          typeof value === "object" &&
-          "x" in value &&
-          "y" in value &&
-          "z" in value &&
-          typeof value.x === "number" &&
-          typeof value.y === "number" &&
-          typeof value.z === "number"
-        ) {
-          restored = {
-            x: value.x,
-            y: value.y,
-            z: clamp(value.z, MIN_ZOOM, MAX_ZOOM),
-          };
-        }
-      }
-    } catch {
-      restored = null;
-    }
+    const px = sx ?? board.clientWidth / 2;
+    const py = sy ?? board.clientHeight / 2;
+    const { x, y, z } = camera.current;
+    const next = clamp(z * factor, MIN_ZOOM, MAX_ZOOM);
+    camera.current = {
+      x: px - ((px - x) / z) * next,
+      y: py - ((py - y) / z) * next,
+      z: next,
+    };
+    apply();
+  };
+
+  // restore the last camera for this scope, otherwise start on the first
+  // clusters at a readable size. only the scope decides where the camera
+  // starts, so the latest model is read through an effect event
+  const placeInitialCamera = useEffectEvent((board: HTMLElement) => {
+    const restored = readSavedCamera(viewKey);
     const first = model.modules[0];
     const start = first
       ? frameRect(
@@ -754,8 +767,11 @@ export default function StudyFlow({
           }
         : (start ?? { x: 40, y: 20, z: 0.7 }));
     apply();
-    // only the scope decides where the camera starts
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+  useLayoutEffect(() => {
+    const board = boardRef.current;
+    if (!board) return;
+    placeInitialCamera(board);
   }, [viewKey]);
 
   useEffect(() => {
@@ -776,10 +792,10 @@ export default function StudyFlow({
   useEffect(() => {
     const board = boardRef.current;
     if (!board || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(() => apply());
+    const observer = new ResizeObserver(() => applyCamera());
     observer.observe(board);
     return () => observer.disconnect();
-  }, [apply]);
+  }, []);
 
   useEffect(
     () => () => {
@@ -792,6 +808,7 @@ export default function StudyFlow({
   );
 
   // wheel must be non-passive to keep the page from scrolling under the canvas
+  const zoomFromWheel = useEffectEvent(zoomBy);
   useEffect(() => {
     const board = boardRef.current;
     if (!board) return;
@@ -805,7 +822,7 @@ export default function StudyFlow({
       cancelAnimationFrame(animation.current);
       const rect = board.getBoundingClientRect();
       if (event.ctrlKey || event.metaKey) {
-        zoomBy(
+        zoomFromWheel(
           Math.exp(
             -event.deltaY *
               (event.ctrlKey && !event.metaKey && Math.abs(event.deltaY) < 30
@@ -825,11 +842,11 @@ export default function StudyFlow({
           (event.shiftKey ? event.deltaY : event.deltaX) * unit,
         y: camera.current.y - (event.shiftKey ? 0 : event.deltaY) * unit,
       };
-      apply();
+      applyCamera();
     };
     board.addEventListener("wheel", onWheel, { passive: false });
     return () => board.removeEventListener("wheel", onWheel);
-  }, [apply, zoomBy]);
+  }, []);
 
   const compact = view.z < COMPACT_ZOOM;
   const far = view.z < FAR_ZOOM;
@@ -845,6 +862,9 @@ export default function StudyFlow({
     [showSuggested],
   );
 
+  // useMemo stays for the board geometry below: these values are interleaved
+  // with hooks and helper calls the compiler can't prove pure, so it would
+  // rebuild them and re-diff every card and edge on each pan frame
   const trail = useMemo(() => {
     if (!focus) return [];
     const topic = model.topics.get(focus.topicId);
@@ -931,212 +951,173 @@ export default function StudyFlow({
     [dragging, model.ordered, visible],
   );
 
-  const culled = useMemo(() => {
-    if (positioned.length <= CULL_THRESHOLD) return positioned;
-    const margin = 600 / view.z;
-    const left = -view.x / view.z - margin;
-    const top = -view.y / view.z - margin;
-    const right = left + view.w / view.z + margin * 2;
-    const bottom = top + view.h / view.z + margin * 2;
-    return positioned.filter(
-      (placed) =>
-        placed.item.ref === selected ||
-        (placed.x + CARD_WIDTH > left &&
-          placed.x < right &&
-          placed.y + placed.item.height > top &&
-          placed.y < bottom),
-    );
-  }, [positioned, selected, view]);
+  const culled =
+    positioned.length <= CULL_THRESHOLD
+      ? positioned
+      : cullToView(positioned, view, selected);
 
   const positionOf = useCallback(
     (ref: string) => positioned.find((placed) => placed.item.ref === ref),
     [positioned],
   );
 
-  const goTo = useCallback(
-    (ref: string, open = false) => {
-      const placed = model.byRef.get(ref);
-      if (!placed) return;
-      if (!visible(placed)) {
-        setHidden((current) => {
-          const next = new Set(current);
-          next.delete(filterKey(placed.item));
-          return next;
-        });
-      }
-      if (
-        focus &&
-        !tagsShown(placed.item).some((tag) => tag.topicId === focus.topicId)
-      )
-        setFocus(null);
-      const board = boardRef.current;
-      const z = Math.max(camera.current.z, 0.75);
-      const w = board?.clientWidth ?? 1200;
-      const h = board?.clientHeight ?? 800;
-      flyTo({
-        x: w / 2 - (placed.x + CARD_WIDTH / 2) * z,
-        y: h / 2 - (placed.y + placed.item.height / 2) * z,
-        z,
+  const goTo = (ref: string, open = false) => {
+    const placed = model.byRef.get(ref);
+    if (!placed) return;
+    if (!visible(placed)) {
+      setHidden((current) => {
+        const next = new Set(current);
+        next.delete(filterKey(placed.item));
+        return next;
       });
-      setSelected(ref);
-      setFlash(ref);
-      window.setTimeout(
-        () => setFlash((current) => (current === ref ? null : current)),
-        1200,
-      );
-      setAnnouncement(`Showing ${placed.item.title}`);
-      window.setTimeout(
-        () =>
-          boardRef.current
-            ?.querySelector<HTMLElement>(`[data-card="${ref}"]`)
-            ?.focus({ preventScroll: true }),
-        420,
-      );
-      if (open) setPreview({ ref, pinned: true });
-    },
-    [flyTo, focus, model.byRef, tagsShown, visible],
-  );
+    }
+    if (
+      focus &&
+      !tagsShown(placed.item).some((tag) => tag.topicId === focus.topicId)
+    )
+      setFocus(null);
+    const board = boardRef.current;
+    const z = Math.max(camera.current.z, 0.75);
+    const w = board?.clientWidth ?? 1200;
+    const h = board?.clientHeight ?? 800;
+    flyTo({
+      x: w / 2 - (placed.x + CARD_WIDTH / 2) * z,
+      y: h / 2 - (placed.y + placed.item.height / 2) * z,
+      z,
+    });
+    setSelected(ref);
+    setFlash(ref);
+    window.setTimeout(
+      () => setFlash((current) => (current === ref ? null : current)),
+      1200,
+    );
+    setAnnouncement(`Showing ${placed.item.title}`);
+    window.setTimeout(
+      () =>
+        boardRef.current
+          ?.querySelector<HTMLElement>(`[data-card="${ref}"]`)
+          ?.focus({ preventScroll: true }),
+      420,
+    );
+    if (open) setPreview({ ref, pinned: true });
+  };
 
-  const follow = useCallback(
-    (topicId: string) => {
-      const topic = model.topics.get(topicId);
-      if (!topic) {
-        onShowAllModules?.();
-        return;
-      }
-      setPreview(null);
-      setFocus({ topicId, stop: 0 });
-      const module = model.modules.find((entry) => entry.mapId === topic.mapId);
-      if (!module) return;
-      const items = topicTrail(topicId, module.items, module.layout)
-        .map((item) => model.byRef.get(item.ref))
-        .filter((placed): placed is Placed => Boolean(placed));
-      const cluster = module.layout.clusters.find(
-        (entry) => entry.key === topicId,
-      );
-      const rects = [
-        ...items.map(rectOf),
-        ...(cluster ? [headerRect(module, cluster)] : []),
-      ];
-      if (!rects.length) return;
-      const x = Math.min(...rects.map((rect) => rect.x));
-      const y = Math.min(...rects.map((rect) => rect.y));
-      const width = Math.max(...rects.map((rect) => rect.x + rect.w)) - x;
-      const height = Math.max(...rects.map((rect) => rect.y + rect.h)) - y;
-      flyTo(frameRect({ x, y, w: width, h: height }, 0.9, 40, 340));
-      setAnnouncement(
-        `Following ${topic.name}: ${items.length} ${items.length === 1 ? "stop" : "stops"}`,
-      );
-    },
-    [flyTo, frameRect, model, onShowAllModules],
-  );
+  const follow = (topicId: string) => {
+    const topic = model.topics.get(topicId);
+    if (!topic) {
+      onShowAllModules?.();
+      return;
+    }
+    setPreview(null);
+    setFocus({ topicId, stop: 0 });
+    const module = model.modules.find((entry) => entry.mapId === topic.mapId);
+    if (!module) return;
+    const items = topicTrail(topicId, module.items, module.layout)
+      .map((item) => model.byRef.get(item.ref))
+      .filter((placed): placed is Placed => Boolean(placed));
+    const cluster = module.layout.clusters.find(
+      (entry) => entry.key === topicId,
+    );
+    const rects = [
+      ...items.map(rectOf),
+      ...(cluster ? [headerRect(module, cluster)] : []),
+    ];
+    if (!rects.length) return;
+    const x = Math.min(...rects.map((rect) => rect.x));
+    const y = Math.min(...rects.map((rect) => rect.y));
+    const width = Math.max(...rects.map((rect) => rect.x + rect.w)) - x;
+    const height = Math.max(...rects.map((rect) => rect.y + rect.h)) - y;
+    flyTo(frameRect({ x, y, w: width, h: height }, 0.9, 40, 340));
+    setAnnouncement(
+      `Following ${topic.name}: ${items.length} ${items.length === 1 ? "stop" : "stops"}`,
+    );
+  };
 
-  const step = useCallback(
-    (index: number) => {
-      if (!focus || !trail.length) return;
-      const next = clamp(index, 0, trail.length - 1);
-      setFocus({ ...focus, stop: next });
-      goTo(trail[next].ref);
-    },
-    [focus, goTo, trail],
-  );
+  const step = (index: number) => {
+    if (!focus || !trail.length) return;
+    const next = clamp(index, 0, trail.length - 1);
+    setFocus({ ...focus, stop: next });
+    goTo(trail[next].ref);
+  };
 
   // board edits
-  const moduleOf = useCallback(
-    (ref: string) => model.byRef.get(ref)?.module,
-    [model.byRef],
-  );
-  const updateBoard = useCallback(
-    (ref: string, change: (board: StudyBoard) => StudyBoard) => {
-      const module = moduleOf(ref);
-      if (!module) return;
-      onBoardChange(module.mapId, change(module.board));
-    },
-    [moduleOf, onBoardChange],
-  );
+  const moduleOf = (ref: string) => model.byRef.get(ref)?.module;
+  const updateBoard = (ref: string, change: (board: StudyBoard) => StudyBoard) => {
+    const module = moduleOf(ref);
+    if (!module) return;
+    onBoardChange(module.mapId, change(module.board));
+  };
 
-  const place = useCallback(
-    (ref: string, x: number, y: number) => {
-      updateBoard(ref, (board) => {
-        const module = moduleOf(ref)!;
-        const existing = board.placements.find(
-          (placement) => placement.id === ref,
-        );
-        const placement = {
-          id: ref,
-          x: Math.round(x / 8) * 8,
-          y: Math.round((y - module.originY) / 8) * 8,
-          pinned: existing?.pinned ?? false,
-          topicId: null,
-        };
-        return {
-          ...board,
-          placements: [
-            ...board.placements.filter((entry) => entry.id !== ref),
-            placement,
-          ],
-        };
-      });
-    },
-    [moduleOf, updateBoard],
-  );
-
-  const togglePin = useCallback(
-    (ref: string) => {
-      const placed = model.byRef.get(ref);
-      if (!placed) return;
-      const existing = placed.module.board.placements.find(
+  const place = (ref: string, x: number, y: number) => {
+    updateBoard(ref, (board) => {
+      const module = moduleOf(ref)!;
+      const existing = board.placements.find(
         (placement) => placement.id === ref,
       );
-      updateBoard(ref, (board) => ({
+      const placement = {
+        id: ref,
+        x: Math.round(x / 8) * 8,
+        y: Math.round((y - module.originY) / 8) * 8,
+        pinned: existing?.pinned ?? false,
+        topicId: null,
+      };
+      return {
         ...board,
         placements: [
           ...board.placements.filter((entry) => entry.id !== ref),
-          {
-            id: ref,
-            x: existing?.x ?? placed.x,
-            y: existing?.y ?? placed.y - placed.module.originY,
-            pinned: !existing?.pinned,
-            topicId: null,
-          },
+          placement,
         ],
-      }));
-      setAnnouncement(existing?.pinned ? "Unpinned" : "Pinned in place");
-    },
-    [model.byRef, updateBoard],
-  );
+      };
+    });
+  };
 
-  const resetPosition = useCallback(
-    (ref: string) => {
-      updateBoard(ref, (board) => ({
+  const togglePin = (ref: string) => {
+    const placed = model.byRef.get(ref);
+    if (!placed) return;
+    const existing = placed.module.board.placements.find(
+      (placement) => placement.id === ref,
+    );
+    updateBoard(ref, (board) => ({
+      ...board,
+      placements: [
+        ...board.placements.filter((entry) => entry.id !== ref),
+        {
+          id: ref,
+          x: existing?.x ?? placed.x,
+          y: existing?.y ?? placed.y - placed.module.originY,
+          pinned: !existing?.pinned,
+          topicId: null,
+        },
+      ],
+    }));
+    setAnnouncement(existing?.pinned ? "Unpinned" : "Pinned in place");
+  };
+
+  const resetPosition = (ref: string) => {
+    updateBoard(ref, (board) => ({
+      ...board,
+      placements: board.placements.filter((entry) => entry.id !== ref),
+    }));
+    setAnnouncement("Back in its topic cluster");
+  };
+
+  const setWeek = (ref: string, value: string) => {
+    updateBoard(ref, (board) => {
+      const weeks = { ...board.weeks };
+      if (value === "detected") delete weeks[ref];
+      else weeks[ref] = Number(value);
+      // a new week reorders its cluster, so an unpinned card goes back into its place there
+      return {
         ...board,
-        placements: board.placements.filter((entry) => entry.id !== ref),
-      }));
-      setAnnouncement("Back in its topic cluster");
-    },
-    [updateBoard],
-  );
+        weeks,
+        placements: board.placements.filter(
+          (entry) => entry.id !== ref || entry.pinned,
+        ),
+      };
+    });
+  };
 
-  const setWeek = useCallback(
-    (ref: string, value: string) => {
-      updateBoard(ref, (board) => {
-        const weeks = { ...board.weeks };
-        if (value === "detected") delete weeks[ref];
-        else weeks[ref] = Number(value);
-        // a new week reorders its cluster, so an unpinned card goes back into its place there
-        return {
-          ...board,
-          weeks,
-          placements: board.placements.filter(
-            (entry) => entry.id !== ref || entry.pinned,
-          ),
-        };
-      });
-    },
-    [updateBoard],
-  );
-
-  const tidy = useCallback(() => {
+  const tidy = () => {
     let moved = 0;
     for (const module of model.modules) {
       const kept = module.board.placements.filter(
@@ -1151,9 +1132,9 @@ export default function StudyFlow({
         ? `Tidied ${moved} ${moved === 1 ? "card" : "cards"}. Pinned cards stay put.`
         : "Everything is already in its topic cluster.",
     );
-  }, [model.modules, onBoardChange]);
+  };
 
-  const saveLink = useCallback(() => {
+  const saveLink = () => {
     if (!connect?.to || !connect.label.trim()) return;
     const { from, to, label } = connect;
     updateBoard(from, (board) => ({
@@ -1170,18 +1151,15 @@ export default function StudyFlow({
     }));
     setConnect(null);
     setAnnouncement(`Linked: ${label.trim()}`);
-  }, [connect, updateBoard]);
+  };
 
-  const removeLink = useCallback(
-    (link: FlowLink) => {
-      updateBoard(link.source, (board) => ({
-        ...board,
-        links: board.links.filter((entry) => entry.id !== link.id),
-      }));
-      setAnnouncement("Link removed");
-    },
-    [updateBoard],
-  );
+  const removeLink = (link: FlowLink) => {
+    updateBoard(link.source, (board) => ({
+      ...board,
+      links: board.links.filter((entry) => entry.id !== link.id),
+    }));
+    setAnnouncement("Link removed");
+  };
 
   // pointer input: drag a card, pan the canvas, or pinch to zoom
   const boardPoint = (event: { clientX: number; clientY: number }) => {
@@ -1522,13 +1500,15 @@ export default function StudyFlow({
   }
 
   // drags continue outside the board without capturing the pointer, which would retarget clicks
-  const moveRef = useRef(onPointerMove);
-  const upRef = useRef(onPointerUp);
-  moveRef.current = onPointerMove;
-  upRef.current = onPointerUp;
+  const onWindowPointerMove = useEffectEvent((event: PointerEvent) =>
+    onPointerMove(event),
+  );
+  const onWindowPointerUp = useEffectEvent((event: PointerEvent) =>
+    onPointerUp(event),
+  );
   useEffect(() => {
-    const move = (event: PointerEvent) => moveRef.current(event);
-    const up = (event: PointerEvent) => upRef.current(event);
+    const move = (event: PointerEvent) => onWindowPointerMove(event);
+    const up = (event: PointerEvent) => onWindowPointerUp(event);
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
     window.addEventListener("pointercancel", up);
@@ -1786,10 +1766,7 @@ export default function StudyFlow({
   const focusModule = focusTopic
     ? model.modules.find((module) => module.mapId === focusTopic.mapId)
     : undefined;
-  const lookup = useCallback(
-    (ref: string) => model.byRef.get(ref),
-    [model.byRef],
-  );
+  const lookup = (ref: string) => model.byRef.get(ref);
   const toScreen = (x: number, y: number) => ({
     x: x * view.z + view.x,
     y: y * view.z + view.y,

@@ -105,9 +105,7 @@ export default function NotesWorkspace({
       });
 
     return () => controller.abort();
-    // router is a stable Next.js ref
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [noteDependenciesReady, pathname, paneAFileId, setPaneA, treeGeneration]);
+  }, [noteDependenciesReady, pathname, paneAFileId, router, setPaneA, treeGeneration]);
 
   const initLoaded = useNoteTreeStore((s) => s.initLoaded);
   useEffect(() => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { FC, memo, useCallback, useRef, useState } from "react";
+import { FC, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -100,81 +100,69 @@ const EditorPane: FC<EditorPaneProps> = ({
   const [dropTarget, setDropTarget] = useState<PaneId | null>(null);
 
   // all hooks must be called before any early returns
-  const handleClose = useCallback(() => {
+  const handleClose = () => {
     if (pane === "A") {
       setPaneA(undefined);
     } else {
       setPaneB(undefined);
     }
-  }, [pane, setPaneA, setPaneB]);
+  };
 
-  const handleDragStart = useCallback(
-    (e: React.DragEvent) => {
-      if (!file || !splitInteractionsEnabled) {
-        e.preventDefault();
-        return;
-      }
-      e.dataTransfer.effectAllowed = "move";
-      e.dataTransfer.setData(
-        FILE_DRAG_MIME,
-        JSON.stringify({ file, sourcePane: pane }),
-      );
-      setIsDragging(true);
-    },
-    [file, pane, splitInteractionsEnabled],
-  );
+  const handleDragStart = (e: React.DragEvent) => {
+    if (!file || !splitInteractionsEnabled) {
+      e.preventDefault();
+      return;
+    }
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData(
+      FILE_DRAG_MIME,
+      JSON.stringify({ file, sourcePane: pane }),
+    );
+    setIsDragging(true);
+  };
 
-  const handleDragEnd = useCallback(() => {
+  const handleDragEnd = () => {
     setIsDragging(false);
     setDropTarget(null);
-  }, []);
+  };
 
-  const handleDragOver = useCallback(
-    (e: React.DragEvent) => {
-      if (!splitInteractionsEnabled) return;
-      // files dragged in from the desktop are the editor's to handle
-      if (!e.dataTransfer.types.includes(FILE_DRAG_MIME)) return;
-      e.preventDefault();
-      e.dataTransfer.dropEffect = "move";
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!splitInteractionsEnabled) return;
+    // files dragged in from the desktop are the editor's to handle
+    if (!e.dataTransfer.types.includes(FILE_DRAG_MIME)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
 
-      if (hasSecondaryPane || pane === "B") {
-        setDropTarget(pane);
-        return;
-      }
+    if (hasSecondaryPane || pane === "B") {
+      setDropTarget(pane);
+      return;
+    }
 
-      const rect = paneRef.current?.getBoundingClientRect();
-      if (rect)
-        setDropTarget(e.clientX >= rect.left + rect.width / 2 ? "B" : "A");
-    },
-    [hasSecondaryPane, pane, splitInteractionsEnabled],
-  );
+    const rect = paneRef.current?.getBoundingClientRect();
+    if (rect)
+      setDropTarget(e.clientX >= rect.left + rect.width / 2 ? "B" : "A");
+  };
 
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
+  const handleDragLeave = (e: React.DragEvent) => {
     const nextTarget = e.relatedTarget;
     if (nextTarget instanceof Node && e.currentTarget.contains(nextTarget))
       return;
     setDropTarget(null);
-  }, []);
+  };
 
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      if (!splitInteractionsEnabled) return;
-      if (!e.dataTransfer.types.includes(FILE_DRAG_MIME)) return;
-      e.preventDefault();
-      setIsDragging(false);
+  const handleDrop = (e: React.DragEvent) => {
+    if (!splitInteractionsEnabled) return;
+    if (!e.dataTransfer.types.includes(FILE_DRAG_MIME)) return;
+    e.preventDefault();
+    setIsDragging(false);
+    setDropTarget(null);
 
-      try {
-        const payload = parseFileDragPayload(
-          e.dataTransfer.getData(FILE_DRAG_MIME),
-        );
-        const target = dropTarget ?? pane;
-        if (payload) placeFileInPane(payload.file, target, payload.sourcePane);
-      } finally {
-        setDropTarget(null);
-      }
-    },
-    [dropTarget, pane, placeFileInPane, splitInteractionsEnabled],
-  );
+    const payload = parseFileDragPayload(
+      e.dataTransfer.getData(FILE_DRAG_MIME),
+    );
+    const target = dropTarget ?? pane;
+    if (payload) placeFileInPane(payload.file, target, payload.sourcePane);
+  };
 
   const otherPane: PaneId = pane === "A" ? "B" : "A";
   const sourceIsOpenBeside = useLayoutStore((s) =>
@@ -501,4 +489,4 @@ const SaveIndicatorButton: FC<SaveIndicatorButtonProps> = ({
   );
 };
 
-export default memo(EditorPane);
+export default EditorPane;

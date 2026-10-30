@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { MutableRefObject } from "react";
+import type { RefObject } from "react";
 import {
   applyUpdate,
   consumeChatStream,
@@ -13,7 +13,7 @@ import {
 import { isChatOperationCurrent } from "@/lib/chat/hooks/use-chat-stream";
 import type { Message } from "@/lib/chat/types";
 
-function ref(): MutableRefObject<number | null> {
+function ref(): RefObject<number | null> {
   return { current: null };
 }
 

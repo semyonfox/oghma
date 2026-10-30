@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  type ReactNode,
-  Suspense,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { type ReactNode, Suspense, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import I18nProvider from "@/lib/i18n/provider";
 import { isRtlLocale, Locale, normalizeLocale } from "@/locales";
@@ -103,15 +96,12 @@ function I18nRootProviderContent({
     setLocaleData(initialLocaleData);
   }, [initialLocaleData]);
 
-  const handleLocaleChange = useCallback(
-    (locale: Locale, dict: LocaleData["dict"]) => {
-      localeVersionRef.current += 1;
-      chosenLocaleRef.current = locale;
-      setLocaleData({ locale, dict });
-      persistClientLocale(locale);
-    },
-    [],
-  );
+  const handleLocaleChange = (locale: Locale, dict: LocaleData["dict"]) => {
+    localeVersionRef.current += 1;
+    chosenLocaleRef.current = locale;
+    setLocaleData({ locale, dict });
+    persistClientLocale(locale);
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -128,7 +118,7 @@ function I18nRootProviderContent({
     };
 
     const loadLocale = async () => {
-      try {
+      const run = async () => {
         const browserLocale = readClientLocale();
         const instantLocale = browserLocale ?? initialLocaleData.locale;
 
@@ -176,10 +166,12 @@ function I18nRootProviderContent({
         if (accountLocale !== instantLocale) {
           await applyLocale(accountLocale);
         }
-      } catch (error) {
-        if (controller.signal.aborted) return;
-        console.warn("Failed to fetch user settings:", error);
-      }
+      };
+      await run()
+        .catch((error: unknown) => {
+          if (controller.signal.aborted) return;
+          console.warn("Failed to fetch user settings:", error);
+        });
     };
 
     void loadLocale();

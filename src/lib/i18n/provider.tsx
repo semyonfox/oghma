@@ -3,14 +3,7 @@
 // adapted from notea: https://github.com/QingWei-Li/notea
 // original file: libs/web/utils/i18n-provider.tsx
 
-import {
-  createContext,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, useEffect, useState, type ReactNode } from "react";
 import { Locale } from "@/locales";
 import type { LocaleDictionary } from "@/lib/i18n/locale-data";
 import { translate, type Translate } from "@/lib/i18n/translate";
@@ -51,25 +44,19 @@ export default function I18nProvider({
   // each provider reads its own dictionary, so nested editor/public providers
   // cannot overwrite one another's active locale
   const activeDictionary = localeData.dict;
-  const t = useCallback<Translate>(
-    (key, params) => translate(activeDictionary, key, params),
-    [activeDictionary],
-  );
+  const t: Translate = (key, params) =>
+    translate(activeDictionary, key, params);
 
-  const setLocale = useCallback(
-    (nextLocale: Locale, dictionary: LocaleDictionary) => {
-      setLocaleData({ locale: nextLocale, dict: dictionary });
-      onLocaleChange?.(nextLocale, dictionary);
-    },
-    [onLocaleChange],
-  );
+  const setLocale = (nextLocale: Locale, dictionary: LocaleDictionary) => {
+    setLocaleData({ locale: nextLocale, dict: dictionary });
+    onLocaleChange?.(nextLocale, dictionary);
+  };
 
-  const contextValue = useMemo<ContextProps>(
-    () => ({ activeLocale: localeData.locale, t, locale: setLocale }),
-    [localeData.locale, setLocale, t],
-  );
+  const contextValue: ContextProps = {
+    activeLocale: localeData.locale,
+    t,
+    locale: setLocale,
+  };
 
-  return (
-    <I18nContext.Provider value={contextValue}>{children}</I18nContext.Provider>
-  );
+  return <I18nContext value={contextValue}>{children}</I18nContext>;
 }

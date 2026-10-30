@@ -13,7 +13,7 @@ export async function cacheGet<T>(key: string): Promise<T | null> {
     const raw = await redis.get(key);
     return raw ? (JSON.parse(raw) as T) : null;
   } catch (err) {
-    logger.warn('cache get failed', { key, error: (err as Error).message });
+    logger.warn('cache get failed', { key, error: err });
     return null;
   }
 }
@@ -25,7 +25,7 @@ export async function cacheSet(key: string, value: unknown, ttlSeconds: number):
     if (serialized.length > MAX_CACHEABLE_SIZE) return;
     await redis.set(key, serialized, 'EX', ttlSeconds);
   } catch (err) {
-    logger.warn('cache set failed', { key, error: (err as Error).message });
+    logger.warn('cache set failed', { key, error: err });
   }
 }
 
@@ -37,7 +37,7 @@ export async function cacheInvalidate(...keys: string[]): Promise<void> {
     if (!redisReady && !(await ensureRedisReady())) return;
     await Promise.all(keys.map((k) => redis.del(k)));
   } catch (err) {
-    logger.warn('cache invalidate failed', { keys, error: (err as Error).message });
+    logger.warn('cache invalidate failed', { keys, error: err });
   }
 }
 

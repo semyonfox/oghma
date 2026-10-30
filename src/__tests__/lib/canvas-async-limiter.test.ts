@@ -75,9 +75,8 @@ describe("Canvas async limiter", () => {
       { status: "rejected", reason: failure },
       { status: "fulfilled", value: "third" },
     ]);
-    expect(consoleError).toHaveBeenCalledOnce();
-    expect(JSON.stringify(consoleError.mock.calls)).not.toContain("broken task");
-    expect(consoleError.mock.calls[0]).toHaveLength(1);
+    // the logger keeps the error's class and code and drops its text
+    expect(consoleError).toHaveBeenCalledExactlyOnceWith("limited task failed", { error: failure });
     consoleError.mockRestore();
   });
 

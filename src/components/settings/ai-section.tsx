@@ -36,7 +36,7 @@ export default function AISection() {
     event.preventDefault();
     if (!hasChanges) return;
     setSaving(true);
-    try {
+    const run = async () => {
       const savedSettings = await updateSettings({
         ai_canvas_access: canvasAccessEnabled,
       });
@@ -46,12 +46,15 @@ export default function AISection() {
           : canvasAccessEnabled,
       );
       toast.success(t("AI settings saved"));
-    } catch (error) {
-      console.error("Failed to save AI settings:", error);
-      toast.error(t("Failed to save settings"));
-    } finally {
-      setSaving(false);
-    }
+    };
+    await run()
+      .catch((error: unknown) => {
+        console.error("Failed to save AI settings:", error);
+        toast.error(t("Failed to save settings"));
+      })
+      .finally(() => {
+        setSaving(false);
+      });
   };
 
   return (

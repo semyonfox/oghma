@@ -59,7 +59,7 @@ async function runJobPipeline(
 // ── Job entry point (legacy single-pass) ────────────────────────────────────
 
 export async function processImportJob(jobId: string): Promise<boolean> {
-  logger.info("worker_event");
+  logger.info("canvas import started");
   let job:
     | { id: string; user_id: string; course_ids: string | Array<unknown> }
     | undefined;
@@ -79,21 +79,21 @@ export async function processImportJob(jobId: string): Promise<boolean> {
       RETURNING *
     `;
     if (!job) {
-      logger.info("worker_event");
+      logger.info("canvas import skipped: job not claimable");
       return false;
     }
     await runJobPipeline(jobId, job.user_id, parseJobCourses(job));
 
     const completed = await checkAndCompleteJob(jobId, job.user_id);
     if (!completed) {
-      logger.info("worker_event");
+      logger.info("canvas import still has pending files");
       return true;
     }
 
-    logger.info("worker_event");
+    logger.info("canvas import completed");
     return true;
   } catch (error) {
-    logger.error("worker_event");
+    logger.error("canvas import failed", { error });
     await sql`
       UPDATE app.canvas_import_jobs
       SET status = 'failed', error_message = ${errorMessage(error)}, updated_at = NOW()

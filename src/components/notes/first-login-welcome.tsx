@@ -50,7 +50,7 @@ export default function FirstLoginWelcome() {
     if (!noteId || saving) return;
     setSaving(true);
     setError(false);
-    try {
+    const run = async () => {
       const response = await fetch("/api/onboarding/welcome", {
         method: "POST",
       });
@@ -63,11 +63,14 @@ export default function FirstLoginWelcome() {
             : null;
       setNoteId(null);
       if (target) router.push(target);
-    } catch {
-      setError(true);
-    } finally {
-      setSaving(false);
-    }
+    };
+    await run()
+      .catch(() => {
+        setError(true);
+      })
+      .finally(() => {
+        setSaving(false);
+      });
   };
 
   return (

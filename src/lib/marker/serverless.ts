@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import type postgres from "postgres";
 
 import sql from "@/database/pgsql";
+import logger from "@/lib/logger";
 import {
   enqueueMarkerCompletionJob,
   enqueueMarkerDispatchJob,
@@ -686,9 +687,7 @@ async function cancelAbandonedRunPodJob(job: MarkerJobRow): Promise<void> {
     await cancelRunPodJob(job.provider_job_id, runpodConfig(job.callback_id));
   } catch (error) {
     // best effort: the row still fails and any late result is ignored
-    console.warn(
-      `RunPod cancel failed for Marker job ${job.callback_id}: ${errorMessage(error)}`,
-    );
+    logger.warn("runpod marker cancel failed", { error });
   }
 }
 
@@ -719,9 +718,7 @@ export async function dispatchMarkerJob(callbackId: string): Promise<void> {
     try {
       result = await storage.getObjectMeta(existing.result_key);
     } catch (error) {
-      console.warn(
-        `Marker result probe failed for ${callbackId}: ${errorMessage(error)}`,
-      );
+      logger.warn("marker result probe failed", { error });
       return;
     }
     if (result !== undefined) {
@@ -958,9 +955,7 @@ export async function recoverMarkerDispatchJobs(limit = 50): Promise<number> {
     } catch (error) {
       // Preserve awaiting_result so a transient queue outage cannot turn an
       // ambiguous paid request into a fresh dispatch.
-      console.error(
-        `Marker result probe enqueue failed for ${row.callback_id}: ${errorMessage(error)}`,
-      );
+      logger.error("marker result probe enqueue failed", { error });
     }
   }
 

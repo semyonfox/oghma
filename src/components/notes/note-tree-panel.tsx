@@ -3,7 +3,7 @@
 import { TrashIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FC, useCallback, useEffect, useRef, useState } from "react";
+import { FC, useEffect, useState } from "react";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import SidebarList from "@/components/notes/sidebar/sidebar-list";
 
@@ -11,52 +11,42 @@ interface NoteTreePanelProps {
   onOpenNote?: () => void;
 }
 
+async function fetchTrashCount(signal: AbortSignal) {
+  const response = await fetch("/api/trash", { cache: "no-store", signal });
+  if (!response.ok) throw new Error(`Failed to load Trash: ${response.status}`);
+  const data = (await response.json()) as { items?: unknown };
+  return Array.isArray(data.items) ? data.items.length : 0;
+}
+
 const NoteTreePanel: FC<NoteTreePanelProps> = ({ onOpenNote }) => {
   const { t } = useI18n();
   const pathname = usePathname();
   const isTrash = pathname === "/notes/trash";
   const [trashCount, setTrashCount] = useState(0);
-  const isMountedRef = useRef(false);
-  const requestControllerRef = useRef<AbortController | null>(null);
-
-  const refreshTrashCount = useCallback(async () => {
-    requestControllerRef.current?.abort();
-    const controller = new AbortController();
-    requestControllerRef.current = controller;
-
-    try {
-      const response = await fetch("/api/trash", {
-        cache: "no-store",
-        signal: controller.signal,
-      });
-      if (!response.ok) throw new Error(`Failed to load Trash: ${response.status}`);
-
-      const data = (await response.json()) as { items?: unknown };
-      const count = Array.isArray(data.items) ? data.items.length : 0;
-
-      if (!controller.signal.aborted && isMountedRef.current) {
-        setTrashCount(count);
-      }
-    } catch {
-      if (!controller.signal.aborted && isMountedRef.current) {
-        setTrashCount(0);
-      }
-    }
-  }, []);
 
   useEffect(() => {
-    isMountedRef.current = true;
-    void refreshTrashCount();
-
-    const handleTrashChanged = () => void refreshTrashCount();
-    window.addEventListener("notes:trash-changed", handleTrashChanged);
-
-    return () => {
-      isMountedRef.current = false;
-      requestControllerRef.current?.abort();
-      window.removeEventListener("notes:trash-changed", handleTrashChanged);
+    let controller: AbortController | null = null;
+    const refresh = () => {
+      controller?.abort();
+      const current = new AbortController();
+      controller = current;
+      fetchTrashCount(current.signal).then(
+        (count) => {
+          if (!current.signal.aborted) setTrashCount(count);
+        },
+        () => {
+          if (!current.signal.aborted) setTrashCount(0);
+        },
+      );
     };
-  }, [refreshTrashCount]);
+
+    refresh();
+    window.addEventListener("notes:trash-changed", refresh);
+    return () => {
+      controller?.abort();
+      window.removeEventListener("notes:trash-changed", refresh);
+    };
+  }, []);
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">

@@ -1,7 +1,13 @@
 "use client";
 
 import { boundedChatHistory } from "@/lib/chat/request-history";
-import { useState, useRef, useCallback, useEffect } from "react";
+import {
+  useState,
+  useRef,
+  useEffect,
+  useLayoutEffect,
+  useEffectEvent,
+} from "react";
 import type { LlmThinkingMode } from "@/lib/ai-config";
 import { toFriendlyChatError } from "@/lib/friendly-errors";
 import {
@@ -120,7 +126,6 @@ export function useChatStream(
 
   const [messages, setMessages] = useState<Message[]>([]);
   const messagesRef = useRef<Message[]>(messages);
-  messagesRef.current = messages;
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -143,9 +148,8 @@ export function useChatStream(
   const activeOperationRef = useRef<ChatOperation | null>(null);
   const createdSessionRef = useRef<string | null>(null);
   const routeSessionIdRef = useRef<string | null>(controlledSessionId ?? null);
-  routeSessionIdRef.current = controlledSessionId ?? null;
 
-  const isCurrent = useCallback((operation: ChatOperation): boolean => {
+  const isCurrent = (operation: ChatOperation): boolean => {
     return Boolean(
       mountedRef.current &&
         isChatOperationCurrent(
@@ -154,9 +158,9 @@ export function useChatStream(
           routeSessionIdRef.current,
         ),
     );
-  }, []);
+  };
 
-  const beginOperation = useCallback((): ChatOperation => {
+  const beginOperation = (): ChatOperation => {
     activeOperationRef.current?.controller.abort();
     const operation = {
       id: ++operationIdRef.current,
@@ -166,16 +170,16 @@ export function useChatStream(
     };
     activeOperationRef.current = operation;
     return operation;
-  }, []);
+  };
 
-  const detachOperation = useCallback((operation?: ChatOperation): void => {
+  const detachOperation = (operation?: ChatOperation): void => {
     const active = activeOperationRef.current;
     if (!active || (operation && active.id !== operation.id)) return;
     active.controller.abort();
     activeOperationRef.current = null;
-  }, []);
+  };
 
-  const cancel = useCallback(() => {
+  const cancel = () => {
     const generationId = activeGenerationRef.current;
     if (generationId) {
       // Keep delivery attached until the worker saves the cancelled output.
@@ -201,19 +205,28 @@ export function useChatStream(
       }
       return prev;
     });
-  }, [detachOperation]);
+  };
 
   // stable ref for sessionId so stream handlers see the latest value
   const sessionIdRef = useRef<string | null>(null);
-  sessionIdRef.current = sessionId;
+
+  // async stream handlers read the latest render through these refs. a layout
+  // effect syncs them on every commit, before any other effect reads them
+  useLayoutEffect(() => {
+    messagesRef.current = messages;
+    routeSessionIdRef.current = controlledSessionId ?? null;
+    sessionIdRef.current = sessionId;
+  });
+
+  const detachFromEffect = useEffectEvent(() => detachOperation());
 
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      detachOperation();
+      detachFromEffect();
     };
-  }, [detachOperation]);
+  }, []);
 
   useEffect(() => {
     const nextSessionId = controlledSessionId ?? null;
@@ -221,7 +234,7 @@ export function useChatStream(
       nextSessionId !== null && createdSessionRef.current === nextSessionId;
     createdSessionRef.current = null;
     if (!adoptingCreatedSession) {
-      detachOperation();
+      detachFromEffect();
       activeGenerationRef.current = null;
       generationCursorRef.current = null;
       setMessages([]);
@@ -230,315 +243,306 @@ export function useChatStream(
     }
     sessionIdRef.current = nextSessionId;
     setSessionId(nextSessionId);
-  }, [controlledSessionId, detachOperation]);
+  }, [controlledSessionId]);
 
-  const handleNewSession = useCallback(
-    (
-      operation: ChatOperation,
-      newSessionId: string | undefined,
-      userText: string,
-    ): void => {
-      if (!isCurrent(operation)) return;
-      if (newSessionId && newSessionId !== sessionIdRef.current) {
-        if (operation.routeSessionId === null) {
-          operation.createdSessionId = newSessionId;
-          createdSessionRef.current = newSessionId;
-        }
-        sessionIdRef.current = newSessionId;
-        setSessionId(newSessionId);
-        onSessionCreated?.(newSessionId, userText.slice(0, 60));
+  const handleNewSession = (
+    operation: ChatOperation,
+    newSessionId: string | undefined,
+    userText: string,
+  ): void => {
+    if (!isCurrent(operation)) return;
+    if (newSessionId && newSessionId !== sessionIdRef.current) {
+      if (operation.routeSessionId === null) {
+        operation.createdSessionId = newSessionId;
+        createdSessionRef.current = newSessionId;
       }
-    },
-    [isCurrent, onSessionCreated],
-  );
+      sessionIdRef.current = newSessionId;
+      setSessionId(newSessionId);
+      onSessionCreated?.(newSessionId, userText.slice(0, 60));
+    }
+  };
 
-  const consumeStream = useCallback(
-    (
-      operation: ChatOperation,
-      body: ReadableStream<Uint8Array>,
-      assistantId: string,
-      userText: string,
-      onEventId?: (id: string) => void,
-    ) =>
-      consumeChatStream({
-        body,
+  const consumeStream = (
+    operation: ChatOperation,
+    body: ReadableStream<Uint8Array>,
+    assistantId: string,
+    userText: string,
+    onEventId?: (id: string) => void,
+  ) =>
+    consumeChatStream({
+      body,
+      assistantId,
+      userText,
+      thinkingStartRef,
+      setMessages: (update) => {
+        if (isCurrent(operation)) setMessages(update);
+      },
+      onSession: (newSessionId, text) =>
+        handleNewSession(operation, newSessionId, text),
+      onEventId,
+      translate: t,
+      signal: operation.controller.signal,
+      isActive: () => isCurrent(operation),
+    });
+
+  const consumeGeneration = (
+    operation: ChatOperation,
+    generationId: string,
+    assistantId: string,
+    userText: string,
+  ) =>
+    consumeBackgroundGeneration({
+      generationId,
+      afterId:
+        generationCursorRef.current?.generationId === generationId
+          ? generationCursorRef.current.eventId
+          : "0-0",
+      onEventId: (eventId) => {
+        if (isCurrent(operation)) {
+          generationCursorRef.current = { generationId, eventId };
+        }
+      },
+      assistantId,
+      userText,
+      signal: operation.controller.signal,
+      activeGenerationRef,
+      consumeStream: (body, targetAssistantId, text, onEventId) =>
+        consumeStream(operation, body, targetAssistantId, text, onEventId),
+    });
+
+  const reconcileDurableSession = async (operation: ChatOperation): Promise<boolean> => {
+    const durableSessionId = sessionIdRef.current;
+    if (!durableSessionId || !isCurrent(operation)) return false;
+    try {
+      const snapshot = await fetchChatSessionSnapshot(
+        durableSessionId,
+        operation.controller.signal,
+      );
+      if (!isCurrent(operation)) return false;
+      // A failed connection can leave the worker running. Keep its visible
+      // partial output until a terminal snapshot can replace it.
+      if (snapshot.generating) return false;
+      setMessages((current) =>
+        reconcileChatMessages(current, snapshot.messages),
+      );
+      clearDraft(durableSessionId);
+      return true;
+    } catch (restoreFailure) {
+      if (!operation.controller.signal.aborted) {
+        logChatStream("warn", "durable session reconciliation failed", {
+          sessionId: durableSessionId,
+          error:
+            restoreFailure instanceof Error
+              ? restoreFailure.message
+              : String(restoreFailure),
+        });
+      }
+      return false;
+    }
+  };
+
+  const send = async (text: string, history: { role: string; content: string }[]) => {
+    if (
+      !text ||
+      !sessionReady ||
+      loading ||
+      activeOperationRef.current
+    ) {
+      return;
+    }
+
+    const operation = beginOperation();
+    const requestSessionId =
+      operation.routeSessionId ?? sessionIdRef.current;
+
+    setError(null);
+    thinkingStartRef.current = null;
+
+    const userMsg: Message = {
+      id: makeId(),
+      role: "user",
+      content: text,
+      parts: [{ type: "text", text }],
+      timestamp: Date.now(),
+    };
+    const assistantId = makeId();
+    const assistantMsg: Message = {
+      id: assistantId,
+      role: "assistant",
+      content: "",
+      parts: [],
+      sources: [],
+      timestamp: Date.now(),
+    };
+
+    setMessages((prev) => [...prev, userMsg, assistantMsg]);
+    setLoading(true);
+
+    const request = async () => {
+      logChatStream("info", "starting request", {
+        endpoint: "/api/chat",
         assistantId,
-        userText,
-        thinkingStartRef,
-        setMessages: (update) => {
-          if (isCurrent(operation)) setMessages(update);
-        },
-        onSession: (newSessionId, text) =>
-          handleNewSession(operation, newSessionId, text),
-        onEventId,
-        translate: t,
-        signal: operation.controller.signal,
-        isActive: () => isCurrent(operation),
-      }),
-    [handleNewSession, isCurrent, t],
-  );
+        hasSessionId: Boolean(requestSessionId),
+        noteCount: selectedNotes.length,
+        folderCount: selectedFolders.length,
+        thinkingMode,
+      });
 
-  const consumeGeneration = useCallback(
-    (
-      operation: ChatOperation,
-      generationId: string,
-      assistantId: string,
-      userText: string,
-    ) =>
-      consumeBackgroundGeneration({
-        generationId,
-        afterId:
-          generationCursorRef.current?.generationId === generationId
-            ? generationCursorRef.current.eventId
-            : "0-0",
-        onEventId: (eventId) => {
-          if (isCurrent(operation)) {
-            generationCursorRef.current = { generationId, eventId };
+      const pendingStart = { operationId: operation.id, stopRequested: false };
+      pendingStartRef.current = pendingStart;
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: operation.controller.signal,
+        body: JSON.stringify({
+          message: text,
+          noteId,
+          noteTitle,
+          noteIds: selectedNotes.map((n) => n.id),
+          folderIds: selectedFolders.map((f) => f.id),
+          selectedNotes,
+          selectedFolders,
+          sessionId: requestSessionId,
+          history: boundedChatHistory(history),
+          stream: true,
+          background: true,
+          thinkingMode,
+          useRag,
+          clientDateTime: formatClientDateTime(),
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Server error ${res.status}`);
+      }
+
+      const contentType = res.headers.get("Content-Type") || "";
+
+      // non-streaming JSON fallback
+      if (contentType.includes("application/json")) {
+        const data = await res.json();
+        if (typeof data.generationId === "string") {
+          if (pendingStart.stopRequested) {
+            requestGenerationCancel(data.generationId);
           }
-        },
-        assistantId,
-        userText,
-        signal: operation.controller.signal,
-        activeGenerationRef,
-        consumeStream: (body, targetAssistantId, text, onEventId) =>
-          consumeStream(operation, body, targetAssistantId, text, onEventId),
-      }),
-    [consumeStream, isCurrent],
-  );
-
-  const reconcileDurableSession = useCallback(
-    async (operation: ChatOperation): Promise<boolean> => {
-      const durableSessionId = sessionIdRef.current;
-      if (!durableSessionId || !isCurrent(operation)) return false;
-      try {
-        const snapshot = await fetchChatSessionSnapshot(
-          durableSessionId,
-          operation.controller.signal,
-        );
-        if (!isCurrent(operation)) return false;
-        // A failed connection can leave the worker running. Keep its visible
-        // partial output until a terminal snapshot can replace it.
-        if (snapshot.generating) return false;
-        setMessages((current) =>
-          reconcileChatMessages(current, snapshot.messages),
-        );
-        clearDraft(durableSessionId);
-        return true;
-      } catch (restoreFailure) {
-        if (!operation.controller.signal.aborted) {
-          logChatStream("warn", "durable session reconciliation failed", {
-            sessionId: durableSessionId,
-            error:
-              restoreFailure instanceof Error
-                ? restoreFailure.message
-                : String(restoreFailure),
-          });
+          pendingStartRef.current = null;
+          handleNewSession(operation, data.sessionId, text);
+          await consumeGeneration(
+            operation,
+            data.generationId,
+            assistantId,
+            text,
+          );
+          if (!isCurrent(operation)) return;
+          const reconciled = await reconcileDurableSession(operation);
+          if (!isCurrent(operation)) return;
+          if (!reconciled && sessionIdRef.current) {
+            onTerminalFailure?.(sessionIdRef.current);
+          }
+          clearDraft(data.sessionId || sessionIdRef.current);
+          onStreamComplete?.(sessionIdRef.current, data.generationId);
+          return;
         }
-        return false;
-      }
-    },
-    [isCurrent],
-  );
-
-  const send = useCallback(
-    async (text: string, history: { role: string; content: string }[]) => {
-      if (
-        !text ||
-        !sessionReady ||
-        loading ||
-        activeOperationRef.current
-      ) {
+        handleNewSession(operation, data.sessionId, text);
+        if (!isCurrent(operation)) return;
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId
+              ? {
+                  ...m,
+                  content: data.reply || "",
+                  parts: normalizeMessageParts(data.parts) ?? [
+                    ...(data.searchContext?.query
+                      ? [
+                          {
+                            type: "tool" as const,
+                            name: "ragSearch",
+                            label: "Searched notes",
+                            detail: noteSearchDetail(
+                              data.searchContext.query,
+                              data.searchContext.results ?? [],
+                            ),
+                          },
+                        ]
+                      : []),
+                    ...(data.reply
+                      ? [{ type: "text" as const, text: data.reply }]
+                      : []),
+                  ],
+                  thinking: data.thinking || undefined,
+                  sources: Array.isArray(data.sources) ? data.sources : [],
+                  retrieval: data.retrieval,
+                  searchContext: data.searchContext ?? undefined,
+                  timestamp: Date.now(),
+                }
+              : m,
+          ),
+        );
+        clearDraft(data.sessionId || sessionIdRef.current);
+        onStreamComplete?.(sessionIdRef.current);
         return;
       }
 
-      const operation = beginOperation();
-      const requestSessionId =
-        operation.routeSessionId ?? sessionIdRef.current;
+      if (!res.body) {
+        throw new Error("Missing stream body");
+      }
 
-      setError(null);
-      thinkingStartRef.current = null;
-
-      const userMsg: Message = {
-        id: makeId(),
-        role: "user",
-        content: text,
-        parts: [{ type: "text", text }],
-        timestamp: Date.now(),
-      };
-      const assistantId = makeId();
-      const assistantMsg: Message = {
-        id: assistantId,
-        role: "assistant",
-        content: "",
-        parts: [],
-        sources: [],
-        timestamp: Date.now(),
-      };
-
-      setMessages((prev) => [...prev, userMsg, assistantMsg]);
-      setLoading(true);
-
-      try {
-        logChatStream("info", "starting request", {
-          endpoint: "/api/chat",
-          assistantId,
-          hasSessionId: Boolean(requestSessionId),
-          noteCount: selectedNotes.length,
-          folderCount: selectedFolders.length,
-          thinkingMode,
-        });
-
-        const pendingStart = { operationId: operation.id, stopRequested: false };
-        pendingStartRef.current = pendingStart;
-        const res = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          signal: operation.controller.signal,
-          body: JSON.stringify({
-            message: text,
-            noteId,
-            noteTitle,
-            noteIds: selectedNotes.map((n) => n.id),
-            folderIds: selectedFolders.map((f) => f.id),
-            selectedNotes,
-            selectedFolders,
-            sessionId: requestSessionId,
-            history: boundedChatHistory(history),
-            stream: true,
-            background: true,
-            thinkingMode,
-            useRag,
-            clientDateTime: formatClientDateTime(),
-          }),
-        });
-
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || `Server error ${res.status}`);
-        }
-
-        const contentType = res.headers.get("Content-Type") || "";
-
-        // non-streaming JSON fallback
-        if (contentType.includes("application/json")) {
-          const data = await res.json();
-          if (typeof data.generationId === "string") {
-            if (pendingStart.stopRequested) {
-              requestGenerationCancel(data.generationId);
-            }
-            pendingStartRef.current = null;
-            handleNewSession(operation, data.sessionId, text);
-            await consumeGeneration(
-              operation,
-              data.generationId,
-              assistantId,
-              text,
-            );
-            if (!isCurrent(operation)) return;
-            const reconciled = await reconcileDurableSession(operation);
-            if (!isCurrent(operation)) return;
-            if (!reconciled && sessionIdRef.current) {
-              onTerminalFailure?.(sessionIdRef.current);
-            }
-            clearDraft(data.sessionId || sessionIdRef.current);
-            onStreamComplete?.(sessionIdRef.current, data.generationId);
-            return;
-          }
-          handleNewSession(operation, data.sessionId, text);
-          if (!isCurrent(operation)) return;
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantId
-                ? {
-                    ...m,
-                    content: data.reply || "",
-                    parts: normalizeMessageParts(data.parts) ?? [
-                      ...(data.searchContext?.query
-                        ? [
-                            {
-                              type: "tool" as const,
-                              name: "ragSearch",
-                              label: "Searched notes",
-                              detail: noteSearchDetail(
-                                data.searchContext.query,
-                                data.searchContext.results ?? [],
-                              ),
-                            },
-                          ]
-                        : []),
-                      ...(data.reply
-                        ? [{ type: "text" as const, text: data.reply }]
-                        : []),
-                    ],
-                    thinking: data.thinking || undefined,
-                    sources: Array.isArray(data.sources) ? data.sources : [],
-                    retrieval: data.retrieval,
-                    searchContext: data.searchContext ?? undefined,
-                    timestamp: Date.now(),
-                  }
-                : m,
-            ),
-          );
-          clearDraft(data.sessionId || sessionIdRef.current);
-          onStreamComplete?.(sessionIdRef.current);
-          return;
-        }
-
-        if (!res.body) {
-          throw new Error("Missing stream body");
-        }
-
-        await consumeStream(operation, res.body, assistantId, text);
-        if (!isCurrent(operation)) return;
-        logChatStream("info", "stream completed", {
+      await consumeStream(operation, res.body, assistantId, text);
+      if (!isCurrent(operation)) return;
+      logChatStream("info", "stream completed", {
+        assistantId,
+        sessionId: sessionIdRef.current,
+      });
+      const completionTime = Date.now();
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantId ? { ...m, timestamp: completionTime } : m,
+        ),
+      );
+      clearDraft(sessionIdRef.current);
+      onStreamComplete?.(sessionIdRef.current);
+    };
+    const fail = async (err: unknown) => {
+      if (
+        !isCurrent(operation) ||
+        (err instanceof Error && err.name === "AbortError")
+      ) {
+        logChatStream("warn", "request aborted by client", {
           assistantId,
           sessionId: sessionIdRef.current,
         });
-        const completionTime = Date.now();
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantId ? { ...m, timestamp: completionTime } : m,
-          ),
-        );
-        clearDraft(sessionIdRef.current);
-        onStreamComplete?.(sessionIdRef.current);
-      } catch (err) {
-        if (
-          !isCurrent(operation) ||
-          (err instanceof Error && err.name === "AbortError")
-        ) {
-          logChatStream("warn", "request aborted by client", {
-            assistantId,
-            sessionId: sessionIdRef.current,
-          });
-          return;
+        return;
+      }
+      const errMsg =
+        err instanceof Error ? err.message : t("error.something_went_wrong");
+      logChatStream("error", "stream failed", {
+        assistantId,
+        sessionId: sessionIdRef.current,
+        error: errMsg,
+      });
+      const reconciled = await reconcileDurableSession(operation);
+      if (!isCurrent(operation)) return;
+      const friendlyMessage = toFriendlyChatError(errMsg);
+      setError(
+        friendlyMessage.includes("temporarily unavailable")
+          ? t("error.ai_unavailable")
+          : t("error.something_went_wrong"),
+      );
+      const failedSessionId = sessionIdRef.current;
+      if (failedSessionId) {
+        if (!reconciled) {
+          onTerminalFailure?.(failedSessionId);
         }
-        const errMsg =
-          err instanceof Error ? err.message : t("error.something_went_wrong");
-        logChatStream("error", "stream failed", {
-          assistantId,
-          sessionId: sessionIdRef.current,
-          error: errMsg,
-        });
-        const reconciled = await reconcileDurableSession(operation);
-        if (!isCurrent(operation)) return;
-        const friendlyMessage = toFriendlyChatError(errMsg);
-        setError(
-          friendlyMessage.includes("temporarily unavailable")
-            ? t("error.ai_unavailable")
-            : t("error.something_went_wrong"),
-        );
-        const failedSessionId = sessionIdRef.current;
-        if (failedSessionId) {
-          if (!reconciled) {
-            onTerminalFailure?.(failedSessionId);
-          }
-          if (!operation.routeSessionId || reconciled) {
-            // Even a failed reply may have settled a durable conversation.
-            onStreamComplete?.(failedSessionId);
-          }
+        if (!operation.routeSessionId || reconciled) {
+          // Even a failed reply may have settled a durable conversation.
+          onStreamComplete?.(failedSessionId);
         }
-      } finally {
+      }
+    };
+    await request()
+      .catch(fail)
+      .finally(() => {
         if (pendingStartRef.current?.operationId === operation.id) {
           pendingStartRef.current = null;
         }
@@ -546,102 +550,73 @@ export function useChatStream(
           activeOperationRef.current = null;
           setLoading(false);
         }
-      }
-    },
-    [
-      beginOperation,
-      consumeGeneration,
-      consumeStream,
-      handleNewSession,
-      isCurrent,
-      loading,
-      noteId,
-      noteTitle,
-      onStreamComplete,
-      onTerminalFailure,
-      reconcileDurableSession,
-      selectedNotes,
-      selectedFolders,
-      sessionReady,
-      t,
-      thinkingMode,
-      useRag,
-    ],
-  );
+      });
+  };
 
-  const resume = useCallback(
-    async (generationId: string) => {
+  const resume = async (generationId: string) => {
+    if (
+      !generationId ||
+      !sessionReady ||
+      loading ||
+      activeOperationRef.current
+    ) {
+      return;
+    }
+    const operation = beginOperation();
+    const proposedAssistantId = makeId();
+    setError(null);
+    const assistantId = resolveResumeAssistantId(
+      messagesRef.current,
+      proposedAssistantId,
+    );
+    if (assistantId === proposedAssistantId) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: assistantId,
+          role: "assistant",
+          content: "",
+          parts: [],
+          sources: [],
+          timestamp: Date.now(),
+        },
+      ]);
+    }
+    setLoading(true);
+    const follow = async () => {
+      await consumeGeneration(operation, generationId, assistantId, "");
+      if (!isCurrent(operation)) return;
+      const reconciled = await reconcileDurableSession(operation);
+      if (!isCurrent(operation)) return;
+      if (!reconciled && sessionIdRef.current) {
+        onTerminalFailure?.(sessionIdRef.current);
+      }
+      onStreamComplete?.(sessionIdRef.current, generationId);
+    };
+    const fail = async (error: unknown) => {
       if (
-        !generationId ||
-        !sessionReady ||
-        loading ||
-        activeOperationRef.current
+        isCurrent(operation) &&
+        !(error instanceof Error && error.name === "AbortError")
       ) {
-        return;
-      }
-      const operation = beginOperation();
-      const proposedAssistantId = makeId();
-      setError(null);
-      const assistantId = resolveResumeAssistantId(
-        messagesRef.current,
-        proposedAssistantId,
-      );
-      if (assistantId === proposedAssistantId) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: assistantId,
-            role: "assistant",
-            content: "",
-            parts: [],
-            sources: [],
-            timestamp: Date.now(),
-          },
-        ]);
-      }
-      setLoading(true);
-      try {
-        await consumeGeneration(operation, generationId, assistantId, "");
-        if (!isCurrent(operation)) return;
         const reconciled = await reconcileDurableSession(operation);
         if (!isCurrent(operation)) return;
-        if (!reconciled && sessionIdRef.current) {
+        setError(t("error.something_went_wrong"));
+        if (reconciled) {
+          onStreamComplete?.(sessionIdRef.current, generationId);
+        } else if (sessionIdRef.current) {
           onTerminalFailure?.(sessionIdRef.current);
         }
-        onStreamComplete?.(sessionIdRef.current, generationId);
-      } catch (error) {
-        if (
-          isCurrent(operation) &&
-          !(error instanceof Error && error.name === "AbortError")
-        ) {
-          const reconciled = await reconcileDurableSession(operation);
-          if (!isCurrent(operation)) return;
-          setError(t("error.something_went_wrong"));
-          if (reconciled) {
-            onStreamComplete?.(sessionIdRef.current, generationId);
-          } else if (sessionIdRef.current) {
-            onTerminalFailure?.(sessionIdRef.current);
-          }
-        }
-      } finally {
+      }
+    };
+    await follow()
+      .catch(fail)
+      .finally(() => {
         if (isCurrent(operation)) {
           activeOperationRef.current = null;
           setLoading(false);
         }
-      }
-    },
-    [
-      beginOperation,
-      consumeGeneration,
-      isCurrent,
-      loading,
-      onStreamComplete,
-      onTerminalFailure,
-      reconcileDurableSession,
-      sessionReady,
-      t,
-    ],
-  );
+      });
+  };
 
   return {
     messages,

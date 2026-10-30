@@ -37,7 +37,7 @@ export default function DangerSection() {
     const mutationGeneration = useNoteTreeStore.getState().generation;
     let continuationGeneration = mutationGeneration;
     setIsClearingVault(true);
-    try {
+    const run = async () => {
       const res = await fetch("/api/vault", { method: "DELETE" });
       if (!res.ok) {
         toast.error(await readResponseError(res, t("Failed to clear vault")));
@@ -59,13 +59,16 @@ export default function DangerSection() {
         `${t("Vault cleared")} — ${summary.notesDeleted} ${t("notes")}, ${summary.s3FilesDeleted} ${t("files deleted")}`,
       );
       setClearVaultConfirm(false);
-    } catch {
-      if (isCurrentWorkspace(mutationOwner, continuationGeneration)) {
-        toast.error(t("Failed to clear vault"));
-      }
-    } finally {
-      setIsClearingVault(false);
-    }
+    };
+    await run()
+      .catch(() => {
+        if (isCurrentWorkspace(mutationOwner, continuationGeneration)) {
+          toast.error(t("Failed to clear vault"));
+        }
+      })
+      .finally(() => {
+        setIsClearingVault(false);
+      });
   };
 
   const handleDeleteAccount = async () => {
@@ -74,7 +77,7 @@ export default function DangerSection() {
     let continuationOwner = mutationOwner;
     let continuationGeneration = mutationGeneration;
     setIsDeletingAccount(true);
-    try {
+    const run = async () => {
       const res = await fetch("/api/auth/delete-account", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
@@ -102,13 +105,16 @@ export default function DangerSection() {
       await clearing;
       if (!isCurrentWorkspace(null, resetGeneration)) return;
       router.push("/login");
-    } catch {
-      if (isCurrentWorkspace(continuationOwner, continuationGeneration)) {
-        toast.error(t("Failed to delete account"));
-      }
-    } finally {
-      setIsDeletingAccount(false);
-    }
+    };
+    await run()
+      .catch(() => {
+        if (isCurrentWorkspace(continuationOwner, continuationGeneration)) {
+          toast.error(t("Failed to delete account"));
+        }
+      })
+      .finally(() => {
+        setIsDeletingAccount(false);
+      });
   };
 
   return (

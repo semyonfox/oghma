@@ -2,7 +2,6 @@
 
 import AssignmentDetailsTrigger from "@/components/assignments/assignment-details-trigger";
 
-import { useMemo } from "react";
 import { XMarkIcon, CheckCircleIcon } from "@heroicons/react/20/solid";
 import { CheckCircleIcon as CheckCircleOutline } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
@@ -33,42 +32,27 @@ export default function MonthView({ onSelectDate }: MonthViewProps) {
   } = useCalendarStore();
   const { assignments, updateAssignment } = useAssignmentStore();
 
-  const anchor = useMemo(() => new Date(currentDate), [currentDate]);
+  const anchor = new Date(currentDate);
 
-  const weekdayFormatter = useMemo(
-    () => new Intl.DateTimeFormat(activeLocale, { weekday: "short" }),
-    [activeLocale],
+  const weekdayFormatter = new Intl.DateTimeFormat(activeLocale, { weekday: "short" });
+  const dateFormatter = new Intl.DateTimeFormat(activeLocale, {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  // 1 january 2024 was a monday
+  const weekdayLabels = Array.from({ length: 7 }, (_, index) =>
+    weekdayFormatter.format(new Date(2024, 0, 1 + index)),
   );
-  const dateFormatter = useMemo(
-    () =>
-      new Intl.DateTimeFormat(activeLocale, {
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      }),
-    [activeLocale],
-  );
-  const weekdayLabels = useMemo(() => {
-    const monday = new Date(2024, 0, 1);
-    return Array.from({ length: 7 }, (_, index) => {
-      const date = new Date(monday);
-      date.setDate(monday.getDate() + index);
-      return weekdayFormatter.format(date);
-    });
-  }, [weekdayFormatter]);
 
-  const days = useMemo(
-    () =>
-      buildMonthCells({
-        anchorDate: anchor,
-        assignments,
-        timeBlocks,
-        selectedDate,
-        today: new Date(),
-      }),
-    [anchor, assignments, timeBlocks, selectedDate],
-  );
+  const days = buildMonthCells({
+    anchorDate: anchor,
+    assignments,
+    timeBlocks,
+    selectedDate,
+    today: new Date(),
+  });
 
   const handleToggleBlock = async (
     id: string,

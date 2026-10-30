@@ -1,7 +1,6 @@
 // extracted from Notea (MIT License)
 import { NOTE_PINNED } from "@/lib/notes/types/meta";
 import { NoteModel } from "@/lib/notes/types/note";
-import { useCallback } from 'react';
 import noteCache from '../cache/note';
 import useFetcher, { FetchError } from './fetcher';
 
@@ -66,91 +65,76 @@ export interface NoteApi {
 export default function useNoteAPI() {
     const { loading, request, abort, error } = useFetcher();
 
-    const find = useCallback(
-        async (id: string, options?: { deduplicate?: boolean }) => {
-            return request<null, NoteModel>({
-                method: 'GET',
-                url: `/api/notes/${id}`,
-                ...(options?.deduplicate === false
-                    ? { deduplicate: false }
-                    : {}),
-            });
-        },
-        [request]
-    );
+    const find = async (id: string, options?: { deduplicate?: boolean }) => {
+        return request<null, NoteModel>({
+            method: 'GET',
+            url: `/api/notes/${id}`,
+            ...(options?.deduplicate === false
+                ? { deduplicate: false }
+                : {}),
+        });
+    };
 
-    const create = useCallback(
-        async (body: NoteCreateRequest) => {
-            return request<NoteCreateRequest, NoteModel>(
+    const create = async (body: NoteCreateRequest) => {
+        return request<NoteCreateRequest, NoteModel>(
+            {
+                method: 'POST',
+                url: `/api/notes`,
+            },
+            body
+        );
+    };
+
+    const mutate = async (id: string, body: NoteUpdateRequest) => {
+        try {
+            return await request<NoteUpdateRequest, NoteModel>(
                 {
-                    method: 'POST',
-                    url: `/api/notes`,
+                    method: 'PUT',
+                    url: `/api/notes/${id}`,
+                    rethrow: true,
                 },
                 body
             );
-        },
-        [request]
-    );
-
-    const mutate = useCallback(
-        async (id: string, body: NoteUpdateRequest) => {
-            try {
-                return await request<NoteUpdateRequest, NoteModel>(
-                    {
-                        method: 'PUT',
-                        url: `/api/notes/${id}`,
-                        rethrow: true,
-                    },
-                    body
-                );
-            } catch (error) {
-                if (error instanceof FetchError && error.status === 409) {
-                    throw new NoteConflictError(conflictUpdatedAt(error.body));
-                }
-                // every other failure keeps the old contract: undefined + `error`
-                return undefined;
+        } catch (error) {
+            if (error instanceof FetchError && error.status === 409) {
+                throw new NoteConflictError(conflictUpdatedAt(error.body));
             }
-        },
-        [request]
-    );
+            // every other failure keeps the old contract: undefined + `error`
+            return undefined;
+        }
+    };
 
-    const remove = useCallback(
-        async (id: string) => {
-            return request<null, { success: boolean }>(
-                {
-                    method: 'DELETE',
-                    url: `/api/notes/${id}`,
-                },
-                null
-            );
-        },
-        [request]
-    );
+    const remove = async (id: string) => {
+        return request<null, { success: boolean }>(
+            {
+                method: 'DELETE',
+                url: `/api/notes/${id}`,
+            },
+            null
+        );
+    };
 
     // fetch note from cache or api
-    const fetch = useCallback(
-        async (id: string) => {
-            // reject stale nanoid IDs immediately — server will 400 them
-            if (!UUID_REGEX.test(id)) {
-                console.warn(`[noteAPI] skipping fetch for non-UUID id: ${id}`);
-                // evict from IndexedDB in case it snuck in
-                await noteCache.removeItem(id);
-                return undefined;
-            }
+    const fetch = async (id: string) => {
+        // reject stale nanoid IDs immediately — server will 400 them
+        if (!UUID_REGEX.test(id)) {
+            console.warn(`[noteAPI] skipping fetch for non-UUID id: ${id}`);
+            // evict from IndexedDB in case it snuck in
+            await noteCache.removeItem(id);
+            return undefined;
+        }
 
-            const cache = await noteCache.getItem(id);
-            if (cache) {
-                return cache;
-            }
-            const note = await find(id);
-            if (note) {
-                await noteCache.setItem(id, note);
-            }
+        const cache = await noteCache.getItem(id);
+        if (cache) {
+            return cache;
+        }
+        const note = await find(id);
+        if (note) {
+            await noteCache.setItem(id, note);
+        }
 
-            return note;
-        },
-        [find]
-    );
+        return note;
+    };
 
     return {
         loading,

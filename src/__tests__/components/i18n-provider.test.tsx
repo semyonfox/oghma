@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 
-import { useContext, useState } from "react";
+import { use, useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import I18nProvider, { I18nContext } from "@/lib/i18n/provider";
 import { Locale } from "@/locales";
 
 function Translation({ label }: { label: string }) {
-  const i18n = useContext(I18nContext);
+  const i18n = use(I18nContext);
   if (!i18n) throw new Error("Missing I18nProvider");
 
   const { t } = i18n;

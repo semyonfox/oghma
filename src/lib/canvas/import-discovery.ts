@@ -597,7 +597,7 @@ async function discoverCourse(
     course.name,
     course.term,
   );
-  logger.info("worker_event");
+  logger.info("canvas course folder ready");
 
   try {
     const courseFolderId = await findOrCreateFolder(userId, courseTitle, null, {
@@ -648,7 +648,7 @@ async function discoverCourse(
           updated_at = NOW()
         WHERE id = ${ctx.jobId}::uuid AND status = 'discovering'
       `);
-      logger.info("worker_event");
+      logger.info("canvas discovery progress saved");
       return;
     }
     throw error;
@@ -672,10 +672,10 @@ async function syncAssignmentMetadataQuietly(
       assignments,
     );
     if (synced > 0 || errors > 0) {
-      logger.info("worker_event");
+      logger.info("canvas assignment metadata sync completed");
     }
-  } catch {
-    logger.warn("worker_event");
+  } catch (error) {
+    logger.warn("canvas assignment metadata sync failed", { error });
   }
 }
 
@@ -699,7 +699,7 @@ async function processModules(
     jobId,
   );
   if (!modules) {
-    logger.warn("worker_event");
+    logger.warn("canvas modules unavailable", { stage: "module discovery" });
     return;
   }
   await pooled(
@@ -727,7 +727,7 @@ async function processModules(
             item.content_id,
           );
           if (fileForbidden || !file) {
-            logger.info("worker_event");
+            logger.info("canvas module file skipped: forbidden or missing");
             return null;
           }
           return file;
@@ -798,7 +798,7 @@ export async function processCourse(courseInput: unknown, userId: string, ctx: I
     course.name,
     course.term,
   );
-  logger.info("worker_event");
+  logger.info("canvas course folder ready");
   try {
     const courseFolderId = await findOrCreateFolder(userId, courseTitle, null, {
       canvasCourseId: canvasIdForBigintColumn(course.id, "Canvas course ID"),
@@ -811,7 +811,7 @@ export async function processCourse(courseInput: unknown, userId: string, ctx: I
     await syncAssignmentMetadataQuietly(courseId, userId, courseTitle, ctx.client);
   } catch (error) {
     if (error instanceof CanvasFolderTrashedError) {
-      logger.info("worker_event");
+      logger.info("canvas course skipped: folder trashed");
       return;
     }
     throw error;
@@ -821,7 +821,7 @@ export async function processCourse(courseInput: unknown, userId: string, ctx: I
 // ── Two-phase discovery entry point ─────────────────────────────────────────
 
 export async function processDiscoverJob(jobId: string, _attempt = 0) {
-  logger.info("worker_event");
+  logger.info("canvas discovery started");
   const claimToken = randomUUID();
   try {
     // Claim discovery atomically. Queue providers are at-least-once, so a
@@ -840,7 +840,7 @@ export async function processDiscoverJob(jobId: string, _attempt = 0) {
       RETURNING *
     `;
     if (!job) {
-      logger.info("worker_event");
+      logger.info("canvas discovery skipped: job not claimable");
       return false;
     }
 
@@ -882,7 +882,7 @@ export async function processDiscoverJob(jobId: string, _attempt = 0) {
         WHERE job_id = ${jobId}::uuid
           AND status IN ('pending', 'downloading', 'processing', 'indexing', 'pending_extract', 'pending_retry', 'pending_marker', 'pending_cache')
       `;
-      logger.info("worker_event");
+      logger.info("canvas discovery stopped: job cancelled");
       return false;
     }
 
@@ -903,7 +903,7 @@ export async function processDiscoverJob(jobId: string, _attempt = 0) {
       RETURNING id
     `);
     if (transitioned.length === 0) {
-      logger.info("worker_event");
+      logger.info("canvas discovery finish skipped: job already moved on");
       return false;
     }
 
@@ -927,12 +927,12 @@ export async function processDiscoverJob(jobId: string, _attempt = 0) {
       userId: job.user_id,
     });
 
-    logger.info("worker_event");
+    logger.info("canvas discovery completed");
     return true;
     });
   } catch (error) {
     if (error instanceof CanvasClaimLostError) return false;
-    logger.error("worker_event");
+    logger.error("canvas discovery failed", { error });
     const message = errorMessage(error);
     logger.error("canvas-import-discovery-error", {
       jobId,

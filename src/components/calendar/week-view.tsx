@@ -3,7 +3,7 @@
 import AssignmentDetailsTrigger from "@/components/assignments/assignment-details-trigger";
 import type { Assignment } from "@/lib/notes/state/assignments";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { XMarkIcon, CheckCircleIcon } from "@heroicons/react/20/solid";
 import { CheckCircleIcon as CheckCircleOutline } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
@@ -83,13 +83,10 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
   const gridRef = useRef<HTMLDivElement>(null);
   const [hourHeight, setHourHeight] = useState(MIN_HOUR_HEIGHT);
 
-  const anchor = useMemo(() => new Date(currentDate), [currentDate]);
-  const weekDays = useMemo(() => getWeekDays(anchor, activeLocale), [activeLocale, anchor]);
+  const anchor = new Date(currentDate);
+  const weekDays = getWeekDays(anchor, activeLocale);
   const [now, setNow] = useState(() => new Date());
-  const timeFormatter = useMemo(
-    () => new Intl.DateTimeFormat(activeLocale, { hour: "numeric" }),
-    [activeLocale],
-  );
+  const timeFormatter = new Intl.DateTimeFormat(activeLocale, { hour: "numeric" });
 
   const handleToggleBlock = async (
     id: string,
@@ -160,60 +157,54 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
   }, []);
 
   // position time blocks on the grid
-  const positioned = useMemo(() => {
-    const blocks: PositionedBlock[] = [];
-    for (const tb of timeBlocks) {
-      const start = new Date(tb.starts_at);
-      const end = new Date(tb.ends_at);
-      const dateStr = formatDateKey(start);
-      const colIdx = weekDays.findIndex((d) => d.date === dateStr);
-      if (colIdx === -1) continue;
+  const positioned: PositionedBlock[] = [];
+  for (const tb of timeBlocks) {
+    const start = new Date(tb.starts_at);
+    const end = new Date(tb.ends_at);
+    const dateStr = formatDateKey(start);
+    const colIdx = weekDays.findIndex((d) => d.date === dateStr);
+    if (colIdx === -1) continue;
 
-      const { top, height } = weekGridBlockPosition(start, end, hourHeight);
+    const { top, height } = weekGridBlockPosition(start, end, hourHeight);
 
-      blocks.push({
-        id: tb.id,
-        title: tb.assignment_title || tb.title || t("Study block"),
-        courseColor: tb.course_color || null,
-        completed: tb.completed ?? false,
-        top,
-        height,
-        col: colIdx,
-      });
-    }
-    return blocks;
-  }, [hourHeight, timeBlocks, weekDays, t]);
+    positioned.push({
+      id: tb.id,
+      title: tb.assignment_title || tb.title || t("Study block"),
+      courseColor: tb.course_color || null,
+      completed: tb.completed ?? false,
+      top,
+      height,
+      col: colIdx,
+    });
+  }
 
   // due date markers
-  const dueMarkers = useMemo(() => {
-    const markers: {
-      assignment: Assignment;
-      col: number;
-      top: number;
-      title: string;
-      color: string;
-      type: AssignmentType;
-      typeLabel: string;
-    }[] = [];
-    for (const a of assignments) {
-      if (!a.due_at) continue;
-      const d = new Date(a.due_at);
-      const dateStr = formatDateKey(d);
-      const colIdx = weekDays.findIndex((wd) => wd.date === dateStr);
-      if (colIdx === -1) continue;
+  const dueMarkers: {
+    assignment: Assignment;
+    col: number;
+    top: number;
+    title: string;
+    color: string;
+    type: AssignmentType;
+    typeLabel: string;
+  }[] = [];
+  for (const a of assignments) {
+    if (!a.due_at) continue;
+    const d = new Date(a.due_at);
+    const dateStr = formatDateKey(d);
+    const colIdx = weekDays.findIndex((wd) => wd.date === dateStr);
+    if (colIdx === -1) continue;
 
-      markers.push({
-        assignment: a,
-        col: colIdx,
-        top: weekGridOffset(d, hourHeight),
-        title: a.title,
-        color: a.course_color ?? "#ef4444",
-        type: a.assignment_type,
-        typeLabel: getAssignmentTypeLabel(a.assignment_type),
-      });
-    }
-    return markers;
-  }, [assignments, hourHeight, weekDays]);
+    dueMarkers.push({
+      assignment: a,
+      col: colIdx,
+      top: weekGridOffset(d, hourHeight),
+      title: a.title,
+      color: a.course_color ?? "#ef4444",
+      type: a.assignment_type,
+      typeLabel: getAssignmentTypeLabel(a.assignment_type),
+    });
+  }
 
   // current time indicator
   const todayCol = weekDays.findIndex((d) => d.isToday);

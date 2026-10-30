@@ -1,6 +1,6 @@
 import * as Headless from "@headlessui/react";
 import clsx from "clsx";
-import React, { forwardRef } from "react";
+import React from "react";
 import { Link } from "./link";
 
 const styles = {
@@ -170,10 +170,15 @@ type ButtonProps = (
       >)
   );
 
-export const Button = forwardRef(function Button(
-  { color, outline, plain, className, children, ...props }: ButtonProps,
-  ref: React.ForwardedRef<HTMLElement>,
-) {
+export function Button({
+  color,
+  outline,
+  plain,
+  className,
+  children,
+  ref,
+  ...props
+}: ButtonProps & { ref?: React.Ref<HTMLElement> }) {
   let classes = clsx(
     className,
     styles.base,
@@ -188,7 +193,7 @@ export const Button = forwardRef(function Button(
     <Link
       {...props}
       className={classes}
-      ref={ref as React.ForwardedRef<HTMLAnchorElement>}
+      ref={ref as React.Ref<HTMLAnchorElement>}
     >
       <TouchTarget>{children}</TouchTarget>
     </Link>
@@ -201,7 +206,7 @@ export const Button = forwardRef(function Button(
       <TouchTarget>{children}</TouchTarget>
     </Headless.Button>
   );
-});
+}
 
 /**
  * Expand the hit area to at least 44×44px on touch devices

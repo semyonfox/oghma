@@ -57,8 +57,8 @@ export const POST = withErrorHandler(async (request, context: RouteParamsContext
       SET status = 'done', submitted_at = COALESCE(submitted_at, NOW()), updated_at = NOW()
       WHERE id = ${id}::uuid AND user_id = ${userId}::uuid
     `;
-  } catch {
-    logger.warn("canvas submission tracker update failed");
+  } catch (error) {
+    logger.warn("canvas submission tracker update failed", { error });
   }
   return NextResponse.json({ submitted: true });
 });

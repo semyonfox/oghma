@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, use, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { useCanvasImportStatus } from "@/lib/hooks/use-canvas-import-status";
 import { useWorkspaceSession } from "@/components/providers/workspace-lifecycle-provider";
@@ -11,7 +11,7 @@ const CanvasImportContext = createContext<ReturnType<
 > | null>(null);
 
 export function useCanvasImportNotification() {
-  return useContext(CanvasImportContext);
+  return use(CanvasImportContext);
 }
 
 export function useCanvasImportOwner() {
@@ -59,8 +59,6 @@ function CanvasImportOwnerProvider({
     enabled,
   });
   return (
-    <CanvasImportContext.Provider value={status}>
-      {children}
-    </CanvasImportContext.Provider>
+    <CanvasImportContext value={status}>{children}</CanvasImportContext>
   );
 }

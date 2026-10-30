@@ -5,11 +5,13 @@ import { createPortal } from "react-dom";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import useContextMenuStore from "@/lib/notes/state/context-menu";
 import {
+  ArchiveBoxIcon,
   ChatBubbleLeftRightIcon,
   DocumentPlusIcon,
   FolderPlusIcon,
   PencilSquareIcon,
   Square2StackIcon,
+  TagIcon,
   TrashIcon,
   ViewColumnsIcon,
 } from "@heroicons/react/24/outline";
@@ -23,6 +25,11 @@ interface NoteContextMenuPortalProps {
   onCreateFolder: (parentId: string) => void;
   onOpenInSplit: (id: string) => void;
   onOpenInAIChat: (id: string) => void;
+  canEditTags: (id: string) => boolean;
+  onEditTags: (ids: string[]) => void;
+  /** "Keep as active", "Mark as finished" or "Mark as active" for a top-level folder, otherwise null */
+  courseToggle: (id: string) => { label: string; hint?: string } | null;
+  onToggleFinished: (id: string) => void;
 }
 
 // menu item component for consistency
@@ -76,6 +83,10 @@ export default function NoteContextMenuPortal({
   onCreateFolder,
   onOpenInSplit,
   onOpenInAIChat,
+  canEditTags,
+  onEditTags,
+  courseToggle,
+  onToggleFinished,
 }: NoteContextMenuPortalProps) {
   const { t } = useI18n();
   const {
@@ -165,7 +176,11 @@ export default function NoteContextMenuPortal({
     split: <ViewColumnsIcon className="h-3.5 w-3.5" aria-hidden="true" />,
     chat: <ChatBubbleLeftRightIcon className="h-3.5 w-3.5" aria-hidden="true" />,
     trash: <TrashIcon className="h-3.5 w-3.5" aria-hidden="true" />,
+    tags: <TagIcon className="h-3.5 w-3.5" aria-hidden="true" />,
+    finished: <ArchiveBoxIcon className="h-3.5 w-3.5" aria-hidden="true" />,
   };
+  const taggable = selectionIds.filter(canEditTags);
+  const courseAction = isMultiSelectMenu ? null : courseToggle(openMenuId);
 
   return createPortal(
     <div
@@ -178,12 +193,24 @@ export default function NoteContextMenuPortal({
       onClick={(e) => e.stopPropagation()}
     >
       {isMultiSelectMenu ? (
-        <MenuItem
-          label={t("Move to Trash")}
-          icon={icons.trash}
-          onClick={() => run(() => onDelete(selectionIds))}
-          danger
-        />
+        <>
+          {taggable.length > 0 && (
+            <>
+              <MenuItem
+                label={t("Edit tags")}
+                icon={icons.tags}
+                onClick={() => run(() => onEditTags(taggable))}
+              />
+              <Separator />
+            </>
+          )}
+          <MenuItem
+            label={t("Move to Trash")}
+            icon={icons.trash}
+            onClick={() => run(() => onDelete(selectionIds))}
+            danger
+          />
+        </>
       ) : (
         <>
           {!isFolder && (
@@ -212,6 +239,23 @@ export default function NoteContextMenuPortal({
               label={t("Duplicate")}
               icon={icons.duplicate}
               onClick={() => run(() => onDuplicate(openMenuId))}
+            />
+          )}
+
+          {canEditTags(openMenuId) && (
+            <MenuItem
+              label={t("Edit tags")}
+              icon={icons.tags}
+              onClick={() => run(() => onEditTags([openMenuId]))}
+            />
+          )}
+
+          {courseAction && (
+            <MenuItem
+              label={courseAction.label}
+              shortcut={courseAction.hint}
+              icon={icons.finished}
+              onClick={() => run(() => onToggleFinished(openMenuId))}
             />
           )}
 

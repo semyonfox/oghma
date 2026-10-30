@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import type { ThemedToken } from "shiki/core";
 import { CheckIcon, ClipboardDocumentIcon } from "@heroicons/react/24/outline";
@@ -151,11 +151,8 @@ export default function CodeBlock({
   const [highlighted, setHighlighted] = useState<HighlightedCode | null>(null);
   const [highlightError, setHighlightError] = useState(false);
   const requestId = useRef(0);
-  const languageInfo = useMemo(() => normalizeLanguage(language), [language]);
-  const code = useMemo(
-    () => rawContent ?? extractPlainText(children),
-    [children, rawContent],
-  );
+  const languageInfo = normalizeLanguage(language);
+  const code = rawContent ?? extractPlainText(children);
 
   const isMermaid = languageInfo.normalized === "mermaid";
 

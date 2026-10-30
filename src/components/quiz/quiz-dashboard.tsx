@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState, useEffectEvent } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import useQuizStore from "@/lib/notes/state/quiz";
@@ -49,13 +49,13 @@ export default function QuizDashboard({
     unarchiveCourse,
   } = useCourseStore();
 
-  const loadDashboard = useCallback(async () => {
+  const loadDashboard = async () => {
     const tz = encodeURIComponent(browserTimeZone());
     const res = await fetch(`/api/quiz/dashboard?tz=${tz}`);
     if (res.ok) setDashboard((await res.json()) as QuizDashboardSummary);
-  }, []);
+  };
 
-  const loadServerData = useCallback(async () => {
+  const loadServerData = async () => {
     const courseQuery = showArchived ? "?includeArchived=1" : "";
     const [, coursesRes] = await Promise.all([
       loadDashboard(),
@@ -68,7 +68,7 @@ export default function QuizDashboard({
       };
       setCourses(data.courses);
     }
-  }, [loadDashboard, showArchived]);
+  };
 
   const refreshCourseData = async () => {
     await Promise.all([loadServerData(), fetchSettings()]);
@@ -78,42 +78,42 @@ export default function QuizDashboard({
     void fetchSettings().catch(() => {});
   }, [fetchSettings]);
 
+  // reloads follow the archived filter and fresh server props, reading the
+  // latest loaders through effect events
+  const reloadDashboard = useEffectEvent(loadDashboard);
+  const reloadServerData = useEffectEvent(loadServerData);
   useEffect(() => {
     if (!skippedInitialLoad.current) {
       skippedInitialLoad.current = true;
       if (!showArchived) {
         // the server render counted "reviewed today" in UTC
         if (browserTimeZone() !== DEFAULT_TIME_ZONE) {
-          void loadDashboard().catch(() => {});
+          void reloadDashboard().catch(() => {});
         }
         return;
       }
     }
 
-    void loadServerData().catch(() => {
+    void reloadServerData().catch(() => {
       // Keep the last known server data visible when refresh fails.
     });
-  }, [initialCourses, initialDashboard, loadDashboard, loadServerData, showArchived]);
+  }, [initialCourses, initialDashboard, showArchived]);
 
-  const visibilityItems = useMemo(
-    () =>
-      mergeCourseVisibilityItems(
-        visibleCourses.map((course) => ({
-          courseId: course.courseId,
-          courseName: course.courseName,
-          isActive: course.isActive,
-          contextText:
-            course.totalCards > 0
-              ? t("{dueCount} due · {totalCards} cards", {
-                  dueCount: course.dueCount,
-                  totalCards: course.totalCards,
-                })
-              : t("No quiz cards yet"),
-          hasDueItems: course.dueCount > 0,
-        })),
-        settings,
-      ),
-    [settings, t, visibleCourses],
+  const visibilityItems = mergeCourseVisibilityItems(
+    visibleCourses.map((course) => ({
+      courseId: course.courseId,
+      courseName: course.courseName,
+      isActive: course.isActive,
+      contextText:
+        course.totalCards > 0
+          ? t("{dueCount} due · {totalCards} cards", {
+              dueCount: course.dueCount,
+              totalCards: course.totalCards,
+            })
+          : t("No quiz cards yet"),
+      hasDueItems: course.dueCount > 0,
+    })),
+    settings,
   );
 
   const handleSetCourseVisibility = async (
@@ -146,58 +146,66 @@ export default function QuizDashboard({
     setStartingSession(key);
 
     const MAX_RETRIES = 5;
+    const connectionFailed = () => {
+      toast.error(
+        t("Could not start quiz session. Please check your connection."),
+      );
+      setStartingSession(null);
+    };
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-      try {
-        const res = await fetch("/api/quiz/sessions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ filterType, filterValue }),
-        });
-
-        if (res.status === 202) {
-          // questions are being generated in the background — retry after delay
-          const data = await res.json().catch(() => ({}));
-          if (attempt === 1) {
-            toast.info(
-              t("quiz.generating_questions"),
-              { duration: (data.retryAfter ?? 3) * 1000 * MAX_RETRIES },
-            );
-          }
-          if (attempt < MAX_RETRIES) {
-            await new Promise((resolve) =>
-              setTimeout(resolve, (data.retryAfter ?? 3) * 1000),
-            );
-            continue;
-          }
-          toast.error(
-            t("quiz.generating_timeout"),
-          );
-          setStartingSession(null);
-          return;
-        }
-
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          toast.error(
-            body.error || t("Could not start quiz session. Please try again."),
-          );
-          setStartingSession(null);
-          return;
-        }
-
-        const data = (await res.json()) as QuizSessionStartResponse;
-        if (data.sessionId && Array.isArray(data.cardIds)) {
-          startSession(data.sessionId, data.cardIds, data.question ?? null);
-        }
-        router.push(`/quiz/session/${data.sessionId}`);
+      const res = await fetch("/api/quiz/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filterType, filterValue }),
+      }).catch(() => null);
+      if (!res) {
+        connectionFailed();
         return;
-      } catch {
+      }
+
+      if (res.status === 202) {
+        // questions are being generated in the background — retry after delay
+        const data = await res.json().catch(() => ({}));
+        if (attempt === 1) {
+          toast.info(
+            t("quiz.generating_questions"),
+            { duration: (data.retryAfter ?? 3) * 1000 * MAX_RETRIES },
+          );
+        }
+        if (attempt < MAX_RETRIES) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, (data.retryAfter ?? 3) * 1000),
+          );
+          continue;
+        }
         toast.error(
-          t("Could not start quiz session. Please check your connection."),
+          t("quiz.generating_timeout"),
         );
         setStartingSession(null);
         return;
       }
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        toast.error(
+          body.error || t("Could not start quiz session. Please try again."),
+        );
+        setStartingSession(null);
+        return;
+      }
+
+      const data: QuizSessionStartResponse | null = await res
+        .json()
+        .catch(() => null);
+      if (!data) {
+        connectionFailed();
+        return;
+      }
+      if (data.sessionId && Array.isArray(data.cardIds)) {
+        startSession(data.sessionId, data.cardIds, data.question ?? null);
+      }
+      router.push(`/quiz/session/${data.sessionId}`);
+      return;
     }
 
     setStartingSession(null);

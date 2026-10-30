@@ -93,6 +93,47 @@ describe("GET /api/tree/children", () => {
     expect(items.find((item) => item.id === "week")).not.toHaveProperty("bundle");
   });
 
+  it("adds course state to top-level folders and topic marks in one batch", async () => {
+    const MAP = "33333333-3333-4333-8333-333333333333";
+    const TOPIC = "44444444-4444-4444-8444-444444444444";
+    mocks.sql.mockImplementation(async (strings: TemplateStringsArray) => {
+      const text = strings.join("?");
+      if (text.includes("FROM app.tree_items ti")) {
+        return [
+          { id: "ct101", title: "CT101", isFolder: true, isExpanded: false, s3Key: null, mimeType: null, pinned: 0, bundlePdfId: null, bundleNoteId: null, updatedAt: "2026-10-01T00:00:00Z", isCanvasCourse: true, canvasStatus: "past", courseOverride: null, academicYear: "2425" },
+          { id: "lecture", title: "Lecture 3", isFolder: true, isExpanded: false, s3Key: null, mimeType: null, pinned: 0, bundlePdfId: "pdf-1", bundleNoteId: "md-1", updatedAt: null, isCanvasCourse: false, canvasStatus: null, courseOverride: null, academicYear: null },
+          { id: "note", title: "Ideas", isFolder: false, isExpanded: false, s3Key: null, mimeType: null, pinned: 0, bundlePdfId: null, bundleNoteId: null, updatedAt: null, isCanvasCourse: false, canvasStatus: "unexpected", courseOverride: null, academicYear: null },
+        ];
+      }
+      if (text.includes("FROM pairs p")) {
+        return [{
+          row_id: "pdf-1",
+          map_id: MAP,
+          associations: [{ topicId: TOPIC, relevance: "core", probability: null, evidence: [], status: "suggested", origin: "automatic" }],
+          overrides: { topics: {}, sourceHash: "", taxonomyVersion: 0 },
+          taxonomy_version: 1,
+          map_taxonomy_version: 1,
+        }];
+      }
+      if (text.includes("jsonb_array_elements")) return [{ id: MAP, topics: [{ id: TOPIC, name: "Paging" }] }];
+      return [];
+    });
+
+    const response = await GET(new NextRequest("http://localhost/api/tree/children"));
+    const items = (await response.json()).items as Array<Record<string, unknown>>;
+    const byId = new Map(items.map((item) => [item.id, item]));
+
+    expect(byId.get("ct101")?.course).toEqual({ canvasStatus: "past", isCanvasCourse: true, override: null, academicYear: "2425" });
+    expect(byId.get("ct101")?.updatedAt).toBe("2026-10-01T00:00:00.000Z");
+    expect(byId.get("note")).not.toHaveProperty("course");
+    expect(byId.get("lecture")?.topics).toEqual([
+      { mapId: MAP, topicId: TOPIC, name: "Paging", topicIndex: 0, main: true, suggested: true },
+    ]);
+    const markReads = mocks.sql.mock.calls.filter(([strings]) => (strings as string[]).join("").includes("FROM pairs p"));
+    expect(markReads).toHaveLength(1);
+    expect(markReads[0]).toContainEqual(["pdf-1", "note"]);
+  });
+
   it("rejects a malformed parent before it reaches the uuid cast", async () => {
     await expect(
       GET(new NextRequest("http://localhost/api/tree/children?parent_id=----")),

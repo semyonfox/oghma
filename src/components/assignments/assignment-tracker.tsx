@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   PlayIcon,
   PlusIcon,
@@ -54,6 +54,23 @@ interface CourseRingData {
   color: string;
   done: number;
   total: number;
+}
+
+function toCourseRings(assignments: Assignment[]): CourseRingData[] {
+  const rings = new Map<string, CourseRingData>();
+  for (const assignment of assignments) {
+    const name = assignment.course_name ?? "Other";
+    const ring = rings.get(name) ?? {
+      name,
+      color: assignment.course_color ?? "var(--color-primary-500)",
+      done: 0,
+      total: 0,
+    };
+    ring.total += 1;
+    if (assignment.status === "done") ring.done += 1;
+    rings.set(name, ring);
+  }
+  return Array.from(rings.values()).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 const tabs: AssignmentTab[] = ["upcoming", "done", "late"];
@@ -245,38 +262,25 @@ export default function AssignmentTracker({
     return () => window.clearInterval(timer);
   }, []);
 
-  const courses = useMemo(() => {
-    const names = new Set(assignments.map((assignment) => assignment.course_name).filter(Boolean));
-    return Array.from(names) as string[];
-  }, [assignments]);
+  const courses = Array.from(
+    new Set(
+      assignments.flatMap((assignment) =>
+        assignment.course_name ? [assignment.course_name] : [],
+      ),
+    ),
+  );
 
-  const courseRings = useMemo<CourseRingData[]>(() => {
-    const source = courseFilter
-      ? assignments.filter((assignment) => assignment.course_name === courseFilter)
-      : assignments;
-    const map = new Map<string, CourseRingData>();
-    for (const assignment of source) {
-      const name = assignment.course_name ?? "Other";
-      const color = assignment.course_color ?? "var(--color-primary-500)";
-      if (!map.has(name)) map.set(name, { name, color, done: 0, total: 0 });
-      const entry = map.get(name)!;
-      entry.total += 1;
-      if (assignment.status === "done") entry.done += 1;
-    }
-    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [assignments, courseFilter]);
 
-  const counts = useMemo(() => {
-    const base = courseFilter
-      ? assignments.filter((assignment) => assignment.course_name === courseFilter)
-      : assignments;
-    return {
-      upcoming: base.filter((assignment) => isVisibleInTab(assignment, "upcoming", now))
-        .length,
-      done: base.filter((assignment) => isVisibleInTab(assignment, "done", now)).length,
-      late: base.filter((assignment) => isVisibleInTab(assignment, "late", now)).length,
-    };
-  }, [assignments, courseFilter, now]);
+  const base = courseFilter
+    ? assignments.filter((assignment) => assignment.course_name === courseFilter)
+    : assignments;
+  const courseRings = toCourseRings(base);
+  const counts = {
+    upcoming: base.filter((assignment) => isVisibleInTab(assignment, "upcoming", now))
+      .length,
+    done: base.filter((assignment) => isVisibleInTab(assignment, "done", now)).length,
+    late: base.filter((assignment) => isVisibleInTab(assignment, "late", now)).length,
+  };
 
   const tabLabels: Record<AssignmentTab, string> = {
     upcoming: t("Upcoming"),
@@ -284,31 +288,27 @@ export default function AssignmentTracker({
     late: t("Overdue"),
   };
 
-  const courseVisibilityItems = useMemo(
-    () =>
-      mergeCourseVisibilityItems(
-        Array.from(
-          assignments.reduce((map, assignment) => {
-            if (!assignment.canvas_course_id || !assignment.course_name) return map;
-            const current = map.get(assignment.canvas_course_id) ?? {
-              courseId: assignment.canvas_course_id,
-              courseName: assignment.course_name,
-              count: 0,
-            };
-            map.set(assignment.canvas_course_id, {
-              ...current,
-              count: current.count + 1,
-            });
-            return map;
-          }, new Map<string, { courseId: string; courseName: string; count: number }>()),
-        ).map(([, item]) => ({
-          courseId: item.courseId,
-          courseName: item.courseName,
-          contextText: `${item.count} ${t("Tasks")}`,
-        })),
-        settings,
-      ),
-    [assignments, settings, t],
+  const courseVisibilityItems = mergeCourseVisibilityItems(
+    Array.from(
+      assignments.reduce((map, assignment) => {
+        if (!assignment.canvas_course_id || !assignment.course_name) return map;
+        const current = map.get(assignment.canvas_course_id) ?? {
+          courseId: assignment.canvas_course_id,
+          courseName: assignment.course_name,
+          count: 0,
+        };
+        map.set(assignment.canvas_course_id, {
+          ...current,
+          count: current.count + 1,
+        });
+        return map;
+      }, new Map<string, { courseId: string; courseName: string; count: number }>()),
+    ).map(([, item]) => ({
+      courseId: item.courseId,
+      courseName: item.courseName,
+      contextText: `${item.count} ${t("Tasks")}`,
+    })),
+    settings,
   );
 
   const retry = () =>
@@ -316,7 +316,7 @@ export default function AssignmentTracker({
 
   const handleSync = async () => {
     setSyncing(true);
-    try {
+    const run = async () => {
       const result = await syncFromCanvas();
       if (result?.synced) toast.success(t("Synced"));
       else if (result?.code === "reconnect") {
@@ -324,9 +324,11 @@ export default function AssignmentTracker({
       } else if (result?.code === "not_connected") {
         toast.error(t("Connect your Canvas LMS account to import your courses and lecture materials."));
       } else toast.error(t("Something went wrong"));
-    } finally {
-      setSyncing(false);
-    }
+    };
+    await run()
+      .finally(() => {
+        setSyncing(false);
+      });
   };
 
   const handleToggleDone = async (assignment: Assignment, control: HTMLElement) => {
@@ -334,7 +336,7 @@ export default function AssignmentTracker({
     const status = assignment.status === "done" ? "upcoming" : "done";
     const origin = status === "done" ? getCelebrationOrigin(control) : undefined;
     setUpdatingTaskId(assignment.id);
-    try {
+    const run = async () => {
       const updated = await updateAssignment(assignment.id, { status });
       if (!updated) {
         toast.error(t("Something went wrong"));
@@ -355,9 +357,11 @@ export default function AssignmentTracker({
           },
         });
       }
-    } finally {
-      setUpdatingTaskId(null);
-    }
+    };
+    await run()
+      .finally(() => {
+        setUpdatingTaskId(null);
+      });
   };
 
   const refreshAssignmentsAndSettings = async () => {

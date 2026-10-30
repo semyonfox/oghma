@@ -65,18 +65,21 @@ export default function AssignmentDetails({ assignment, onClose }: { assignment:
     async function load() {
       setLoading(true);
       setError("");
-      try {
+      const run = async () => {
         const response = await fetch(`/api/assignments/${assignment.id}/canvas`, { signal: controller.signal });
         if (!response.ok) throw new Error();
         const result = detailsSchema.parse(await response.json());
         if (controller.signal.aborted) return;
         setDetails(result);
         setType(result.types.includes("online_text_entry") ? "online_text_entry" : "online_url");
-      } catch {
-        if (!controller.signal.aborted) setError("Could not load Canvas details. Try again.");
-      } finally {
-        if (!controller.signal.aborted) setLoading(false);
-      }
+      };
+      await run()
+        .catch(() => {
+          if (!controller.signal.aborted) setError("Could not load Canvas details. Try again.");
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setLoading(false);
+        });
     }
     void load();
     return () => controller.abort();
@@ -90,7 +93,7 @@ export default function AssignmentDetails({ assignment, onClose }: { assignment:
     if (saving) return;
     setSaving(true);
     setError("");
-    try {
+    const run = async () => {
       const response = await fetch(`/api/assignments/${assignment.id}/canvas`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type, content }),
       });
@@ -99,11 +102,14 @@ export default function AssignmentDetails({ assignment, onClose }: { assignment:
       setReview(false);
       // the server marks the task done, so pull that into the tracker
       void useAssignmentStore.getState().fetchAssignments();
-    } catch {
-      setError("Submission could not be confirmed. Check Canvas before trying again.");
-    } finally {
-      setSaving(false);
-    }
+    };
+    await run()
+      .catch(() => {
+        setError("Submission could not be confirmed. Check Canvas before trying again.");
+      })
+      .finally(() => {
+        setSaving(false);
+      });
   }
 
   return (

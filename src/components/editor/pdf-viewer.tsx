@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  FC,
-  useState,
-  useCallback,
-  useRef,
-  useEffect,
-  useMemo,
-} from "react";
+import { FC, useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { FileSpec } from "@/lib/notes/state/layout";
 import useLayoutStore from "@/lib/notes/state/layout";
@@ -68,6 +61,31 @@ function parsePdfExtraction(value: unknown): PdfExtractionState | null {
       ? { id: extracted.id, title: extracted.title }
       : null;
   return { status, extractedNote };
+}
+
+// a 4xx other than a timeout or rate limit means there is nothing to poll;
+// anything else throws so the caller retries
+async function readExtraction(
+  noteId: string,
+  signal: AbortSignal,
+): Promise<{ gone: true } | { gone: false; extraction: PdfExtractionState | null }> {
+  const response = await fetch(
+    `/api/ingestion-status?noteId=${encodeURIComponent(noteId)}`,
+    { cache: "no-store", signal },
+  );
+  if (!response.ok) {
+    if (
+      response.status >= 400 &&
+      response.status < 500 &&
+      response.status !== 408 &&
+      response.status !== 429
+    ) {
+      return { gone: true };
+    }
+    throw new Error(`Extraction status: ${response.status}`);
+  }
+  const payload: unknown = await response.json();
+  return { gone: false, extraction: parsePdfExtraction(payload) };
 }
 
 interface LazyPdfPageProps {
@@ -157,25 +175,23 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane }) => {
   const [scale, setScale] = useState(1);
   const [fitMode, setFitMode] = useState(true);
   const [containerWidth, setContainerWidth] = useState<number | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  // state rather than a ref so the page observers get the real scroll root
+  const [scrollRoot, setScrollRoot] = useState<HTMLDivElement | null>(null);
   const [referenceSize, setReferenceSize] = useState<{
     width: number;
     height: number;
   } | null>(null);
-  const handleFirstPageLoad = useCallback((size: { width: number; height: number }) => {
+  const handleFirstPageLoad = (size: { width: number; height: number }) => {
     setReferenceSize((current) =>
       current?.width === size.width && current.height === size.height ? current : size,
     );
-  }, []);
+  };
   const {
     data: pdfData,
     loading,
     error: urlError,
   } = usePdfCache(file.sourcePath, file.fileId);
-  const pdfSource = useMemo(
-    () => (pdfData ? { data: pdfData } : null),
-    [pdfData],
-  );
+  const pdfSource = (pdfData ? { data: pdfData } : null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -184,43 +200,33 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane }) => {
     setExtraction(null);
 
     const poll = async () => {
-      try {
-        const response = await fetch(
-          `/api/ingestion-status?noteId=${encodeURIComponent(file.fileId)}`,
-          { cache: "no-store", signal: controller.signal },
-        );
-        if (!response.ok) {
-          if (
-            response.status >= 400 &&
-            response.status < 500 &&
-            response.status !== 408 &&
-            response.status !== 429
-          ) {
-            if (!controller.signal.aborted) setExtraction(null);
-            return;
-          }
-          throw new Error(`Extraction status: ${response.status}`);
-        }
-        const payload: unknown = await response.json();
-        const next = parsePdfExtraction(payload);
-        if (!next || controller.signal.aborted) return;
-
-        if (
-          next.status === "done" &&
-          next.extractedNote &&
-          previousExtractionStatus.current !== null &&
-          previousExtractionStatus.current !== "done"
-        ) {
-          void useNoteTreeStore.getState().refreshTree().catch(() => {});
-        }
-        previousExtractionStatus.current = next.status;
-        setExtraction(next);
-
-        if (next.status === "pending" || next.status === "processing") {
-          timer = setTimeout(poll, 4000);
-        }
-      } catch {
+      const result = await readExtraction(file.fileId, controller.signal).catch(
+        () => null,
+      );
+      if (!result) {
         if (!controller.signal.aborted) timer = setTimeout(poll, 4000);
+        return;
+      }
+      if (result.gone) {
+        if (!controller.signal.aborted) setExtraction(null);
+        return;
+      }
+      const next = result.extraction;
+      if (!next || controller.signal.aborted) return;
+
+      if (
+        next.status === "done" &&
+        next.extractedNote &&
+        previousExtractionStatus.current !== null &&
+        previousExtractionStatus.current !== "done"
+      ) {
+        void useNoteTreeStore.getState().refreshTree().catch(() => {});
+      }
+      previousExtractionStatus.current = next.status;
+      setExtraction(next);
+
+      if (next.status === "pending" || next.status === "processing") {
+        timer = setTimeout(poll, 4000);
       }
     };
 
@@ -248,15 +254,14 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane }) => {
 
   // keep containerWidth in sync with pane resizes
   useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
+    if (!scrollRoot) return;
     const observer = new ResizeObserver((entries) => {
       const w = entries[0]?.contentRect.width;
       if (w) setContainerWidth(w);
     });
-    observer.observe(el);
+    observer.observe(scrollRoot);
     return () => observer.disconnect();
-  }, []);
+  }, [scrollRoot]);
 
   const referenceWidth = referenceSize?.width ?? A4_WIDTH_POINTS;
   const fitScale = containerWidth ? containerWidth / referenceWidth : 1;
@@ -266,14 +271,11 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane }) => {
     ? containerWidth ?? referenceWidth
     : referenceWidth * scale;
 
-  const onDocumentLoadSuccess = useCallback(
-    ({ numPages }: { numPages: number }) => {
-      setNumPages(numPages);
-    },
-    [],
-  );
+  const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
+    setNumPages(numPages);
+  };
 
-  const handlePageRenderError = useCallback((error: Error) => {
+  const handlePageRenderError = (error: Error) => {
     const msg = error.message || "";
     if (
       !msg.includes("Worker task was terminated") &&
@@ -282,29 +284,29 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane }) => {
     ) {
       console.error("PDF rendering error:", error);
     }
-  }, []);
+  };
 
-  const handleZoomIn = useCallback(() => {
+  const handleZoomIn = () => {
     setScale((current) =>
       Math.min((fitMode ? fitScale : current) + 0.2, 3),
     );
     setFitMode(false);
-  }, [fitMode, fitScale]);
+  };
 
-  const handleZoomOut = useCallback(() => {
+  const handleZoomOut = () => {
     setScale((current) =>
       Math.max((fitMode ? fitScale : current) - 0.2, 0.5),
     );
     setFitMode(false);
-  }, [fitMode, fitScale]);
+  };
 
   // toggle fit: if already fitting, lock to current fit scale for manual zoom
-  const handleFitToggle = useCallback(() => {
+  const handleFitToggle = () => {
     setFitMode((was) => {
       if (was) setScale(fitScale);
       return !was;
     });
-  }, [fitScale]);
+  };
 
   const displayScale = fitMode ? fitScale : scale;
   const devicePixelRatio = Math.min(
@@ -400,7 +402,7 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane }) => {
 
       {/* PDF canvas — scrollable */}
       <div
-        ref={scrollRef}
+        ref={setScrollRoot}
         className="mobile-dock-clearance min-h-0 min-w-0 flex-1 overflow-auto bg-surface p-4"
       >
         {loading ? (
@@ -436,7 +438,7 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane }) => {
             className="mx-auto w-max min-w-full"
             onLoadSuccess={onDocumentLoadSuccess}
             onItemClick={({ pageNumber }) => {
-              scrollRef.current
+              scrollRoot
                 ?.querySelector(`[data-pdf-page-number="${pageNumber}"]`)
                 ?.scrollIntoView({ block: "start" });
             }}
@@ -465,7 +467,7 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane }) => {
                       pageWidth={pageWidth}
                       referenceSize={referenceSize}
                       onFirstPageLoad={handleFirstPageLoad}
-                      scrollRoot={scrollRef.current}
+                      scrollRoot={scrollRoot}
                       devicePixelRatio={devicePixelRatio}
                       onRenderError={handlePageRenderError}
                     />

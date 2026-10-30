@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState, useEffectEvent } from "react";
 import {
   CheckIcon,
   ChevronLeftIcon,
@@ -68,12 +68,13 @@ export default function CalendarPage() {
   const setActiveNav = useLayoutStore((state) => state.setActiveNav);
   const setSizes = useLayoutStore((state) => state.setSizes);
   const taskPanelWidthRef = useRef(rightPanelWidth);
-  const courses = useMemo(() => {
-    const names = new Set(
-      assignments.map((assignment) => assignment.course_name).filter(Boolean),
-    );
-    return Array.from(names) as string[];
-  }, [assignments]);
+  const courses = Array.from(
+    new Set(
+      assignments.flatMap((assignment) =>
+        assignment.course_name ? [assignment.course_name] : [],
+      ),
+    ),
+  );
 
   const openNewTask = (date: string, time = "09:00") => {
     setNewTaskDueAt(`${date}T${time}`);
@@ -90,32 +91,32 @@ export default function CalendarPage() {
 
   // the mobile layout always has a month grid to fill, whatever view desktop saved
   const fetchView = isDesktop === false ? "month" : view;
-  const calendarFetchRange = useMemo(
-    () => getCalendarFetchRange(currentDate, fetchView),
-    [currentDate, fetchView],
-  );
+  const calendarFetchRange = getCalendarFetchRange(currentDate, fetchView);
   const { startDateKey, endDateKey } = calendarFetchRange;
 
-  const refreshTimeBlocks = useCallback(() => {
+  const refreshTimeBlocks = () => {
     const range = localDateKeyRangeToIso(startDateKey, endDateKey);
     void fetchTimeBlocks(range.start, range.end);
-  }, [endDateKey, fetchTimeBlocks, startDateKey]);
+  };
 
-  const refreshCalendar = useCallback(() => {
+  const refreshCalendar = () => {
     refreshTimeBlocks();
     void fetchReviewDates(startDateKey, endDateKey);
-  }, [endDateKey, fetchReviewDates, refreshTimeBlocks, startDateKey]);
+  };
 
+  const onRangeChange = useEffectEvent(refreshCalendar);
   useEffect(() => {
-    refreshCalendar();
-  }, [refreshCalendar]);
+    onRangeChange();
+  }, [startDateKey, endDateKey]);
 
   // chat tools create blocks outside this page
+  const onTimeBlockChange = useEffectEvent(refreshTimeBlocks);
   useEffect(() => {
-    window.addEventListener("oghma:time-block-changed", refreshTimeBlocks);
+    const handleChange = () => onTimeBlockChange();
+    window.addEventListener("oghma:time-block-changed", handleChange);
     return () =>
-      window.removeEventListener("oghma:time-block-changed", refreshTimeBlocks);
-  }, [refreshTimeBlocks]);
+      window.removeEventListener("oghma:time-block-changed", handleChange);
+  }, []);
 
   const current = new Date(currentDate);
   const monthYear = current.toLocaleDateString(activeLocale, {
