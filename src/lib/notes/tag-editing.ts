@@ -7,6 +7,7 @@ import {
 } from "@/lib/notes/tree-topics";
 import {
   materialOverridesSchema,
+  settleAssociations,
   topicAssociationSchema,
   type MaterialOverrides,
   type Relevance,
@@ -18,7 +19,7 @@ const linkedMapSchema = z.object({
   mapName: z.string(),
   material: z.object({
     noteId: z.uuid(),
-    associations: z.array(topicAssociationSchema),
+    associations: z.array(topicAssociationSchema).transform(settleAssociations),
     overrides: materialOverridesSchema,
     status: z.enum(["unclassified", "classified", "stale", "failed"]),
     sourceHash: z.string(),

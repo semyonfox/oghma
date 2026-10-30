@@ -1,10 +1,9 @@
 "use client";
 
 import { memo, useEffect, useRef, useState } from "react";
-import { LinkIcon } from "@heroicons/react/24/outline";
 import { useSignedUrl } from "@/components/editor/use-signed-url";
 import { CARD_WIDTH, type FlowItem } from "@/lib/study-map/flow";
-import type { StudyMaterial, StudyTopic } from "@/lib/study-map/types";
+import type { StudyMaterial } from "@/lib/study-map/types";
 
 type PdfModule = typeof import("react-pdf");
 export type PreviewKind = "image" | "pdf";
@@ -312,9 +311,6 @@ const dueFormat = new Intl.DateTimeFormat(undefined, {
 
 export interface StudyFlowCardProps {
   item: FlowItem;
-  topics: Map<string, StudyTopic & { colour: string }>;
-  linkCount: number;
-  usedBy: Array<{ id: string; short: string; title: string }>;
   compact: boolean;
   pinned: boolean;
 }
@@ -323,17 +319,12 @@ export interface StudyFlowCardProps {
 // memo stays: cards render from a .map that changes on every drag and pan frame
 export const StudyFlowCard = memo(function StudyFlowCard({
   item,
-  topics,
-  linkCount,
-  usedBy,
   compact,
   pinned,
 }: StudyFlowCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
   const preview = item.material ? previewKind(item.material) : null;
-  const tags = item.tags.filter((tag) => topics.has(tag.topicId));
-  const shown = tags.slice(0, 2);
   const assignment = item.assignment;
   const review = reviewNeeded(item);
 
@@ -352,30 +343,67 @@ export const StudyFlowCard = memo(function StudyFlowCard({
     return () => observer.disconnect();
   }, [preview]);
 
-  const meta = [
-    cardLabel(item),
-    assignment?.due_at
-      ? `Due ${dueFormat.format(new Date(assignment.due_at))}`
-      : weekLabel(item),
-  ];
+  const meta = assignment?.due_at
+    ? `${cardLabel(item)} · Due ${dueFormat.format(new Date(assignment.due_at))}`
+    : cardLabel(item);
+  const reviewDot = review && (
+    <span
+      className="h-1.5 w-1.5 shrink-0 rounded-full bg-ai-500"
+      title="Topics to review"
+      aria-label="Topics to review"
+    />
+  );
+  const copies = item.copies?.length ? (
+    <span className="ml-auto shrink-0 rounded-full border border-[var(--study-glass-edge)] px-1.5 text-[10px] text-text-secondary">
+      {item.copies.length + 1} copies
+    </span>
+  ) : null;
+  // a page only shows up close, and only when the file has one. everything else stays glass
+  if (preview && item.material && !compact) {
+    return (
+      <div
+        ref={cardRef}
+        className="study-card-page relative h-full w-full overflow-hidden rounded-radius-xl font-sans"
+        style={{ width: CARD_WIDTH }}
+      >
+        <div className="flex h-full items-start justify-center overflow-hidden bg-white">
+          {visible ? (
+            <FilePreview
+              key={`${item.material.noteId}:${item.material.currentHash}`}
+              material={item.material}
+              kind={preview}
+            />
+          ) : (
+            <span className="pt-6 text-xs text-slate-500">Preview</span>
+          )}
+        </div>
+        <div className="study-glass study-glass-caption absolute inset-x-1.5 bottom-1.5 rounded-radius-lg px-2.5 py-1.5 text-text">
+          <p className="flex min-w-0 items-center gap-1.5 text-[11px] text-text-secondary">
+            <span className="truncate">{meta}</span>
+            {pinned && <span className="sr-only">, pinned</span>}
+            {reviewDot}
+            {copies}
+          </p>
+          <h3 className="truncate text-sm font-semibold leading-snug">
+            {item.title || "Untitled"}
+          </h3>
+        </div>
+      </div>
+    );
+  }
   return (
     <div
       ref={cardRef}
-      className="flex h-full w-full flex-col overflow-hidden rounded-radius-lg bg-surface px-3.5 pb-3 pt-2.5 font-sans text-text shadow-[0_1px_2px_rgb(15_23_42/0.06),0_0_0_1px_var(--color-border-subtle)]"
+      className="study-glass flex h-full w-full flex-col overflow-hidden rounded-radius-xl px-3.5 pb-3 pt-2.5 font-sans text-text"
       style={{ width: CARD_WIDTH }}
     >
       <p
         className={`flex min-w-0 items-center gap-1.5 text-[11px] ${assignment ? "text-ai-700 dark:text-ai-300" : "text-text-tertiary"}`}
       >
-        <span className="truncate">{meta.join(" · ")}</span>
+        <span className="truncate">{meta}</span>
         {pinned && <span className="sr-only">, pinned</span>}
-        {review && (
-          <span
-            className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-ai-500"
-            title="Topics to review"
-            aria-label="Topics to review"
-          />
-        )}
+        {reviewDot}
+        {copies}
       </p>
       <h3
         className={`mt-0.5 break-words font-semibold leading-snug ${compact ? "line-clamp-3 text-xl" : "line-clamp-2 text-sm"}`}
@@ -383,85 +411,18 @@ export const StudyFlowCard = memo(function StudyFlowCard({
         {item.title || "Untitled"}
       </h3>
       {!compact && (
-        <>
-          {preview && item.material ? (
-            <div className="mt-2 flex h-[84px] items-center justify-center overflow-hidden rounded-radius-md bg-background">
-              {visible ? (
-                <FilePreview
-                  key={`${item.material.noteId}:${item.material.currentHash}`}
-                  material={item.material}
-                  kind={preview}
-                />
-              ) : (
-                <span className="text-xs text-text-tertiary">Preview</span>
-              )}
-            </div>
-          ) : (
-            <p className="mt-1 line-clamp-2 break-words text-xs leading-relaxed text-text-secondary">
-              {assignment
-                ? readableExcerpt(
-                    assignment.description?.replace(/<[^>]+>/g, " ") ?? "",
-                  ) || "No brief has been imported."
-                : readableExcerpt(
-                    (item.material?.excerpt ?? "").replace(
-                      /^\s*#\s+[^\n]*\n+/,
-                      "",
-                    ),
-                  ) || "Open the original to read it."}
-            </p>
-          )}
-          <div className="mt-auto flex min-w-0 items-center gap-2.5 pt-2 text-[11px] text-text-tertiary">
-            {shown.map((tag) => {
-              const topic = topics.get(tag.topicId)!;
-              return (
-                <button
-                  key={tag.topicId}
-                  type="button"
-                  data-topic={tag.topicId}
-                  className="flex min-w-0 items-center gap-1 hover:text-text"
-                  title={`${topic.name}: ${tag.relevance}${tag.suggested ? ", suggested, needs review" : tag.mentioned ? ", named in the brief" : ""}`}
-                >
-                  <span
-                    className="h-1.5 w-1.5 shrink-0 rounded-full"
-                    style={{
-                      background: topic.colour,
-                      opacity: tag.relevance === "core" ? 1 : 0.45,
-                    }}
-                    aria-hidden="true"
-                  />
-                  <span className="truncate">{topic.name}</span>
-                </button>
-              );
-            })}
-            {tags.length > shown.length && (
-              <span className="shrink-0">+{tags.length - shown.length}</span>
-            )}
-            {(linkCount > 0 || usedBy.length > 0) && (
-              <span className="ml-auto flex shrink-0 items-center gap-2">
-                {linkCount > 0 && (
-                  <span
-                    className="flex items-center gap-0.5"
-                    title={`${linkCount} linked ${linkCount === 1 ? "note" : "notes"}`}
-                  >
-                    <LinkIcon className="h-3 w-3" aria-hidden="true" />
-                    {linkCount}
-                  </span>
-                )}
-                {usedBy.slice(0, 2).map((use) => (
-                  <button
-                    key={use.id}
-                    type="button"
-                    data-go={`assignment:${use.id}`}
-                    className="hover:text-text"
-                    title={`Used in ${use.title}`}
-                  >
-                    ↩ {use.short}
-                  </button>
-                ))}
-              </span>
-            )}
-          </div>
-        </>
+        <p className="mt-1 line-clamp-3 break-words text-xs leading-relaxed text-text-secondary">
+          {assignment
+            ? readableExcerpt(
+                assignment.description?.replace(/<[^>]+>/g, " ") ?? "",
+              ) || "No brief has been imported."
+            : readableExcerpt(
+                (item.material?.excerpt ?? "").replace(
+                  /^\s*#\s+[^\n]*\n+/,
+                  "",
+                ),
+              ) || "No preview"}
+        </p>
       )}
     </div>
   );

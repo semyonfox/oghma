@@ -467,7 +467,7 @@ export function ItemActions({
         <>
           {onRead && (
             <button type="button" className={primarySmall} onClick={onRead}>
-              Read here
+              Open
             </button>
           )}
           {item.textVersionId ? (
