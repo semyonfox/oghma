@@ -11,6 +11,7 @@ import {
   documentKindSchema,
   examStructureSchema,
   materialOverridesSchema,
+  settleAssociations,
   topicAssociationSchema,
   topicSchema,
   type MaterialReference,
@@ -123,7 +124,10 @@ interface JobRow {
 }
 
 const topicsSchema = z.array(topicSchema).max(80);
-const associationsSchema = z.array(topicAssociationSchema).max(80);
+const associationsSchema = z
+  .array(topicAssociationSchema)
+  .max(80)
+  .transform(settleAssociations);
 const labelsSchema = z.array(z.string().max(60)).max(20);
 const statusSchema = z.enum(["unclassified", "classified", "stale", "failed"]);
 const jobKindSchema = z.enum(["taxonomy", "classify", "paper"]);

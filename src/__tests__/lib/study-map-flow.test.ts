@@ -18,6 +18,8 @@ import {
   boardSchema,
   currentBoard,
   emptyBoard,
+  settleAssociations,
+  TAG_CONFIDENCE,
   type StudyAssignment,
   type StudyMapSnapshot,
   type StudyMaterial,
@@ -155,6 +157,33 @@ function snapshot(
     provider: { classifier: "mock", ready: true, generationReady: true },
   };
 }
+
+describe("settleAssociations", () => {
+  const stored = (
+    probability: number | null,
+    extra: Partial<TopicAssociation> = {},
+  ): TopicAssociation => ({
+    ...association(id(100), "core", "suggested"),
+    probability,
+    ...extra,
+  });
+
+  it("applies a tag at the threshold and drops one just under it", () => {
+    expect(settleAssociations([stored(TAG_CONFIDENCE)])).toEqual([
+      stored(TAG_CONFIDENCE, { status: "accepted" }),
+    ]);
+    expect(settleAssociations([stored(TAG_CONFIDENCE - 0.001)])).toEqual([]);
+  });
+
+  it("leaves manual tags, rejections and answers with no probability alone", () => {
+    const kept = [
+      stored(0.1, { origin: "manual" }),
+      stored(0.1, { status: "rejected" }),
+      stored(null),
+    ];
+    expect(settleAssociations(kept)).toEqual(kept);
+  });
+});
 
 describe("exact copies", () => {
   const hash = "a".repeat(64);

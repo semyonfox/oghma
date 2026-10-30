@@ -14,6 +14,7 @@ import {
   type SourcePassage,
   type StudyTopic,
   type TopicAssociation,
+  TAG_CONFIDENCE,
 } from "./types";
 
 const JEV_MODEL = "typesafe/jev-1.13";
@@ -23,7 +24,6 @@ const MIN_PASSAGE_CHARS = 1_200;
 const MAX_REQUEST_BYTES = 20_000;
 const MAX_QUESTIONS = 24;
 const MAX_BATCH_PASSAGES = 3;
-const RELEVANCE_THRESHOLD = 0.6;
 const LABEL_THRESHOLD = 0.65;
 const probabilitySchema = z.number().finite().min(0).max(1);
 const labels = {
@@ -748,7 +748,7 @@ export async function classifyStudySource(
               1,
               answer.probabilities.CORE + answer.probabilities.SUPPORTING,
             );
-      if (probability !== null && probability < RELEVANCE_THRESHOLD) continue;
+      if (probability !== null && probability < TAG_CONFIDENCE) continue;
       const relevance = answer.choice === "CORE" ? "core" : "supporting";
       const previous = associations.get(task.target.topic.id);
       const evidence: TopicAssociation["evidence"] = [
@@ -769,7 +769,7 @@ export async function classifyStudySource(
             ? null
             : Math.max(previous?.probability ?? 0, probability),
         evidence,
-        status: "suggested",
+        status: probability === null ? "suggested" : "accepted",
         origin: "automatic",
       });
     }

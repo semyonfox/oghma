@@ -166,7 +166,7 @@ describe("study classifier Decisions boundary", () => {
         request,
         first,
         "CORE",
-        { CORE: 0.25, SUPPORTING: 0.4, UNRELATED: 0.35 },
+        { CORE: 0.25, SUPPORTING: 0.6, UNRELATED: 0.15 },
         0.04,
       );
       body.answers[second] = choice(
@@ -182,12 +182,12 @@ describe("study classifier Decisions boundary", () => {
       expect.objectContaining({
         topicId: topicA,
         relevance: "core",
-        probability: 0.65,
-        status: "suggested",
+        probability: 0.85,
+        status: "accepted",
         evidence: [
           expect.objectContaining({
             relevance: "core",
-            probability: 0.65,
+            probability: 0.85,
             confidence: 0.04,
           }),
         ],
@@ -195,7 +195,7 @@ describe("study classifier Decisions boundary", () => {
       expect.objectContaining({
         topicId: topicB,
         relevance: "supporting",
-        status: "suggested",
+        status: "accepted",
         evidence: [
           expect.objectContaining({
             relevance: "supporting",
@@ -206,7 +206,7 @@ describe("study classifier Decisions boundary", () => {
     ]);
     expect(
       result.associations.every(
-        (association) => association.status === "suggested",
+        (association) => association.status === "accepted",
       ),
     ).toBe(true);
     expect(result.associations[1].probability).toBeCloseTo(0.95);
@@ -374,14 +374,14 @@ describe("study classifier Decisions boundary", () => {
       const below = topicQuestion(request, topicA);
       const at = topicQuestion(request, topicB);
       body.answers[below] = choice(request, below, "CORE", {
-        CORE: 0.58,
+        CORE: 0.78,
         SUPPORTING: 0.01,
-        UNRELATED: 0.4,
+        UNRELATED: 0.2,
       });
       body.answers[at] = choice(request, at, "CORE", {
-        CORE: 0.59,
+        CORE: 0.79,
         SUPPORTING: 0.01,
-        UNRELATED: 0.39,
+        UNRELATED: 0.19,
       });
     });
 
@@ -390,7 +390,7 @@ describe("study classifier Decisions boundary", () => {
     expect(result.associations).toEqual([
       expect.objectContaining({
         topicId: topicB,
-        probability: expect.closeTo(0.6 / 0.99),
+        probability: expect.closeTo(0.8 / 0.99),
       }),
     ]);
   });

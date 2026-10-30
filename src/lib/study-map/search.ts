@@ -4,6 +4,7 @@ import { ApiError } from "@/lib/api-errors";
 import {
   documentKindSchema,
   materialOverridesSchema,
+  settleAssociations,
   topicAssociationSchema,
   topicSchema,
   type DocumentKind,
@@ -98,7 +99,10 @@ const referenceSchema = z.array(
   }),
 );
 const labelsSchema = z.array(z.string().max(60)).max(20);
-const associationsSchema = z.array(topicAssociationSchema).max(80);
+const associationsSchema = z
+  .array(topicAssociationSchema)
+  .max(80)
+  .transform(settleAssociations);
 const statusSchema = z.enum(["unclassified", "classified", "stale", "failed"]);
 const normalize = (text: string): string => text.toLowerCase();
 const contains = (text: string, query: string): boolean =>
