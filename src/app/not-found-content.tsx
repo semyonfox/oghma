@@ -3,10 +3,27 @@
 import { Button } from "@/components/catalyst/button";
 import { Heading } from "@/components/catalyst/heading";
 import { Text } from "@/components/catalyst/text";
+import I18nRootProvider from "@/components/providers/i18n-root-provider";
+import { I18nContext } from "@/lib/i18n/provider";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { useRouter } from "next/navigation";
+import { use } from "react";
 
 export default function NotFoundContent({ homeUrl }: { homeUrl: string }) {
+  // next renders not-found without the root layout, so without its provider,
+  // when a urlencoded POST carries a Next-Action header
+  if (!use(I18nContext)) {
+    return (
+      <I18nRootProvider>
+        <NotFoundBody homeUrl={homeUrl} />
+      </I18nRootProvider>
+    );
+  }
+
+  return <NotFoundBody homeUrl={homeUrl} />;
+}
+
+function NotFoundBody({ homeUrl }: { homeUrl: string }) {
   const router = useRouter();
   const { t } = useI18n();
 
