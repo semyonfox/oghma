@@ -1,6 +1,6 @@
 # Operational Guidelines for Agents
 
-attribution: off
+attribution: on
 
 ## Critical Rules
 
