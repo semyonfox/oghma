@@ -1,5 +1,7 @@
 # Operational Guidelines for Agents
 
+attribution: off
+
 ## Critical Rules
 
 ### 1. Development Server

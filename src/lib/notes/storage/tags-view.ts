@@ -1,6 +1,7 @@
 import { z } from "zod";
 import sql from "@/database/pgsql";
-import { extractTags, inferFileType } from "@/lib/notes/utils/file-spec";
+import { readTags } from "@/lib/notes/frontmatter";
+import { inferFileType } from "@/lib/notes/utils/file-spec";
 import { summariseMaterialTopics, type TopicName } from "@/lib/notes/tree-topics";
 import type { TagsViewData, TagsViewFile, TagsViewReview, TagsViewTopic } from "@/lib/notes/tags-view";
 import {
@@ -116,8 +117,8 @@ function documentsFor(rows: readonly ScopeNoteRow[]): Document[] {
 }
 
 /**
- * Group a scope's documents by the user's #tags and by study-map topic. The
- * #tag counts only include documents in this scope. Anything with no topic
+ * Group a scope's documents by their frontmatter tags and by study-map topic.
+ * Tag counts only include documents in this scope. Anything with no topic
  * at all, suggested or confirmed, lands in "Not tagged yet".
  */
 export function buildTagsView(input: {
@@ -134,7 +135,7 @@ export function buildTagsView(input: {
 
   const tags = new Map<string, TagsViewFile[]>();
   for (const document of documents) {
-    for (const tag of extractTags(document.tagContent)) {
+    for (const tag of readTags(document.tagContent)) {
       tags.set(tag, [...(tags.get(tag) ?? []), document.file]);
     }
   }
@@ -271,7 +272,7 @@ export async function readTagsView(userId: string, rootIds: readonly string[]): 
          WHERE a.note_id = n.note_id AND a.user_id = n.user_id AND a.s3_key = n.s3_key
          ORDER BY a.id LIMIT 1) AS mime_type,
         CASE WHEN NOT n.is_folder
-          AND (n.content ~ '(^|[[:space:]])#[A-Za-z0-9]' OR n.content LIKE '---%')
+          AND n.content LIKE '---%'
           THEN n.content END AS tag_content
       FROM scope
       JOIN app.notes n ON n.note_id = scope.note_id AND n.user_id = ${userId}::uuid
@@ -322,20 +323,20 @@ export async function readTagsView(userId: string, rootIds: readonly string[]): 
 
 const MAX_TAGGED_NOTES = 2_000;
 
-/** every #tag the user has, with how many notes use it, for autocomplete */
+/** every frontmatter tag the user has, with how many notes use it, for autocomplete */
 export async function readTagNames(userId: string): Promise<Array<{ tag: string; count: number }>> {
   const rows = await sql<Array<{ content: string }>>`
     SELECT n.content
     FROM app.notes n
     WHERE n.user_id = ${userId}::uuid AND n.deleted_at IS NULL AND NOT n.is_folder
       AND NOT n.is_import_cache_source
-      AND (n.content ~ '(^|[[:space:]])#[A-Za-z0-9]' OR n.content LIKE '---%')
+      AND n.content LIKE '---%'
     ORDER BY n.updated_at DESC
     LIMIT ${MAX_TAGGED_NOTES}
   `;
   const counts = new Map<string, number>();
   for (const row of rows) {
-    for (const tag of extractTags(row.content)) counts.set(tag, (counts.get(tag) ?? 0) + 1);
+    for (const tag of readTags(row.content)) counts.set(tag, (counts.get(tag) ?? 0) + 1);
   }
   return [...counts]
     .map(([tag, count]) => ({ tag, count }))

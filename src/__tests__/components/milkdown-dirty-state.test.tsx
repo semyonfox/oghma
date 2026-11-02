@@ -28,6 +28,9 @@ vi.mock("@milkdown/crepe", async (importOriginal) => {
     Crepe: class {
       context = new Ctx(new Container(), new Clock());
       view: InstanceType<typeof EditorView> | null = null;
+      constructor(options: { defaultValue?: string }) {
+        editor.markdown = options.defaultValue ?? "";
+      }
       editor = {
         use: vi.fn(),
         action: <T,>(callback: (ctx: InstanceType<typeof Ctx>) => T) => callback(this.context),
@@ -158,4 +161,27 @@ it("publishes pending edits during blur before the parent can autosave", async (
   await act(async () => fireEvent.focusOut(surface));
   expect(observedOnBlur).toEqual([editor.markdown]);
   expect(onChange).toHaveBeenCalledOnce();
+});
+
+it("keeps frontmatter out of the editor and puts it back on every change", async () => {
+  const frontmatter = "---\ntags:\n  - exam\n---\n";
+  const onChange = vi.fn();
+  root = createRoot(host);
+  await act(async () => {
+    root.render(<MilkdownWriteEditor value={`${frontmatter}\n# Saved note\n`} onChange={onChange} />);
+  });
+  expect(editor.markdown).toBe("\n# Saved note\n");
+
+  editor.markdown = "# Edited note\n";
+  await act(async () => editor.updated(null, editor.markdown));
+  expect(onChange).toHaveBeenLastCalledWith(`${frontmatter}\n# Edited note\n`, false);
+
+  // a tag added from the inspector changes only the frontmatter
+  const retagged = "---\ntags:\n  - exam\n  - revise\n---\n";
+  await act(async () => {
+    root.render(<MilkdownWriteEditor value={`${retagged}\n# Edited note\n`} onChange={onChange} />);
+  });
+  editor.markdown = "# Edited again\n";
+  await act(async () => editor.updated(null, editor.markdown));
+  expect(onChange).toHaveBeenLastCalledWith(`${retagged}\n# Edited again\n`, false);
 });
