@@ -58,13 +58,13 @@ describe("inspector tags", () => {
     fireEvent.keyDown(input, { key: "Enter" });
 
     await waitFor(() =>
-      expect(mocks.mutateNote).toHaveBeenCalledWith(NOTE_ID, { content: "# Body\n#exam\n" }),
+      expect(mocks.mutateNote).toHaveBeenCalledWith(NOTE_ID, { content: "---\ntags:\n  - exam\n---\n\n# Body" }),
     );
     // a clean editor adopts this content, so its next save keeps the tag
     await waitFor(() => expect(synced).toHaveBeenCalled());
     expect((synced.mock.calls[0][0] as CustomEvent).detail).toMatchObject({
       fileId: NOTE_ID,
-      content: "# Body\n#exam\n",
+      content: "---\ntags:\n  - exam\n---\n\n# Body",
     });
     window.removeEventListener("note-content-sync", synced);
   });

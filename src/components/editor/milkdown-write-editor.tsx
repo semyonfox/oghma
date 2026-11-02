@@ -17,6 +17,7 @@ import {
   buildInternalNoteHref,
   parseInternalNoteHref,
 } from "@/lib/notes/internal-links";
+import { joinFrontmatter, splitFrontmatter } from "@/lib/notes/frontmatter";
 import usePortalStore from "@/lib/notes/state/portal";
 import { isPdfFile, uploadFileBeside } from "@/lib/notes/utils/upload-beside";
 import { toast } from "sonner";
@@ -410,6 +411,9 @@ export default function MilkdownWriteEditor({
   const pickerListRef = useRef<HTMLDivElement>(null);
   const crepeRef = useRef<Crepe | null>(null);
   const latestValueRef = useRef(value);
+  // Milkdown would turn frontmatter into a rule and a paragraph, so it only
+  // ever sees the body and every emitted value gets the frontmatter back
+  const frontmatterRef = useRef(splitFrontmatter(value).frontmatter);
   const lastLocallyEmittedValueRef = useRef<string | null>(null);
   const lastDocumentMarkdownRef = useRef<string | null>(null);
   const pickerSelectionRef = useRef({ from: 0, to: 0 });
@@ -434,7 +438,7 @@ export default function MilkdownWriteEditor({
   });
   // the editor instance owns its initial value; later values use replaceAll below
   const readMountOptions = useEffectEvent(() => ({
-    defaultValue: value,
+    defaultValue: splitFrontmatter(value).body,
     placeholderText: placeholder,
   }));
 
@@ -557,8 +561,9 @@ export default function MilkdownWriteEditor({
         // Only a change from the rendered document represents a new edit.
         if (!crepeRef.current || markdown !== crepeRef.current.getMarkdown() || markdown === lastDocumentMarkdownRef.current) return;
         lastDocumentMarkdownRef.current = markdown;
-        lastLocallyEmittedValueRef.current = markdown;
-        emitMarkdown(markdown);
+        const full = joinFrontmatter(frontmatterRef.current, markdown);
+        lastLocallyEmittedValueRef.current = full;
+        emitMarkdown(full);
       });
     });
 
@@ -589,8 +594,10 @@ export default function MilkdownWriteEditor({
         return;
       }
       crepeRef.current = crepe;
-      if (crepe.getMarkdown() !== latestValueRef.current) {
-        replaceExternalMarkdown(crepe, latestValueRef.current);
+      const latest = splitFrontmatter(latestValueRef.current);
+      frontmatterRef.current = latest.frontmatter;
+      if (crepe.getMarkdown() !== latest.body) {
+        replaceExternalMarkdown(crepe, latest.body);
       }
       lastDocumentMarkdownRef.current = crepe.getMarkdown();
       enhanceMilkdownCodeBlocks(root);
@@ -631,7 +638,9 @@ export default function MilkdownWriteEditor({
       return;
     }
     lastLocallyEmittedValueRef.current = null;
-    if (crepe.getMarkdown() !== value) replaceExternalMarkdown(crepe, value);
+    const { frontmatter, body } = splitFrontmatter(value);
+    frontmatterRef.current = frontmatter;
+    if (crepe.getMarkdown() !== body) replaceExternalMarkdown(crepe, body);
     lastDocumentMarkdownRef.current = crepe.getMarkdown();
   }, [value]);
 
@@ -693,8 +702,9 @@ export default function MilkdownWriteEditor({
     if (markdown === lastDocumentMarkdownRef.current) return;
     // the debounced listener can lag behind an immediate save or blur
     lastDocumentMarkdownRef.current = markdown;
-    lastLocallyEmittedValueRef.current = markdown;
-    onChange(markdown, false);
+    const full = joinFrontmatter(frontmatterRef.current, markdown);
+    lastLocallyEmittedValueRef.current = full;
+    onChange(full, false);
   };
 
   return (

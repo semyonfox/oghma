@@ -121,25 +121,3 @@ export function parseFileDragPayload(raw: string): FileDragPayload | null {
     return null;
   }
 }
-
-export function extractTags(content?: string | null): string[] {
-  if (!content) return [];
-
-  const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
-  const frontmatterTags = frontmatterMatch?.[1]
-    ? Array.from(
-        frontmatterMatch[1]
-          .matchAll(/^(?:tags?|keywords?)\s*:\s*(.+)$/gim),
-        (match) => match[1]
-      )
-        .flatMap((raw) => raw.split(/[,\[\]]/))
-        .map((tag) => tag.trim().replace(/^["']|["']$/g, ''))
-        .filter(Boolean)
-    : [];
-
-  const hashtagTags = Array.from(content.matchAll(/(^|\s)#([a-z0-9][\w/-]*)/gi), (match) =>
-    match[2].toLowerCase()
-  );
-
-  return Array.from(new Set([...frontmatterTags, ...hashtagTags]));
-}

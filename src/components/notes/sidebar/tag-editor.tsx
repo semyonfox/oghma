@@ -11,12 +11,10 @@ import useNoteTreeStore from "@/lib/notes/state/tree";
 import useSaveIndicatorStore, { saveIndicatorKey } from "@/lib/notes/state/save-indicator";
 import useTagEditorStore, { type TagTarget } from "@/lib/notes/state/tag-editor";
 import {
-  addTagLine,
   normaliseTagInput,
   readLinkedMaps,
   readNoteContent,
   rebaseTopicChoices,
-  removeTagLine,
   saveTopicChoices,
   tagNamesSchema,
   topicEditFor,
@@ -35,7 +33,7 @@ import {
   type BulkState,
   type TopicChoices,
 } from "@/lib/notes/tree-topics";
-import { extractTags } from "@/lib/notes/utils/file-spec";
+import { addTag, readTags, removeTag } from "@/lib/notes/frontmatter";
 import { TopicDot } from "./topic-marks";
 
 /** topic edits change tree marks and the Tags view, so both listen for this */
@@ -256,7 +254,7 @@ function TagsSection({
     return () => request.abort();
   }, []);
 
-  const tagsByNote = notes.map((id) => extractTags(contents[id]));
+  const tagsByNote = notes.map((id) => readTags(contents[id]));
   const present = [...new Set(tagsByNote.flat())].sort();
   const query = value.trim().toLowerCase();
   const matches = query
@@ -570,14 +568,14 @@ function TagEditorPanel({
               onToggle={(tag, state) =>
                 writeTags((content) =>
                   state === "on"
-                    ? removeTagLine(content, tag)
-                    : extractTags(content).includes(tag)
+                    ? removeTag(content, tag)
+                    : readTags(content).includes(tag)
                       ? null
-                      : addTagLine(content, tag),
+                      : addTag(content, tag),
                 )
               }
               onAdd={(tag) =>
-                writeTags((content) => (extractTags(content).includes(tag) ? null : addTagLine(content, tag)))
+                writeTags((content) => (readTags(content).includes(tag) ? null : addTag(content, tag)))
               }
             />
           </>

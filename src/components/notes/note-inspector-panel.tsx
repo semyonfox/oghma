@@ -11,8 +11,7 @@ import useLayoutStore, {
   type RightPanelTab,
 } from "@/lib/notes/state/layout";
 import useI18n from "@/lib/notes/hooks/use-i18n";
-import { extractTags } from "@/lib/notes/utils/file-spec";
-import { addTagLine, removeTagLine } from "@/lib/notes/tag-editing";
+import { addTag as withTag, readTags, removeTag as withoutTag } from "@/lib/notes/frontmatter";
 import dynamic from "next/dynamic";
 import {
   readSidebarChatSession,
@@ -239,7 +238,7 @@ export default function NoteInspectorPanel({
     };
   }, [activeFile?.fileId]);
 
-  const tags = extractTags(note?.content);
+  const tags = readTags(note?.content);
   const createdTimestamp = formatTimestamp(note?.createdAt);
   const updatedTimestamp = formatTimestamp(note?.updatedAt);
 
@@ -276,7 +275,7 @@ export default function NoteInspectorPanel({
     if (!tag || !tagNote || !canEditTags) return;
     setIsSavingTag(true);
     const run = async () => {
-      await saveTaggedContent(tagNote.id, addTagLine(tagNote.content ?? "", tag));
+      await saveTaggedContent(tagNote.id, withTag(tagNote.content ?? "", tag));
       setNewTag("");
     };
     await run()
@@ -293,7 +292,7 @@ export default function NoteInspectorPanel({
     const { id: noteId, content } = tagNote;
     setIsSavingTag(true);
     const run = async () => {
-      await saveTaggedContent(noteId, removeTagLine(content, tagToRemove));
+      await saveTaggedContent(noteId, withoutTag(content, tagToRemove));
     };
     await run()
       .catch(() => {
