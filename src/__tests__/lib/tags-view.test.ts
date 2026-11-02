@@ -28,8 +28,8 @@ const notes: ScopeNoteRow[] = [
   note({ note_id: "slides", title: "Lecture Slides", is_folder: true }),
   note({ note_id: "bundle", parent_id: "slides", title: "Lecture 4", is_folder: true }),
   note({ note_id: "pdf", parent_id: "bundle", title: "Lecture 4.pdf", s3_key: "k/lecture-4.pdf", mime_type: "application/pdf" }),
-  note({ note_id: "pdf-note", parent_id: "bundle", title: "Lecture 4.md", extracted_from_note_id: "pdf", tag_content: "text\n#exam-prep\n" }),
-  note({ note_id: "mlfq", title: "MLFQ rules.md", tag_content: "#exam-prep #Revise" }),
+  note({ note_id: "pdf-note", parent_id: "bundle", title: "Lecture 4.md", extracted_from_note_id: "pdf", tag_content: "---\ntags:\n  - exam-prep\n---\ntext\n" }),
+  note({ note_id: "mlfq", title: "MLFQ rules.md", tag_content: "---\ntags: [exam-prep, revise]\n---\n#onbench $\\leq 4$" }),
   note({ note_id: "random", title: "random thoughts.md" }),
 ];
 

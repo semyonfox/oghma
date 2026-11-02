@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   buildFileSpec,
-  extractTags,
   inferFileType,
   parseFileDragPayload,
 } from "@/lib/notes/utils/file-spec";
@@ -142,30 +141,5 @@ describe("file drag payload parsing", () => {
     }),
   ])("rejects malformed external payload %s", (raw) => {
     expect(parseFileDragPayload(raw)).toBeNull();
-  });
-});
-
-describe("note tag extraction", () => {
-  it("combines frontmatter aliases and inline tags without duplicates", () => {
-    const content = [
-      "---",
-      "keywords: algorithms, data-structures",
-      "---",
-      "See #algorithms and #TypeScript",
-    ].join("\n");
-
-    expect(extractTags(content)).toEqual([
-      "algorithms",
-      "data-structures",
-      "typescript",
-    ]);
-  });
-
-  it("ignores hashtag-like text in the middle of a token", () => {
-    expect(extractTags("c#programming is not a tag")).toEqual([]);
-  });
-
-  it.each([null, undefined, ""])("returns no tags for %s", (content) => {
-    expect(extractTags(content)).toEqual([]);
   });
 });

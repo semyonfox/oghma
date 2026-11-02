@@ -138,8 +138,8 @@ export async function saveTopicChoices(
 }
 
 /**
- * A #tag is a line in the note, so writing one changes the text the study map
- * hashed and its saved topic picks would go stale. Picks that were current
+ * Tags live in the note's frontmatter, so writing one changes the text the
+ * study map hashed and its saved topic picks would go stale. Picks that were current
  * before the write are saved again against the new text.
  */
 export async function rebaseTopicChoices(before: readonly LinkedMap[], noteId: string): Promise<void> {
@@ -153,20 +153,6 @@ export async function rebaseTopicChoices(before: readonly LinkedMap[], noteId: s
     if (fresh.correctionsCurrent) continue;
     await saveTopicChoices(fresh, previous.choices, { kind: previous.kind, labels: previous.labels });
   }
-}
-
-// #tags are lines in the note, written the way the note inspector writes them
-
-export function addTagLine(content: string, tag: string): string {
-  const line = `#${tag}`;
-  return content ? `${content.trimEnd()}\n${line}\n` : `${line}\n`;
-}
-
-export function removeTagLine(content: string, tag: string): string {
-  return content
-    .split("\n")
-    .filter((line) => line.trim() !== `#${tag}`)
-    .join("\n");
 }
 
 /** strip a leading # and spaces the way the inspector's tag field does */

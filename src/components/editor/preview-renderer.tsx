@@ -1,6 +1,7 @@
 "use client";
 
 import MarkdownRenderer from "@/lib/markdown/renderer";
+import { splitFrontmatter } from "@/lib/notes/frontmatter";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
 interface PreviewRendererProps {
@@ -10,6 +11,7 @@ interface PreviewRendererProps {
 
 export default function PreviewRenderer({ content, noteId }: PreviewRendererProps) {
   const { t } = useI18n();
+  const { body } = splitFrontmatter(content);
   return (
     <MarkdownRenderer
       variant="note"
@@ -43,7 +45,7 @@ export default function PreviewRenderer({ content, noteId }: PreviewRendererProp
         },
       }}
     >
-      {content || t("*No content*")}
+      {body || t("*No content*")}
     </MarkdownRenderer>
   );
 }
