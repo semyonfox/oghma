@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Fragment,
   useEffect,
   useEffectEvent,
   useCallback,
@@ -102,6 +103,8 @@ export interface StudyFlowProps {
 
 // below this the board is a table of topic decks, in its own coordinates. crossing it keeps the same topic under the pointer
 const DECK_ZOOM = 0.5;
+// zooming in past DECK_ZOOM parks the camera and spends this much log-zoom unfolding the decks into clusters where they sit
+const UNFOLD_LOG = Math.log(1.8);
 const COMPACT_ZOOM = 0.72;
 const MIN_ZOOM = 0.06;
 const MAX_ZOOM = 1.8;
@@ -121,6 +124,17 @@ const iconButton =
   "grid h-8 w-8 place-items-center rounded-radius-md text-text-secondary hover:bg-primary-500/10 hover:text-text focus-visible:outline-2 focus-visible:outline-primary-500";
 
 type Camera = { x: number; y: number; z: number };
+type Rect = { x: number; y: number; w: number; h: number };
+/**
+ * decks part way to clusters. off moves the cluster layout so the pointed topic opens where its deck was, and the
+ * camera eases from DECK_ZOOM to full so that topic keeps roughly its size on screen
+ */
+type Unfold = {
+  u: number;
+  key: string;
+  off: { x: number; y: number };
+  full: number;
+};
 type FilterKey =
   | "lectures"
   | "slides"
@@ -450,6 +464,11 @@ const headerRect = (module: ModuleModel, cluster: FlowCluster) => ({
 });
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
+const lerp = (from: number, to: number, t: number) => from + (to - from) * t;
+const smooth = (from: number, to: number, t: number) => {
+  const k = clamp((t - from) / (to - from), 0, 1);
+  return k * k * (3 - 2 * k);
+};
 const reducedMotion = () =>
   typeof window !== "undefined" &&
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -594,6 +613,11 @@ interface DeckLayerProps {
   query: string;
   matches: (ref: string) => boolean;
   lines: Array<{ key: string; d: string; x: number; y: number; label: string }>;
+  unfold: Unfold | null;
+  /** the fan card under the pointer or keyboard focus */
+  hot: string | null;
+  /** arrived by unfolding, so the layer is already in place and skips the fade */
+  seam: boolean;
 }
 
 /** the far view: every topic is one deck, sized by the exam and thicker with more files */
@@ -608,7 +632,11 @@ function DeckLayer({
   query,
   matches,
   lines,
+  unfold,
+  hot,
+  seam,
 }: DeckLayerProps) {
+  const u = unfold?.u ?? 0;
   const opened = table.modules.flatMap((entry) =>
     entry.table.decks
       .filter((deck) => deck.id === openKey)
@@ -624,8 +652,30 @@ function DeckLayer({
         table.width,
       )
     : [];
+  const fanColour = opened?.deck.cluster.topic
+    ? topics.get(opened.deck.cluster.topic.id)?.colour
+    : undefined;
+  // the hovered card straightens, lifts and grows. the rest of its row leans away and dims
+  const hotIndex = hot ? shownRefs.indexOf(hot) : -1;
+  const lift = (index: number): CSSProperties => {
+    const slot = slots[index];
+    const base = { "--rot": `${slot.rotate}deg` } as CSSProperties;
+    if (hotIndex < 0) return base;
+    const gap = index - hotIndex;
+    if (gap === 0)
+      return { ...base, "--ty": "-68px", "--s": 1.13, "--dr": `${-slot.rotate}deg` } as CSSProperties;
+    if (Math.abs(slot.y - slots[hotIndex].y) > FAN_CARD_HEIGHT / 2) return base;
+    const near = Math.abs(gap) === 1;
+    return {
+      ...base,
+      "--tx": `${Math.sign(gap) * (near ? 62 : 28)}px`,
+      "--dr": `${Math.sign(gap) * (near ? 1.6 : 0.6)}deg`,
+    } as CSSProperties;
+  };
+  const fanState = (index: number) =>
+    hotIndex < 0 ? "" : index === hotIndex ? "study-fan-card-hot" : "study-fan-card-dim";
   return (
-    <div className="study-layer-in">
+    <div className={seam ? undefined : "study-layer-in"}>
       {table.modules.flatMap(({ module, table: moduleTable, originY }) =>
         moduleTable.decks.map((deck) => {
           const topic = deck.cluster.topic
@@ -644,34 +694,130 @@ function DeckLayer({
               : module.examMarks.size > 0 && topic
                 ? "no exam data"
                 : null;
-          return (
+          // while unfolding, a deck grows from its table spot into its cluster's frame
+          const from: Rect = {
+            x: deck.x,
+            y: originY + deck.y,
+            w: deck.width,
+            h: deck.height,
+          };
+          const to: Rect = unfold
+            ? {
+                x: deck.cluster.x + unfold.off.x,
+                y: module.originY + deck.cluster.y + unfold.off.y,
+                w: deck.cluster.width,
+                h: deck.cluster.height,
+              }
+            : from;
+          const textOpacity = 1 - smooth(0.1, 0.5, unfold?.key === deck.id ? u : 0);
+          const ghosts =
+            u > 0
+              ? refs.flatMap((ref) => {
+                  const placed = byRef.get(ref);
+                  return placed &&
+                    module.layout.primary.get(ref) === deck.key
+                    ? [placed]
+                    : [];
+                })
+              : [];
+          // the pointed deck morphs into its cluster. the others are laid out differently, so they cross-fade in place
+          const morph = unfold?.key === deck.id;
+          const at = morph ? u : 0;
+          const fade = unfold && !morph ? 1 - smooth(0, 0.5, u) : 1;
+          const frame = u > 0 && (
             <div
-              key={deck.id}
+              aria-hidden="true"
+              className={`pointer-events-none absolute ${morph ? "inset-0" : "study-glass rounded-[20px]"}`}
+              style={
+                morph
+                  ? { opacity: smooth(0.3, 1, u) }
+                  : {
+                      left: to.x,
+                      top: to.y,
+                      width: to.w,
+                      height: to.h,
+                      opacity: smooth(0.2, 0.75, u) * (quiet ? 0.2 : 1),
+                      "--deck-colour": topic?.colour ?? "var(--color-text-tertiary)",
+                    } as CSSProperties
+              }
+            >
+              <div
+                className="flex flex-col justify-center px-4"
+                style={{ height: CLUSTER_HEADER - 4, opacity: morph ? smooth(0.5, 1, u) : 1 }}
+              >
+                <span className="flex min-w-0 items-center gap-2 text-[24px] font-semibold leading-tight text-text">
+                  <span
+                    className="shrink-0 rounded-full"
+                    style={{ width: 8, height: 8, background: "var(--deck-colour)" }}
+                  />
+                  <span className="truncate">{name}</span>
+                </span>
+                <span className="truncate text-[16px] text-text-tertiary">
+                  {ghosts.length} {ghosts.length === 1 ? "card" : "cards"}
+                </span>
+              </div>
+              {ghosts.map((placed) => (
+                <i
+                  key={placed.item.ref}
+                  className="study-deck-ghost"
+                  style={{
+                    left: `${((placed.x - deck.cluster.x) / deck.cluster.width) * 100}%`,
+                    top: `${((placed.y - module.originY - deck.cluster.y) / deck.cluster.height) * 100}%`,
+                    width: `${(CARD_WIDTH / deck.cluster.width) * 100}%`,
+                    height: `${(placed.item.height / deck.cluster.height) * 100}%`,
+                  }}
+                />
+              ))}
+            </div>
+          );
+          return (
+            <Fragment key={deck.id}>
+            <div
               role="button"
               tabIndex={0}
               data-deck={deck.id}
               aria-expanded={openKey === deck.id}
               aria-label={`${name}, ${refs.length} ${refs.length === 1 ? "file" : "files"}${deck.share !== null ? `, ${Math.round(deck.share * 100)}% of exam marks` : ""}`}
-              className={`study-deck study-deck-${deck.tier} absolute cursor-pointer outline-offset-8 transition-opacity duration-200 focus-visible:outline-8 focus-visible:outline focus-visible:outline-primary-500 ${quiet ? "opacity-20" : ""}`}
+              className={`study-deck study-deck-${deck.tier} absolute cursor-pointer outline-offset-8 focus-visible:outline-8 focus-visible:outline focus-visible:outline-primary-500 ${unfold ? (morph ? "z-[1]" : "") : "transition-opacity duration-200"} ${quiet && !unfold ? "opacity-20" : ""}`}
               style={
                 {
-                  left: deck.x,
-                  top: originY + deck.y,
-                  width: deck.width,
-                  height: deck.height,
+                  left: lerp(from.x, to.x, at),
+                  top: lerp(from.y, to.y, at),
+                  width: lerp(from.w, to.w, at),
+                  height: lerp(from.h, to.h, at),
+                  opacity: unfold ? fade * (quiet ? 0.2 : 1) : undefined,
+                  transform: fade < 1 ? `scale(${0.94 + 0.06 * fade})` : undefined,
                   "--deck-colour": topic?.colour ?? "var(--color-text-tertiary)",
+                  "--deck-fill": 1 - smooth(0.4, 1, at),
                 } as CSSProperties
               }
             >
-              {deck.layers >= 2 && <i className="study-deck-under study-deck-under-2" />}
-              {deck.layers >= 1 && <i className="study-deck-under study-deck-under-1" />}
-              <div className="study-deck-face">
-                <b>{name}</b>
-                <span>
+              {deck.layers >= 2 && (
+                <i
+                  className="study-deck-under study-deck-under-2"
+                  style={at > 0 ? { opacity: 0.6 * (1 - smooth(0, 0.4, at)) } : undefined}
+                />
+              )}
+              {deck.layers >= 1 && (
+                <i
+                  className="study-deck-under study-deck-under-1"
+                  style={at > 0 ? { opacity: 1 - smooth(0, 0.4, at) } : undefined}
+                />
+              )}
+              <div
+                className="study-deck-face"
+                style={
+                  at > 0
+                    ? { borderRadius: lerp(48, 20, at), borderWidth: lerp(3, 1, at) }
+                    : undefined
+                }
+              >
+                <b style={at > 0 ? { opacity: textOpacity } : undefined}>{name}</b>
+                <span style={at > 0 ? { opacity: textOpacity } : undefined}>
                   {refs.length} {refs.length === 1 ? "file" : "files"}
                 </span>
                 {exam && (
-                  <em>
+                  <em style={at > 0 ? { opacity: textOpacity } : undefined}>
                     {exam}
                     {deck.share !== null && (
                       <span className="sr-only"> of exam marks</span>
@@ -679,7 +825,10 @@ function DeckLayer({
                   </em>
                 )}
               </div>
+              {morph && frame}
             </div>
+            {!morph && frame}
+            </Fragment>
           );
         }),
       )}
@@ -725,14 +874,15 @@ function DeckLayer({
             data-fan={ref}
             aria-pressed={selected === ref}
             aria-label={placed.item.title || "Untitled"}
-            className={`study-fan-card absolute z-20 cursor-pointer ${selected === ref ? "study-fan-card-selected" : ""}`}
+            className={`study-fan-card absolute cursor-pointer ${index === hotIndex ? "z-30" : "z-20"} ${fanState(index)} ${selected === ref ? "study-fan-card-selected" : ""}`}
             style={{
+              ...lift(index),
+              "--fan-colour": fanColour ?? "var(--color-primary-500)",
               left: slot.x,
               top: slot.y,
               width: FAN_CARD_WIDTH,
               height: FAN_CARD_HEIGHT,
-              transform: `rotate(${slot.rotate}deg)`,
-            }}
+            } as CSSProperties}
           >
             <small>{cardLabel(placed.item)}</small>
             <b>{placed.item.title || "Untitled"}</b>
@@ -752,8 +902,9 @@ function DeckLayer({
           role="button"
           tabIndex={0}
           data-deck-all={opened.deck.id}
-          className="study-fan-card study-fan-more absolute z-20 cursor-pointer"
+          className={`study-fan-card study-fan-more absolute z-20 cursor-pointer ${fanState(shownRefs.length)}`}
           style={{
+            ...lift(shownRefs.length),
             left: slots[shownRefs.length].x,
             top: slots[shownRefs.length].y,
             width: FAN_CARD_WIDTH,
@@ -789,12 +940,20 @@ export default function StudyFlow({
   const boardRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
   const camera = useRef<Camera>({ x: 40, y: 20, z: 0.3 });
-  const [view, setView] = useState<Camera & { w: number; h: number }>({
+  // set while the camera is parked on DECK_ZOOM in deck coordinates. the board shows decks whenever z < DECK_ZOOM or this is set
+  const unfold = useRef<Unfold | null>(null);
+  // whether the last switch between decks and clusters was a seamless unfold rather than a snap
+  const seam = useRef(false);
+  const [view, setView] = useState<
+    Camera & { w: number; h: number; unfold: Unfold | null; seam: boolean }
+  >({
     x: 40,
     y: 20,
     z: 0.3,
     w: 1200,
     h: 800,
+    unfold: null,
+    seam: false,
   });
   const deckTable = useMemo(
     () =>
@@ -808,6 +967,7 @@ export default function StudyFlow({
   const animation = useRef(0);
   const [hovered, setHovered] = useState<string | null>(null);
   const [hoverTopic, setHoverTopic] = useState<string | null>(null);
+  const [fanHot, setFanHot] = useState<string | null>(null);
   const [preview, setPreview] = useState<{
     ref: string;
     pinned: boolean;
@@ -870,6 +1030,8 @@ export default function StudyFlow({
         ...camera.current,
         w: board.clientWidth,
         h: board.clientHeight,
+        unfold: unfold.current && { ...unfold.current },
+        seam: seam.current,
       });
     });
   };
@@ -877,68 +1039,165 @@ export default function StudyFlow({
   // the camera only touches refs and the DOM, so effects call the latest one
   const applyCamera = useEffectEvent(apply);
 
-  // decks and clusters have different coordinates, so crossing the threshold keeps the same topic at the same spot on screen
-  const crossWorlds = (
-    from: Camera,
-    to: Camera,
+  // decks and clusters have different coordinates. the topic under the pointer, or the closest one in a gap, ties
+  // them together: the spot under the pointer in its deck lines up with the same spot in its cluster
+  const anchorAt = (
     px: number,
     py: number,
-  ): Camera => {
-    const wasDecks = from.z < DECK_ZOOM;
-    if (wasDecks === to.z < DECK_ZOOM) return to;
+    decks: boolean,
+  ): Omit<Unfold, "u"> => {
     const anchors = deckTable.modules.flatMap(({ module, table, originY }) =>
       table.decks.map((deck) => ({
-        deck: {
-          x: deck.x + deck.width / 2,
-          y: originY + deck.y + deck.height / 2,
-          w: deck.width,
-          h: deck.height,
-        },
+        key: deck.id,
+        deck: { x: deck.x, y: originY + deck.y, w: deck.width, h: deck.height },
         cluster: {
-          x: deck.cluster.x + deck.cluster.width / 2,
-          y: module.originY + deck.cluster.y + Math.min(deck.cluster.height / 2, 200),
-          // measured from the centre above, so the box is only ever used for containing the pointer
+          x: deck.cluster.x,
+          y: module.originY + deck.cluster.y,
           w: deck.cluster.width,
           h: deck.cluster.height,
-          top: module.originY + deck.cluster.y,
         },
       })),
     );
-    if (!anchors.length) return to;
-    const wx = (px - from.x) / from.z;
-    const wy = (py - from.y) / from.z;
-    // the topic under the pointer wins. only a pointer in a gap falls back to the closest one
-    const under = anchors.find(({ deck, cluster }) =>
-      wasDecks
-        ? Math.abs(wx - deck.x) <= deck.w / 2 &&
-          Math.abs(wy - deck.y) <= deck.h / 2
-        : Math.abs(wx - cluster.x) <= cluster.w / 2 &&
-          wy >= cluster.top &&
-          wy <= cluster.top + cluster.h,
-    );
-    const distance = (point: { x: number; y: number }) =>
-      Math.hypot(point.x - wx, point.y - wy);
+    if (!anchors.length) return { key: "", off: { x: 0, y: 0 }, full: DECK_ZOOM };
+    const { x, y, z } = camera.current;
+    const wx = (px - x) / z;
+    const wy = (py - y) / z;
+    const rectOfAnchor = (anchor: (typeof anchors)[number]) =>
+      decks ? anchor.deck : anchor.cluster;
+    const inside = (rect: Rect) =>
+      wx >= rect.x && wx <= rect.x + rect.w && wy >= rect.y && wy <= rect.y + rect.h;
+    const distance = (rect: Rect) =>
+      Math.hypot(rect.x + rect.w / 2 - wx, rect.y + rect.h / 2 - wy);
     const nearest =
-      under ??
+      anchors.find((anchor) => inside(rectOfAnchor(anchor))) ??
       anchors.reduce((best, anchor) =>
-        distance(wasDecks ? anchor.deck : anchor.cluster) <
-        distance(wasDecks ? best.deck : best.cluster)
+        distance(rectOfAnchor(anchor)) < distance(rectOfAnchor(best))
           ? anchor
           : best,
       );
-    const point = wasDecks ? nearest.cluster : nearest.deck;
-    return { x: px - point.x * to.z, y: py - point.y * to.z, z: to.z };
+    const { deck, cluster } = nearest;
+    // only the top of a tall cluster counts, so it opens downwards from its deck
+    const clusterH = Math.min(cluster.h, 400);
+    const from = decks ? deck : { ...cluster, h: clusterH };
+    const rx = clamp((wx - from.x) / from.w, 0, 1);
+    const ry = clamp((wy - from.y) / from.h, 0, 1);
+    return {
+      key: nearest.key,
+      off: {
+        x: deck.x + rx * deck.w - (cluster.x + rx * cluster.w),
+        y: deck.y + ry * deck.h - (cluster.y + ry * clusterH),
+      },
+      // same area on screen, but never past the compact cards
+      full: clamp(
+        DECK_ZOOM * Math.sqrt((deck.w * deck.h) / (cluster.w * cluster.h)),
+        DECK_ZOOM,
+        COMPACT_ZOOM - 0.02,
+      ),
+    };
+  };
+
+  const zoomAbout = (next: number, px: number, py: number) => {
+    const { x, y, z } = camera.current;
+    camera.current = {
+      x: px - ((px - x) / z) * next,
+      y: py - ((py - y) / z) * next,
+      z: next,
+    };
+  };
+
+  // zooming in stops at DECK_ZOOM and the rest unfolds the decks into clusters in place, so cards show without going
+  // closer. zooming out folds them back first. both layers only swap once they line up exactly
+  const zoomInput = (logDelta: number, px: number, py: number) => {
+    // a fly that was cut short can leave a stale park below the threshold
+    if (unfold.current && camera.current.z < DECK_ZOOM) unfold.current = null;
+    let rest = logDelta;
+    for (let guard = 0; Math.abs(rest) > 1e-9 && guard < 6; guard++) {
+      const { z } = camera.current;
+      const parked = unfold.current;
+      if (parked) {
+        if (rest > 0 || parked.u > 0) {
+          const du =
+            rest > 0
+              ? Math.min(1 - parked.u, rest / UNFOLD_LOG)
+              : Math.max(-parked.u, rest / UNFOLD_LOG);
+          rest -= du * UNFOLD_LOG;
+          const next = parked.u + du;
+          const done = next > 1 - 1e-6;
+          const shut = next < 1e-6;
+          zoomAbout(
+            done
+              ? parked.full
+              : shut
+                ? DECK_ZOOM
+                : DECK_ZOOM * Math.pow(parked.full / DECK_ZOOM, next),
+            px,
+            py,
+          );
+          if (done) {
+            const c = camera.current;
+            camera.current = {
+              x: c.x + parked.off.x * c.z,
+              y: c.y + parked.off.y * c.z,
+              z: c.z,
+            };
+            unfold.current = null;
+            seam.current = true;
+          } else {
+            unfold.current = { ...parked, u: shut ? 0 : next };
+          }
+        } else {
+          unfold.current = null;
+          zoomAbout(clamp(z * Math.exp(rest), MIN_ZOOM, DECK_ZOOM), px, py);
+          rest = 0;
+        }
+      } else if (z < DECK_ZOOM) {
+        const room = Math.log(DECK_ZOOM / z);
+        if (rest > 0 && rest >= room) {
+          rest -= room;
+          zoomAbout(DECK_ZOOM, px, py);
+          unfold.current = { u: 0, ...anchorAt(px, py, true) };
+          setOpenDeck(null);
+        } else {
+          zoomAbout(clamp(z * Math.exp(rest), MIN_ZOOM, DECK_ZOOM), px, py);
+          rest = 0;
+        }
+      } else {
+        // folding starts where unfolding that topic would have ended, or right away if already closer than that
+        const anchor = rest < 0 ? anchorAt(px, py, false) : null;
+        const room = anchor ? Math.log(Math.min(anchor.full, z) / z) : 0;
+        if (anchor && rest <= room) {
+          rest -= room;
+          zoomAbout(Math.min(anchor.full, z), px, py);
+          const c = camera.current;
+          camera.current = {
+            x: c.x - anchor.off.x * c.z,
+            y: c.y - anchor.off.y * c.z,
+            z: c.z,
+          };
+          unfold.current = { u: 1, ...anchor, full: c.z };
+          seam.current = true;
+        } else {
+          zoomAbout(clamp(z * Math.exp(rest), DECK_ZOOM, MAX_ZOOM), px, py);
+          rest = 0;
+        }
+      }
+    }
   };
 
   const flyTo = (target: Camera, ms = 380) => {
     cancelAnimationFrame(animation.current);
     // no sliding between two coordinate systems: the layers cross-fade instead
-    const crossing = camera.current.z < DECK_ZOOM !== target.z < DECK_ZOOM;
+    const decks = camera.current.z < DECK_ZOOM || unfold.current !== null;
+    const crossing = decks !== target.z < DECK_ZOOM;
+    if (crossing) seam.current = false;
     if (reducedMotion() || ms === 0 || crossing) {
       camera.current = target;
+      unfold.current = null;
       apply();
       return;
     }
+    // a half unfolded table folds back up on the way
+    const folding = unfold.current;
     const from = { ...camera.current };
     // the first frame's timestamp starts the clock, so nothing impure runs here
     let start: number | null = null;
@@ -964,6 +1223,8 @@ export default function StudyFlow({
       const cx = fromCentre.x + (toCentre.x - fromCentre.x) * ease;
       const cy = fromCentre.y + (toCentre.y - fromCentre.y) * ease;
       camera.current = { x: w / 2 - cx * z, y: h / 2 - cy * z, z };
+      if (folding)
+        unfold.current = t < 1 ? { ...folding, u: folding.u * (1 - ease) } : null;
       apply();
       if (t < 1) animation.current = requestAnimationFrame(step);
     };
@@ -1005,19 +1266,10 @@ export default function StudyFlow({
   const zoomBy = (factor: number, sx?: number, sy?: number) => {
     const board = boardRef.current;
     if (!board) return;
-    const px = sx ?? board.clientWidth / 2;
-    const py = sy ?? board.clientHeight / 2;
-    const { x, y, z } = camera.current;
-    const next = clamp(z * factor, MIN_ZOOM, MAX_ZOOM);
-    camera.current = crossWorlds(
-      camera.current,
-      {
-        x: px - ((px - x) / z) * next,
-        y: py - ((py - y) / z) * next,
-        z: next,
-      },
-      px,
-      py,
+    zoomInput(
+      Math.log(factor),
+      sx ?? board.clientWidth / 2,
+      sy ?? board.clientHeight / 2,
     );
     apply();
   };
@@ -1040,6 +1292,8 @@ export default function StudyFlow({
     camera.current =
       restored ??
       (board.clientWidth < 640 ? { ...start, y: TOP_INSET + 4 } : start);
+    unfold.current = null;
+    seam.current = false;
     apply();
   });
   useLayoutEffect(() => {
@@ -1048,12 +1302,30 @@ export default function StudyFlow({
     placeInitialCamera(board);
   }, [viewKey]);
 
+  // a parked camera is in deck coordinates at or above DECK_ZOOM, which would read back as clusters
+  const savedCamera = useEffectEvent((): Camera => {
+    const parked = unfold.current;
+    const { x, y, z } = camera.current;
+    if (!parked) return camera.current;
+    if (parked.u >= 0.5)
+      return { x: x + parked.off.x * z, y: y + parked.off.y * z, z };
+    const board = boardRef.current;
+    const cx = (board?.clientWidth ?? 1200) / 2;
+    const cy = (board?.clientHeight ?? 800) / 2;
+    const next = DECK_ZOOM * 0.998;
+    return {
+      x: cx - ((cx - x) / z) * next,
+      y: cy - ((cy - y) / z) * next,
+      z: next,
+    };
+  });
+
   useEffect(() => {
     const save = () => {
       try {
         window.sessionStorage.setItem(
           `oghma-study-flow-camera-v2:${viewKey}`,
-          JSON.stringify(camera.current),
+          JSON.stringify(savedCamera()),
         );
       } catch {
         // the camera is a convenience; private browsing can refuse storage
@@ -1122,7 +1394,8 @@ export default function StudyFlow({
     return () => board.removeEventListener("wheel", onWheel);
   }, []);
 
-  const deckMode = view.z < DECK_ZOOM;
+  const deckMode = view.z < DECK_ZOOM || view.unfold !== null;
+  const unfolded = view.unfold?.u ?? 0;
   const compact = view.z < COMPACT_ZOOM;
   const lowerQuery = query.trim().toLocaleLowerCase();
 
@@ -1527,22 +1800,20 @@ export default function StudyFlow({
       const [a, b] = [...pointers.current.values()];
       const distance = Math.hypot(a.x - b.x, a.y - b.y);
       const centre = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-      const z = clamp(
-        current.camera.z * (distance / (current.distance || distance)),
-        MIN_ZOOM,
-        MAX_ZOOM,
+      // step by step, so the pinch can park and unfold like the wheel does
+      camera.current = {
+        ...camera.current,
+        x: camera.current.x + centre.x - current.startX,
+        y: camera.current.y + centre.y - current.startY,
+      };
+      zoomInput(
+        Math.log(distance / (current.distance || distance)),
+        centre.x,
+        centre.y,
       );
-      const wx = (current.startX - current.camera.x) / current.camera.z;
-      const wy = (current.startY - current.camera.y) / current.camera.z;
-      const pinched = { x: centre.x - wx * z, y: centre.y - wy * z, z };
-      camera.current = crossWorlds(camera.current, pinched, centre.x, centre.y);
-      // the gesture continues from the other side of the threshold
-      if (camera.current !== pinched) {
-        current.camera = { ...camera.current };
-        current.startX = centre.x;
-        current.startY = centre.y;
-        current.distance = distance;
-      }
+      current.startX = centre.x;
+      current.startY = centre.y;
+      current.distance = distance;
       apply();
       return;
     }
@@ -1707,6 +1978,8 @@ export default function StudyFlow({
     const legend =
       target?.closest<HTMLElement>("[data-legend]")?.dataset.legend ?? null;
     if (legend !== hoverTopic) setHoverTopic(legend);
+    const fan = target?.closest<HTMLElement>("[data-fan]")?.dataset.fan ?? null;
+    if (fan !== fanHot) setFanHot(fan);
     if (ref === hovered) return;
     setHovered(ref);
     window.clearTimeout(previewTimer.current);
@@ -1829,6 +2102,12 @@ export default function StudyFlow({
   }
 
   function onFocusCapture(event: ReactFocusEvent<HTMLDivElement>) {
+    // tabbing through a fan lifts each card like hovering does
+    if (
+      event.target instanceof HTMLElement &&
+      event.target.matches(":focus-visible")
+    )
+      setFanHot(event.target.dataset.fan ?? null);
     // keep keyboard focus visible by bringing an offscreen card into view
     const card =
       event.target instanceof HTMLElement
@@ -2250,6 +2529,7 @@ export default function StudyFlow({
           onPointerLeave={() => {
             setHovered(null);
             setHoverTopic(null);
+            setFanHot(null);
             window.clearTimeout(previewTimer.current);
             leaveTimer.current = window.setTimeout(
               () => setPreview((current) => (current?.pinned ? current : null)),
@@ -2269,25 +2549,41 @@ export default function StudyFlow({
               const tabled = deckTable.modules.find(
                 (entry) => entry.module === module,
               );
+              // the module panel unfolds with its decks
+              const off = view.unfold?.off ?? { x: 0, y: 0 };
+              const panel = deckMode
+                ? {
+                    left: lerp(-24, off.x - 24, unfolded),
+                    top: lerp(tabled?.originY ?? 0, module.originY + off.y, unfolded),
+                    width: lerp(deckTable.width, model.width, unfolded) + 48,
+                    height: lerp(
+                      tabled?.table.height ?? 0,
+                      module.layout.height,
+                      unfolded,
+                    ),
+                  }
+                : {
+                    left: -24,
+                    top: module.originY,
+                    width: model.width + 48,
+                    height: module.layout.height,
+                  };
               return (
               <section
                 key={module.mapId}
                 aria-label={`${module.name} ${module.year}`}
                 className="absolute rounded-[28px] bg-surface/40"
-                style={{
-                  left: -24,
-                  top: deckMode ? (tabled?.originY ?? 0) : module.originY,
-                  width: (deckMode ? deckTable.width : model.width) + 48,
-                  height: deckMode
-                    ? (tabled?.table.height ?? 0)
-                    : module.layout.height,
-                }}
+                style={panel}
               >
                 <header
                   className="absolute left-10 flex items-baseline gap-4 whitespace-nowrap"
                   style={{
-                    top: deckMode ? 30 : 32,
-                    fontSize: deckMode ? 72 : compact ? 44 : 34,
+                    top: deckMode ? lerp(30, 32, unfolded) : 32,
+                    fontSize: deckMode
+                      ? lerp(72, 44, unfolded)
+                      : compact
+                        ? 44
+                        : 34,
                   }}
                 >
                   <h2 className="font-semibold tracking-tight text-text">
@@ -2332,9 +2628,12 @@ export default function StudyFlow({
                 query={lowerQuery}
                 matches={matchesRef}
                 lines={deckLines}
+                unfold={view.unfold}
+                hot={fanHot}
+                seam={view.seam}
               />
             ) : (
-            <div className="study-layer-in">
+            <div className={view.seam ? undefined : "study-layer-in"}>
             <svg
               className="pointer-events-none absolute left-0 top-0 overflow-visible"
               width={1}
@@ -2462,13 +2761,16 @@ export default function StudyFlow({
               </defs>
               {svg.under}
             </svg>
-            <CardLayer
-              placed={culled}
-              compact={compact}
-              state={cardState}
-              stops={stops}
-              focusColour={focusTopic?.colour ?? null}
-            />
+            {/* after an unfold the frames are already there, so only the cards fade in */}
+            <div className={view.seam ? "study-layer-in" : undefined}>
+              <CardLayer
+                placed={culled}
+                compact={compact}
+                state={cardState}
+                stops={stops}
+                focusColour={focusTopic?.colour ?? null}
+              />
+            </div>
             <svg
               className="pointer-events-none absolute left-0 top-0 z-10 overflow-visible"
               width={1}
