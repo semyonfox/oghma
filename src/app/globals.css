@@ -1847,7 +1847,11 @@ html:not(.light) .study-card-page > div:first-child {
   background:
     radial-gradient(
       120% 90% at 0 0,
-      color-mix(in srgb, var(--deck-colour) 17%, transparent),
+      color-mix(
+        in srgb,
+        var(--deck-colour) calc(17% * var(--deck-fill, 1)),
+        transparent
+      ),
       transparent 62%
     ),
     linear-gradient(
@@ -1855,7 +1859,20 @@ html:not(.light) .study-card-page > div:first-child {
       var(--study-glass),
       color-mix(in srgb, var(--study-glass) 55%, transparent)
     ),
-    var(--color-surface);
+    /* unfolding thins the deck into the see-through glass of a cluster */
+    color-mix(
+      in srgb,
+      var(--color-surface) calc(100% * var(--deck-fill, 1)),
+      transparent
+    );
+}
+/* the cards a deck is about to become, while it unfolds */
+.study-deck-ghost {
+  position: absolute;
+  border: 1px solid var(--study-glass-edge);
+  border-radius: 14px;
+  background: var(--study-glass);
+  box-shadow: 0 4px 14px var(--study-glass-shadow);
 }
 .study-deck-face b {
   font-weight: 600;
@@ -1899,6 +1916,10 @@ html:not(.light) .study-card-page > div:first-child {
   opacity: 0.6;
 }
 .study-fan-card {
+  --tx: 0px;
+  --ty: 0px;
+  --s: 1;
+  --dr: 0deg;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1911,7 +1932,26 @@ html:not(.light) .study-card-page > div:first-child {
       color-mix(in srgb, var(--study-glass) 55%, transparent)
     ),
     var(--color-surface);
-  transition: transform 180ms ease-out;
+  transform: translate(var(--tx), var(--ty))
+    rotate(calc(var(--rot, 0deg) + var(--dr))) scale(var(--s));
+  transform-origin: 50% 85%;
+  /* a small overshoot so the lift springs */
+  transition:
+    transform 420ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 260ms ease-out,
+    opacity 220ms ease-out,
+    filter 220ms ease-out;
+}
+.study-fan-card-hot {
+  box-shadow:
+    inset 0 3px 0 var(--study-glass-hi),
+    0 60px 110px var(--study-glass-shadow),
+    0 0 0 3px color-mix(in srgb, var(--fan-colour) 55%, transparent),
+    0 28px 110px color-mix(in srgb, var(--fan-colour) 35%, transparent);
+}
+.study-fan-card-dim {
+  opacity: 0.55;
+  filter: saturate(0.6);
 }
 .study-fan-card small {
   font-size: 28px;
@@ -1925,10 +1965,18 @@ html:not(.light) .study-card-page > div:first-child {
   letter-spacing: -0.01em;
 }
 .study-fan-card p {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+  overflow: hidden;
   margin-top: 16px;
   font-size: 30px;
   line-height: 1.35;
   color: var(--color-text-secondary);
+}
+.study-fan-card-hot p {
+  -webkit-line-clamp: 7;
+  color: color-mix(in srgb, var(--color-text) 80%, transparent);
 }
 .study-fan-card-selected {
   outline: 8px solid var(--color-primary-500);
