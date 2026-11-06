@@ -484,6 +484,45 @@ at once.
 Never repair this flow by editing `app.marker_jobs` manually. Fix the provider,
 queue, storage, or configuration fault and let the recovery path run.
 
+### Image record
+
+Workergroup 49902 on endpoint 39931 (`oghma-marker`) pulls the image named by
+its template. Each image gets a new template, so rollback is pointing the
+workergroup back at the previous template hash.
+
+| Date | Template | Image tag | Registry digest | Marker++ |
+|---|---|---|---|---|
+| 2026-10-07 | 755280, hash `14396662fb1fce5308df15b87358d090` | `vast-d31ecd22-cu129-eager-20261007` | index `sha256:2b2e89f226303c6f5ec0f50a800953ef1e6aa09cbfde20b90c0bc16312b660f7` | `d31ecd2` |
+| 2026-11-06 | 793626, hash `f77c7e0b486de5c1f7cf1842e2873583` | `vast-1a6df297-cu129-eager-20261106` | `sha256:ae03cee85b32a4e9cc46f7a4c47368e944d47af58bbd56217936e35648ce6332` | `1a6df29` |
+
+The 2026-11-06 image is built from the tracked Dockerfile with
+`MARKER_GPU_FAMILY=nonblackwell`. It carries Pillow 13 through
+`install-marker.py`, which applies Marker++'s uv override that pip cannot. The
+2026-10-07 image was patched by hand on top of an earlier tag. Its scripts
+match the tracked ones but its `backend.py` predates the broken pool reset.
+
+Switch the workergroup with the full live offer query. The current vastai CLI
+sends `verified=True rentable=True rented=False` when `--search_params` is
+omitted, which replaces the RTX 3090 filter and price cap:
+
+```bash
+vastai update workergroup 49902 --endpoint_id 39931 \
+  --template_hash <TEMPLATE_HASH> --gpu_ram 24 --launch_args '--disk 80' -n \
+  --search_params "verified=true rentable=true rented=false reliability>=0.98 cpu_arch=amd64 cpu_cores_effective>=8 cpu_ram>=32 num_gpus=1 gpu_name=RTX_3090 gpu_ram>=24 cuda_max_good>=12.9 disk_bw>=500 disk_space>=80 allocated_storage=80 inet_down>=500 inet_up>=100 inet_down_cost<=0.005 inet_up_cost<=0.005 storage_cost<=0.4 dph_total<=0.3"
+```
+
+Known Vast behaviour from the 2026-11-06 switch:
+
+- A template change makes the autoscaler update a stopped worker in place. The
+  old worker hung on the image pull and Vast timed it out twice after about 16
+  minutes each, so destroy the stopped worker instead of waiting.
+- With no worker left, the autoscaler made one create attempt, lost the offer
+  to another renter and did not retry. Router polls carry `new_load: 0`, so a
+  waiting job does not trigger another attempt. The workergroup was created
+  with `--test_workers 1`, which the current CLI no longer offers, and setting
+  it on an existing group did nothing. Until a worker exists the endpoint
+  cannot serve, on either template.
+
 ## Research boundary
 
 Vast's Deployments feature is currently documented as beta, so this design
