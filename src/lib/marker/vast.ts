@@ -1,7 +1,17 @@
+import { Agent } from "undici";
+
 import { MarkerDispatchRejectedError } from "@/lib/marker/errors";
 
 const DEFAULT_ROUTER_URL = "https://run.vast.ai/route/";
 const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
+// the router answers a bad key or a deleted endpoint with 200 and one of these,
+// which never clears by polling. cold starts send an empty error_msg instead
+const DEFINITIVE_ROUTE_ERROR = /not found|does not exist|unauthori[sz]ed|invalid api key/i;
+
+// the worker only answers once the conversion is done, and scanned papers take
+// longer than node's default 300s headers timeout. the abort signal from
+// workerTimeoutMs is the real bound, so undici's own timers are switched off
+const workerAgent = new Agent({ headersTimeout: 0, bodyTimeout: 0 });
 
 export interface VastServerlessConfig {
   endpointName: string;
@@ -40,6 +50,8 @@ export interface VastServerlessDependencies {
 interface RouteResponse {
   request_idx?: number | string;
   url?: string;
+  error_msg?: unknown;
+  status?: unknown;
   [key: string]: unknown;
 }
 
@@ -118,7 +130,7 @@ function backoffMs(
 async function fetchWithTimeout(
   fetchFn: typeof fetch,
   url: string,
-  init: RequestInit,
+  init: RequestInit & { dispatcher?: Agent },
   timeoutMs: number,
 ): Promise<Response> {
   const controller = new AbortController();
@@ -172,6 +184,7 @@ export async function requestVastEndpoint<T extends Record<string, unknown>>(
   let routePolls = 0;
   let workerAttempts = 0;
   let routeReadyAt = startedAt;
+  let lastRouteState = "";
   // once a worker call may have started converting, every later failure is
   // ambiguous: that worker can still upload a result
   let workerMayHaveRun = false;
@@ -182,7 +195,10 @@ export async function requestVastEndpoint<T extends Record<string, unknown>>(
   const remainingMs = (): number => {
     const remaining = deadline - now();
     if (remaining <= 0) {
-      throw failure(`Vast request timed out after ${totalTimeoutMs}ms`);
+      const state = lastRouteState
+        ? `, last router state: ${sanitizeDetail(lastRouteState, apiKey)}`
+        : "";
+      throw failure(`Vast request timed out after ${totalTimeoutMs}ms${state}`);
     }
     return remaining;
   };
@@ -248,6 +264,16 @@ export async function requestVastEndpoint<T extends Record<string, unknown>>(
         throw failure(error instanceof Error ? error.message : String(error));
       }
       if (!workerBaseUrl) {
+        const errorMessage =
+          typeof routeBody.error_msg === "string" ? routeBody.error_msg.trim() : "";
+        if (DEFINITIVE_ROUTE_ERROR.test(errorMessage)) {
+          throw failure(
+            `Vast route refused: ${sanitizeDetail(errorMessage, apiKey)}`,
+          );
+        }
+        lastRouteState =
+          errorMessage ||
+          (typeof routeBody.status === "string" ? routeBody.status.trim() : "");
         routePolls += 1;
         pollAttempt += 1;
         await sleep(backoffMs(pollAttempt, maxPollIntervalMs, random));
@@ -273,6 +299,7 @@ export async function requestVastEndpoint<T extends Record<string, unknown>>(
             session_id: null,
             payload,
           }),
+          dispatcher: workerAgent,
         },
         Math.min(workerTimeoutMs, remainingMs()),
       );
