@@ -8,7 +8,9 @@ import { enqueueNoteReindexJob } from "@/lib/queue";
 interface NoteReindexRow {
   content: string;
   extracted_text: string | null;
-  // kept as text so the µs precision survives the round trip into the UPDATE
+  // kept as text so the µs precision survives the round trip into the UPDATE.
+  // the parameter must also bind as text: a bare ::timestamptz makes postgres.js
+  // serialise it through Date, which drops it to ms and the stamp never matches
   updated_at: string;
 }
 
@@ -62,7 +64,7 @@ async function runReindex(
     WHERE note_id = ${noteId}::uuid
       AND user_id = ${userId}::uuid
       AND deleted_at IS NULL
-      AND updated_at = ${note.updated_at}::timestamptz
+      AND updated_at = ${note.updated_at}::text::timestamptz
     RETURNING note_id
   `;
   if (stamped.length > 0) return "indexed";
