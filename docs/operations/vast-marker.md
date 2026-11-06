@@ -441,6 +441,20 @@ during a burst. A useful initial page is: an outstanding job older than 30
 minutes, any `enqueue_failed` older than two recovery polls, or more than 5%
 terminal failures over a 15-minute window.
 
+Reading the errors:
+
+- `Vast route refused: endpoint ... not found or unauthorized` means
+  `VAST_MARKER_ENDPOINT_API_KEY` is stale or belongs to another endpoint. The
+  router answers this with HTTP 200, so it fails at once instead of polling.
+  Put the endpoint's current key in the Jenkins env files and redeploy.
+- `timed out after ...ms, last router state: ...` means the router kept
+  answering without a worker. The state is Vast's own text, usually the worker
+  counts while a cold worker loads, which takes about 10 minutes on a fresh host.
+- `Vast worker transport failed` is ambiguous. The worker may still upload the
+  result, and the result observation path will complete the job. The worker
+  call has no undici headers or body timeout, so this no longer fires on long
+  scanned papers, only on real connection loss or `VAST_MARKER_WORKER_TIMEOUT_MS`.
+
 ## Pause, recovery, and rollback
 
 For an application-side cost stop:
