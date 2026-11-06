@@ -433,6 +433,30 @@ describe("study classifier Decisions boundary", () => {
     },
   );
 
+  it("accepts billing fields the provider adds to the response envelope", async () => {
+    respond((body) => {
+      // the shape openrouter started returning on 6 nov 2026
+      Object.assign(body, { id: "gen-1", provider: "Typesafe" });
+      Object.assign(body.usage, {
+        output_tokens: 4,
+        is_byok: false,
+        cost_details: { upstream_inference_cost: 0.02 },
+      });
+    });
+    const result = await classifyStudySource(source, topics);
+    expect(result.cost).toBe(0.02);
+  });
+
+  it("still rejects an unknown field inside an answer", async () => {
+    respond((body, request) => {
+      const id = topicQuestion(request);
+      body.answers[id] = { ...choice(request, id, "CORE"), reasoning: "x" };
+    });
+    await expect(classifyStudySource(source, topics)).rejects.toThrow(
+      /invalid Decisions response/,
+    );
+  });
+
   it("preserves each raw provider answer, including an omitted optional field", async () => {
     let sentAnswers: Record<string, unknown> = {};
     respond((body, request) => {
