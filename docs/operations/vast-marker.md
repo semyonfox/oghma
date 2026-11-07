@@ -486,8 +486,8 @@ queue, storage, or configuration fault and let the recovery path run.
 
 ### Image record
 
-Workergroup 49902 on endpoint 39931 (`oghma-marker`) pulls the image named by
-its template. Each image gets a new template, so rollback is pointing the
+Workergroup 54215 on endpoint 39931 (`oghma-marker`) pulls the image named by
+its template. It replaced workergroup 49902 on 2026-11-07. Each image gets a new template, so rollback is pointing the
 workergroup back at the previous template hash.
 
 | Date | Template | Image tag | Registry digest | Marker++ |
@@ -506,7 +506,7 @@ sends `verified=True rentable=True rented=False` when `--search_params` is
 omitted, which replaces the RTX 3090 filter and price cap:
 
 ```bash
-vastai update workergroup 49902 --endpoint_id 39931 \
+vastai update workergroup 54215 --endpoint_id 39931 \
   --template_hash <TEMPLATE_HASH> --gpu_ram 24 --launch_args '--disk 80' -n \
   --search_params "verified=true rentable=true rented=false reliability>=0.98 cpu_arch=amd64 cpu_cores_effective>=8 cpu_ram>=32 num_gpus=1 gpu_name=RTX_3090 gpu_ram>=24 cuda_max_good>=12.9 disk_bw>=500 disk_space>=80 allocated_storage=80 inet_down>=500 inet_up>=100 inet_down_cost<=0.005 inet_up_cost<=0.005 storage_cost<=0.4 dph_total<=0.3"
 ```
@@ -518,10 +518,15 @@ Known Vast behaviour from the 2026-11-06 switch:
   minutes each, so destroy the stopped worker instead of waiting.
 - With no worker left, the autoscaler made one create attempt, lost the offer
   to another renter and did not retry. Router polls carry `new_load: 0`, so a
-  waiting job does not trigger another attempt. The workergroup was created
-  with `--test_workers 1`, which the current CLI no longer offers, and setting
-  it on an existing group did nothing. Until a worker exists the endpoint
-  cannot serve, on either template.
+  waiting job does not trigger another attempt.
+- The account credit was below $10 at the time. Vast refuses to create a
+  workergroup under that (the CLI shows a bare 403, the console says
+  "insufficient credit"), and the stalled retries may have had the same cause.
+  Check the balance first when workers stop appearing.
+- The fix on 2026-11-07 was to top up, create workergroup 54215 with the same
+  template and query, delete 49902 (its failed create held the endpoint's only
+  slot), and set the endpoint to `cold_workers 1`. Vast created a worker
+  straight away. It took 39 minutes to load the image the first time.
 
 ## Research boundary
 
