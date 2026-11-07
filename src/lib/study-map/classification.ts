@@ -104,26 +104,25 @@ const jevAnswerSchema = z.discriminatedUnion("type", [
     .strict(),
   z.object({ type: z.literal("noul"), noul: probabilitySchema }).strict(),
 ]);
-const jevResponseSchema = z
-  .object({
-    id: z.string().optional(),
-    provider: z.string().optional(),
-    model: z.string().min(1).max(200),
-    answers: z.record(z.string(), jevAnswerSchema),
-    usage: z
-      .object({
-        input_tokens: z.number().int().nonnegative(),
-        output_tokens: z.number().int().nonnegative().optional(),
-        cost: z
-          .number()
-          .finite()
-          .nonnegative()
-          .nullish()
-          .transform((value) => value ?? null),
-      })
-      .strict(),
-  })
-  .strict();
+// answers stay strict because they become study decisions. the envelope strips
+// unknown fields since the alpha api adds billing metadata without notice, and
+// usage gaining is_byok and cost_details on 6 nov 2026 failed every classify job
+const jevResponseSchema = z.object({
+  id: z.string().optional(),
+  provider: z.string().optional(),
+  model: z.string().min(1).max(200),
+  answers: z.record(z.string(), jevAnswerSchema),
+  usage: z.object({
+    input_tokens: z.number().int().nonnegative(),
+    output_tokens: z.number().int().nonnegative().optional(),
+    cost: z
+      .number()
+      .finite()
+      .nonnegative()
+      .nullish()
+      .transform((value) => value ?? null),
+  }),
+});
 const generatedAnswerSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("choice"), choice: z.string() }).strict(),
   z.object({ type: z.literal("noul"), noul: z.boolean() }).strict(),

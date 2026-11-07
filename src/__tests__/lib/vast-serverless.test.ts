@@ -185,7 +185,33 @@ describe("Vast Serverless REST client", () => {
           },
         },
       ),
-    ).rejects.toThrow("timed out after 250ms");
+    ).rejects.toThrow("timed out after 250ms, last router state: waiting");
+  });
+
+  it("fails at once when the router refuses the key with a 200", async () => {
+    const fetchMock = vi.fn(async () =>
+      jsonResponse({
+        error_msg: "endpoint 39931 not found or unauthorized",
+        url: "",
+      }),
+    );
+
+    const error = await requestVastEndpoint(
+      "/marker/job",
+      {},
+      100,
+      config,
+      {
+        fetch: fetchMock as typeof fetch,
+        now: () => 0,
+        random: () => 0,
+        sleep: async () => undefined,
+      },
+    ).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(MarkerDispatchRejectedError);
+    expect(String(error)).toContain("endpoint 39931 not found or unauthorized");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("does not expose the endpoint API key in provider error text", async () => {
