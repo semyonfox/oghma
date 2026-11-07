@@ -1,4 +1,4 @@
-import { Agent } from "undici";
+import { Agent, fetch as undiciFetch } from "undici";
 
 import { MarkerDispatchRejectedError } from "@/lib/marker/errors";
 
@@ -11,6 +11,8 @@ const DEFINITIVE_ROUTE_ERROR = /not found|does not exist|unauthori[sz]ed|invalid
 // the worker only answers once the conversion is done, and scanned papers take
 // longer than node's default 300s headers timeout. the abort signal from
 // workerTimeoutMs is the real bound, so undici's own timers are switched off
+// the agent comes from the undici package, so it has to go through that package's
+// fetch: node's built-in fetch bundles an older undici and rejects it outright
 const workerAgent = new Agent({ headersTimeout: 0, bodyTimeout: 0 });
 
 export interface VastServerlessConfig {
@@ -40,8 +42,23 @@ export interface VastServerlessResult<T> {
   metrics: VastRequestMetrics;
 }
 
+// the slice of fetch this client uses, which both node's global fetch and
+// undici's own fetch satisfy
+export type VastFetch = (
+  url: string,
+  init: {
+    method: string;
+    headers: Record<string, string>;
+    body: string;
+    signal: AbortSignal;
+    dispatcher?: Agent;
+  },
+) => Promise<{ ok: boolean; status: number; statusText: string; text(): Promise<string> }>;
+
+type VastResponse = Awaited<ReturnType<VastFetch>>;
+
 export interface VastServerlessDependencies {
-  fetch?: typeof fetch;
+  fetch?: VastFetch;
   sleep?: (milliseconds: number) => Promise<void>;
   now?: () => number;
   random?: () => number;
@@ -128,11 +145,11 @@ function backoffMs(
 }
 
 async function fetchWithTimeout(
-  fetchFn: typeof fetch,
+  fetchFn: VastFetch,
   url: string,
-  init: RequestInit & { dispatcher?: Agent },
+  init: Omit<Parameters<VastFetch>[1], "signal">,
   timeoutMs: number,
-): Promise<Response> {
+): Promise<VastResponse> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -166,7 +183,7 @@ export async function requestVastEndpoint<T extends Record<string, unknown>>(
     throw new MarkerDispatchRejectedError("Vast worker route must start with /");
   }
 
-  const fetchFn = dependencies.fetch ?? fetch;
+  const fetchFn = dependencies.fetch ?? undiciFetch;
   const sleep = dependencies.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
   const now = dependencies.now ?? Date.now;
   const random = dependencies.random ?? Math.random;
@@ -218,7 +235,7 @@ export async function requestVastEndpoint<T extends Record<string, unknown>>(
       };
       routeCalls += 1;
 
-      let routeResponse: Response;
+      let routeResponse: VastResponse;
       try {
         routeResponse = await fetchWithTimeout(
           fetchFn,
@@ -282,7 +299,7 @@ export async function requestVastEndpoint<T extends Record<string, unknown>>(
 
     routeReadyAt = now();
     workerAttempts += 1;
-    let workerResponse: Response;
+    let workerResponse: VastResponse;
     try {
       workerResponse = await fetchWithTimeout(
         fetchFn,
