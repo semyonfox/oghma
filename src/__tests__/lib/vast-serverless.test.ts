@@ -1,3 +1,6 @@
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
+
 import { describe, expect, it, vi } from "vitest";
 
 import { MarkerDispatchRejectedError } from "@/lib/marker/errors";
@@ -233,6 +236,40 @@ describe("Vast Serverless REST client", () => {
         },
       ),
     ).rejects.toThrow("[redacted] rejected");
+  });
+});
+
+describe("Vast client default transport", () => {
+  // every other test injects fetch, which hid that node's global fetch rejects
+  // the worker agent from the undici package. this one goes over a real socket
+  it("reaches the worker with its long-running agent", async () => {
+    const server = createServer((request, response) => {
+      response.setHeader("content-type", "application/json");
+      if (request.url?.startsWith("/route")) {
+        const { port } = server.address() as AddressInfo;
+        response.end(JSON.stringify({ request_idx: 7, url: `http://127.0.0.1:${port}/worker` }));
+        return;
+      }
+      response.end(JSON.stringify({ success: true, path: request.url?.split("?")[0] }));
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const { port } = server.address() as AddressInfo;
+    try {
+      const result = await requestVastEndpoint(
+        "/marker/job",
+        { requestId: "job-1" },
+        100,
+        {
+          ...config,
+          routerUrl: `http://127.0.0.1:${port}/route/`,
+          allowInsecureWorkerUrl: true,
+          maxWorkerAttempts: 1,
+        },
+      );
+      expect(result.response).toEqual({ success: true, path: "/worker/marker/job" });
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
   });
 });
 
