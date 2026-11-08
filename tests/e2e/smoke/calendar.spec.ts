@@ -96,8 +96,9 @@ test.describe("calendar responsive smoke", () => {
     } else {
       await page.setViewportSize({ width, height: 1400 });
       await expect(page.getByLabel("Month view")).toBeVisible();
-      await page.getByRole("button", { name: "Month" }).click();
-      await page.getByRole("menuitem", { name: "Week view" }).click();
+      const weekToggle = page.getByRole("button", { name: "Week", exact: true });
+      await weekToggle.click();
+      await expect(weekToggle).toHaveAttribute("aria-pressed", "true");
       const weekView = page.getByLabel("Week view");
       await expect(weekView).toBeVisible();
       await expect(weekView.getByText("Calendar smoke task")).toBeVisible();
