@@ -32,6 +32,7 @@ export type {
   
 } from "@/lib/chat/types";
 import ChatSourcePanel from "./chat-source-panel";
+import { collectNoteActivity } from "./tool-call-pill";
 
 /**
  * Small pill toggle used above the chat input (RAG / thinking). Shares the
@@ -338,8 +339,14 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     setComposer({ key: draftKey, value });
   };
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
-  const latestSources =
-    [...messages].reverse().find((m) => m.role === "assistant")?.sources ?? [];
+  // older answers stored sources, newer ones record the notes the model found
+  // or read through its tools, so fall back to that activity
+  const latestAnswer = [...messages].reverse().find((m) => m.role === "assistant");
+  const latestSources = latestAnswer?.sources?.length
+    ? latestAnswer.sources
+    : latestAnswer
+      ? collectNoteActivity(latestAnswer.parts ?? [], latestAnswer.searchContext).map(({ id, title }) => ({ id, title }))
+      : [];
 
   const previousSessionId = useRef(controlledSessionId);
   const clearInput = useEffectEvent(() => setInput(""));
