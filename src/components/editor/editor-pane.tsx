@@ -211,10 +211,8 @@ const EditorPane: FC<EditorPaneProps> = ({
     setRightPanelOpen(true);
   };
   const courseTitle = useCourseTitle(file?.fileId);
-  const aiChatIsOpen = activePane === pane && rightPanelOpen && rightPanelTab === "ai";
-  const aiChatLabel = aiChatIsOpen
-    ? `${t("Close")} ${t("AI Chat")}`
-    : t("Open AI chat");
+  const courseCode = courseTitle ? splitModuleCode(courseTitle).code : null;
+  const metadataIsOpen = activePane === pane && rightPanelOpen && rightPanelTab === "meta";
 
   // empty state — no file assigned to this pane
   if (!file || !file.fileId) return <PaneEmptyState pane={pane} />;
@@ -260,23 +258,27 @@ const EditorPane: FC<EditorPaneProps> = ({
         >
           <ArrowLeftIcon className="h-5 w-5" aria-hidden="true" />
         </Link>
-        <div className="min-w-0 flex-1 px-1">
-          <h1 className="truncate text-base font-semibold text-text">
+        <div className="flex min-w-0 flex-1 flex-col px-1">
+          <h1 className="truncate text-[17px] font-semibold text-text">
             {liveTitle || file.title || t("Untitled")}
           </h1>
+          {(courseCode || saveIndicator) && (
+            <span className="flex min-w-0 items-center gap-1.5 text-xs text-text-secondary">
+              {courseCode && <span className="font-mono">{courseCode}</span>}
+              {courseCode && saveIndicator && <span aria-hidden="true">·</span>}
+              {saveIndicator && <SaveIndicatorButton indicator={saveIndicator} t={t} />}
+            </span>
+          )}
         </div>
-        {saveIndicator && (
-          <SaveIndicatorButton indicator={saveIndicator} t={t} />
-        )}
         <button
           type="button"
           className="ui-icon-button shrink-0"
           data-inspector-toggle
-          onClick={() => openRightPanelTab("ai")}
-          aria-label={aiChatLabel}
-          aria-expanded={aiChatIsOpen}
+          onClick={() => openRightPanelTab("meta")}
+          aria-label={t("Toggle metadata panel")}
+          aria-expanded={metadataIsOpen}
         >
-          <SparklesIcon className="h-5 w-5" aria-hidden="true" />
+          <ViewColumnsIcon className="h-5 w-5" aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -421,6 +423,31 @@ const EditorPane: FC<EditorPaneProps> = ({
       {/* File Renderer */}
       <div className="min-h-0 flex-1 overflow-auto overscroll-contain bg-background">
         <FileRenderer key={file.fileId} pane={pane} file={file} />
+      </div>
+
+      {/* phone action bar from the Atlas mockup */}
+      <div className="flex shrink-0 gap-2 border-t border-border-subtle bg-sidebar px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 lg:hidden">
+        {sourceFile && (
+          <button
+            type="button"
+            onClick={() => router.push(`/notes/${sourceFile.fileId}`)}
+            className="flex min-h-12 min-w-0 flex-1 flex-col justify-center rounded-radius-lg border border-border bg-surface px-3 text-left"
+          >
+            <span className="text-[11px] font-semibold text-accent">
+              {sourceFile.fileType === "pdf" ? t("Original PDF") : t("Original file")}
+            </span>
+            <span className="truncate text-[13px] text-text">{sourceFile.title}</span>
+          </button>
+        )}
+        <button
+          type="button"
+          data-inspector-toggle
+          onClick={() => openRightPanelTab("ai")}
+          className="flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-radius-lg bg-action px-3 text-sm font-medium text-on-action hover:bg-action-hover"
+        >
+          <SparklesIcon className="h-4 w-4" aria-hidden="true" />
+          {t("Ask about this note")}
+        </button>
       </div>
     </div>
   );
