@@ -255,8 +255,8 @@ const useLayoutStore = create<LayoutState>()(
           paneA: { fileId: "", fileType: "note" },
           paneB: null,
           activePane: "A",
-          rightPanelOpen: true,
-          rightPanelTab: "ai",
+          // the side panel's open state and tab are device preferences, not
+          // per-account data, and resetting them here raced phone taps
           selectedNode: null,
         }),
     }),
