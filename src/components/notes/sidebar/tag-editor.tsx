@@ -48,7 +48,7 @@ export function announceTopicsChanged(targets: readonly TagTarget[]) {
 
 const rowClass = "flex min-h-11 items-center gap-2 rounded-radius-md px-2 md:min-h-8";
 const smallButton =
-  "inline-flex min-h-11 items-center rounded-radius-sm px-2 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 disabled:opacity-50 md:min-h-6";
+  "inline-flex min-h-11 items-center rounded-radius-sm px-2 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50 md:min-h-6";
 
 function Checkbox({
   state,
@@ -74,7 +74,7 @@ function Checkbox({
       aria-label={label}
       disabled={disabled}
       onChange={onChange}
-      className="h-4 w-4 shrink-0 accent-primary-600"
+      className="h-4 w-4 shrink-0 accent-accent"
     />
   );
 }
@@ -145,7 +145,7 @@ function TopicBlock({
                       }}
                       className={`${smallButton} ${
                         choice === relevance
-                          ? "bg-surface text-text shadow-sm"
+                          ? "atlas-raised text-text"
                           : "text-text-tertiary hover:text-text-secondary"
                       }`}
                     >
@@ -160,7 +160,7 @@ function TopicBlock({
                     type="button"
                     disabled={busy}
                     onClick={() => onSave(keepSuggestion(edit.choices, topic.id, suggested))}
-                    className={`${smallButton} text-primary-700 hover:bg-primary-500/10 dark:text-primary-300`}
+                    className={`${smallButton} text-accent hover:bg-accent-soft`}
                   >
                     {t("Keep")}
                   </button>
@@ -307,7 +307,7 @@ function TagsSection({
             }}
             placeholder={t("Add a #tag")}
             autoComplete="off"
-            className="min-h-11 w-full rounded-radius-md border border-border-subtle bg-surface px-2.5 text-base text-text placeholder:text-text-tertiary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 disabled:cursor-not-allowed md:min-h-8 md:text-[13px]"
+            className="min-h-11 w-full rounded-radius-md border border-border-subtle bg-surface px-2.5 text-base text-text placeholder:text-text-tertiary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed md:min-h-8 md:text-[13px]"
           />
           {query && !disabled && (
             <ul className="mt-1 rounded-radius-md border border-border-subtle bg-surface py-1">
@@ -323,7 +323,7 @@ function TagsSection({
               ))}
               {!exact && (
                 <li>
-                  <button type="button" onClick={() => add(query)} className={`${rowClass} w-full text-left text-sm text-primary-700 hover:bg-subtle dark:text-primary-300 md:text-[13px]`}>
+                  <button type="button" onClick={() => add(query)} className={`${rowClass} w-full text-left text-sm text-accent hover:bg-subtle md:text-[13px]`}>
                     {t("Create #{tag}", { tag: query })}
                   </button>
                 </li>
@@ -483,7 +483,7 @@ function TagEditorPanel({
       aria-modal="false"
       aria-label={t("Edit tags")}
       onClick={(event) => event.stopPropagation()}
-      className={`fixed z-[10000] flex flex-col border border-border-subtle bg-surface text-text shadow-2xl ${
+      className={`fixed z-[10000] flex flex-col border border-border bg-surface text-text shadow-float ${
         isDesktop
           ? "max-h-[70dvh] w-80 rounded-radius-lg"
           : "inset-x-0 bottom-0 max-h-[85dvh] rounded-t-radius-xl pb-[env(safe-area-inset-bottom)]"
@@ -551,7 +551,7 @@ function TagEditorPanel({
                 {single && (
                   <Link
                     href={`/study-map?note=${encodeURIComponent(targets[0].materialId)}`}
-                    className="text-primary-700 underline decoration-primary-500/40 underline-offset-2 hover:decoration-primary-500 dark:text-primary-300"
+                    className="text-accent underline decoration-accent/40 underline-offset-2 hover:decoration-accent"
                     onClick={onClose}
                   >
                     {t("Add to a study map")}

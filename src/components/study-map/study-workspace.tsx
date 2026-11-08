@@ -128,11 +128,11 @@ const noteSchema = z.object({
 });
 type LibraryNote = z.infer<typeof noteSchema>;
 const fieldClass =
-  "min-h-11 w-full min-w-0 rounded-radius-md border border-border-subtle bg-surface px-3 py-2 text-base text-text placeholder:text-text-tertiary focus-visible:outline-2 focus-visible:outline-primary-500 disabled:opacity-50 md:text-sm";
+  "min-h-11 w-full min-w-0 rounded-radius-md border border-border-subtle bg-surface px-3 py-2 text-base text-text placeholder:text-text-tertiary focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50 md:text-sm";
 const buttonClass =
-  "inline-flex min-h-11 items-center justify-center rounded-radius-md px-3 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-primary-500 disabled:cursor-not-allowed disabled:opacity-50";
-const secondaryClass = `${buttonClass} border border-border-subtle bg-surface text-text hover:bg-primary-500/5`;
-const primaryClass = `${buttonClass} bg-primary-600 text-text-on-primary hover:bg-primary-700`;
+  "inline-flex min-h-11 items-center justify-center rounded-radius-md px-3 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50";
+const secondaryClass = `${buttonClass} border border-border-subtle bg-surface text-text hover:bg-subtle`;
+const primaryClass = `${buttonClass} bg-action text-on-action hover:bg-action-hover`;
 const dangerClass = `${buttonClass} text-error-700 hover:bg-error-500/10 dark:text-error-300`;
 const errorClass =
   "break-words rounded-radius-md bg-error-500/10 p-3 text-sm text-error-700 dark:text-error-300";
@@ -258,7 +258,7 @@ function SourcePicker({
               <li key={note.id}>
                 <button
                   type="button"
-                  className={`${buttonClass} w-full justify-start break-words text-left ${value === note.id ? "bg-primary-500/10" : "hover:bg-primary-500/5"}`}
+                  className={`${buttonClass} w-full justify-start break-words text-left ${value === note.id ? "atlas-raised font-medium" : "hover:bg-subtle"}`}
                   disabled={disabled}
                   onClick={() => {
                     onChange(note.id);
@@ -396,7 +396,7 @@ function MapForm({
             <input
               type="checkbox"
               checked={fields.autoClassify}
-              className="mt-1 h-4 w-4 accent-primary-600"
+              className="mt-1 h-4 w-4 accent-accent"
               onChange={(event) =>
                 setFields({ ...fields, autoClassify: event.target.checked })
               }
@@ -485,7 +485,7 @@ function AddMaterials({
               <label className="flex min-h-11 cursor-pointer items-start gap-3 py-3 text-sm">
                 <input
                   type="checkbox"
-                  className="mt-1 h-4 w-4 shrink-0 accent-primary-600"
+                  className="mt-1 h-4 w-4 shrink-0 accent-accent"
                   checked={selected.includes(note.id)}
                   disabled={
                     busy ||
@@ -855,11 +855,11 @@ function MaterialList({
           return (
             <li
               key={material.noteId}
-              className={`rounded-radius-lg border bg-surface p-4 ${selected?.kind === "note" && selected.id === material.noteId ? "border-primary-500" : "border-border-subtle"}`}
+              className={`rounded-radius-lg border bg-surface p-4 ${selected?.kind === "note" && selected.id === material.noteId ? "border-border-strong atlas-raised" : "border-border-subtle"}`}
             >
               <button
                 type="button"
-                className="w-full rounded-radius-md text-left focus-visible:outline-2 focus-visible:outline-primary-500"
+                className="w-full rounded-radius-md text-left focus-visible:outline-2 focus-visible:outline-accent"
                 onClick={() => onSelect({ kind: "note", id: material.noteId })}
               >
                 <span className="block break-words text-base font-semibold">
@@ -892,7 +892,7 @@ function MaterialList({
                     <button
                       key={entry.id}
                       type="button"
-                      className={`${buttonClass} bg-primary-500/5 text-xs`}
+                      className={`${buttonClass} border border-border bg-surface text-xs hover:bg-subtle`}
                       onClick={() => onSelect({ kind: "topic", id: entry.id })}
                     >
                       {entry.name}
@@ -902,7 +902,7 @@ function MaterialList({
                 })}
                 <Link
                   href={`/notes/${material.noteId}`}
-                  className={`${buttonClass} text-primary-700 underline underline-offset-4 dark:text-primary-300`}
+                  className={`${buttonClass} text-accent underline underline-offset-4`}
                 >
                   Open original
                 </Link>
@@ -1242,7 +1242,7 @@ function ModuleWorkspace({
     return (
       <ChromeFrame notices={notices}>
         {error ? (
-          <div className="max-w-md space-y-3 rounded-radius-xl border border-border-subtle bg-surface p-5 shadow-md">
+          <div className="max-w-md space-y-3 rounded-radius-xl border border-border-subtle bg-surface p-5 shadow-float">
             <p role="alert" className={errorClass}>
               {error}
             </p>
@@ -1417,15 +1417,15 @@ function ModuleWorkspace({
     <div
       role="status"
       title={setupStatus.text}
-      className={`pointer-events-auto flex max-w-[min(22rem,calc(100vw-1.5rem))] items-center gap-2 rounded-full border border-border-subtle bg-surface/95 py-1 pl-3 text-xs text-text-secondary shadow-md backdrop-blur ${setupStatus.action ? "pr-1" : "pr-3"}`}
+      className={`pointer-events-auto flex max-w-[min(22rem,calc(100vw-1.5rem))] items-center gap-2 rounded-full border border-border-subtle bg-surface/95 py-1 pl-3 text-xs text-text-secondary shadow-float backdrop-blur ${setupStatus.action ? "pr-1" : "pr-3"}`}
     >
       <span
-        className={`h-2 w-2 shrink-0 rounded-full ${setupStatus.action ? "bg-ai-500" : "animate-pulse bg-primary-500"}`}
+        className={`h-2 w-2 shrink-0 rounded-full ${setupStatus.action ? "bg-warning-500" : "animate-pulse bg-accent"}`}
         aria-hidden="true"
       />
       <button
         type="button"
-        className="min-w-0 truncate text-left hover:text-text focus-visible:outline-2 focus-visible:outline-primary-500"
+        className="min-w-0 truncate text-left hover:text-text focus-visible:outline-2 focus-visible:outline-accent"
         onClick={() => openPanel("topics")}
       >
         {setupStatus.short}
@@ -1433,7 +1433,7 @@ function ModuleWorkspace({
       {setupStatus.action && (
         <button
           type="button"
-          className="shrink-0 rounded-full bg-primary-600 px-2.5 py-1 font-medium text-text-on-primary hover:bg-primary-700 focus-visible:outline-2 focus-visible:outline-primary-500 disabled:opacity-50"
+          className="shrink-0 rounded-full bg-action px-2.5 py-1 font-medium text-on-action hover:bg-action-hover focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50"
           disabled={busy !== null}
           onClick={findTopics}
         >
@@ -1453,7 +1453,7 @@ function ModuleWorkspace({
         {map.autoClassify ? " · organised automatically" : ""}
       </p>
       {setupStatus && (
-        <div className="space-y-2 rounded-radius-lg bg-primary-500/5 p-3 text-sm text-text-secondary">
+        <div className="space-y-2 rounded-radius-lg bg-surface-elevated p-3 text-sm text-text-secondary">
           <p className="break-words">{setupStatus.text}</p>
           {setupStatus.action && (
             <button
@@ -1963,8 +1963,8 @@ export default function StudyWorkspace({
               Setting up your modules...
             </p>
           ) : (
-            <section className="max-w-md rounded-radius-xl border border-border-subtle bg-surface p-6 shadow-md">
-              <h2 className="text-lg font-semibold">No modules yet</h2>
+            <section className="max-w-md rounded-radius-xl border border-border-subtle bg-surface p-6 shadow-float">
+              <h2 className="font-serif text-lg font-semibold tracking-tight">No modules yet</h2>
               <p className="mt-2 text-sm text-text-secondary">
                 Import a course from Canvas and its module map appears here on
                 its own, with its notes grouped by topic.

@@ -43,7 +43,7 @@ export default function CanvasCourseSelector({
   const allSelected = courses.length > 0 && selectedCount === courses.length;
 
   return (
-    <div className="glass-card rounded-radius-md">
+    <div className="overflow-hidden rounded-radius-lg border border-border">
       <header className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
         <h3 className="text-sm font-medium text-text-secondary">
           <button
@@ -68,7 +68,7 @@ export default function CanvasCourseSelector({
           <button
             type="button"
             onClick={onToggleSelectAll}
-            className="ml-auto rounded-radius-sm px-1 py-0.5 text-xs font-medium text-primary-400 hover:text-primary-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-400"
+            className="ml-auto rounded-radius-sm px-1 py-0.5 text-xs font-medium text-accent hover:text-accent-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             {allSelected ? t("Deselect all") : t("Select all")}
           </button>
@@ -76,13 +76,13 @@ export default function CanvasCourseSelector({
       </header>
 
       {courseListOpen && (
-        <div className="border-t border-border-subtle px-4 py-3 space-y-3 bg-subtle">
+        <div className="border-t border-border-subtle px-4 py-3 space-y-3">
           <div
             id="canvas-course-list"
             role="region"
             aria-label={t("Course list")}
             tabIndex={courses.length > 5 ? 0 : undefined}
-            className="obsidian-scrollbar max-h-64 space-y-2 overflow-y-auto pr-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-400"
+            className="obsidian-scrollbar max-h-64 divide-y divide-border-subtle overflow-y-auto pr-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             {courses.map((course) => {
               const { status, error } = getCourseStatus(course.id);
@@ -93,18 +93,18 @@ export default function CanvasCourseSelector({
               return (
                 <label
                   key={course.id}
-                  className="flex items-start gap-3 cursor-pointer"
+                  className="flex items-start gap-3 cursor-pointer py-2.5 first:pt-0 last:pb-0"
                 >
                   <input
                     type="checkbox"
                     checked={selectedCourseIds.includes(String(course.id))}
                     aria-describedby={unavailable ? reasonId : undefined}
                     onChange={() => onToggleCourse(course.id)}
-                    className="mt-0.5 shrink-0"
+                    className="mt-0.5 size-4 shrink-0 accent-accent"
                   />
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm text-text-secondary">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm text-text">
                         {course.name}
                       </p>
                       <CanvasAvailabilityBadge
@@ -120,7 +120,7 @@ export default function CanvasCourseSelector({
                       )}
                       <CourseBadge status={status} errorMsg={error ?? undefined} t={t} />
                     </div>
-                    <p className="text-xs text-text-tertiary">
+                    <p className="font-mono text-xs text-text-tertiary">
                       {course.course_code}
                     </p>
                     {unavailable && (

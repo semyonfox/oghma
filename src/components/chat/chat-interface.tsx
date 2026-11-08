@@ -63,14 +63,14 @@ export function TogglePill({
         onClick={onClick}
         aria-pressed={active}
         aria-describedby={tooltipId}
-        className={`peer flex items-center rounded-radius-md border font-medium transition-colors ${
+        className={`peer flex items-center rounded-full border font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
           dense
-            ? "min-h-11 gap-1 px-2 text-xs lg:min-h-0 lg:px-1.5 lg:py-[3px]"
-            : "min-h-11 gap-1.5 px-2.5 text-xs lg:min-h-0 lg:py-1"
+            ? "min-h-11 gap-1 px-2.5 text-xs lg:min-h-0 lg:px-2 lg:py-[3px]"
+            : "min-h-11 gap-1.5 px-3 text-xs lg:min-h-0 lg:py-1"
         } ${
           active
-            ? "text-primary-700 dark:text-primary-300 bg-primary-500/10 border-primary-500/20 hover:bg-primary-500/15"
-            : "text-text-tertiary border-border-subtle hover:text-text-secondary hover:border-border"
+            ? "border-accent bg-accent-soft text-accent hover:text-accent-hover"
+            : "border-border bg-surface text-text-tertiary hover:bg-subtle hover:text-text-secondary"
         }`}
       >
         {icon}
@@ -402,19 +402,19 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
           {restoreError && (
             <div
               role="alert"
-              className="flex items-center justify-between gap-2 px-1 text-xs text-error-400"
+              className="flex items-center justify-between gap-2 px-1 text-xs text-error-700 dark:text-error-300"
             >
               <span>{t("error.something_went_wrong")}</span>
               <button
                 type="button"
                 onClick={retryConversation}
-                className="font-medium text-primary-700 dark:text-primary-300 hover:text-primary-200"
+                className="font-medium text-accent hover:text-accent-hover"
               >
                 {t("Try again")}
               </button>
             </div>
           )}
-          {error && <p className="text-xs text-error-400 px-1">{error}</p>}
+          {error && <p className="text-xs text-error-700 dark:text-error-300 px-1">{error}</p>}
           <div ref={bottomRef} />
         </div>
 
@@ -440,7 +440,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               tooltipAlign="right"
             />
           </div>
-          <div className="flex min-h-11 items-center gap-1.5 rounded-radius-md border border-border-subtle bg-surface px-2.5 py-[5px] transition-colors focus-within:border-primary-500/50">
+          <div className="flex min-h-11 items-center gap-1.5 rounded-radius-xl border border-border-strong bg-input px-2.5 py-[5px] transition-colors focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/25">
             <input
               ref={inputRef as React.RefObject<HTMLInputElement>}
               type="text"
@@ -456,7 +456,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               onPointerDown={preserveComposerFocus}
               onClick={handleSend}
               disabled={composerDisabled || !input.trim()}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-sm bg-primary-600 text-text-on-primary transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-40 lg:h-9 lg:w-9"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-md bg-action text-on-action transition-colors hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-40 lg:h-9 lg:w-9"
               aria-label={t("Send message")}
             >
               <PaperAirplaneIcon className="h-4 w-4" />
@@ -513,7 +513,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
 
           {error && (
             <div className="flex justify-center">
-              <p className="text-xs text-error-400 bg-error-500/10 border border-error-500/20 px-3 py-2 rounded-radius-lg">
+              <p className="text-xs text-error-700 dark:text-error-300 bg-error-500/10 border border-error-500/20 px-3 py-2 rounded-radius-lg">
                 {error}
               </p>
             </div>
@@ -523,13 +523,13 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
             <div className="flex justify-center">
               <div
                 role="alert"
-                className="flex items-center gap-2 rounded-radius-lg border border-error-500/20 bg-error-500/10 px-3 py-2 text-xs text-error-400"
+                className="flex items-center gap-2 rounded-radius-lg border border-error-500/20 bg-error-500/10 px-3 py-2 text-xs text-error-700 dark:text-error-300"
               >
                 <span>{t("error.something_went_wrong")}</span>
                 <button
                   type="button"
                   onClick={retryConversation}
-                  className="font-medium text-primary-700 dark:text-primary-300 transition-colors hover:text-primary-200"
+                  className="font-medium text-accent transition-colors hover:text-accent-hover"
                 >
                   {t("Try again")}
                 </button>
@@ -551,13 +551,13 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
           {(selectedNotes.length > 0 || selectedFolders.length > 0 || (noteTitle && selectedNotes.length === 0)) && (
             <div className="flex flex-wrap items-center gap-1.5 mb-2 px-1">
               {noteTitle && selectedNotes.length === 0 && selectedFolders.length === 0 && (
-                <span className="flex items-center gap-1 px-2 py-1 rounded-full border border-border-subtle bg-subtle text-xs text-text-tertiary">
+                <span className="flex items-center gap-1 px-2 py-1 rounded-full border border-border bg-surface text-xs text-text-secondary">
                   <DocumentTextIcon className="w-3 h-3 flex-shrink-0" />
                   <span className="truncate max-w-[150px]">{noteTitle}</span>
                 </span>
               )}
               {selectedNotes.map((note) => (
-                <span key={note.id} className="flex items-center gap-1 px-2 py-1 rounded-full border border-border-subtle bg-subtle text-xs text-text-tertiary">
+                <span key={note.id} className="flex items-center gap-1 px-2 py-1 rounded-full border border-border bg-surface text-xs text-text-secondary">
                   <DocumentTextIcon className="w-3 h-3 flex-shrink-0" />
                   <span className="truncate max-w-[120px]">{note.title}</span>
                   {onRemoveNote && (
@@ -573,7 +573,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                 </span>
               ))}
               {selectedFolders.map((folder) => (
-                <span key={folder.id} className="flex items-center gap-1 px-2 py-1 rounded-full border border-border-subtle bg-subtle text-xs text-text-tertiary">
+                <span key={folder.id} className="flex items-center gap-1 px-2 py-1 rounded-full border border-border bg-surface text-xs text-text-secondary">
                   <FolderIcon className="w-3 h-3 flex-shrink-0" />
                   <span className="truncate max-w-[120px]">{folder.title}</span>
                   {onRemoveFolder && (
@@ -614,7 +614,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               e.preventDefault();
               handleSend();
             }}
-            className="flex items-end gap-1.5 rounded-radius-lg border border-border-subtle bg-surface px-2.5 py-1.5 shadow-sm transition-[border-color,box-shadow] focus-within:border-primary-500/50 focus-within:ring-1 focus-within:ring-primary-500/25 lg:items-center lg:py-2"
+            className="flex items-end gap-1.5 rounded-radius-xl border border-border-strong bg-input py-1.5 pl-3.5 pr-1.5 transition-[border-color,box-shadow] focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/25 lg:items-center lg:py-1.5"
           >
             <textarea
               ref={inputRef as React.RefObject<HTMLTextAreaElement>}
@@ -635,7 +635,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               <button
                 type="button"
                 onClick={stopGenerating}
-                className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-radius-md bg-error-500/15 text-error-400 transition-colors hover:bg-error-500/25 hover:text-error-300 lg:h-8 lg:w-8"
+                className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-radius-md border border-border bg-surface text-text transition-colors hover:bg-subtle lg:h-9 lg:w-9"
                 aria-label={t("Stop generating")}
                 title={t("Stop generating")}
               >
@@ -648,7 +648,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                 type="submit"
                 onPointerDown={preserveComposerFocus}
                 disabled={composerDisabled || !input.trim()}
-                className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-radius-md bg-primary-600 text-text-on-primary transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-40 lg:h-8 lg:w-8"
+                className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-radius-md bg-action text-on-action transition-colors hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-40 lg:h-9 lg:w-9"
                 aria-label={t("Send message")}
               >
                 <PaperAirplaneIcon className="h-4 w-4" />

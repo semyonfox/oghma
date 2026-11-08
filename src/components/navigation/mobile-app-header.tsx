@@ -23,7 +23,7 @@ export default function MobileAppHeader({
   return (
     <header
       className={clsx(
-        "flex min-h-14 shrink-0 flex-wrap items-center gap-2 bg-background px-4 py-1.5 lg:hidden",
+        "flex min-h-14 shrink-0 flex-wrap items-center gap-2 border-b border-border-subtle bg-background px-4 py-1.5 lg:hidden",
         !nativeApp && "pt-[max(0.375rem,env(safe-area-inset-top))]",
         className,
       )}

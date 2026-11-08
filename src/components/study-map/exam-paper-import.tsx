@@ -19,9 +19,9 @@ interface ExamPaperImportControlProps {
 const MAX_FILES = 20;
 
 const buttonClass =
-  "inline-flex min-h-11 items-center justify-center rounded-radius-md border border-border-subtle px-3 py-2 text-sm font-medium text-text hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex min-h-11 items-center justify-center rounded-radius-md border border-border bg-surface px-3 py-2 text-sm font-medium text-text hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50";
 const primaryClass =
-  "inline-flex min-h-11 items-center justify-center rounded-radius-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex min-h-11 items-center justify-center rounded-radius-md bg-action px-4 py-2 text-sm font-semibold text-on-action hover:bg-action-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
 const resultSchema: z.ZodType<ExamPaperImportResult> = z.object({
   noteId: z.uuid(),
@@ -250,7 +250,7 @@ export default function ExamPaperImportControl({
       <div className="flex flex-wrap items-center gap-2">
         <label
           htmlFor={`${id}-files`}
-          className={`${buttonClass} ${busy ? "pointer-events-none opacity-50" : "cursor-pointer"} focus-within:ring-2 focus-within:ring-primary-500`}
+          className={`${buttonClass} ${busy ? "pointer-events-none opacity-50" : "cursor-pointer"} focus-within:ring-2 focus-within:ring-accent`}
         >
           {reading ? "Checking files…" : "Choose exam files"}
           <input

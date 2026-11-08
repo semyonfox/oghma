@@ -120,23 +120,23 @@ export default function AssignmentDetails({ assignment, onClose }: { assignment:
           <div className="flex items-start justify-between gap-4 border-b border-border-subtle p-5">
             <div>
               <p className="text-xs text-text-tertiary">{assignment.course_name ?? t("Tasks")}</p>
-              <DialogTitle className="mt-1 text-lg font-medium text-text-primary">{assignment.title}</DialogTitle>
-              <p className="mt-2 text-sm text-text-secondary">{assignment.due_at ? new Date(assignment.due_at).toLocaleString() : t("No due date")}</p>
+              <DialogTitle className="mt-1 font-serif text-xl font-semibold tracking-tight text-text">{assignment.title}</DialogTitle>
+              <p className="mt-2 font-mono text-sm text-text-secondary">{assignment.due_at ? new Date(assignment.due_at).toLocaleString() : t("No due date")}</p>
             </div>
             <button disabled={saving} onClick={onClose} className="min-h-11 px-2 text-sm text-text-secondary">{t("Close")}</button>
           </div>
           <div className="space-y-5 p-5">
             {description ? assignment.source === "canvas" ? (
-              <div className="prose prose-sm max-w-none text-text-secondary [&_a]:text-primary-400 [&_a]:underline" dangerouslySetInnerHTML={{ __html: renderInstructions(description, details?.url) }} />
+              <div className="prose prose-sm max-w-none text-text-secondary [&_a]:text-accent [&_a]:underline" dangerouslySetInnerHTML={{ __html: renderInstructions(description, details?.url) }} />
             ) : <p className="whitespace-pre-wrap text-sm text-text-secondary">{description}</p> : <p className="text-sm text-text-tertiary">{t("No description")}</p>}
             {loading && <p role="status" className="text-sm text-text-tertiary">{t("Loading...")}</p>}
-            {details && <a href={details.url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center rounded-radius-md border border-border-subtle px-4 text-sm text-primary-400">{t("Open in Canvas")} ↗</a>}
+            {details && <a href={details.url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center rounded-radius-md border border-border bg-surface px-4 text-sm text-text hover:bg-subtle">{t("Open in Canvas")} ↗</a>}
             {details?.locked && <p className="text-sm text-text-secondary">{t("This assignment is locked in Canvas.")}</p>}
             {details && <AssignmentMaterials assignmentId={assignment.id} />}
             {(details?.submittedAt || assignment.submitted_at) && <p className="text-sm text-text-secondary">{t("Previously submitted")} · {new Date(details?.submittedAt ?? assignment.submitted_at!).toLocaleString()}</p>}
-            {submitted ? <p role="status" className="text-sm text-primary-400">{t("Submitted to Canvas. Open Canvas to view your submission.")}</p> : canSubmit ? (
+            {submitted ? <p role="status" className="text-sm text-success-700 dark:text-success-400">{t("Submitted to Canvas. Open Canvas to view your submission.")}</p> : canSubmit ? (
               <form className="space-y-3 border-t border-border-subtle pt-5" onSubmit={event => { event.preventDefault(); setReview(true); }}>
-                <h3 className="font-medium text-text-primary">{t("Submit to Canvas")}</h3>
+                <h3 className="font-medium text-text">{t("Submit to Canvas")}</h3>
                 <label className="block text-sm text-text-secondary">{t("Submission type")}
                   <select value={type} disabled={saving || review} onChange={event => setType(event.target.value)} className={`${inputClass} mt-1`}>
                     {details.types.includes("online_text_entry") && <option value="online_text_entry">{t("Text entry")}</option>}
@@ -148,12 +148,12 @@ export default function AssignmentDetails({ assignment, onClose }: { assignment:
                 </label>
                 {review ? <div className="space-y-3">
                   <p className="text-sm text-text-secondary">{t("This sends your work to your lecturer in Canvas. Check the content above before submitting.")}</p>
-                  <button type="button" disabled={saving} onClick={() => void submit()} className="min-h-11 rounded-radius-md bg-primary-600 px-4 text-sm text-text-on-primary">{saving ? t("Submitting...") : t("Confirm submission")}</button>
+                  <button type="button" disabled={saving} onClick={() => void submit()} className="min-h-11 rounded-radius-md bg-action px-4 text-sm text-on-action hover:bg-action-hover">{saving ? t("Submitting...") : t("Confirm submission")}</button>
                   <button type="button" disabled={saving} onClick={() => setReview(false)} className="min-h-11 px-4 text-sm text-text-secondary">{t("Back to editing")}</button>
-                </div> : <button type="submit" disabled={!content.trim()} className="min-h-11 rounded-radius-md bg-primary-600 px-4 text-sm text-text-on-primary disabled:opacity-50">{t("Review submission")}</button>}
+                </div> : <button type="submit" disabled={!content.trim()} className="min-h-11 rounded-radius-md bg-action px-4 text-sm text-on-action hover:bg-action-hover disabled:opacity-50">{t("Review submission")}</button>}
               </form>
             ) : details && !details.locked && <p className="text-sm text-text-secondary">{t("Complete this assignment in Canvas. File uploads, quizzes and external tools open there.")}</p>}
-            {error && <div role="alert" className="text-sm text-error-300"><p>{t(error)}</p>{!details && !loading && <button onClick={() => setAttempt(value => value + 1)} className="min-h-11 underline">{t("Try again")}</button>}</div>}
+            {error && <div role="alert" className="text-sm text-error-700 dark:text-error-300"><p>{t(error)}</p>{!details && !loading && <button onClick={() => setAttempt(value => value + 1)} className="min-h-11 underline">{t("Try again")}</button>}</div>}
             <p className="text-xs text-text-tertiary">{t("Marking a task done only updates your tracker. It does not submit work to Canvas.")}</p>
           </div>
         </DialogPanel>

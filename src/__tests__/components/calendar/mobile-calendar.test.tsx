@@ -80,7 +80,7 @@ describe("MobileCalendar", () => {
     const selectedDate = within(month!).getByRole("button", {
       name: "Saturday, August 15, 2026",
     });
-    expect(selectedDate.classList.contains("bg-primary-600")).toBe(true);
+    expect(selectedDate.classList.contains("bg-text")).toBe(true);
     expect(selectedDate.classList.contains("bg-surface")).toBe(false);
   });
 });

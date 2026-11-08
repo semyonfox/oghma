@@ -1,25 +1,23 @@
 "use client";
 
 import {
-  type ChangeEvent,
   type Dispatch,
   type FormEvent,
+  type ReactNode,
   type SetStateAction,
 } from "react";
 import { toast } from "sonner";
-import {
-  ComputerDesktopIcon,
-  SunIcon,
-  MoonIcon,
-} from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { useSettingsStore } from "@/lib/notes/state/ui/settings";
 import type { FormState } from "./account-section";
-import { saveBtnClass, cn } from "./settings-utils";
+import { saveBtnClass, cn, unsavedChipClass } from "./settings-utils";
+import {
+  SettingsCard,
+  SettingsCardBody,
+  SettingsCardFooter,
+} from "./settings-card";
 import {
   EDITOR_WIDTH_OPTIONS,
-  getEditorSizeFromIndex,
-  getEditorWidthIndex,
   normalizeEditorSize,
 } from "@/lib/notes/editor-width";
 
@@ -45,8 +43,6 @@ export default function EditorThemeSection({
   const { t } = useI18n();
   const { updateSettings } = useSettingsStore();
   const editorWidth = normalizeEditorSize(formState.editorWidth);
-  const editorWidthIndex = getEditorWidthIndex(editorWidth);
-  const editorWidthOption = EDITOR_WIDTH_OPTIONS[editorWidthIndex];
 
   // Preview theme changes immediately, but persist them with the rest of this
   // section so the Save button has one clear meaning.
@@ -80,125 +76,143 @@ export default function EditorThemeSection({
       });
   };
 
+  const themeOptions: Array<{
+    label: string;
+    value: FormState["theme"];
+    preview: ReactNode;
+  }> = [
+    {
+      label: t("System"),
+      value: "system",
+      preview: (
+        <span className="flex h-9 w-full overflow-hidden rounded-radius-sm ring-1 ring-border">
+          <span className="w-1/2 bg-neutral-100" />
+          <span className="w-1/2 bg-neutral-900" />
+        </span>
+      ),
+    },
+    {
+      label: t("Light"),
+      value: "light",
+      preview: (
+        <span className="block h-9 w-full rounded-radius-sm bg-neutral-100 ring-1 ring-border" />
+      ),
+    },
+    {
+      label: t("Dark"),
+      value: "dark",
+      preview: (
+        <span className="block h-9 w-full rounded-radius-sm bg-neutral-900 ring-1 ring-border" />
+      ),
+    },
+  ];
+
+  // Selection is a ring, not a border, so choosing a tile never shifts layout.
+  const tileClass = (active: boolean) =>
+    cn(
+      "flex min-h-11 flex-col items-center justify-center gap-1.5 rounded-radius-lg bg-surface p-2 text-sm transition-shadow focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+      active
+        ? "font-semibold text-text ring-2 ring-accent"
+        : "font-medium text-text-secondary ring-1 ring-border hover:ring-border-strong",
+    );
+
   return (
-    <div
+    <SettingsCard
       id="editor"
-      className="grid grid-cols-1 gap-x-8 gap-y-10 py-12 md:grid-cols-3"
+      title={t("Editor & Theme")}
+      description={t("Customize your note editor appearance and behavior.")}
+      aside={
+        hasChanges ? (
+          <span className={unsavedChipClass} role="status">
+            {t("Unsaved")}
+          </span>
+        ) : null
+      }
     >
-      <div>
-        <h2 className="text-base/7 font-semibold text-text">
-          {t("Editor & Theme")}
-        </h2>
-        <p className="mt-1 text-sm/6 text-text-tertiary">
-          {t("Customize your note editor appearance and behavior.")}
-        </p>
-      </div>
-
-      <form className="md:col-span-2" onSubmit={handleEditorSettingsSave}>
-        <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:max-w-xl">
-          {/* theme */}
-          <div>
-            <label className="block text-sm/6 font-medium text-text mb-1">
-              {t("Theme")}
-            </label>
-            <p className="text-xs text-text-tertiary mb-3">
-              {t(
-                "Choose how OghmaNotes looks. System follows your device setting.",
-              )}
-            </p>
-            <div className="inline-flex gap-1 rounded-radius-lg border border-border-subtle bg-surface p-1">
-              {[
-                {
-                  label: t("System"),
-                  value: "system",
-                  icon: ComputerDesktopIcon,
-                },
-                { label: t("Light"), value: "light", icon: SunIcon },
-                { label: t("Dark"), value: "dark", icon: MoonIcon },
-              ].map((opt) => {
-                const active = formState.theme === opt.value;
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() =>
-                      handleThemeChange(opt.value as FormState["theme"])
-                    }
-                    aria-pressed={active}
-                    className={cn(
-                      "flex items-center gap-2 rounded-radius-md px-3 py-1.5 text-sm font-medium transition-colors",
-                      active
-                        ? "bg-primary-600 text-text-on-primary"
-                        : "text-text-secondary hover:bg-subtle",
-                    )}
-                  >
-                    <opt.icon className="h-4 w-4" aria-hidden="true" />
-                    {opt.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* editor width */}
-          <div>
-            <label className="block text-sm/6 font-medium text-text mb-1">
-              {t("Editor Width")}
-            </label>
-            <p className="text-xs text-text-tertiary mb-3">
-              {t(
-                "Controls the max width of the note editor. Can also be overridden per note.",
-              )}
-            </p>
-            <div className="max-w-lg">
-              <div className="mb-3 flex items-baseline justify-between gap-4">
-                <span className="text-sm font-medium text-text">
-                  {t(editorWidthOption.label)}
-                </span>
-                <span className="text-xs text-text-tertiary">
-                  {t(editorWidthOption.detail)}
-                </span>
+      <form onSubmit={handleEditorSettingsSave}>
+        <SettingsCardBody>
+          <div className="grid grid-cols-1 gap-x-6 gap-y-6 md:grid-cols-2">
+            {/* theme */}
+            <div>
+              <p
+                id="settings-theme-label"
+                className="block text-sm/6 font-medium text-text"
+              >
+                {t("Theme")}
+              </p>
+              <p className="mb-3 text-xs text-text-tertiary">
+                {t(
+                  "Choose how OghmaNotes looks. System follows your device setting.",
+                )}
+              </p>
+              <div
+                role="group"
+                aria-labelledby="settings-theme-label"
+                className="grid grid-cols-3 gap-2"
+              >
+                {themeOptions.map((opt) => {
+                  const active = formState.theme === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => handleThemeChange(opt.value)}
+                      aria-pressed={active}
+                      className={tileClass(active)}
+                    >
+                      {opt.preview}
+                      {opt.label}
+                    </button>
+                  );
+                })}
               </div>
-              <input
-                type="range"
-                name="editor-width"
-                min="0"
-                max={EDITOR_WIDTH_OPTIONS.length - 1}
-                step="1"
-                value={editorWidthIndex}
-                aria-label={t("Editor Width")}
-                aria-valuetext={`${t(editorWidthOption.label)} ${t(
-                  editorWidthOption.detail,
-                )}`}
-                onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                  setFormState((prev) => ({
-                    ...prev,
-                    editorWidth: getEditorSizeFromIndex(e.target.value),
-                  }))
-                }
-                className="h-2 w-full cursor-pointer appearance-none rounded-full bg-border-subtle accent-primary-500 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-primary-500 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary-500"
-              />
-              <div className="relative mx-2 mt-2 h-4 text-[11px] font-medium text-text-tertiary">
-                {EDITOR_WIDTH_OPTIONS.map((size, index) => (
-                  <span
-                    key={size.value}
-                    className={cn(
-                      "absolute top-0 -translate-x-1/2 whitespace-nowrap",
-                      editorWidth === size.value && "text-text-secondary",
-                    )}
-                    style={{
-                      left: `${(index / (EDITOR_WIDTH_OPTIONS.length - 1)) * 100}%`,
-                    }}
-                  >
-                    {t(size.label)}
-                  </span>
-                ))}
+            </div>
+
+            {/* editor width */}
+            <div>
+              <p
+                id="settings-editor-width-label"
+                className="block text-sm/6 font-medium text-text"
+              >
+                {t("Editor Width")}
+              </p>
+              <p className="mb-3 text-xs text-text-tertiary">
+                {t(
+                  "Controls the max width of the note editor. Can also be overridden per note.",
+                )}
+              </p>
+              <div
+                role="group"
+                aria-labelledby="settings-editor-width-label"
+                className="grid grid-cols-2 gap-2"
+              >
+                {EDITOR_WIDTH_OPTIONS.map((size) => {
+                  const active = editorWidth === size.value;
+                  return (
+                    <button
+                      key={size.value}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() =>
+                        setFormState((prev) => ({
+                          ...prev,
+                          editorWidth: size.value,
+                        }))
+                      }
+                      className={cn(tileClass(active), "min-h-14 gap-0.5")}
+                    >
+                      <span>{t(size.label)}</span>
+                      <span className="font-mono text-[11px] font-normal text-text-tertiary">
+                        {t(size.detail)}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
-        </div>
-
-        <div className="mt-8 flex items-center gap-3">
+        </SettingsCardBody>
+        <SettingsCardFooter>
           <button
             type="submit"
             disabled={savingSection !== null || !hasChanges}
@@ -206,13 +220,8 @@ export default function EditorThemeSection({
           >
             {savingSection === "editor" ? t("Saving...") : t("Save changes")}
           </button>
-          {hasChanges && (
-            <span className="text-xs text-text-tertiary" role="status">
-              {t("Unsaved")}
-            </span>
-          )}
-        </div>
+        </SettingsCardFooter>
       </form>
-    </div>
+    </SettingsCard>
   );
 }

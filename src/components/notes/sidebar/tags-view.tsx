@@ -157,7 +157,7 @@ function ProgressDial({ mapIds, onClassified }: { mapIds: string[]; onClassified
           fill="none"
           strokeWidth="2"
           strokeLinecap="round"
-          className="stroke-primary-500 transition-[stroke-dashoffset] duration-[2800ms] ease-linear"
+          className="stroke-accent transition-[stroke-dashoffset] duration-[2800ms] ease-linear"
           strokeDasharray={circumference}
           strokeDashoffset={circumference * (1 - fraction)}
         />
@@ -172,7 +172,7 @@ function ProgressDial({ mapIds, onClassified }: { mapIds: string[]; onClassified
 
 function FileIcon({ file }: { file: TagsViewFile }) {
   return file.isFile ? (
-    <DocumentIcon className="h-4 w-4 shrink-0 text-red-400 md:h-3.5 md:w-3.5" aria-hidden="true" />
+    <DocumentIcon className="h-4 w-4 shrink-0 text-text-tertiary md:h-3.5 md:w-3.5" aria-hidden="true" />
   ) : (
     <DocumentTextIcon className="h-4 w-4 shrink-0 text-text-tertiary md:h-3.5 md:w-3.5" aria-hidden="true" />
   );
@@ -227,7 +227,7 @@ function FileRow({
       </button>
       <Popover className="shrink-0">
         <PopoverButton
-          className="flex h-11 w-11 items-center justify-center rounded-radius-sm text-text-tertiary hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 md:h-6 md:w-6"
+          className="flex h-11 w-11 items-center justify-center rounded-radius-sm text-text-tertiary hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent md:h-6 md:w-6"
           aria-label={t("More actions")}
           title={t("More actions")}
         >
@@ -235,7 +235,7 @@ function FileRow({
         </PopoverButton>
         <PopoverPanel
           anchor="bottom end"
-          className="z-[60] w-56 max-w-[calc(100vw-1rem)] rounded-radius-md border border-border-subtle bg-surface p-1 text-[13px] text-text shadow-lg [--anchor-gap:4px] [--anchor-padding:8px]"
+          className="z-[60] w-56 max-w-[calc(100vw-1rem)] rounded-radius-md border border-border bg-surface p-1 text-[13px] text-text shadow-float [--anchor-gap:4px] [--anchor-padding:8px]"
         >
           {({ close }) => (
             <>
@@ -484,19 +484,19 @@ function ScopeMenu({
       className="flex min-h-11 w-full items-center gap-2 rounded-radius-md px-2.5 text-left text-sm text-text-secondary hover:bg-subtle hover:text-text md:min-h-8 md:text-[13px]"
     >
       <span className="min-w-0 flex-1 truncate">{text}</span>
-      <CheckIcon className={`h-4 w-4 shrink-0 text-primary-600 dark:text-primary-300 ${checked ? "" : "invisible"}`} aria-hidden="true" />
+      <CheckIcon className={`h-4 w-4 shrink-0 text-accent ${checked ? "" : "invisible"}`} aria-hidden="true" />
     </button>
   );
   return (
     <Popover className="min-w-0 flex-1">
-      <PopoverButton className="flex min-h-11 w-full min-w-0 items-center gap-1 rounded-radius-md px-1.5 text-left text-sm font-medium text-text hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 md:min-h-8 md:text-[13px]">
+      <PopoverButton className="flex min-h-11 w-full min-w-0 items-center gap-1 rounded-radius-md px-1.5 text-left text-sm font-medium text-text hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent md:min-h-8 md:text-[13px]">
         <span className="min-w-0 truncate">{label}</span>
         <ChevronDownIcon className="h-3.5 w-3.5 shrink-0 text-text-tertiary" aria-hidden="true" />
       </PopoverButton>
       <PopoverPanel
         anchor="bottom start"
         role="menu"
-        className="z-[60] max-h-[60dvh] w-72 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-radius-lg border border-border-subtle bg-surface p-1 text-text shadow-lg [--anchor-gap:6px] [--anchor-padding:8px]"
+        className="z-[60] max-h-[60dvh] w-72 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-radius-lg border border-border bg-surface p-1 text-text shadow-float [--anchor-gap:6px] [--anchor-padding:8px]"
       >
         {({ close }) => (
           <>
@@ -607,7 +607,7 @@ export function TagsView({
           onClick={() => useGlobalSearchStore.getState().open()}
           aria-label={t("Search everything")}
           title={`${t("Search everything")} (Ctrl+K)`}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-md text-text-tertiary hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 md:h-7 md:w-7"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-md text-text-tertiary hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent md:h-7 md:w-7"
         >
           <MagnifyingGlassIcon className="h-4 w-4" aria-hidden="true" />
         </button>
@@ -618,7 +618,7 @@ export function TagsView({
       ) : error ? (
         <div className="flex items-center gap-2 px-3 py-2">
           <p role="alert" className="text-sm text-text-secondary md:text-xs">{t("Tags could not be loaded.")}</p>
-          <button type="button" onClick={refresh} className="min-h-11 rounded-radius-md px-2 text-sm text-primary-700 hover:bg-subtle dark:text-primary-300 md:min-h-7 md:text-xs">
+          <button type="button" onClick={refresh} className="min-h-11 rounded-radius-md px-2 text-sm text-accent hover:bg-subtle md:min-h-7 md:text-xs">
             {t("Retry")}
           </button>
         </div>
@@ -661,7 +661,7 @@ export function TagsView({
           {mapIds.length === 0 && (
             <li className="px-3 py-2 text-sm text-text-tertiary md:text-xs">
               {t("No study map sorts these files into topics yet.")}{" "}
-              <Link href="/study-map" className="text-primary-700 underline decoration-primary-500/40 underline-offset-2 hover:decoration-primary-500 dark:text-primary-300">
+              <Link href="/study-map" className="text-accent underline decoration-accent/40 underline-offset-2 hover:decoration-accent">
                 {t("Open study maps")}
               </Link>
             </li>

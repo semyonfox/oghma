@@ -208,7 +208,7 @@ function getHomeFAQs(t: Translate) {
 
 function HeroMockup() {
   return (
-    <div className="relative mt-16 sm:mt-24 rounded-radius-2xl ring-1 ring-border-subtle shadow-2xl overflow-hidden">
+    <div className="relative mt-16 sm:mt-24 rounded-radius-2xl border border-border bg-surface shadow-float overflow-hidden">
       <Image
         src="/notes-workspace-ultrawide.png"
         alt="OghmaNotes workspace with course files, notes, and study chat"
@@ -217,14 +217,6 @@ function HeroMockup() {
         sizes="(max-width: 768px) 100vw, (max-width: 1280px) 90vw, 1280px"
         className="w-full h-auto block"
         priority
-      />
-      <div
-        className="absolute inset-x-0 bottom-0 pointer-events-none"
-        style={{
-          height: "45%",
-          background:
-            "linear-gradient(to top, var(--color-background) 0%, var(--color-background) 15%, transparent 100%)",
-        }}
       />
     </div>
   );
@@ -246,24 +238,12 @@ export default async function Home() {
         }}
       />
 
-      <div className="relative isolate pt-14">
-        <div
-          aria-hidden="true"
-          className="absolute inset-x-0 -top-40 -z-10 transform-gpu overflow-hidden blur-3xl sm:-top-80"
-        >
-          <div
-            style={{
-              clipPath:
-                "polygon(74.1% 44.1%, 100% 61.6%, 97.5% 26.9%, 85.5% 0.1%, 80.7% 2%, 72.5% 32.5%, 60.2% 62.4%, 52.4% 68.1%, 47.5% 58.3%, 45.2% 34.5%, 27.5% 76.7%, 0.1% 64.9%, 17.9% 100%, 27.6% 76.8%, 76.1% 97.7%, 74.1% 44.1%)",
-            }}
-            className="relative left-[calc(50%-11rem)] aspect-1155/678 w-144.5 -translate-x-1/2 rotate-30 bg-linear-to-tr from-primary-500/25 to-primary-400/10 opacity-40 sm:left-[calc(50%-30rem)] sm:w-288.75"
-          />
-        </div>
+      <div className="relative pt-14">
         <div className="py-24 sm:py-32 lg:pb-40">
           <div className="mx-auto max-w-7xl px-6 lg:px-8">
             <div className="mx-auto max-w-3xl text-center">
               <FadeIn>
-                <p className="type-eyebrow text-primary-300">
+                <p className="type-eyebrow font-mono text-text-tertiary">
                   {t("Canvas-connected study system")}
                 </p>
                 <h1 className="type-display mx-auto mt-6 max-w-5xl text-text">
@@ -281,13 +261,13 @@ export default async function Home() {
                 <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
                   <a
                     href="/contact#contact-form"
-                    className="rounded-radius-md bg-primary-600 px-5 py-3 text-sm font-semibold text-text-on-primary shadow-xs transition-colors hover:bg-primary-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
+                    className="rounded-radius-md bg-action px-5 py-3 text-sm font-semibold text-on-action transition-colors hover:bg-action-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                   >
                     {t("Join the beta")}
                   </a>
                   <a
                     href="#notebooklm"
-                    className="text-sm/6 font-semibold text-text transition-colors hover:text-primary-400"
+                    className="text-sm/6 font-semibold text-accent transition-colors hover:text-accent-hover"
                   >
                     {t("Compare with NotebookLM")} <span aria-hidden="true">&rarr;</span>
                   </a>
@@ -300,24 +280,12 @@ export default async function Home() {
             </FadeIn>
           </div>
         </div>
-        <div
-          aria-hidden="true"
-          className="absolute inset-x-0 top-[calc(100%-13rem)] -z-10 transform-gpu overflow-hidden blur-3xl sm:top-[calc(100%-30rem)]"
-        >
-          <div
-            style={{
-              clipPath:
-                "polygon(74.1% 44.1%, 100% 61.6%, 97.5% 26.9%, 85.5% 0.1%, 80.7% 2%, 72.5% 32.5%, 60.2% 62.4%, 52.4% 68.1%, 47.5% 58.3%, 45.2% 34.5%, 27.5% 76.7%, 0.1% 64.9%, 17.9% 100%, 27.6% 76.8%, 76.1% 97.7%, 74.1% 44.1%)",
-            }}
-            className="relative left-[calc(50%+3rem)] aspect-1155/678 w-144.5 -translate-x-1/2 bg-linear-to-tr from-primary-500/25 to-primary-400/10 opacity-40 sm:left-[calc(50%+36rem)] sm:w-288.75"
-          />
-        </div>
       </div>
 
       <div id="features" className="py-24 sm:py-32">
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
           <FadeIn>
-            <h2 className="type-eyebrow text-center text-primary-300">
+            <h2 className="type-eyebrow text-center font-mono text-text-tertiary">
               {t("What changes once Canvas is connected")}
             </h2>
             <p className="type-supporting-title mx-auto mt-4 max-w-4xl text-center text-text">
@@ -327,12 +295,12 @@ export default async function Home() {
           <div className="mx-auto mt-16 grid max-w-2xl grid-cols-1 gap-6 sm:grid-cols-2 lg:mx-0 lg:max-w-none lg:grid-cols-3">
             {features.map((feature, i) => (
               <FadeIn key={feature.name} delay={i * 0.05}>
-                <dl className="group h-full rounded-radius-xl bg-surface border border-border-subtle p-6 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-primary-500/30 hover:shadow-xl hover:shadow-primary-950/5">
+                <dl className="h-full rounded-radius-xl border border-border bg-surface p-6 transition-colors duration-200 hover:border-border-strong">
                   <dt>
-                    <div className="bg-primary-500/10 rounded-radius-lg p-2 w-fit mb-4 transition-colors group-hover:bg-primary-500/15">
+                    <div className="mb-4 w-fit rounded-radius-md border border-border bg-surface p-2">
                       <feature.icon
                         aria-hidden="true"
-                        className="size-8 text-primary-400"
+                        className="size-5 text-accent"
                       />
                     </div>
                     <span className="type-card-title text-text">
@@ -353,7 +321,7 @@ export default async function Home() {
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
           <FadeIn>
             <div className="mx-auto max-w-3xl text-center">
-              <h2 className="type-eyebrow text-primary-300">
+              <h2 className="type-eyebrow font-mono text-text-tertiary">
                 {t("Why not just use NotebookLM?")}
               </h2>
               <p className="type-supporting-title mt-4 text-text">
@@ -366,13 +334,13 @@ export default async function Home() {
               </p>
             </div>
           </FadeIn>
-          <div className="mx-auto mt-12 max-w-4xl overflow-hidden rounded-radius-2xl border border-border-subtle bg-surface shadow-xl shadow-primary-950/5">
+          <div className="mx-auto mt-12 max-w-4xl overflow-hidden rounded-radius-2xl border border-border bg-surface">
             {comparisonRows.map((row, index) => (
               <div
                 key={row.tool}
                 className={`grid gap-4 p-6 transition-colors sm:grid-cols-[12rem_1fr] ${
-                  index > 0 ? "border-t border-border-subtle" : ""
-                } ${row.tool === t("OghmaNotes") ? "bg-primary-500/10" : ""}`}
+                  index > 0 ? "border-t border-border" : ""
+                } ${row.tool === t("OghmaNotes") ? "bg-accent-soft" : ""}`}
               >
                 <div className="type-card-title text-text">
                   {row.tool}
@@ -402,7 +370,7 @@ export default async function Home() {
               </div>
             </FadeIn>
             <FadeIn delay={0.1}>
-              <div className="rounded-radius-xl border border-border-subtle bg-surface p-6">
+              <div className="rounded-radius-xl border border-border bg-surface p-6">
                 <div className="grid gap-5 sm:grid-cols-2">
                   {[
                     t("Free first import before upgrade pressure"),
@@ -413,7 +381,7 @@ export default async function Home() {
                     <div key={item} className="flex gap-3">
                       <CheckCircleIcon
                         aria-hidden="true"
-                        className="mt-1 size-5 flex-none text-primary-400"
+                        className="mt-1 size-5 flex-none text-accent"
                       />
                       <p className="text-sm/6 text-text-secondary">{item}</p>
                     </div>
@@ -425,7 +393,7 @@ export default async function Home() {
         </div>
       </div>
 
-      <div id="contact" className="relative isolate">
+      <div id="contact" className="relative border-t border-border">
         <div className="mx-auto grid max-w-7xl grid-cols-1 lg:grid-cols-2">
           <div className="relative px-6 pt-24 pb-20 sm:pt-32 lg:static lg:px-8 lg:py-48">
             <div className="mx-auto max-w-xl lg:mx-0 lg:max-w-lg">

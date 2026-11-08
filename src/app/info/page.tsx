@@ -51,25 +51,25 @@ export default function InfoPage() {
           <li>
             Request this page as Markdown with{" "}
             <code>Accept: text/markdown</code> or{" "}
-            <Link className="text-primary-300 hover:text-primary-200" href="/info?format=md">
+            <Link className="text-accent hover:text-accent-hover" href="/info?format=md">
               /info?format=md
             </Link>
             .
           </li>
           <li>
             Use{" "}
-            <Link className="text-primary-300 hover:text-primary-200" href="/info.md">
+            <Link className="text-accent hover:text-accent-hover" href="/info.md">
               /info.md
             </Link>{" "}
             for the compact Markdown factsheet.
           </li>
           <li>
             Use{" "}
-            <Link className="text-primary-300 hover:text-primary-200" href="/ai.md">
+            <Link className="text-accent hover:text-accent-hover" href="/ai.md">
               /ai.md
             </Link>{" "}
             or{" "}
-            <Link className="text-primary-300 hover:text-primary-200" href="/llms-full.txt">
+            <Link className="text-accent hover:text-accent-hover" href="/llms-full.txt">
               /llms-full.txt
             </Link>{" "}
             for the full profile.
@@ -92,7 +92,7 @@ export default function InfoPage() {
                 <tr key={resource.path}>
                   <td className="py-3 pr-4">
                     <Link
-                      className="text-primary-300 hover:text-primary-200"
+                      className="text-accent hover:text-accent-hover"
                       href={resource.path}
                     >
                       {resource.path}
@@ -110,11 +110,11 @@ export default function InfoPage() {
       <InfoSection title="Endpoint Quickstart">
         <p>
           The structured version is available at{" "}
-          <Link className="text-primary-300 hover:text-primary-200" href="/agent-api.json">
+          <Link className="text-accent hover:text-accent-hover" href="/agent-api.json">
             /agent-api.json
           </Link>{" "}
           and{" "}
-          <Link className="text-primary-300 hover:text-primary-200" href="/openapi.json">
+          <Link className="text-accent hover:text-accent-hover" href="/openapi.json">
             /openapi.json
           </Link>
           . Authenticated endpoints require the user&apos;s browser session.

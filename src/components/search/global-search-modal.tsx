@@ -383,7 +383,7 @@ export default function GlobalSearchModal() {
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" />
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
         </Transition.Child>
 
         <div className="fixed inset-0 overflow-y-auto">
@@ -397,13 +397,13 @@ export default function GlobalSearchModal() {
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="w-full max-w-5xl overflow-hidden rounded-radius-lg border border-border bg-surface shadow-2xl">
+              <Dialog.Panel className="w-full max-w-5xl overflow-hidden rounded-radius-lg border border-border bg-surface shadow-float">
                 <Dialog.Title className="sr-only">
                   {t("Search OghmaNotes")}
                 </Dialog.Title>
-                <div className="flex items-center border-b border-border-subtle px-4 py-3">
+                <div className="flex items-center border-b border-border px-4 py-3">
                   <MagnifyingGlassIcon
-                    className={`h-5 w-5 shrink-0 ${loading ? "animate-pulse text-primary-400" : "text-text-tertiary"}`}
+                    className={`h-5 w-5 shrink-0 ${loading ? "animate-pulse text-accent" : "text-text-tertiary"}`}
                   />
                   <input
                     ref={inputRef}
@@ -424,10 +424,16 @@ export default function GlobalSearchModal() {
                     onKeyDown={onInputKeyDown}
                     autoFocus
                   />
+                  <kbd
+                    aria-hidden="true"
+                    className="ml-3 hidden shrink-0 rounded-radius-sm border border-border bg-surface px-1.5 py-0.5 font-mono text-[11px] leading-4 text-text-tertiary sm:inline-block"
+                  >
+                    esc
+                  </kbd>
                   <button
                     type="button"
                     onClick={handleClose}
-                    className="ml-3 flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-text sm:h-8 sm:w-8"
+                    className="ml-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-text sm:h-8 sm:w-8"
                     title={t("Close")}
                     aria-label={t("Close")}
                   >
@@ -448,27 +454,27 @@ export default function GlobalSearchModal() {
                 </div>
                 {searchError && (
                   <div className="flex flex-wrap items-center gap-3 border-b border-border-subtle px-4 py-3">
-                    <p role="alert" className="text-sm text-error-400">
+                    <p role="alert" className="text-sm text-error-700 dark:text-error-400">
                       {searchError === "session"
                         ? t("Your session has expired. Please log in again.")
                         : t("error.something_went_wrong")}
                     </p>
                     {searchError === "session" ? (
-                      <a href="/login" className="text-sm font-semibold text-primary-400">
+                      <a href="/login" className="text-sm font-semibold text-accent">
                         {t("Sign in")}
                       </a>
                     ) : (
                       <button type="button" onClick={() => {
                         inputRef.current?.focus();
                         setRetryCount((count) => count + 1);
-                      }} className="min-h-11 rounded-radius-md px-3 text-sm font-semibold text-primary-400 hover:bg-subtle">
+                      }} className="min-h-11 rounded-radius-md px-3 text-sm font-semibold text-accent hover:bg-subtle">
                         {t("Try again")}
                       </button>
                     )}
                   </div>
                 )}
                 <div className="grid min-h-[320px] grid-cols-1 md:min-h-[430px] md:grid-cols-[minmax(0,1.1fr)_minmax(280px,0.9fr)]">
-                  <div id={resultsId} role="listbox" aria-label={t("Search OghmaNotes")} aria-busy={loading} className="max-h-[62vh] overflow-y-auto border-border-subtle md:border-r">
+                  <div id={resultsId} role="listbox" aria-label={t("Search OghmaNotes")} aria-busy={loading} className="max-h-[62vh] overflow-y-auto border-border md:border-r">
                     {SECTION_ORDER.map((section) => {
                       const sectionResults = results[section];
                       if (sectionResults.length === 0) return null;
@@ -481,10 +487,10 @@ export default function GlobalSearchModal() {
 
                       return (
                         <div key={section} role="group" aria-label={t(SECTION_LABELS[section])} className="py-2">
-                          <div className="px-4 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">
+                          <div className="px-4 pb-1 pt-2 text-xs font-semibold text-text-tertiary">
                             {t(SECTION_LABELS[section])}
                           </div>
-                          <ul role="presentation">
+                          <ul role="presentation" className="px-2">
                             {sectionResults.map((result, index) => {
                               const globalIndex = runningIndex + index;
                               const selected = globalIndex === selectedIndex;
@@ -502,16 +508,16 @@ export default function GlobalSearchModal() {
                                       setSelectedIndex(globalIndex)
                                     }
                                     onClick={() => openResult(result)}
-                                    className={`flex w-full items-start gap-3 px-4 py-3 text-left transition-colors ${
+                                    className={`flex w-full items-start gap-3 rounded-radius-md px-2 py-2.5 text-left transition-colors ${
                                       selected
-                                        ? "bg-primary-500/10"
+                                        ? "atlas-raised"
                                         : "hover:bg-subtle"
                                     }`}
                                   >
                                     <span
                                       className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-radius-md border ${
                                         selected
-                                          ? "border-primary-400/30 bg-primary-400/10 text-primary-300"
+                                          ? "border-border bg-surface text-accent"
                                           : "border-border-subtle bg-surface-elevated text-text-tertiary"
                                       }`}
                                     >
@@ -522,7 +528,7 @@ export default function GlobalSearchModal() {
                                         <span className="truncate text-sm font-medium text-text">
                                           {result.title}
                                         </span>
-                                        <span className="shrink-0 rounded-full border border-border-subtle px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-text-tertiary">
+                                        <span className="shrink-0 rounded-full border border-border px-1.5 py-0.5 text-[11px] text-text-tertiary">
                                           {sourceLabel(result.source)}
                                         </span>
                                       </span>
@@ -548,7 +554,7 @@ export default function GlobalSearchModal() {
 
                     {!hasAnyResult && loading && (
                       <div className="flex min-h-[320px] items-center justify-center">
-                        <div className="h-6 w-6 rounded-full border-2 border-border border-t-primary-400 animate-spin" />
+                        <div className="h-6 w-6 rounded-full border-2 border-border border-t-accent animate-spin" />
                       </div>
                     )}
 
@@ -572,7 +578,7 @@ export default function GlobalSearchModal() {
                                 ) ?? null,
                               )
                             }
-                            className="rounded-radius-md border border-border-subtle px-3 py-1.5 text-xs font-medium text-text-secondary hover:bg-subtle"
+                            className="rounded-radius-md border border-border bg-surface px-3 py-1.5 text-xs font-medium text-text hover:bg-subtle"
                           >
                             {t("Open AI Chat")}
                           </button>
@@ -585,7 +591,7 @@ export default function GlobalSearchModal() {
                                 ) ?? null,
                               )
                             }
-                            className="rounded-radius-md border border-border-subtle px-3 py-1.5 text-xs font-medium text-text-secondary hover:bg-subtle"
+                            className="rounded-radius-md border border-border bg-surface px-3 py-1.5 text-xs font-medium text-text hover:bg-subtle"
                           >
                             {t("Open Notes")}
                           </button>
@@ -594,7 +600,7 @@ export default function GlobalSearchModal() {
                     )}
                   </div>
 
-                  <aside className="hidden max-h-[62vh] overflow-y-auto bg-surface-elevated/40 p-5 md:block">
+                  <aside className="hidden max-h-[62vh] overflow-y-auto bg-surface p-5 md:block">
                     {selectedResult ? (
                       <div className="flex h-full flex-col">
                         <div className="flex items-start gap-3">
@@ -605,10 +611,10 @@ export default function GlobalSearchModal() {
                             })()}
                           </span>
                           <div className="min-w-0">
-                            <div className="text-xs uppercase tracking-wide text-text-tertiary">
+                            <div className="font-mono text-[11px] uppercase tracking-wide text-text-tertiary">
                               {sourceLabel(selectedResult.source)}
                             </div>
-                            <h2 className="mt-1 line-clamp-2 text-base font-semibold text-text">
+                            <h2 className="mt-1 line-clamp-2 font-serif text-xl font-semibold tracking-tight text-text">
                               {selectedResult.title}
                             </h2>
                             {selectedResult.subtitle && (
@@ -620,11 +626,11 @@ export default function GlobalSearchModal() {
                         </div>
 
                         {selectedResult.snippet ? (
-                          <div className="mt-5 rounded-radius-md border border-border-subtle bg-surface p-4 text-sm leading-6 text-text-secondary">
+                          <div className="mt-5 font-serif text-[15px] leading-7 text-text-secondary">
                             {selectedResult.snippet}
                           </div>
                         ) : (
-                          <div className="mt-5 rounded-radius-md border border-border-subtle bg-surface p-4 text-sm text-text-tertiary">
+                          <div className="mt-5 break-all font-mono text-xs text-text-tertiary">
                             {selectedResult.href}
                           </div>
                         )}
@@ -633,7 +639,7 @@ export default function GlobalSearchModal() {
                           <button
                             type="button"
                             onClick={() => openResult(selectedResult)}
-                            className="inline-flex w-full items-center justify-center rounded-radius-md bg-primary-600 px-3 py-2 text-sm font-semibold text-text-on-primary transition-colors hover:bg-primary-700"
+                            className="inline-flex w-full items-center justify-center rounded-radius-md bg-action px-3 py-2 text-sm font-semibold text-on-action transition-colors hover:bg-action-hover"
                           >
                             {t("Open")}
                           </button>

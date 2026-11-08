@@ -31,7 +31,7 @@ const IconButton: FC<IconButtonProps> = ({ icon, iconClassName = '', children, c
   
   return (
     <button
-      className={`touch-target-44 p-2 rounded hover:bg-surface-elevated transition-colors w-7 h-7 md:w-6 md:h-6 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-primary-500 ${className}`}
+      className={`touch-target-44 p-2 rounded-radius-sm hover:bg-subtle transition-colors w-7 h-7 md:w-6 md:h-6 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-accent ${className}`}
       {...props}
     >
       {Icon ? <Icon className={`w-5 h-5 ${iconClassName}`} aria-hidden="true" /> : children}

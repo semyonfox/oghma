@@ -383,7 +383,7 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane }) => {
               <button
                 type="button"
                 onClick={openExtractedNote}
-                className="rounded-radius-sm font-medium text-primary-400 underline underline-offset-2 hover:text-primary-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-400"
+                className="rounded-radius-sm font-medium text-accent underline underline-offset-2 hover:text-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
               >
                 {isDesktop === true
                   ? t("Open extracted note beside PDF")
@@ -418,10 +418,10 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane }) => {
         ) : !pdfSource ? (
           <div className="flex flex-col items-center gap-3 mt-16 text-center px-6">
             <ExclamationTriangleIcon
-              className="h-8 w-8 text-red-400/60"
+              className="h-8 w-8 text-error-700 dark:text-error-400"
               aria-hidden="true"
             />
-            <p className="text-sm text-red-400/80">{t("pdf_viewer.error")}</p>
+            <p className="text-sm text-error-700 dark:text-error-400">{t("pdf_viewer.error")}</p>
             <p className="text-xs text-text-tertiary">
               {urlError === "http-404"
                 ? t("File not found in storage.")
@@ -454,7 +454,7 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane }) => {
               </div>
             }
             error={
-              <div className="text-red-500 mt-16">{t("pdf_viewer.error")}</div>
+              <div className="text-error-700 dark:text-error-400 mt-16">{t("pdf_viewer.error")}</div>
             }
           >
             <div className="flex flex-col items-center gap-4">

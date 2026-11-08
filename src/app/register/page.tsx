@@ -11,6 +11,18 @@ import {
 import { Alert } from "@/components/alert";
 import Link from "next/link";
 import BrandLogo from "@/components/brand-logo";
+import {
+  authColumnClass,
+  authErrorTextClass,
+  authInputClass,
+  authLabelClass,
+  authLinkClass,
+  authPageClass,
+  authPrimaryButtonClass,
+  authSecondaryButtonClass,
+  authSuccessTextClass,
+  authTitleClass,
+} from "@/components/auth/auth-styles";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import {
   reportTelemetry,
@@ -181,30 +193,30 @@ export default function RegisterPage() {
     !isOAuthProviderConfigured(provider, oauthProviders);
 
   return (
-    <div className="flex min-h-screen flex-col justify-center py-12 px-6 lg:px-8 bg-app-page">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+    <div className={authPageClass}>
+      <div className={authColumnClass}>
         <Link
           href={nativeAppBridge ? "/login" : "/"}
-          className="flex items-center justify-center gap-2.5"
+          className="inline-flex items-center gap-2.5"
           aria-label={t("OghmaNotes")}
         >
-          <BrandLogo size={34} priority />
-          <span className="font-serif text-xl font-semibold text-text">
+          <BrandLogo size={30} priority />
+          <span className="font-serif text-lg font-semibold text-text">
             {t("OghmaNotes")}
           </span>
         </Link>
-        <h1 className="mt-8 text-center font-serif text-3xl font-semibold tracking-tight text-text">
+        <h1 className={`mt-10 ${authTitleClass}`}>
           {t("Create your account")}
         </h1>
       </div>
 
-      <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-[460px]">
-        <div className="glass-card rounded-radius-xl px-6 py-10 sm:px-10">
+      <div className={`mt-8 ${authColumnClass}`}>
+        <div>
           <form
             onSubmit={handleSubmit}
             noValidate
             method="POST"
-            className="space-y-6"
+            className="space-y-5"
           >
             {errMsg && (
               <div ref={errRef}>
@@ -219,11 +231,11 @@ export default function RegisterPage() {
             <div>
               <label
                 htmlFor="email"
-                className="block text-sm/6 font-medium text-text"
+                className={authLabelClass}
               >
                 {t("Email address")}
               </label>
-              <div className="mt-2">
+              <div className="mt-1.5">
                 <input
                   id="email"
                   name="email"
@@ -234,11 +246,11 @@ export default function RegisterPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   aria-invalid={Boolean(emailError)}
                   aria-describedby={emailError ? "email-error" : undefined}
-                  className="block w-full rounded-radius-md bg-input border border-border-subtle px-3 py-2 text-sm text-text placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500/60"
+                  className={authInputClass}
                 />
               </div>
               {emailError && (
-                <p id="email-error" role="alert" className="mt-1 text-xs text-error-700 dark:text-error-300">
+                <p id="email-error" role="alert" className={`mt-1 text-xs ${authErrorTextClass}`}>
                   {t(emailError)}
                 </p>
               )}
@@ -248,11 +260,11 @@ export default function RegisterPage() {
               <div>
                 <label
                   htmlFor="agent-user-code"
-                  className="block text-sm/6 font-medium text-text"
+                  className={authLabelClass}
                 >
                   {t("Agent registration code")}
                 </label>
-                <div className="mt-2">
+                <div className="mt-1.5">
                   <input
                     id="agent-user-code"
                     name="agent-user-code"
@@ -263,7 +275,7 @@ export default function RegisterPage() {
                     onChange={(e) =>
                       setAgentUserCode(e.target.value.replace(/\D/g, "").slice(0, 6))
                     }
-                    className="block w-full rounded-radius-md bg-input border border-border-subtle px-3 py-2 text-sm text-text placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500/60"
+                    className={authInputClass}
                   />
                 </div>
                 <p className="mt-1 text-xs text-text-tertiary">
@@ -275,11 +287,11 @@ export default function RegisterPage() {
             <div>
               <label
                 htmlFor="password"
-                className="block text-sm/6 font-medium text-text"
+                className={authLabelClass}
               >
                 {t("Password")}
               </label>
-              <div className="mt-2">
+              <div className="mt-1.5">
                 <input
                   id="password"
                   name="password"
@@ -290,11 +302,11 @@ export default function RegisterPage() {
                   onChange={(e) => setPwd(e.target.value)}
                   aria-invalid={Boolean(passwordError)}
                   aria-describedby={`password-requirements${passwordError ? " password-error" : ""}`}
-                  className="block w-full rounded-radius-md bg-input border border-border-subtle px-3 py-2 text-sm text-text placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500/60"
+                  className={authInputClass}
                 />
               </div>
               {passwordError && (
-                <p id="password-error" role="alert" className="mt-2 text-xs text-error-700 dark:text-error-300">
+                <p id="password-error" role="alert" className={`mt-2 text-xs ${authErrorTextClass}`}>
                   {t(passwordError)}
                 </p>
               )}
@@ -304,9 +316,9 @@ export default function RegisterPage() {
                     key={requirement.id}
                     className={
                       requirement.met
-                        ? "text-success-700 dark:text-emerald-400"
+                        ? authSuccessTextClass
                         : showFieldErrors
-                          ? "text-error-700 dark:text-error-300"
+                          ? authErrorTextClass
                           : "text-text-tertiary"
                     }
                   >
@@ -322,11 +334,11 @@ export default function RegisterPage() {
             <div>
               <label
                 htmlFor="confirm-password"
-                className="block text-sm/6 font-medium text-text"
+                className={authLabelClass}
               >
                 {t("Confirm password")}
               </label>
-              <div className="mt-2">
+              <div className="mt-1.5">
                 <input
                   id="confirm-password"
                   name="confirm-password"
@@ -337,11 +349,11 @@ export default function RegisterPage() {
                   onChange={(e) => setConfirmPwd(e.target.value)}
                   aria-invalid={Boolean(confirmError)}
                   aria-describedby={confirmError ? "confirm-password-error" : undefined}
-                  className="block w-full rounded-radius-md bg-input border border-border-subtle px-3 py-2 text-sm text-text placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500/60"
+                  className={authInputClass}
                 />
               </div>
               {confirmError && (
-                <p id="confirm-password-error" role="alert" className="mt-1 text-xs text-error-700 dark:text-error-300">
+                <p id="confirm-password-error" role="alert" className={`mt-1 text-xs ${authErrorTextClass}`}>
                   {t(confirmError)}
                 </p>
               )}
@@ -351,7 +363,7 @@ export default function RegisterPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="flex w-full justify-center rounded-radius-md bg-primary-600 px-3 py-2 text-sm/6 font-semibold text-text-on-primary transition-colors hover:bg-primary-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 disabled:bg-primary-800 disabled:text-primary-300 disabled:cursor-not-allowed"
+                className={authPrimaryButtonClass}
               >
                 {loading ? t("Creating account...") : t("Create account")}
               </button>
@@ -360,21 +372,21 @@ export default function RegisterPage() {
 
           {/* Social signup section */}
           <div>
-            <div className="mt-10 flex items-center gap-x-6">
-              <div className="w-full flex-1 border-t border-border-subtle" />
-              <p className="text-sm/6 font-medium text-nowrap text-text-tertiary">
+            <div className="mt-6 flex items-center gap-x-4">
+              <div className="w-full flex-1 border-t border-border" />
+              <p className="text-xs/6 font-medium text-nowrap text-text-tertiary">
                 {t("Or sign up with")}
               </p>
-              <div className="w-full flex-1 border-t border-border-subtle" />
+              <div className="w-full flex-1 border-t border-border" />
             </div>
 
-            <div className="mt-6 grid grid-cols-2 gap-4">
+            <div className="mt-5 grid grid-cols-2 gap-3">
               {/* Google */}
               <button
                 type="button"
                 disabled={isProviderDisabled("google")}
                 onClick={() => handleSocialSignUp("google")}
-                className="flex w-full items-center justify-center gap-3 rounded-radius-md glass-card-interactive px-3 py-2 text-sm font-semibold text-text disabled:opacity-50 disabled:cursor-not-allowed"
+                className={authSecondaryButtonClass}
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5">
                   <path
@@ -402,7 +414,7 @@ export default function RegisterPage() {
                 type="button"
                 disabled={isProviderDisabled("github")}
                 onClick={() => handleSocialSignUp("github")}
-                className="flex w-full items-center justify-center gap-3 rounded-radius-md glass-card-interactive px-3 py-2 text-sm font-semibold text-text disabled:opacity-50 disabled:cursor-not-allowed"
+                className={authSecondaryButtonClass}
               >
                 <svg
                   fill="currentColor"
@@ -422,11 +434,11 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        <p className="mt-8 text-center text-sm/6 text-text-tertiary">
+        <p className="mt-8 text-center text-sm/6 text-text-secondary">
           {t("Already have an account?")}{" "}
           <Link
             href="/login"
-            className="font-semibold text-primary-700 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300"
+            className={authLinkClass}
           >
             {t("Sign in")}
           </Link>

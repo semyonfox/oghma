@@ -56,10 +56,10 @@ function formatDate(date: string, locale: string) {
 
 function expiryTone(days: number) {
   if (days <= 3) {
-    return "border-error-500/30 bg-error-500/10 text-error-300";
+    return "border-error-500/30 bg-error-500/10 text-error-700 dark:text-error-300";
   }
   if (days <= 7) {
-    return "border-amber-500/30 bg-amber-500/10 text-amber-300";
+    return "border-warning-500/30 bg-warning-500/10 text-warning-700 dark:text-warning-300";
   }
   return "border-border-subtle bg-subtle text-text-tertiary";
 }
@@ -233,13 +233,13 @@ export default function TrashPage() {
                 ref={headingRef}
                 id="trash-heading"
                 tabIndex={-1}
-                className="text-lg font-semibold tracking-tight text-text outline-none"
+                className="font-serif text-xl font-semibold tracking-tight text-text outline-none"
               >
                 {t("Trash")}
               </h1>
               {!loading && (
                 <span
-                  className="inline-flex min-w-5 items-center justify-center rounded-radius-sm bg-subtle px-1.5 py-0.5 text-xs font-semibold tabular-nums text-text-tertiary"
+                  className="inline-flex min-w-5 items-center justify-center rounded-radius-sm bg-subtle px-1.5 py-0.5 font-mono text-xs font-semibold tabular-nums text-text-tertiary"
                   aria-label={t("Contains {count} items", { count: items.length })}
                 >
                   {items.length}
@@ -256,7 +256,7 @@ export default function TrashPage() {
             onClick={() => setPendingAction({ kind: "empty" })}
             disabled={loading || error || items.length === 0 || isMutating}
             title={items.length === 0 ? t("Trash is empty") : undefined}
-            className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-radius-md px-2.5 text-sm font-medium text-error-400/90 transition-colors hover:bg-error-500/10 hover:text-error-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error-500/50 disabled:cursor-not-allowed disabled:text-text-tertiary disabled:hover:bg-transparent"
+            className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-radius-md px-2.5 text-sm font-medium text-error-700 dark:text-error-400 transition-colors hover:bg-error-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error-500/50 disabled:cursor-not-allowed disabled:text-text-tertiary disabled:hover:bg-transparent"
           >
             {busyId === "empty" ? t("Loading...") : t("Empty Trash")}
           </button>
@@ -280,7 +280,7 @@ export default function TrashPage() {
             <button
               type="button"
               onClick={() => void loadItems()}
-              className="mt-4 inline-flex min-h-11 items-center rounded-radius-md bg-subtle px-3 text-sm font-medium text-text-secondary transition-colors hover:bg-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50"
+              className="mt-4 inline-flex min-h-11 items-center rounded-radius-md bg-subtle px-3 text-sm font-medium text-text-secondary transition-colors hover:bg-subtle-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
             >
               {t("Try again")}
             </button>
@@ -298,7 +298,7 @@ export default function TrashPage() {
             </p>
             <Link
               href="/notes"
-              className="mt-5 inline-flex min-h-11 items-center rounded-radius-md bg-primary-500/15 px-3 text-sm font-medium text-primary-300 transition-colors hover:bg-primary-500/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50"
+              className="mt-5 inline-flex min-h-11 items-center rounded-radius-md bg-surface border border-border px-3 text-sm font-medium text-text transition-colors hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
             >
               {t("Notes")}
             </Link>
@@ -320,10 +320,10 @@ export default function TrashPage() {
               return (
                 <li
                   key={item.id}
-                  className={`group flex flex-col gap-4 rounded-radius-lg border border-border-subtle bg-surface/60 p-3 shadow-sm transition-[border-color,background-color,opacity,transform] duration-150 motion-reduce:transition-none sm:flex-row sm:items-center sm:p-4 ${
+                  className={`group flex flex-col gap-4 rounded-radius-lg border border-border-subtle bg-surface p-3 transition-[border-color,background-color,opacity,transform] duration-150 motion-reduce:transition-none sm:flex-row sm:items-center sm:p-4 ${
                     isBusy
                       ? "pointer-events-none translate-y-0.5 opacity-60"
-                      : "hover:border-primary-500/25 hover:bg-surface"
+                      : "hover:border-accent/25 hover:bg-surface"
                   }`}
                 >
                   <div className="flex min-w-0 flex-1 items-start gap-3">
@@ -375,7 +375,7 @@ export default function TrashPage() {
                         onClick={() => void handleRestore(item)}
                         disabled={isMutating}
                         aria-label={`${t("Restore")}: ${itemTitle}`}
-                        className="inline-flex min-h-11 items-center gap-1.5 rounded-radius-md bg-primary-500 px-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-wait disabled:opacity-50"
+                        className="inline-flex min-h-11 items-center gap-1.5 rounded-radius-md bg-action px-3 text-sm font-semibold text-on-action transition-colors hover:bg-action-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-wait disabled:opacity-50"
                       >
                         {isBusy ? (
                           <ArrowPathIcon className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -390,7 +390,7 @@ export default function TrashPage() {
                         disabled={isMutating}
                         aria-label={`${t("Delete permanently")}: ${itemTitle}`}
                         title={`${t("Delete permanently")}: ${itemTitle}`}
-                        className="inline-flex h-11 w-11 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-error-500/10 hover:text-error-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error-500/50 disabled:cursor-wait disabled:opacity-50"
+                        className="inline-flex h-11 w-11 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-error-500/10 hover:text-error-700 dark:hover:text-error-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error-500/50 disabled:cursor-wait disabled:opacity-50"
                       >
                         <TrashIcon className="h-4 w-4" aria-hidden="true" />
                       </button>
@@ -414,9 +414,9 @@ export default function TrashPage() {
       >
         <DialogBackdrop className="fixed inset-0 bg-black/55 backdrop-blur-[2px]" />
         <div className="fixed inset-0 flex items-center justify-center p-4">
-          <DialogPanel className="w-full max-w-md rounded-radius-lg border border-border-subtle bg-surface p-5 shadow-2xl">
+          <DialogPanel className="w-full max-w-md rounded-radius-lg border border-border bg-surface p-5 shadow-float">
             <div className="flex items-start gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-radius-md bg-error-500/10 text-error-400">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-radius-md bg-error-500/10 text-error-700 dark:text-error-400">
                 <TrashIcon className="h-5 w-5" aria-hidden="true" />
               </span>
               <div className="min-w-0">
@@ -459,7 +459,7 @@ export default function TrashPage() {
                 type="button"
                 onClick={() => setPendingAction(null)}
                 disabled={isMutating}
-                className="min-h-11 rounded-radius-md px-3 text-sm font-medium text-text-secondary transition-colors hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 disabled:cursor-wait disabled:opacity-50"
+                className="min-h-11 rounded-radius-md px-3 text-sm font-medium text-text-secondary transition-colors hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 disabled:cursor-wait disabled:opacity-50"
               >
                 {t("Cancel")}
               </button>
@@ -467,7 +467,7 @@ export default function TrashPage() {
                 type="button"
                 onClick={() => void confirmPendingAction()}
                 disabled={isMutating}
-                className="min-h-11 rounded-radius-md bg-error-500 px-3 text-sm font-semibold text-white transition-colors hover:bg-error-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:cursor-wait disabled:opacity-50"
+                className="min-h-11 rounded-radius-md bg-error-600 px-3 text-sm font-semibold text-text-on-primary transition-colors hover:bg-error-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:cursor-wait disabled:opacity-50"
               >
                 {isMutating
                   ? t("Loading...")

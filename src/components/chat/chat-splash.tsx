@@ -15,16 +15,16 @@ const ChatSplash: FC<{ onSelectPrompt?: (prompt: string) => void }> = ({
 }) => {
   const { t } = useI18n();
   return (
-    <div className="mx-auto w-full max-w-xl px-2 py-8 text-left sm:rounded-radius-xl sm:border sm:border-border-subtle sm:bg-surface/40 sm:px-5">
+    <div className="mx-auto w-full max-w-xl px-2 py-8 text-left sm:rounded-radius-xl sm:border sm:border-border sm:bg-surface sm:px-5">
       <div className="flex items-start gap-3">
-        <div className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-lg border border-primary-500/20 bg-primary-500/10">
-          <SparklesIcon className="h-5 w-5 text-primary-400" />
+        <div className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-lg bg-accent-soft">
+          <SparklesIcon className="h-5 w-5 text-accent" />
         </div>
         <div className="min-w-0 space-y-1.5">
-          <h2 className="text-base font-semibold text-text">
+          <h2 className="font-serif text-xl font-semibold tracking-tight text-text">
             OghmaNotes AI
           </h2>
-          <p className="max-w-md text-base leading-relaxed text-text-tertiary">
+          <p className="max-w-md text-base leading-relaxed text-text-secondary">
             {t("Ask anything about your notes, or start a conversation.")}
           </p>
           {onSelectPrompt && (
@@ -34,7 +34,7 @@ const ChatSplash: FC<{ onSelectPrompt?: (prompt: string) => void }> = ({
                   key={prompt}
                   type="button"
                   onClick={() => onSelectPrompt(t(prompt))}
-                  className="min-h-11 rounded-radius-md border border-border-subtle bg-surface px-3 py-2 text-left text-sm leading-snug text-text-secondary transition-colors hover:border-primary-500/30 hover:bg-primary-500/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50"
+                  className="min-h-11 rounded-full border border-border bg-surface px-3.5 py-2 text-left text-sm leading-snug text-text-secondary transition-colors hover:bg-subtle hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
                 >
                   {t(prompt)}
                 </button>

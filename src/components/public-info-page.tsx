@@ -45,10 +45,10 @@ export default async function PublicInfoPage({
     <div className="min-h-screen bg-background text-text">
       <Header />
       <main className="mx-auto max-w-4xl px-6 pb-20 pt-32 sm:pt-40 lg:px-8">
-        <p className="text-sm font-semibold uppercase text-primary-300">
+        <p className="font-mono text-xs font-medium uppercase tracking-[0.14em] text-text-tertiary">
           {t(eyebrow)}
         </p>
-        <h1 className="mt-4 font-serif text-4xl font-semibold tracking-normal text-text sm:text-5xl">
+        <h1 className="mt-4 font-serif text-4xl font-semibold tracking-tight text-text sm:text-5xl">
           {t(title)}
         </h1>
         {description ? (
@@ -69,7 +69,7 @@ export async function InfoSection({ title, children }: { title: string; children
   const { t } = await getServerI18n();
   return (
     <section>
-      <h2 className="font-serif text-2xl font-semibold text-text">
+      <h2 className="font-serif text-2xl font-semibold tracking-tight text-text">
         {t(title)}
       </h2>
       <div className="mt-4 space-y-4">{children}</div>

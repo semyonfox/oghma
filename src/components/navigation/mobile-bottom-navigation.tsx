@@ -122,14 +122,10 @@ export default function MobileBottomNavigation({
   }, []);
   const moreActive =
     pathname?.startsWith("/settings") || pathname?.startsWith("/study-map") || pathname === "/notes/trash";
-  const selectedStyle = nativeDock
-    ? "bg-surface-elevated/35 text-primary-700 dark:text-primary-300"
-    : "bg-surface-elevated/95 text-primary-700 dark:text-primary-300";
-  const restingStyle = nativeDock
-    ? "text-text-secondary hover:bg-surface-elevated/35 hover:text-text"
-    : "text-text-secondary hover:bg-surface-elevated/95 hover:text-text";
+  const selectedStyle = "bg-subtle-hover text-accent-hover";
+  const restingStyle = "text-text-tertiary hover:bg-subtle hover:text-text";
   const rowClass =
-    "flex min-h-12 w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-base text-text-secondary hover:bg-subtle disabled:opacity-50";
+    "flex min-h-12 w-full items-center gap-3 rounded-radius-xl px-3 py-3 text-left text-base text-text-secondary hover:bg-subtle hover:text-text disabled:opacity-50 aria-[current=page]:bg-selected aria-[current=page]:shadow-raised aria-[current=page]:font-medium aria-[current=page]:text-text";
   return (
     <>
       <div
@@ -144,7 +140,7 @@ export default function MobileBottomNavigation({
           onFocusCapture={(event) => {
             if (event.target.matches(":focus-visible")) setExpanded(true);
           }}
-          className={`pointer-events-auto absolute bottom-[calc(12px+var(--safe-bottom))] left-1/2 flex -translate-x-1/2 items-stretch overflow-hidden rounded-full ring-1 p-1 shadow-lg transition-[width,height] duration-[280ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${nativeDock ? "bg-surface/70 ring-border-subtle backdrop-blur-[8.75px]" : "bg-surface/90 ring-border-subtle"} ${expanded ? "min-h-16 w-[min(420px,calc(100%_-_28px))]" : "h-[52px] w-[clamp(228px,calc(100%_-_80px),350px)]"}`}
+          className={`pointer-events-auto absolute bottom-[calc(12px+var(--safe-bottom))] left-1/2 flex -translate-x-1/2 items-stretch overflow-hidden rounded-full ring-1 p-1 shadow-float transition-[width,height] duration-[280ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${nativeDock ? "bg-surface/70 ring-border backdrop-blur-[8.75px]" : "bg-surface/90 ring-border"} ${expanded ? "min-h-16 w-[min(420px,calc(100%_-_28px))]" : "h-[52px] w-[clamp(228px,calc(100%_-_80px),350px)]"}`}
         >
           {destinations.map(({ href, label, icon: Icon }) => {
             const active = !moreActive && pathname?.startsWith(href);
@@ -156,7 +152,7 @@ export default function MobileBottomNavigation({
                 aria-label={t(label)}
                 aria-current={active ? "page" : undefined}
                 onClick={() => setExpanded(true)}
-                className={`relative flex min-h-[44px] min-w-[44px] flex-1 flex-col items-center justify-center gap-1 rounded-full text-xs font-semibold transition-[background-color,color] duration-[280ms] motion-reduce:transition-none active:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 ${active ? selectedStyle : restingStyle}`}
+                className={`relative flex min-h-[44px] min-w-[44px] flex-1 flex-col items-center justify-center gap-1 rounded-full text-xs font-semibold transition-[background-color,color] duration-[280ms] motion-reduce:transition-none active:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ${active ? selectedStyle : restingStyle}`}
               >
                 <Icon
                   className="h-[26px] w-[26px] shrink-0"
@@ -180,7 +176,7 @@ export default function MobileBottomNavigation({
             aria-label={t("More")}
             aria-haspopup="dialog"
             aria-expanded={moreOpen}
-            className={`relative flex min-h-[44px] min-w-[44px] flex-1 flex-col items-center justify-center gap-1 rounded-full text-xs font-semibold transition-[background-color,color] duration-[280ms] motion-reduce:transition-none active:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 ${moreActive || moreOpen ? selectedStyle : restingStyle}`}
+            className={`relative flex min-h-[44px] min-w-[44px] flex-1 flex-col items-center justify-center gap-1 rounded-full text-xs font-semibold transition-[background-color,color] duration-[280ms] motion-reduce:transition-none active:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ${moreActive || moreOpen ? selectedStyle : restingStyle}`}
           >
             <EllipsisHorizontalIcon
               className="h-[26px] w-[26px] shrink-0"

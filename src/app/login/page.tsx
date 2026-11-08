@@ -7,6 +7,17 @@ import { getErrorMessage, login } from "@/lib/api-client";
 import { Alert } from "@/components/alert";
 import Link from "next/link";
 import BrandLogo from "@/components/brand-logo";
+import {
+  authCheckboxClass,
+  authColumnClass,
+  authInputClass,
+  authLabelClass,
+  authLinkClass,
+  authPageClass,
+  authPrimaryButtonClass,
+  authSecondaryButtonClass,
+  authTitleClass,
+} from "@/components/auth/auth-styles";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import {
   buildOAuthSignInOptions,
@@ -132,31 +143,31 @@ export default function LoginPage() {
     !isOAuthProviderConfigured(provider, oauthProviders);
 
   return (
-    <main className={nativeAppBridge ? "flex min-h-dvh flex-col justify-center bg-app-page px-5 py-6" : "flex min-h-screen flex-col justify-center py-12 px-6 lg:px-8 bg-app-page"}>
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+    <main className={nativeAppBridge ? "flex min-h-dvh flex-col justify-center bg-background px-5 py-6" : authPageClass}>
+      <div className={authColumnClass}>
         <Link
           href={nativeAppBridge ? "/login" : "/"}
-          className="flex items-center justify-center gap-2.5"
+          className="inline-flex items-center gap-2.5"
           aria-label={t("OghmaNotes")}
         >
-          <BrandLogo size={34} priority />
-          <span className="font-serif text-xl font-semibold text-text">
+          <BrandLogo size={30} priority />
+          <span className="font-serif text-lg font-semibold text-text">
             {t("OghmaNotes")}
           </span>
         </Link>
-        <h1 className={`${nativeAppBridge ? "mt-5 text-2xl" : "mt-8 text-3xl"} text-center font-serif font-semibold tracking-tight text-text`}>
+        <h1 className={nativeAppBridge ? "mt-6 font-serif text-2xl font-semibold tracking-tight text-text" : `mt-10 ${authTitleClass}`}>
           {t("Sign in to your account")}
         </h1>
-        <p className="mt-3 text-center text-sm text-text-secondary">
-          <Link href="/register" className="font-semibold text-primary-400 hover:text-primary-300">
+        <p className="mt-2 text-sm text-text-secondary">
+          <Link href="/register" className={authLinkClass}>
             {t("Create account")}
           </Link>
         </p>
       </div>
 
-      <div className={`${nativeAppBridge ? "mt-6" : "mt-10"} sm:mx-auto sm:w-full sm:max-w-[460px]`}>
-        <div className={`glass-card rounded-radius-xl ${nativeAppBridge ? "px-5 py-6" : "px-6 py-10 sm:px-10"}`}>
-          <form aria-busy={loading} onSubmit={handleSubmit} method="POST" className="space-y-6">
+      <div className={`${nativeAppBridge ? "mt-6" : "mt-8"} ${authColumnClass}`}>
+        <div>
+          <form aria-busy={loading} onSubmit={handleSubmit} method="POST" className="space-y-5">
             {errMsg && (
               <div ref={errRef} role="alert" tabIndex={-1}>
                 <Alert
@@ -170,11 +181,11 @@ export default function LoginPage() {
             <div>
               <label
                 htmlFor="email"
-                className="block text-sm/6 font-medium text-text"
+                className={authLabelClass}
               >
                 {t("Email address")}
               </label>
-              <div className="mt-2">
+              <div className="mt-1.5">
                 <input
                   ref={userRef}
                   id="email"
@@ -184,7 +195,7 @@ export default function LoginPage() {
                   autoComplete="email"
                   value={email}
                   onChange={handleEmailChange}
-                  className="block w-full rounded-radius-md bg-input border border-border-subtle px-3 py-2 text-base sm:text-sm text-text placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500/60"
+                  className={authInputClass}
                 />
               </div>
             </div>
@@ -192,11 +203,11 @@ export default function LoginPage() {
             <div>
               <label
                 htmlFor="password"
-                className="block text-sm/6 font-medium text-text"
+                className={authLabelClass}
               >
                 {t("Password")}
               </label>
-              <div className="mt-2">
+              <div className="mt-1.5">
                 <input
                   id="password"
                   name="password"
@@ -205,7 +216,7 @@ export default function LoginPage() {
                   autoComplete="current-password"
                   value={pwd}
                   onChange={handlePasswordChange}
-                  className="block w-full rounded-radius-md bg-input border border-border-subtle px-3 py-2 text-base sm:text-sm text-text placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500/60"
+                  className={authInputClass}
                 />
               </div>
             </div>
@@ -219,7 +230,7 @@ export default function LoginPage() {
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
-                    className="size-4 rounded-radius-sm border border-border-subtle bg-input text-primary-500 focus:ring-2 focus:ring-primary-500/40"
+                    className={authCheckboxClass}
                   />
                 </div>
                 <label
@@ -232,7 +243,7 @@ export default function LoginPage() {
 
               <Link
                 href="/forgot-password"
-                className="text-sm/6 font-semibold text-primary-400 hover:text-primary-300"
+                className={`text-sm/6 ${authLinkClass}`}
               >
                 {t("Forgot password?")}
               </Link>
@@ -242,7 +253,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="flex w-full justify-center rounded-radius-md bg-primary-600 px-3 py-2 text-sm/6 font-semibold text-text-on-primary transition-colors hover:bg-primary-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 disabled:bg-primary-800 disabled:text-primary-300 disabled:cursor-not-allowed"
+                className={authPrimaryButtonClass}
               >
                 {loading ? t("Signing in...") : t("Sign in")}
               </button>
@@ -252,7 +263,7 @@ export default function LoginPage() {
 
           {/* Social login section */}
           <div>
-            <p ref={providerStatusRef} tabIndex={-1} role="status" className="mt-6 rounded-radius-md text-center text-sm text-text-tertiary focus:outline-2 focus:outline-offset-2 focus:outline-primary-400">
+            <p ref={providerStatusRef} tabIndex={-1} role="status" className="mt-6 rounded-radius-md text-center text-sm text-text-tertiary focus:outline-2 focus:outline-offset-2 focus:outline-accent">
               {!providersLoaded ? t("Loading...") :
                 !oauthProviders ? t("error.something_went_wrong") :
                   !isOAuthProviderConfigured("google", oauthProviders) || !isOAuthProviderConfigured("github", oauthProviders)
@@ -263,25 +274,25 @@ export default function LoginPage() {
                 providerStatusRef.current?.focus();
                 setProvidersLoaded(false);
                 setProvidersAttempt((attempt) => attempt + 1);
-              }} className="mx-auto mt-2 block min-h-11 rounded-radius-md px-3 text-sm font-semibold text-primary-400 hover:bg-subtle">
+              }} className="mx-auto mt-2 block min-h-11 rounded-radius-md px-3 text-sm font-semibold text-accent hover:bg-subtle hover:text-accent-hover">
                 {t("Try again")}
               </button>
             )}
-            <div className={`${nativeAppBridge ? "mt-6" : "mt-10"} flex items-center gap-x-6`}>
-              <div className="w-full flex-1 border-t border-border-subtle" />
-              <p className="text-sm/6 font-medium text-nowrap text-text-tertiary">
+            <div className={`${nativeAppBridge ? "mt-5" : "mt-6"} flex items-center gap-x-4`}>
+              <div className="w-full flex-1 border-t border-border" />
+              <p className="text-xs/6 font-medium text-nowrap text-text-tertiary">
                 {t("Or continue with")}
               </p>
-              <div className="w-full flex-1 border-t border-border-subtle" />
+              <div className="w-full flex-1 border-t border-border" />
             </div>
 
-            <div className="mt-6 grid grid-cols-2 gap-4">
+            <div className="mt-5 grid grid-cols-2 gap-3">
               {/* Google */}
               <button
                 type="button"
                 disabled={isProviderDisabled("google")}
                 onClick={() => handleSocialLogin("google")}
-                className="flex w-full items-center justify-center gap-3 rounded-radius-md glass-card-interactive px-3 py-2 text-sm font-semibold text-text disabled:opacity-50 disabled:cursor-not-allowed"
+                className={authSecondaryButtonClass}
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5">
                   <path
@@ -309,7 +320,7 @@ export default function LoginPage() {
                 type="button"
                 disabled={isProviderDisabled("github")}
                 onClick={() => handleSocialLogin("github")}
-                className="flex w-full items-center justify-center gap-3 rounded-radius-md glass-card-interactive px-3 py-2 text-sm font-semibold text-text disabled:opacity-50 disabled:cursor-not-allowed"
+                className={authSecondaryButtonClass}
               >
                 <svg
                   fill="currentColor"
@@ -329,11 +340,11 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <p className="mt-8 text-center text-sm/6 text-text-tertiary">
+        <p className="mt-8 text-center text-sm/6 text-text-secondary">
           {t("Don't have an account?")}{" "}
           <Link
             href="/register"
-            className="font-semibold text-primary-400 hover:text-primary-300"
+            className={authLinkClass}
           >
             {t("Create one")}
           </Link>

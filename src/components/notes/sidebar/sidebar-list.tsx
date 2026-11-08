@@ -281,7 +281,7 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
   return (
     <>
       <section
-        className="h-full flex flex-col text-[13px] bg-background"
+        className="h-full flex flex-col text-[13px] bg-sidebar"
         aria-label={t("Notes list")}
       >
         {/* Favorites */}
@@ -312,7 +312,7 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
             <button
               type="button"
               onClick={handleQuickNewNote}
-              className="order-first flex min-h-11 flex-1 items-center justify-center gap-2 rounded-radius-md bg-primary-600 px-3 text-sm font-medium text-white transition-colors hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-background md:hidden"
+              className="order-first flex min-h-11 flex-1 items-center justify-center gap-2 rounded-radius-md bg-action px-3 text-sm font-medium text-on-action transition-colors hover:bg-action-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background md:hidden"
             >
               <DocumentPlusIcon className="h-[18px] w-[18px]" aria-hidden="true" />
               {t("New note")}
@@ -337,9 +337,9 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
         </div>
 
         {selectedCount > 1 && (
-          <div className="mx-2 mb-2 flex flex-wrap items-center gap-2 rounded-radius-md border border-primary-500/20 bg-primary-500/10 px-2 py-1 text-xs text-text-secondary">
+          <div className="mx-2 mb-2 flex flex-wrap items-center gap-2 rounded-radius-md bg-accent-soft px-2 py-1 text-xs text-accent-soft-text">
             <div className="flex min-w-0 flex-1 items-center gap-1.5">
-              <span className="flex h-5 min-w-5 items-center justify-center rounded-radius-sm bg-primary-500/20 px-1 font-semibold tabular-nums text-primary-700 dark:text-primary-300">
+              <span className="flex h-5 min-w-5 items-center justify-center rounded-radius-sm bg-accent px-1 font-mono font-semibold tabular-nums text-on-action">
                 {selectedCount}
               </span>
               <span className="truncate font-medium">
@@ -521,7 +521,7 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
               <button
                 type="button"
                 onClick={() => setRevealFinished(!revealFinished)}
-                className="min-h-11 shrink-0 rounded-radius-sm px-2 font-medium text-primary-700 hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 dark:text-primary-300 md:min-h-6"
+                className="min-h-11 shrink-0 rounded-radius-sm px-2 font-medium text-accent hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent md:min-h-6"
               >
                 {revealFinished ? t("Hide") : t("Show")}
               </button>
@@ -566,7 +566,7 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
           onClick={() => setDeleteConfirmTarget(null)}
         >
           <div
-            className="bg-surface rounded-radius-xl shadow-2xl ring-1 ring-border-subtle p-5 w-[calc(100%-2rem)] max-w-sm space-y-4"
+            className="bg-surface rounded-radius-xl shadow-float ring-1 ring-border p-5 w-[calc(100%-2rem)] max-w-sm space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <p className="text-sm text-text-secondary">
@@ -611,7 +611,7 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
               </button>
               <button
                 onClick={handleDeleteConfirm}
-                className="min-h-11 px-3 py-2 text-sm font-medium rounded-radius-md bg-error-600 text-white hover:bg-error-700 transition-colors"
+                className="min-h-11 px-3 py-2 text-sm font-medium rounded-radius-md bg-error-600 text-text-on-primary hover:bg-error-700 transition-colors"
               >
                 {t("Move to Trash")}
               </button>

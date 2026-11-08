@@ -26,6 +26,7 @@ import {
   type OfflineNote,
   type OfflineSnapshot,
 } from "../lib/offline-state";
+import { fonts } from "../lib/palette";
 import { useTheme } from "../lib/theme";
 import { Empty, ErrorBox, Field, IconButton, Loading, message } from "../ui";
 
@@ -224,17 +225,17 @@ export function OfflineNotesProvider({ children }: { children: ReactNode }) {
                 gap: 8,
                 paddingHorizontal: 20,
                 paddingVertical: 12,
-                backgroundColor: colors.accentSoft,
+                backgroundColor: colors.successSoft,
               }}
             >
-              <Ionicons name="checkmark-circle" size={20} color={colors.accent} />
+              <Ionicons name="checkmark-circle" size={20} color={colors.success} />
               <Text style={[styles.muted, { flex: 1 }]}>{notice.text}</Text>
             </View>
           ) : null}
           {selected ? (
             <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
               <View style={[styles.card, { gap: 6 }]}>
-                <Text style={styles.label}>OFFLINE COPY</Text>
+                <Text style={styles.label}>Offline copy</Text>
                 <Text style={styles.muted}>Downloaded {savedAt(selected)} · Read-only</Text>
               </View>
               <Markdown
@@ -243,15 +244,58 @@ export function OfflineNotesProvider({ children }: { children: ReactNode }) {
                 style={{
                   body: {
                     color: colors.text,
-                    fontFamily: "SourceSans3_400Regular",
+                    fontFamily: fonts.reading,
                     fontSize: 18,
                     lineHeight: 29,
                   },
-                  heading1: { color: colors.markdown.heading1, fontFamily: "SourceSerif4_600SemiBold" },
-                  heading2: { color: colors.markdown.heading2, fontFamily: "SourceSans3_600SemiBold" },
-                  heading3: { color: colors.markdown.heading3, fontFamily: "SourceSans3_600SemiBold" },
-                  code_inline: { color: colors.text, backgroundColor: colors.accentSoft },
-                  fence: { color: colors.text, backgroundColor: colors.accentSoft },
+                  heading1: { color: colors.markdown.heading1, fontFamily: fonts.titleBold, letterSpacing: -0.4 },
+                  heading2: { color: colors.markdown.heading2, fontFamily: fonts.title, letterSpacing: -0.2 },
+                  heading3: { color: colors.markdown.heading3, fontFamily: fonts.title },
+                  strong: { fontFamily: fonts.title, fontWeight: "normal" },
+                  link: { color: colors.markdown.link, textDecorationLine: "underline" },
+                  blockquote: {
+                    color: colors.markdown.quoteText,
+                    backgroundColor: colors.markdown.quoteBackground,
+                    borderLeftWidth: 0,
+                    borderColor: colors.markdown.quoteBorder,
+                    borderRadius: 10,
+                    paddingHorizontal: 14,
+                    paddingVertical: 8,
+                    marginVertical: 8,
+                  },
+                  code_inline: {
+                    color: colors.markdown.codeText,
+                    backgroundColor: colors.markdown.codeBackground,
+                    fontFamily: fonts.mono,
+                    fontSize: 15,
+                    borderRadius: 6,
+                    borderWidth: 0,
+                  },
+                  fence: {
+                    color: colors.markdown.codeText,
+                    backgroundColor: colors.markdown.codeBackground,
+                    borderColor: colors.markdown.codeBorder,
+                    borderWidth: 1,
+                    borderRadius: 10,
+                    fontFamily: fonts.mono,
+                    fontSize: 15,
+                    lineHeight: 22,
+                    padding: 12,
+                  },
+                  code_block: {
+                    color: colors.markdown.codeText,
+                    backgroundColor: colors.markdown.codeBackground,
+                    borderColor: colors.markdown.codeBorder,
+                    borderWidth: 1,
+                    borderRadius: 10,
+                    fontFamily: fonts.mono,
+                    fontSize: 15,
+                    lineHeight: 22,
+                    padding: 12,
+                  },
+                  hr: { backgroundColor: colors.border, height: 1 },
+                  table: { borderColor: colors.border, borderWidth: 1, borderRadius: 8 },
+                  tr: { borderColor: colors.border },
                 }}
               >
                 {selected.content || "This note is empty."}
@@ -266,7 +310,7 @@ export function OfflineNotesProvider({ children }: { children: ReactNode }) {
               keyboardShouldPersistTaps="handled"
               ListHeaderComponent={
                 <View style={{ gap: 12 }}>
-                  <Text style={styles.label}>OFFLINE LIBRARY</Text>
+                  <Text style={styles.label}>Offline library</Text>
                   <Text style={styles.title}>Notes saved to this phone</Text>
                   <Text style={styles.muted}>
                     These copies stay available without a connection. Refresh one from its online note.

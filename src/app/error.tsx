@@ -25,7 +25,7 @@ export default function AppError({
       role="alert"
       className="flex flex-col items-center justify-center min-h-[50vh] p-8 bg-app-page"
     >
-      <h2 className="font-serif text-2xl font-semibold mb-2">
+      <h2 className="font-serif text-2xl font-semibold tracking-tight text-text mb-2">
         {t("error.something_went_wrong")}
       </h2>
       <p className="text-sm text-text-tertiary mb-4">
@@ -34,7 +34,7 @@ export default function AppError({
       <button
         type="button"
         onClick={reset}
-        className="px-4 py-2 text-sm bg-primary-600 text-text-on-primary rounded-radius-md hover:bg-primary-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50"
+        className="px-4 py-2 text-sm font-medium bg-action text-on-action rounded-radius-md hover:bg-action-hover transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
       >
         {t("error.try_again")}
       </button>

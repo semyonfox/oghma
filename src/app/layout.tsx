@@ -1,5 +1,4 @@
-import { Source_Sans_3, Source_Serif_4 } from "next/font/google";
-import "@fontsource-variable/strichpunkt-sans";
+import { Geist, Geist_Mono, Literata } from "next/font/google";
 import I18nRootProvider from "@/components/providers/i18n-root-provider";
 import ThemeProvider from "@/components/providers/theme-provider";
 import NativeAppBridge from "@/components/providers/native-app-bridge";
@@ -18,16 +17,24 @@ import type { Viewport } from "next";
 import "katex/dist/katex.min.css";
 import "./globals.css";
 
-const sourceSans = Source_Sans_3({
+// Atlas type: Geist for the interface, Geist Mono for codes and metadata,
+// Literata for reading and editorial headings.
+const geist = Geist({
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-source-sans",
+  variable: "--font-geist",
 });
 
-const sourceSerif = Source_Serif_4({
+const geistMono = Geist_Mono({
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-source-serif",
+  variable: "--font-geist-mono",
+});
+
+const literata = Literata({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-literata",
 });
 
 export const viewport: Viewport = {
@@ -122,7 +129,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     <html
       lang={locale}
       dir={isRtlLocale(locale) ? "rtl" : "ltr"}
-      className={`${sourceSans.variable} ${sourceSerif.variable}`}
+      className={`${geist.variable} ${geistMono.variable} ${literata.variable}`}
       suppressHydrationWarning
     >
       <head>

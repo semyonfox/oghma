@@ -53,7 +53,7 @@ export default function MobileDrawer({
             {...swipe}
             transition
             className={clsx(
-              "flex h-dvh w-[calc(100vw-1rem)] max-w-sm flex-col bg-background pb-[var(--safe-bottom)] pt-[env(safe-area-inset-top)] shadow-2xl ring-1 ring-border-subtle transition duration-200 ease-out data-closed:opacity-0 motion-reduce:transition-none",
+              "flex h-dvh w-[calc(100vw-1rem)] max-w-sm flex-col bg-sidebar pb-[var(--safe-bottom)] pt-[env(safe-area-inset-top)] shadow-float ring-1 ring-border transition duration-200 ease-out data-closed:opacity-0 motion-reduce:transition-none",
               side === "left"
                 ? "rounded-r-2xl data-closed:-translate-x-full"
                 : "rounded-l-2xl data-closed:translate-x-full",
@@ -67,7 +67,7 @@ export default function MobileDrawer({
               <button
                 type="button"
                 onClick={onClose}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
                 aria-label={t("Close")}
               >
                 <XMarkIcon className="h-5 w-5" aria-hidden="true" />

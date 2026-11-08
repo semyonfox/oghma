@@ -50,12 +50,12 @@ const MenuItem = ({
 }) => (
   <button
     onClick={onClick}
-    className={`w-full items-center h-11 md:h-7 px-2 text-[13px] rounded-[3px] mx-0.5 transition-colors ${
+    className={`w-full items-center h-11 md:h-7 px-2 text-[13px] rounded-radius-sm mx-0.5 transition-colors ${
       className ?? "flex"
     } ${
       danger
-        ? "text-error-400 hover:bg-error-500/10"
-        : "text-text-secondary hover:bg-subtle"
+        ? "text-error-700 hover:bg-error-500/10 dark:text-error-400"
+        : "text-text-secondary hover:bg-subtle hover:text-text"
     }`}
     style={{ width: "calc(100% - 4px)" }}
   >
@@ -64,7 +64,7 @@ const MenuItem = ({
     </span>
     <span className="flex-1 text-left truncate">{label}</span>
     {shortcut && (
-      <span className="text-xs text-text-tertiary ml-4 flex-shrink-0">
+      <span className="font-mono text-xs text-text-tertiary ml-4 flex-shrink-0">
         {shortcut}
       </span>
     )}
@@ -185,7 +185,7 @@ export default function NoteContextMenuPortal({
   return createPortal(
     <div
       ref={menuRef}
-      className="fixed z-[9999] min-w-[180px] rounded-radius-md bg-surface/95 backdrop-blur-md py-1 shadow-2xl ring-1 ring-border-subtle"
+      className="fixed z-[9999] min-w-[180px] rounded-radius-md bg-surface py-1 shadow-float ring-1 ring-border"
       style={{
         top: `${(adjusted ?? position).y}px`,
         left: `${(adjusted ?? position).x}px`,

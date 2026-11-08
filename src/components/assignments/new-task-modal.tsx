@@ -122,7 +122,7 @@ export default function NewTaskModal({
   };
 
   const inputClassName =
-    "min-h-11 w-full rounded-radius-md border border-border-subtle bg-surface px-2.5 py-2 text-sm text-text-secondary placeholder:text-text-tertiary focus:border-primary-500/50 focus:outline-none focus:ring-1 focus:ring-primary-500/50";
+    "min-h-11 w-full rounded-radius-md border border-border-subtle bg-surface px-2.5 py-2 text-sm text-text-secondary placeholder:text-text-tertiary focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/50";
 
   return (
     <Dialog open={open} onClose={onClose} className="relative z-[70]">
@@ -250,7 +250,7 @@ export default function NewTaskModal({
             {error && (
               <p
                 role="alert"
-                className="rounded-radius-md border border-error-500/30 bg-error-500/10 px-3 py-2 text-xs text-error-300"
+                className="rounded-radius-md border border-error-500/30 bg-error-500/10 px-3 py-2 text-xs text-error-700 dark:text-error-300"
               >
                 {error}. {t("Try again")}
               </p>
@@ -259,7 +259,7 @@ export default function NewTaskModal({
             <button
               type="submit"
               disabled={saving || !title.trim()}
-              className="min-h-11 w-full rounded-radius-md bg-primary-600 py-2 text-sm font-medium text-text-on-primary transition-colors hover:bg-primary-700 disabled:opacity-50"
+              className="min-h-11 w-full rounded-radius-md bg-action py-2 text-sm font-medium text-on-action transition-colors hover:bg-action-hover disabled:opacity-50"
             >
               {saving
                 ? assignment

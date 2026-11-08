@@ -4,12 +4,10 @@ import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import * as SystemUI from "expo-system-ui";
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import {
-  useFonts,
-  SourceSans3_400Regular,
-  SourceSans3_600SemiBold,
-} from "@expo-google-fonts/source-sans-3";
-import { SourceSerif4_600SemiBold } from "@expo-google-fonts/source-serif-4";
+import { useFonts } from "expo-font";
+import { Geist_400Regular, Geist_500Medium, Geist_600SemiBold } from "@expo-google-fonts/geist";
+import { GeistMono_400Regular } from "@expo-google-fonts/geist-mono";
+import { Literata_400Regular, Literata_600SemiBold, Literata_700Bold } from "@expo-google-fonts/literata";
 import WebView, { type WebViewMessageEvent } from "react-native-webview";
 import { origin } from "./src/lib/api";
 import { ThemeProvider, useTheme } from "./src/lib/theme";
@@ -22,9 +20,13 @@ import { OfflineNotesProvider, useOfflineNotes } from "./src/components/OfflineN
 
 export default function App() {
   const [fontsLoaded, fontError] = useFonts({
-    SourceSans3_400Regular,
-    SourceSans3_600SemiBold,
-    SourceSerif4_600SemiBold,
+    Geist_400Regular,
+    Geist_500Medium,
+    Geist_600SemiBold,
+    GeistMono_400Regular,
+    Literata_400Regular,
+    Literata_600SemiBold,
+    Literata_700Bold,
   });
   return (
     <ThemeProvider>
@@ -80,7 +82,7 @@ function RecoveryScreen({
           style={{
             width: 52,
             height: 52,
-            borderRadius: 26,
+            borderRadius: 999,
             alignItems: "center",
             justifyContent: "center",
             backgroundColor: colors.errorSoft,

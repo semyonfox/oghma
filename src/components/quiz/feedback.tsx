@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import useI18n from "@/lib/notes/hooks/use-i18n";
+import { CheckIcon, XMarkIcon } from "@heroicons/react/20/solid";
 import QuizMarkdown from "./quiz-markdown";
 
 interface RelatedChunk {
@@ -48,45 +49,62 @@ export default function Feedback({
   }, [questionId]);
 
   return (
-    <div
-      className={`rounded-radius-lg p-4 border ${wasCorrect ? "bg-success-500/3 border-success-500/15" : "bg-error-500/3 border-error-500/15"}`}
-    >
-      <div className="text-sm font-medium mb-2 text-text-secondary">
+    <div className="rounded-radius-xl border border-border bg-surface p-4 sm:p-5">
+      <div
+        className={`mb-2 flex items-center gap-1.5 text-sm font-semibold ${wasCorrect ? "text-success-700 dark:text-success-400" : "text-error-700 dark:text-error-400"}`}
+      >
+        {wasCorrect ? (
+          <CheckIcon aria-hidden="true" className="h-4 w-4" />
+        ) : (
+          <XMarkIcon aria-hidden="true" className="h-4 w-4" />
+        )}
         {wasCorrect ? t("quiz.feedback.correct") : t("quiz.feedback.incorrect")}
       </div>
       {!wasCorrect && (
-        <div className="text-xs text-text-secondary mb-3">
+        <div className="mb-3 text-sm text-text-secondary">
           {t("quiz.feedback.correct_answer")}{" "}
-          <span className="text-text font-medium">{correctAnswer}</span>
+          <span className="font-medium text-text">{correctAnswer}</span>
         </div>
       )}
 
       {explanation && (
-        <div className="text-xs text-text-tertiary">
+        <div className="font-serif text-base leading-relaxed text-text-secondary">
           <QuizMarkdown>{explanation}</QuizMarkdown>
         </div>
       )}
 
       {related.length > 0 && (
-        <div className="mt-4 pt-3 border-t border-border-subtle space-y-2">
-          <div className="text-xs text-text-tertiary font-medium uppercase tracking-wider">
-            {t("quiz.feedback.related_notes")}
+        <div className="mt-4 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-text-tertiary">
+              {t("quiz.feedback.related_notes")}
+            </span>
+            {related.map((chunk, i) => (
+              <span
+                key={i}
+                title={chunk.title ?? undefined}
+                className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-accent-soft px-2.5 py-1 text-xs text-accent-soft-text"
+              >
+                <span className="font-mono">{i + 1}</span>
+                <span className="truncate">
+                  {chunk.title ?? t("quiz.feedback.related_notes")}
+                </span>
+              </span>
+            ))}
           </div>
-          {related.map((chunk, i) => (
-            <div
-              key={i}
-              className="bg-surface rounded-radius-sm px-3 py-2 space-y-1"
-            >
-              {chunk.title && (
-                <div className="text-xs text-text-tertiary font-medium">
-                  {chunk.title}
+          <ol className="space-y-1.5">
+            {related.map((chunk, i) => (
+              <li
+                key={i}
+                className="flex gap-2 rounded-radius-md bg-surface-elevated px-3 py-2 text-xs leading-relaxed text-text-secondary"
+              >
+                <span className="font-mono text-text-tertiary">{i + 1}</span>
+                <div className="min-w-0 line-clamp-3">
+                  <QuizMarkdown>{chunk.text}</QuizMarkdown>
                 </div>
-              )}
-              <div className="text-xs text-text-secondary leading-relaxed line-clamp-4">
-                <QuizMarkdown>{chunk.text}</QuizMarkdown>
-              </div>
-            </div>
-          ))}
+              </li>
+            ))}
+          </ol>
         </div>
       )}
     </div>

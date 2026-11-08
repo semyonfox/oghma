@@ -51,7 +51,7 @@ export default function SaveOfflineButton({
       }}
       className={
         presentation === "row"
-          ? "flex min-h-12 w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-base text-text-secondary hover:bg-subtle disabled:opacity-50"
+          ? "flex min-h-12 w-full items-center gap-3 rounded-radius-xl px-3 py-3 text-left text-base text-text-secondary hover:bg-subtle hover:text-text disabled:opacity-50"
           : "ui-icon-button"
       }
     >
