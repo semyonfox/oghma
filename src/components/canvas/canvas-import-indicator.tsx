@@ -14,9 +14,12 @@ import { useCanvasImportNotification } from "./canvas-import-notifications";
 export default function CanvasImportIndicator({
   variant = "rail",
   onNavigate,
+  hideWhenIdle = false,
 }: {
   variant?: "rail" | "drawer";
   onNavigate?: () => void;
+  // the desktop sidebar only shows import status while there is some, like the mockups
+  hideWhenIdle?: boolean;
 }) {
   const status = useCanvasImportNotification();
   const { t } = useI18n();
@@ -24,6 +27,7 @@ export default function CanvasImportIndicator({
 
   const { progress, isImporting, showToast, onToastClose } = status;
   const visible = isImporting || showToast;
+  if (hideWhenIdle && !visible) return null;
   const hasIssues =
     visible &&
     ((progress?.forbidden ?? 0) > 0 ||

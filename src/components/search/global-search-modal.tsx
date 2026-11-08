@@ -397,7 +397,7 @@ export default function GlobalSearchModal() {
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="w-full max-w-5xl overflow-hidden rounded-radius-lg border border-border bg-surface shadow-float">
+              <Dialog.Panel className="w-full max-w-[800px] overflow-hidden rounded-radius-xl border border-border bg-surface shadow-float">
                 <Dialog.Title className="sr-only">
                   {t("Search OghmaNotes")}
                 </Dialog.Title>
@@ -424,6 +424,11 @@ export default function GlobalSearchModal() {
                     onKeyDown={onInputKeyDown}
                     autoFocus
                   />
+                  {hasAnyResult && !loading && (
+                    <span aria-hidden="true" className="ml-3 hidden shrink-0 text-xs text-text-tertiary sm:inline">
+                      {t("Search results: {count}", { count: flatResults.length })}
+                    </span>
+                  )}
                   <kbd
                     aria-hidden="true"
                     className="ml-3 hidden shrink-0 rounded-radius-sm border border-border bg-surface px-1.5 py-0.5 font-mono text-[11px] leading-4 text-text-tertiary sm:inline-block"
@@ -651,6 +656,14 @@ export default function GlobalSearchModal() {
                       </div>
                     )}
                   </aside>
+                </div>
+                <div
+                  aria-hidden="true"
+                  className="hidden items-center gap-4 border-t border-border-subtle px-4 py-2 font-mono text-[11px] text-text-tertiary sm:flex"
+                >
+                  <span>↑↓ {t("navigate")}</span>
+                  <span>↵ {t("open")}</span>
+                  <span className="ml-auto">esc {t("close")}</span>
                 </div>
               </Dialog.Panel>
             </Transition.Child>

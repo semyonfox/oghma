@@ -139,7 +139,7 @@ export default function SidebarNavigation({
             <span>{t("Offline notes")}</span>
           </button>
         )}
-        <CanvasImportIndicator variant="drawer" />
+        <CanvasImportIndicator variant="drawer" hideWhenIdle />
         <Link
           href={SETTINGS_ITEM.href}
           onClick={() => onNavClick(SETTINGS_ITEM)}

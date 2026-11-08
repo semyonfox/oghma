@@ -677,23 +677,18 @@ export default function AssignmentTracker({
         className="flex min-h-0 flex-1 flex-col"
       >
         <TabList
-          className="mx-3 mb-2 flex gap-3 border-b border-border"
+          className="mx-3 mb-3 flex flex-wrap gap-1.5"
           aria-label={t("Tasks")}
         >
           {tabs.map((tab) => (
             <Tab
               key={tab}
-              className={`${compact ? "h-8 max-lg:min-h-11" : "min-h-11"} -mb-px border-b-2 border-transparent px-1 py-1.5 text-center text-xs font-medium text-text-tertiary transition-colors hover:text-text-secondary data-selected:border-accent data-selected:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50`}
+              className="h-8 rounded-full border border-border bg-surface px-3 text-[13px] text-text-secondary transition-colors hover:bg-subtle max-lg:min-h-11 data-selected:border-transparent data-selected:bg-text data-selected:font-medium data-selected:text-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
             >
               {tabLabels[tab]}
               {counts[tab] > 0 && (
-                <span
-                  className={`ml-1 font-mono text-xs ${
-                    tab === "late"
-                      ? "text-error-700 dark:text-error-700 dark:text-error-300"
-                      : "text-text-tertiary"
-                  }`}
-                >
+                <span className={tab === "late" ? "text-error-700 dark:text-error-300" : undefined}>
+                  {" · "}
                   {counts[tab]}
                 </span>
               )}

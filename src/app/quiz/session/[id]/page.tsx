@@ -53,7 +53,7 @@ function SessionComplete({
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-success-100 text-success-700 dark:bg-success-500/15 dark:text-success-400">
           <CheckIcon aria-hidden="true" className="h-6 w-6" />
         </div>
-        <h1 className="mt-4 font-serif text-3xl font-semibold tracking-tight text-text">
+        <h1 className="mt-4 font-serif text-3xl font-bold tracking-tight text-text">
           {t("quiz.complete.title")}
         </h1>
         <p className="mt-2 text-sm text-text-secondary">
@@ -78,7 +78,7 @@ function SessionComplete({
               className="rounded-radius-xl border border-border bg-surface-elevated px-4 py-3"
             >
               <div className="text-xs text-text-tertiary">{stat.label}</div>
-              <div className="mt-1 text-2xl font-semibold tabular-nums text-text">
+              <div className="mt-1 font-serif text-[26px] font-bold tabular-nums text-text">
                 {stat.value}
               </div>
             </div>
