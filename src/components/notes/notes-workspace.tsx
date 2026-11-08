@@ -64,12 +64,26 @@ export default function NotesWorkspace({
   const rightPanelWidthRef = useRef(rightPanelWidth);
   const isTrashView = view === "trash";
 
-  // the panel defaults open for wide screens, below that it is an explicit drawer
+  // the panel defaults open for wide screens, below that it is an explicit
+  // drawer. only close state carried in from before this mount: a tap on Meta
+  // made before the media query resolves must not be undone
+  const panelAtMount = useRef<{ open: boolean; tab: string } | null>(null);
+  if (panelAtMount.current === null) {
+    const { rightPanelOpen: open, rightPanelTab: tab } = useLayoutStore.getState();
+    panelAtMount.current = { open, tab };
+  }
   const narrowChecked = useRef(false);
   useEffect(() => {
     if (hasInspectorSpace === null || narrowChecked.current) return;
     narrowChecked.current = true;
-    if (!hasInspectorSpace && useLayoutStore.getState().rightPanelOpen) {
+    const atMount = panelAtMount.current;
+    const now = useLayoutStore.getState();
+    if (
+      !hasInspectorSpace &&
+      atMount?.open &&
+      now.rightPanelOpen &&
+      now.rightPanelTab === atMount.tab
+    ) {
       setRightPanelOpen(false);
     }
   }, [hasInspectorSpace, setRightPanelOpen]);
