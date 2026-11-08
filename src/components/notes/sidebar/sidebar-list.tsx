@@ -6,6 +6,7 @@ import useLayoutStore from "@/lib/notes/state/layout";
 import useContextMenuStore from "@/lib/notes/state/context-menu";
 import { buildFileSpec, inferFileType } from "@/lib/notes/utils/file-spec";
 import React, { useEffect, useState, useRef } from "react";
+import { OPEN_UPLOAD_EVENT } from "@/lib/notes/upload-events";
 import { useRouter, usePathname } from "next/navigation";
 import useMediaQuery from "@/lib/hooks/use-media-query";
 import useI18n from "@/lib/notes/hooks/use-i18n";
@@ -75,6 +76,11 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
 
   const isDesktop = useMediaQuery("(min-width: 1024px)");
   const uploadInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const openPicker = () => uploadInputRef.current?.click();
+    window.addEventListener(OPEN_UPLOAD_EVENT, openPicker);
+    return () => window.removeEventListener(OPEN_UPLOAD_EVENT, openPicker);
+  }, []);
   const [deleteConfirmTarget, setDeleteConfirmTarget] =
     useState<DeleteConfirmTarget>(null);
   const [selectionAnchorId, setSelectionAnchorId] = useState<string | null>(

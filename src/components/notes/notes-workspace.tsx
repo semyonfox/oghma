@@ -237,14 +237,14 @@ export default function NotesWorkspace({
               </main>
             </Panel>
 
-            {rightPanelOpen && hasInspectorSpace === true && !isTrashView && (
+            {rightPanelOpen && hasInspectorSpace === true && !isTrashView && !!paneAFileId && (
               <PanelResizeHandle
                 aria-label={t("Resize details panel")}
                 className="w-px cursor-col-resize bg-border transition-colors hover:bg-accent/40 active:bg-accent/60"
               />
             )}
 
-            {rightPanelOpen && hasInspectorSpace === true && !isTrashView && (
+            {rightPanelOpen && hasInspectorSpace === true && !isTrashView && !!paneAFileId && (
               <Panel
                 id="note-inspector"
                 defaultSize={`${rightPanelWidth}px`}

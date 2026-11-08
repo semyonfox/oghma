@@ -681,6 +681,13 @@ select option:disabled {
   letter-spacing: -0.012em;
 }
 
+/* quiz text takes its size and face from the question, option or explanation around it */
+.md-rendered[data-markdown-variant="quiz"] {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
 .md-rendered[data-markdown-variant="note"] {
   font-family: var(--font-serif);
   font-optical-sizing: auto;
