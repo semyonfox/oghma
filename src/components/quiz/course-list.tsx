@@ -133,8 +133,11 @@ function CourseButton({
       </span>
       <span
         aria-hidden="true"
-        className="shrink-0 text-text-tertiary transition-colors group-hover:text-text-secondary"
+        className="hidden shrink-0 rounded-radius-md border border-border px-3 py-1 text-xs font-medium text-text transition-colors group-hover:bg-subtle-hover sm:inline"
       >
+        {t("Review")}
+      </span>
+      <span aria-hidden="true" className="shrink-0 text-text-tertiary sm:hidden">
         →
       </span>
     </button>
@@ -207,6 +210,16 @@ export default function CourseList({
       </div>
 
       <div className="flex flex-col">
+        <div
+          aria-hidden="true"
+          className="hidden items-center gap-4 border-b border-border-subtle px-5 py-2 text-xs text-text-tertiary md:flex"
+        >
+          <span className="w-16 shrink-0">{t("Code")}</span>
+          <span className="flex-1">{t("Course")}</span>
+          <span className="w-40 shrink-0">{t("Mastery")}</span>
+          <span className="w-44 shrink-0">{t("Due · total")}</span>
+          <span className="w-[66px] shrink-0" />
+        </div>
         {/* "All My Notes" synthetic entry — always visible regardless of search */}
         {allNotesStats && (
           <CourseButton

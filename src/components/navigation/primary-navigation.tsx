@@ -1,9 +1,11 @@
 "use client";
 
-import { FC, useRef, useState } from "react";
+import { FC, ReactNode, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import CanvasImportIndicator from "@/components/canvas/canvas-import-indicator";
+import SidebarNavigation from "./sidebar-navigation";
+import { NAV_ITEMS, SETTINGS_ITEM, type NavItem } from "./nav-items";
 import BrandLogo from "@/components/brand-logo";
 import useLayoutStore from "@/lib/notes/state/layout";
 import useI18n from "@/lib/notes/hooks/use-i18n";
@@ -11,80 +13,23 @@ import useGlobalSearchStore from "@/lib/global-search/state";
 import usePomodoroStore from "@/lib/notes/state/pomodoro";
 import { useNativeAppBridge, supportsNativeOffline, postNativeOfflineOpen } from "@/lib/native-app";
 import {
-  DocumentTextIcon,
   MagnifyingGlassIcon,
-  CalendarIcon,
-  SparklesIcon,
   Cog6ToothIcon,
-  AcademicCapIcon,
   ClockIcon,
   ArrowDownTrayIcon,
-  Square3Stack3DIcon,
 } from "@heroicons/react/24/outline";
 
-interface NavItem {
-  id: string;
-  labelKey: string;
-  icon: FC<{ className?: string }>;
-  href: string;
-  section: "notes" | "search" | "calendar" | "settings" | "chat" | "quiz" | "study-map";
-}
-
 interface PrimaryNavigationProps {
-  variant?: "rail" | "drawer";
+  variant?: "rail" | "drawer" | "sidebar";
   onNavigate?: () => void;
+  // sidebar only: the page's own section (note tree, conversations) between nav and footer
+  children?: ReactNode;
 }
-
-const NAV_ITEMS: NavItem[] = [
-  {
-    id: "notes",
-    labelKey: "Notes",
-    icon: DocumentTextIcon,
-    href: "/notes",
-    section: "notes",
-  },
-  { id: "study-map", labelKey: "Study map", icon: Square3Stack3DIcon, href: "/study-map", section: "study-map" },
-  {
-    id: "search",
-    labelKey: "Search OghmaNotes",
-    icon: MagnifyingGlassIcon,
-    href: "/notes",
-    section: "search",
-  },
-  {
-    id: "calendar",
-    labelKey: "Calendar",
-    icon: CalendarIcon,
-    href: "/calendar",
-    section: "calendar",
-  },
-  {
-    id: "chat",
-    labelKey: "AI Chat",
-    icon: SparklesIcon,
-    href: "/chat",
-    section: "chat",
-  },
-  {
-    id: "quiz",
-    labelKey: "quiz.title",
-    icon: AcademicCapIcon,
-    href: "/quiz",
-    section: "quiz",
-  },
-];
-
-const SETTINGS_ITEM: NavItem = {
-  id: "settings",
-  labelKey: "Settings",
-  icon: Cog6ToothIcon,
-  href: "/settings",
-  section: "settings",
-};
 
 const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
   variant = "rail",
   onNavigate,
+  children,
 }) => {
   const nativeAppBridge = useNativeAppBridge();
   const pathname = usePathname();
@@ -142,6 +87,23 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
 
     setActiveNav(item.section);
   };
+
+  if (variant === "sidebar") {
+    return (
+      <SidebarNavigation
+        activeSection={derivedActiveSection}
+        homeHref={nativeAppBridge ? "/notes" : "/"}
+        onNavClick={handleNavClick}
+        onFocusClick={handleFocusClick}
+        focusActive={focusActive}
+        focusStarting={focusStarting}
+        focusTitle={focusTitle}
+        offlineAvailable={offlineAvailable}
+      >
+        {children}
+      </SidebarNavigation>
+    );
+  }
 
   if (variant === "drawer") {
     return (

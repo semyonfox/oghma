@@ -489,14 +489,13 @@ export default function ChatPageClient() {
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {isDesktop === true && (
-          <div className="desktop-navigation-rail w-14 shrink-0 border-r border-border-subtle bg-background">
-            <PrimaryNavigation />
+          <div className="w-64 shrink-0 border-r border-border">
+            <PrimaryNavigation variant="sidebar">
+              <div className="-mx-3 flex min-h-0 flex-1 flex-col overflow-hidden">
+                <ConversationHistory {...historyProps} showHeader={false} />
+              </div>
+            </PrimaryNavigation>
           </div>
-        )}
-        {isDesktop === true && (
-          <aside className="w-64 flex-shrink-0 overflow-hidden border-r border-border-subtle">
-            <ConversationHistory {...historyProps} />
-          </aside>
         )}
 
         <main className="flex min-w-0 flex-1 flex-col">

@@ -33,6 +33,8 @@ const geistMono = Geist_Mono({
 
 const literata = Literata({
   subsets: ["latin"],
+  // note text is set in Literata, so emphasis needs the real italic, not a synthetic slant
+  style: ["normal", "italic"],
   display: "swap",
   variable: "--font-literata",
 });

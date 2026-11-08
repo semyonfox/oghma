@@ -176,11 +176,6 @@ export default function NotesWorkspace({
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {isDesktop === true && (
-          <div className="desktop-navigation-rail w-14 shrink-0 border-r border-border bg-sidebar">
-            <PrimaryNavigation />
-          </div>
-        )}
-        {isDesktop === true && (
           <PanelGroup
             orientation="horizontal"
             className="min-w-0 flex-1"
@@ -195,7 +190,7 @@ export default function NotesWorkspace({
             <Panel
               id="note-tree"
               defaultSize={`${treeWidth}px`}
-              minSize="200px"
+              minSize="240px"
               maxSize="600px"
               groupResizeBehavior="preserve-pixel-size"
               onResize={({ inPixels }) => {
@@ -203,9 +198,11 @@ export default function NotesWorkspace({
               }}
               className="flex min-w-0"
             >
-              <div className="flex h-full w-full flex-col overflow-hidden bg-sidebar">
-                <NoteTreePanel />
-              </div>
+              <PrimaryNavigation variant="sidebar">
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                  <NoteTreePanel />
+                </div>
+              </PrimaryNavigation>
             </Panel>
 
             <PanelResizeHandle
