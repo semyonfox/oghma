@@ -47,7 +47,7 @@ test("a toolbar user can reference a note and create a backlink", async ({
     })
     .toContain(source.id);
 
-  await editor.getByRole("button", { name: "Toggle metadata panel" }).click();
+  await page.getByRole("tab", { name: "Meta", exact: true }).click();
   const linksTo = page.getByText("Links to", { exact: true });
   await expect(linksTo).toBeVisible();
   await expect(linksTo.locator("..").getByText(target.title)).toBeVisible();

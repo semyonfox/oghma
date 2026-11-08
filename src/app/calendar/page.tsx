@@ -176,8 +176,8 @@ export default function CalendarPage() {
 
       <div className="flex min-h-0 flex-1">
         {isDesktop === true && (
-          <div className="desktop-navigation-rail w-14 shrink-0 border-r border-border-subtle bg-background">
-            <PrimaryNavigation />
+          <div className="desktop-navigation-rail w-64 shrink-0 border-r border-border">
+            <PrimaryNavigation variant="sidebar" />
           </div>
         )}
         <PanelGroup
@@ -193,9 +193,12 @@ export default function CalendarPage() {
               className="flex h-full w-full min-w-0 flex-1 flex-col"
               aria-label={t("Calendar")}
             >
-              <header className="glass-panel relative z-50 hidden h-14 shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-4 lg:flex">
-                <h1 className="min-w-0 flex-1 truncate font-serif text-lg font-semibold tracking-tight text-text">
-                  <time>{weekLabel}</time>
+              <header className="glass-panel relative z-50 hidden h-[72px] shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-6 lg:flex">
+                <h1 className="flex min-w-0 flex-1 items-baseline gap-3 truncate">
+                  <span className="font-serif text-[28px] font-bold tracking-tight text-text">
+                    {t("Calendar")}
+                  </span>
+                  <time className="truncate text-sm text-text-secondary">{weekLabel}</time>
                 </h1>
 
                 <div className="flex shrink-0 items-center gap-2">
@@ -303,8 +306,8 @@ export default function CalendarPage() {
               className="flex min-w-0"
             >
               <aside className="glass-panel flex h-full w-full flex-col">
-                <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-3">
-                  <h2 className="text-sm font-semibold text-text-secondary">
+                <div className="flex h-[72px] shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-4">
+                  <h2 className="text-[17px] font-semibold text-text">
                     {t("Tasks")}
                   </h2>
                   <button

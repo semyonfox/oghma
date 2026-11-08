@@ -78,7 +78,8 @@ const today = formatDateKey(new Date());
 const useCalendarStore = create<CalendarState>()(
   persist(
     (set, get) => ({
-      view: "month",
+      // the Atlas calendar opens on the week, people can switch and it is remembered
+      view: "week",
       currentDate: anchorIso(today),
       selectedDate: today,
       timeBlocks: [],

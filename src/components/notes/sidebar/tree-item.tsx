@@ -24,6 +24,7 @@ import type { FileType } from "@/lib/notes/state/layout";
 import type { TreeItemRenderContext } from "react-complex-tree";
 import type { TreeMarkStyle } from "@/lib/notes/tree-view-settings";
 import { TopicBadge, TopicDots } from "./topic-marks";
+import { splitModuleCode } from "@/lib/notes/module-code";
 
 const INDENT_PX = 14;
 
@@ -113,6 +114,9 @@ function TreeItem({
     nodeData?.title || (initLoaded ? t("Untitled") : "..."),
     fileType,
   );
+  // course folders read as "CT230  Database Systems I" like the mockups
+  const splitTitle = isFolder && !bundle ? splitModuleCode(displayTitle.name) : null;
+  const moduleCode = splitTitle?.code ? splitTitle : null;
   const { Icon: RowIcon, className: rowIconClass } = bundle
     ? FILE_ICONS.pdf
     : isFolder
@@ -291,7 +295,12 @@ function TreeItem({
                   : ""
             }`}
           >
-            {displayTitle.name}
+            {moduleCode && (
+              <span className="mr-1.5 inline-block w-[42px] font-mono text-[11px] font-normal text-text-tertiary">
+                {moduleCode.code}
+              </span>
+            )}
+            {moduleCode ? moduleCode.title : displayTitle.name}
             {displayTitle.extension && (
               <span className="text-text-tertiary">{displayTitle.extension}</span>
             )}

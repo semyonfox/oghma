@@ -96,10 +96,10 @@ export default function QuestionCard({
   }, [submitted, hasOptions, options.length, selected]);
 
   return (
-    <div className="flex-1 flex flex-col justify-center gap-5">
+    <div className="flex flex-1 flex-col gap-5 pt-6 sm:pt-10">
       {/* tags */}
       <div className="flex gap-2 items-center">
-        <span className="rounded-full bg-subtle-hover px-2.5 py-0.5 text-xs font-medium text-text-secondary">
+        <span className="rounded-radius-sm bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent-soft-text">
           {BLOOM_NAMES[question.bloom_level]}
         </span>
         {moduleName && (
@@ -110,7 +110,7 @@ export default function QuestionCard({
       </div>
 
       {/* question text */}
-      <div className="font-serif text-xl font-semibold leading-snug tracking-tight text-text sm:text-2xl">
+      <div className="font-serif text-[22px] font-bold leading-snug tracking-tight text-text sm:text-[26px]">
         <QuizMarkdown>{question.question_text}</QuizMarkdown>
       </div>
 

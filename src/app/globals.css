@@ -681,6 +681,20 @@ select option:disabled {
   letter-spacing: -0.012em;
 }
 
+/* quiz text takes its size and face from the question, option or explanation around it */
+.md-rendered[data-markdown-variant="quiz"] {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.md-rendered[data-markdown-variant="note"] {
+  font-family: var(--font-serif);
+  font-optical-sizing: auto;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+}
+
 .md-rendered[data-markdown-variant="note"] h4,
 .md-rendered[data-markdown-variant="note"] h5,
 .md-rendered[data-markdown-variant="note"] h6 {
@@ -1315,12 +1329,15 @@ html.light .glass-card-active {
   margin: 0.35rem;
 }
 
+/* note text reads in Literata like the mockups; menus and toolbars keep Geist via --crepe-font-default */
 .oghma-milkdown-editor .milkdown .ProseMirror {
   min-height: 100%;
   max-width: var(--editor-write-max-width);
   margin-inline: auto;
-  font-size: 1rem;
-  line-height: 1.65;
+  font-family: var(--font-serif);
+  font-optical-sizing: auto;
+  font-size: 1.0625rem;
+  line-height: 1.7;
 }
 
 .oghma-milkdown-editor .milkdown .ProseMirror h1,

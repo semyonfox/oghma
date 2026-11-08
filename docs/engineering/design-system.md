@@ -22,7 +22,7 @@ OghmaNotes uses **Atlas**: a light, reading-first interface with a neutral charc
 | App shell | `bg-app-page` | Full-page application shells such as chat, settings, auth, and quiz (plain ground, no tint) |
 | Solid surface | `bg-surface` | Cards, inputs, editor and reading regions |
 | Elevated | `bg-surface-elevated` | Code blocks, quotes, stat tiles, segmented-control tracks |
-| Navigation | `bg-sidebar` / `.glass-panel` | The desktop rail, sidebars and inspectors (solid, hairline edge) |
+| Navigation | `bg-sidebar` / `.glass-panel` | The desktop sidebar, settings rail and inspectors (solid, hairline edge) |
 | Card | `.glass-card` | Hairline-bordered groups |
 | Interactive card | `.glass-card-interactive` | Clickable cards; hover darkens the hairline |
 | Selected card | `.glass-card-active` | The selected card: 1.5px accent ring |
@@ -51,7 +51,7 @@ The file tree retains its deliberately dense sizing and small radius. Treat it a
 - Literata (`font-serif`, also `font-display`) sets note titles, page titles, editorial headings and note reading text. Chat answers stay in Geist.
 - Geist Mono (`font-mono`) sets module codes (`CT230`), page numbers, counts in tables, keyboard hints and code.
 - All three load through `next/font/google` in `src/app/layout.tsx` and `@expo-google-fonts/*` in the Android app.
-- Captions use 12px, compact controls use 14px, and reading text uses 16px. Phone inputs use at least 16px to prevent browser zoom.
+- Captions use 12px, compact controls use 14px, and note reading text uses 17px Literata. Phone inputs use at least 16px to prevent browser zoom.
 - The shared Tailwind scale in `globals.css` pairs each `text-xs` through `text-7xl` size with an explicit line height. Prefer that scale; avoid new arbitrary pixel sizes and one-off line heights.
 - Long-form paragraphs target a maximum measure of `72ch`. Full-width tables, code, media, and application UI are intentional exceptions.
 - Headings use restrained negative tracking and balanced wrapping. Body copy uses normal tracking and at least 1.5 line-height where it may wrap across several lines.
@@ -90,7 +90,7 @@ Shared compact icon controls use `.ui-icon-button`: 44px below 1024px and 32px o
 
 ## Application navigation
 
-The main workspaces use a five-destination floating bottom dock below 1024px and in the Android app: Notes, AI Chat, Calendar, Quiz, and More. Desktop browsers use the navigation rail. The More sheet holds secondary destinations such as search, settings, focus, Trash, and the native offline reader when it is available. Give each scroll region end clearance so its last item remains reachable. On chat, the dock stays at the bottom and the composer reserves its height, so the composer sits directly above the navigation.
+The main workspaces use a five-destination floating bottom dock below 1024px and in the Android app: Notes, AI Chat, Calendar, Quiz, and More. Desktop browsers use the 256px sidebar (`PrimaryNavigation variant="sidebar"`): labelled destinations with the search shortcut, quiz due count and focus timer, then the page's own section (the note tree on Notes, conversations on Chat), then Canvas import status and the account row, which opens settings. Settings keeps the icon rail, as in the mockups. The More sheet holds secondary destinations such as search, settings, focus, Trash, and the native offline reader when it is available. Give each scroll region end clearance so its last item remains reachable. On chat, the dock stays at the bottom and the composer reserves its height, so the composer sits directly above the navigation.
 
 The navigation pill is 64px tall with labels, 52px with icons when scrolling down. Its ring is the `border` hairline with `shadow-float`; the selected destination is `bg-subtle-hover` with `text-accent-hover`. Its labels fade out as it shrinks and fade in after sustained upward scrolling, route changes, or keyboard focus. In the Android app's WebView, the pill uses a 70% opaque app surface over an 8.75px backdrop blur; the website uses a 90% opaque surface without blur. Both have a hairline ring and the floating shadow, and the selected destination uses the `subtle-hover` tint with the accent colour. Neither has a full-width backing bar. Keep 44px touch targets in both states, respect reduced motion, and hide the dock and its clearance while the keyboard is open. Single-line mobile headers start at 56px rather than 80px.
 

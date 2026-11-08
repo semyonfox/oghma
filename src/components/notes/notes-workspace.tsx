@@ -18,6 +18,7 @@ import PrimaryNavigation from "@/components/navigation/primary-navigation";
 import MobileAppHeader from "@/components/navigation/mobile-app-header";
 import MobileDrawer from "@/components/navigation/mobile-drawer";
 import MobileBottomNavigation from "@/components/navigation/mobile-bottom-navigation";
+import CanvasTokenBanner from "@/components/canvas/canvas-token-banner";
 import MobileLibrary from "@/components/notes/mobile-library";
 import FirstLoginWelcome from "@/components/notes/first-login-welcome";
 
@@ -38,6 +39,8 @@ const TrashPage = dynamic(() => import("@/components/notes/trash-page"));
 interface NotesWorkspaceProps {
   view?: "notes" | "trash";
 }
+
+let narrowPanelChecked = false;
 
 export default function NotesWorkspace({
   view = "notes",
@@ -62,6 +65,18 @@ export default function NotesWorkspace({
   const treeWidthRef = useRef(treeWidth);
   const rightPanelWidthRef = useRef(rightPanelWidth);
   const isTrashView = view === "trash";
+
+  // the panel defaults open for wide screens, below that it is an explicit
+  // drawer. close a carried-over open panel once per page load, not per mount:
+  // opening the drawer lazy-loads the inspector, which can remount this
+  // component, and a per-mount check would close the drawer just opened
+  useEffect(() => {
+    if (hasInspectorSpace === null || narrowPanelChecked) return;
+    narrowPanelChecked = true;
+    if (!hasInspectorSpace && useLayoutStore.getState().rightPanelOpen) {
+      setRightPanelOpen(false);
+    }
+  }, [hasInspectorSpace, setRightPanelOpen]);
   const showMobileLibrary = !isTrashView && pathname === "/notes";
 
   useEffect(() => {
@@ -174,12 +189,8 @@ export default function NotesWorkspace({
         </>
       )}
 
+      {isDesktop === false && <CanvasTokenBanner />}
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        {isDesktop === true && (
-          <div className="desktop-navigation-rail w-14 shrink-0 border-r border-border bg-sidebar">
-            <PrimaryNavigation />
-          </div>
-        )}
         {isDesktop === true && (
           <PanelGroup
             orientation="horizontal"
@@ -195,7 +206,7 @@ export default function NotesWorkspace({
             <Panel
               id="note-tree"
               defaultSize={`${treeWidth}px`}
-              minSize="200px"
+              minSize="240px"
               maxSize="600px"
               groupResizeBehavior="preserve-pixel-size"
               onResize={({ inPixels }) => {
@@ -203,9 +214,11 @@ export default function NotesWorkspace({
               }}
               className="flex min-w-0"
             >
-              <div className="flex h-full w-full flex-col overflow-hidden bg-sidebar">
-                <NoteTreePanel />
-              </div>
+              <PrimaryNavigation variant="sidebar">
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                  <NoteTreePanel />
+                </div>
+              </PrimaryNavigation>
             </Panel>
 
             <PanelResizeHandle
@@ -213,10 +226,11 @@ export default function NotesWorkspace({
               className="w-px cursor-col-resize bg-border transition-colors hover:bg-accent/40 active:bg-accent/60"
             />
 
-            <Panel id="note-editor" minSize="320px" className="flex min-w-0">
+            <Panel id="note-editor" minSize="320px" className="flex min-w-0 flex-col">
+              <CanvasTokenBanner />
               <main
                 aria-label={isTrashView ? t("Trash") : t("Note editor")}
-                className="h-full min-h-0 w-full overflow-hidden bg-background"
+                className="min-h-0 w-full flex-1 overflow-hidden bg-background"
               >
                 {!noteDependenciesReady ? (
                   <div role="status" className="flex h-full items-center justify-center text-sm text-text-tertiary">
@@ -230,14 +244,14 @@ export default function NotesWorkspace({
               </main>
             </Panel>
 
-            {rightPanelOpen && hasInspectorSpace === true && !isTrashView && (
+            {rightPanelOpen && hasInspectorSpace === true && !isTrashView && !!paneAFileId && (
               <PanelResizeHandle
                 aria-label={t("Resize details panel")}
                 className="w-px cursor-col-resize bg-border transition-colors hover:bg-accent/40 active:bg-accent/60"
               />
             )}
 
-            {rightPanelOpen && hasInspectorSpace === true && !isTrashView && (
+            {rightPanelOpen && hasInspectorSpace === true && !isTrashView && !!paneAFileId && (
               <Panel
                 id="note-inspector"
                 defaultSize={`${rightPanelWidth}px`}

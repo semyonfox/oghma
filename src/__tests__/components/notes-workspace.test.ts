@@ -84,6 +84,7 @@ vi.mock("@/components/navigation/mobile-app-header", () => ({
 vi.mock("@/components/navigation/mobile-drawer", () => ({
   default: () => null,
 }));
+vi.mock("@/components/canvas/canvas-token-banner", () => ({ default: () => null }));
 vi.mock("@/components/navigation/mobile-bottom-navigation", () => ({
   default: () => React.createElement("nav", null, "Mobile navigation"),
 }));

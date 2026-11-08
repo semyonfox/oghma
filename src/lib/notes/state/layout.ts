@@ -71,7 +71,7 @@ interface LayoutState {
   rightPanelTab: RightPanelTab;
 
   // UI sizes (persist to localStorage)
-  treeWidth: number; // 200-600px
+  treeWidth: number; // 240-600px
   rightPanelWidth: number; // 250-600px
   splitPosition: number; // 0-100 between panes (%)
 
@@ -104,9 +104,10 @@ const useLayoutStore = create<LayoutState>()(
       paneA: { fileId: "", fileType: "note" as FileType },
       paneB: null,
       activePane: "A",
-      rightPanelOpen: false,
-      rightPanelTab: "meta",
-      treeWidth: 240,
+      // the Atlas layout keeps the side panel open on the AI tab until the user closes it
+      rightPanelOpen: true,
+      rightPanelTab: "ai",
+      treeWidth: 256,
       rightPanelWidth: 280,
       splitPosition: 50,
       selectedNode: null,
@@ -242,7 +243,7 @@ const useLayoutStore = create<LayoutState>()(
       // Sizes
       setSizes: (tree, right, split) => {
         set({
-          treeWidth: Math.max(200, Math.min(600, tree)),
+          treeWidth: Math.max(240, Math.min(600, tree)),
           rightPanelWidth: Math.max(250, Math.min(600, right)),
           splitPosition: Math.max(0, Math.min(100, split)),
         });
@@ -254,8 +255,8 @@ const useLayoutStore = create<LayoutState>()(
           paneA: { fileId: "", fileType: "note" },
           paneB: null,
           activePane: "A",
-          rightPanelOpen: false,
-          rightPanelTab: "meta",
+          // the side panel's open state and tab are device preferences, not
+          // per-account data, and resetting them here raced phone taps
           selectedNode: null,
         }),
     }),
@@ -264,6 +265,8 @@ const useLayoutStore = create<LayoutState>()(
       partialize: (state) => ({
         treeWidth: state.treeWidth,
         rightPanelWidth: state.rightPanelWidth,
+        rightPanelOpen: state.rightPanelOpen,
+        rightPanelTab: state.rightPanelTab,
         splitPosition: state.splitPosition,
         paneA: state.paneA,
         paneB: state.paneB,
@@ -281,6 +284,16 @@ const useLayoutStore = create<LayoutState>()(
             typeof persistedState.rightPanelWidth === "number"
               ? persistedState.rightPanelWidth
               : currentState.rightPanelWidth,
+          rightPanelOpen:
+            typeof persistedState.rightPanelOpen === "boolean"
+              ? persistedState.rightPanelOpen
+              : currentState.rightPanelOpen,
+          rightPanelTab:
+            persistedState.rightPanelTab === "meta" ||
+            persistedState.rightPanelTab === "ai" ||
+            persistedState.rightPanelTab === "tasks"
+              ? persistedState.rightPanelTab
+              : currentState.rightPanelTab,
           splitPosition:
             typeof persistedState.splitPosition === "number"
               ? persistedState.splitPosition

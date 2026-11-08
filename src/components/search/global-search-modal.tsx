@@ -397,7 +397,7 @@ export default function GlobalSearchModal() {
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="w-full max-w-5xl overflow-hidden rounded-radius-lg border border-border bg-surface shadow-float">
+              <Dialog.Panel className="w-full max-w-[800px] overflow-hidden rounded-radius-xl border border-border bg-surface shadow-float">
                 <Dialog.Title className="sr-only">
                   {t("Search OghmaNotes")}
                 </Dialog.Title>
@@ -424,6 +424,11 @@ export default function GlobalSearchModal() {
                     onKeyDown={onInputKeyDown}
                     autoFocus
                   />
+                  {hasAnyResult && !loading && (
+                    <span aria-hidden="true" className="ml-3 hidden shrink-0 text-xs text-text-tertiary sm:inline">
+                      {t("Search results: {count}", { count: flatResults.length })}
+                    </span>
+                  )}
                   <kbd
                     aria-hidden="true"
                     className="ml-3 hidden shrink-0 rounded-radius-sm border border-border bg-surface px-1.5 py-0.5 font-mono text-[11px] leading-4 text-text-tertiary sm:inline-block"
@@ -474,7 +479,28 @@ export default function GlobalSearchModal() {
                   </div>
                 )}
                 <div className="grid min-h-[320px] grid-cols-1 md:min-h-[430px] md:grid-cols-[minmax(0,1.1fr)_minmax(280px,0.9fr)]">
-                  <div id={resultsId} role="listbox" aria-label={t("Search OghmaNotes")} aria-busy={loading} className="max-h-[62vh] overflow-y-auto border-border md:border-r">
+                  <div className="flex min-h-0 flex-col border-border md:border-r">
+                  {trimmedQuery && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleClose();
+                        router.push(`/chat?q=${encodeURIComponent(trimmedQuery)}`);
+                      }}
+                      className="mx-2 mt-2 flex items-center gap-3 rounded-radius-md bg-accent-soft px-3 py-2.5 text-left transition-colors hover:bg-accent-soft/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                    >
+                      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-radius-md bg-action text-on-action">
+                        <SparklesIcon className="h-4 w-4" aria-hidden="true" />
+                      </span>
+                      <span className="flex min-w-0 flex-col">
+                        <span className="truncate text-sm font-medium text-text">
+                          {t("Ask AI Chat about “{query}”", { query: trimmedQuery })}
+                        </span>
+                        <span className="text-xs text-text-secondary">{t("Searches your notes and cites them")}</span>
+                      </span>
+                    </button>
+                  )}
+                  <div id={resultsId} role="listbox" aria-label={t("Search OghmaNotes")} aria-busy={loading} className="max-h-[62vh] overflow-y-auto">
                     {SECTION_ORDER.map((section) => {
                       const sectionResults = results[section];
                       if (sectionResults.length === 0) return null;
@@ -599,6 +625,7 @@ export default function GlobalSearchModal() {
                       </div>
                     )}
                   </div>
+                  </div>
 
                   <aside className="hidden max-h-[62vh] overflow-y-auto bg-surface p-5 md:block">
                     {selectedResult ? (
@@ -651,6 +678,14 @@ export default function GlobalSearchModal() {
                       </div>
                     )}
                   </aside>
+                </div>
+                <div
+                  aria-hidden="true"
+                  className="hidden items-center gap-4 border-t border-border-subtle px-4 py-2 font-mono text-[11px] text-text-tertiary sm:flex"
+                >
+                  <span>↑↓ {t("navigate")}</span>
+                  <span>↵ {t("open")}</span>
+                  <span className="ml-auto">esc {t("close")}</span>
                 </div>
               </Dialog.Panel>
             </Transition.Child>

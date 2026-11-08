@@ -9,6 +9,7 @@ import { CanvasClaimLostError, withCanvasExecution, withCanvasPublication, withC
 
 export { PROCESSABLE_TYPES, resolveMimeType } from "./file-types";
 import { PROCESSABLE_TYPES, resolveMimeType } from "./file-types";
+import { markCanvasTokenInvalid } from "./credentials";
 import { createHash } from "node:crypto";
 import type postgres from "postgres";
 
@@ -454,7 +455,10 @@ export async function fetchResource<T>(
   file?: CanvasResourceFile,
 ) {
   const { data, forbidden, unauthorized, error } = await fetchFn(courseId);
-  if (unauthorized) throw new Error("Invalid or expired Canvas token");
+  if (unauthorized) {
+    await markCanvasTokenInvalid(userId);
+    throw new Error("Invalid or expired Canvas token");
+  }
   const issue = error ?? (!data && !forbidden ? "Canvas returned an empty response" : null);
   if (forbidden || issue) {
     await recordCanvasResourceIssue(courseId, userId, courseTitle, kind, jobId,

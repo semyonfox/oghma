@@ -31,6 +31,8 @@ export type {
   
   
 } from "@/lib/chat/types";
+import ChatSourcePanel from "./chat-source-panel";
+import { collectNoteActivity } from "./tool-call-pill";
 
 /**
  * Small pill toggle used above the chat input (RAG / thinking). Shares the
@@ -112,6 +114,8 @@ interface ChatInterfaceProps {
   onRemoveFolder?: (id: string) => void;
   /** Optional extra class on the wrapper */
   className?: string;
+  /** Fills the composer without sending, e.g. from "Ask AI Chat" in search */
+  initialPrompt?: string;
 }
 
 export function isChatComposerReady(
@@ -137,6 +141,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
   onRemoveNote,
   onRemoveFolder,
   className = "",
+  initialPrompt,
 }) => {
   const { t } = useI18n();
 
@@ -321,7 +326,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
   const draftKey = compact && noteId ? `${workspaceGeneration}:${noteId}` : undefined;
   const [composer, setComposer] = useState({
     key: draftKey,
-    value: draftKey ? noteComposerDrafts.get(draftKey) ?? "" : "",
+    value: draftKey ? noteComposerDrafts.get(draftKey) ?? "" : initialPrompt ?? "",
   });
   const input = composer.key === draftKey
     ? composer.value
@@ -334,6 +339,14 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     setComposer({ key: draftKey, value });
   };
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+  // older answers stored sources, newer ones record the notes the model found
+  // or read through its tools, so fall back to that activity
+  const latestAnswer = [...messages].reverse().find((m) => m.role === "assistant");
+  const latestSources = latestAnswer?.sources?.length
+    ? latestAnswer.sources
+    : latestAnswer
+      ? collectNoteActivity(latestAnswer.parts ?? [], latestAnswer.searchContext).map(({ id, title }) => ({ id, title }))
+      : [];
 
   const previousSessionId = useRef(controlledSessionId);
   const clearInput = useEffectEvent(() => setInput(""));
@@ -469,198 +482,201 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
 
   // full-page variant
   return (
-    <div className={`flex flex-col h-full ${className}`}>
-      {/* messages */}
-      <div
-        ref={scrollRef}
-        onScroll={handleScroll}
-        className="mobile-dock-clearance flex-1 overflow-y-auto px-4 lg:px-10 py-3 obsidian-scrollbar"
-      >
+    <div className={`flex h-full ${className}`}>
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* messages */}
         <div
-          className={`mx-auto flex w-full max-w-3xl flex-col space-y-2.5 ${
-            messages.length === 0 ? "min-h-full justify-center pb-12" : ""
-          }`}
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="mobile-dock-clearance flex-1 overflow-y-auto px-4 lg:px-10 py-3 obsidian-scrollbar"
         >
-          {controlledSessionId &&
-          (!restored || sessionId !== controlledSessionId) &&
-          (messages.length === 0 || sessionId !== controlledSessionId) ? (
-            restoreError ? null : (
-              <div
-                className="flex justify-center py-8"
-                role="status"
-                aria-label={t("Loading...")}
-              >
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-text-tertiary/30 border-t-text-tertiary" />
-              </div>
-            )
-          ) : messages.length === 0 ? (
-            <ChatSplash
-              onSelectPrompt={(prompt) => {
-                setInput(prompt);
-                requestAnimationFrame(() => inputRef.current?.focus());
-              }}
-            />
-          ) : (
-            messages.map((m, index) => (
-              <FullMessageBubble
-                key={m.renderKey ?? m.id}
-                message={m}
-                sessionId={sessionId}
-                isStreaming={busy && index === messages.length - 1}
+          <div
+            className={`mx-auto flex w-full max-w-3xl flex-col space-y-2.5 ${
+              messages.length === 0 ? "min-h-full justify-center pb-12" : ""
+            }`}
+          >
+            {controlledSessionId &&
+            (!restored || sessionId !== controlledSessionId) &&
+            (messages.length === 0 || sessionId !== controlledSessionId) ? (
+              restoreError ? null : (
+                <div
+                  className="flex justify-center py-8"
+                  role="status"
+                  aria-label={t("Loading...")}
+                >
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-text-tertiary/30 border-t-text-tertiary" />
+                </div>
+              )
+            ) : messages.length === 0 ? (
+              <ChatSplash
+                onSelectPrompt={(prompt) => {
+                  setInput(prompt);
+                  requestAnimationFrame(() => inputRef.current?.focus());
+                }}
               />
-            ))
-          )}
+            ) : (
+              messages.map((m, index) => (
+                <FullMessageBubble
+                  key={m.renderKey ?? m.id}
+                  message={m}
+                  sessionId={sessionId}
+                  isStreaming={busy && index === messages.length - 1}
+                />
+              ))
+            )}
 
-          {error && (
-            <div className="flex justify-center">
-              <p className="text-xs text-error-700 dark:text-error-300 bg-error-500/10 border border-error-500/20 px-3 py-2 rounded-radius-lg">
-                {error}
-              </p>
+            {error && (
+              <div className="flex justify-center">
+                <p className="text-xs text-error-700 dark:text-error-300 bg-error-500/10 border border-error-500/20 px-3 py-2 rounded-radius-lg">
+                  {error}
+                </p>
+              </div>
+            )}
+
+            {restoreError && (
+              <div className="flex justify-center">
+                <div
+                  role="alert"
+                  className="flex items-center gap-2 rounded-radius-lg border border-error-500/20 bg-error-500/10 px-3 py-2 text-xs text-error-700 dark:text-error-300"
+                >
+                  <span>{t("error.something_went_wrong")}</span>
+                  <button
+                    type="button"
+                    onClick={retryConversation}
+                    className="font-medium text-accent transition-colors hover:text-accent-hover"
+                  >
+                    {t("Try again")}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div ref={bottomRef} />
+          </div>
+        </div>
+
+        {/* input area; the mobile dock sits below it, so it reserves the dock's height */}
+        <div
+          data-chat-composer
+          className="flex-shrink-0 px-3 py-3 lg:px-10"
+          style={{ paddingBottom: "max(0.75rem, var(--mobile-dock-space, var(--safe-bottom)))" }}
+        >
+          <div className="mx-auto max-w-3xl">
+            {(selectedNotes.length > 0 || selectedFolders.length > 0 || (noteTitle && selectedNotes.length === 0)) && (
+              <div className="flex flex-wrap items-center gap-1.5 mb-2 px-1">
+                {noteTitle && selectedNotes.length === 0 && selectedFolders.length === 0 && (
+                  <span className="flex items-center gap-1 px-2 py-1 rounded-full border border-border bg-surface text-xs text-text-secondary">
+                    <DocumentTextIcon className="w-3 h-3 flex-shrink-0" />
+                    <span className="truncate max-w-[150px]">{noteTitle}</span>
+                  </span>
+                )}
+                {selectedNotes.map((note) => (
+                  <span key={note.id} className="flex items-center gap-1 px-2 py-1 rounded-full border border-border bg-surface text-xs text-text-secondary">
+                    <DocumentTextIcon className="w-3 h-3 flex-shrink-0" />
+                    <span className="truncate max-w-[120px]">{note.title}</span>
+                    {onRemoveNote && (
+                      <button
+                        onClick={() => onRemoveNote(note.id)}
+                        className="touch-target-44 -mr-0.5 ml-0.5 rounded-full px-0.5 leading-4 opacity-60 transition-opacity hover:opacity-100"
+                        aria-label={t("Remove {title}", { title: note.title })}
+                        title={t("Remove {title}", { title: note.title })}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </span>
+                ))}
+                {selectedFolders.map((folder) => (
+                  <span key={folder.id} className="flex items-center gap-1 px-2 py-1 rounded-full border border-border bg-surface text-xs text-text-secondary">
+                    <FolderIcon className="w-3 h-3 flex-shrink-0" />
+                    <span className="truncate max-w-[120px]">{folder.title}</span>
+                    {onRemoveFolder && (
+                      <button
+                        onClick={() => onRemoveFolder(folder.id)}
+                        className="touch-target-44 -mr-0.5 ml-0.5 rounded-full px-0.5 leading-4 opacity-60 transition-opacity hover:opacity-100"
+                        aria-label={t("Remove {title}", { title: folder.title })}
+                        title={t("Remove {title}", { title: folder.title })}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="mb-1.5 flex flex-wrap items-center gap-1.5 px-1">
+              <TogglePill
+                active={useRag}
+                onClick={toggleRag}
+                icon={<DocumentTextIcon className="h-3 w-3" />}
+                label={t("chat.use_notes")}
+                tooltipTitle={t("chat.rag_title")}
+                tooltipText={t("chat.rag_tooltip")}
+              />
+              <TogglePill
+                active={thinkingActive}
+                onClick={toggleThinking}
+                icon={<span aria-hidden="true">◆</span>}
+                label={thinkingLabel}
+                tooltipTitle={t("chat.thinking_title")}
+                tooltipText={t("chat.thinking_tooltip")}
+                tooltipAlign="right"
+              />
             </div>
-          )}
-
-          {restoreError && (
-            <div className="flex justify-center">
-              <div
-                role="alert"
-                className="flex items-center gap-2 rounded-radius-lg border border-error-500/20 bg-error-500/10 px-3 py-2 text-xs text-error-700 dark:text-error-300"
-              >
-                <span>{t("error.something_went_wrong")}</span>
+            <form
+              onSubmit={(e: FormEvent) => {
+                e.preventDefault();
+                handleSend();
+              }}
+              className="flex items-end gap-1.5 rounded-radius-xl border border-border-strong bg-input py-1.5 pl-3.5 pr-1.5 transition-[border-color,box-shadow] focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/25 lg:items-center lg:py-1.5"
+            >
+              <textarea
+                ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+                value={input}
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  e.target.style.height = "auto";
+                  e.target.style.height = `${Math.min(e.target.scrollHeight, 96)}px`;
+                }}
+                onKeyDown={handleKeyDown}
+                placeholder={t("chat.ask_placeholder")}
+                aria-label={t("chat.ask_placeholder")}
+                disabled={composerDisabled}
+                rows={1}
+                className="min-h-11 max-h-24 min-w-0 flex-1 resize-none bg-transparent py-2 text-base leading-relaxed text-text placeholder:text-text-tertiary focus:outline-none disabled:opacity-50 lg:min-h-5 lg:py-0 lg:text-sm"
+              />
+              {busy ? (
                 <button
                   type="button"
-                  onClick={retryConversation}
-                  className="font-medium text-accent transition-colors hover:text-accent-hover"
+                  onClick={stopGenerating}
+                  className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-radius-md border border-border bg-surface text-text transition-colors hover:bg-subtle lg:h-9 lg:w-9"
+                  aria-label={t("Stop generating")}
+                  title={t("Stop generating")}
                 >
-                  {t("Try again")}
+                  <StopCircleIcon
+                    className={`h-4 w-4 ${backgroundLoading ? "animate-pulse" : ""}`}
+                  />
                 </button>
-              </div>
-            </div>
-          )}
-
-          <div ref={bottomRef} />
-        </div>
-      </div>
-
-      {/* input area; the mobile dock sits below it, so it reserves the dock's height */}
-      <div
-        data-chat-composer
-        className="flex-shrink-0 px-3 py-3 lg:px-10"
-        style={{ paddingBottom: "max(0.75rem, var(--mobile-dock-space, var(--safe-bottom)))" }}
-      >
-        <div className="mx-auto max-w-3xl">
-          {(selectedNotes.length > 0 || selectedFolders.length > 0 || (noteTitle && selectedNotes.length === 0)) && (
-            <div className="flex flex-wrap items-center gap-1.5 mb-2 px-1">
-              {noteTitle && selectedNotes.length === 0 && selectedFolders.length === 0 && (
-                <span className="flex items-center gap-1 px-2 py-1 rounded-full border border-border bg-surface text-xs text-text-secondary">
-                  <DocumentTextIcon className="w-3 h-3 flex-shrink-0" />
-                  <span className="truncate max-w-[150px]">{noteTitle}</span>
-                </span>
+              ) : (
+                <button
+                  type="submit"
+                  onPointerDown={preserveComposerFocus}
+                  disabled={composerDisabled || !input.trim()}
+                  className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-radius-md bg-action text-on-action transition-colors hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-40 lg:h-9 lg:w-9"
+                  aria-label={t("Send message")}
+                >
+                  <PaperAirplaneIcon className="h-4 w-4" />
+                </button>
               )}
-              {selectedNotes.map((note) => (
-                <span key={note.id} className="flex items-center gap-1 px-2 py-1 rounded-full border border-border bg-surface text-xs text-text-secondary">
-                  <DocumentTextIcon className="w-3 h-3 flex-shrink-0" />
-                  <span className="truncate max-w-[120px]">{note.title}</span>
-                  {onRemoveNote && (
-                    <button
-                      onClick={() => onRemoveNote(note.id)}
-                      className="touch-target-44 -mr-0.5 ml-0.5 rounded-full px-0.5 leading-4 opacity-60 transition-opacity hover:opacity-100"
-                      aria-label={t("Remove {title}", { title: note.title })}
-                      title={t("Remove {title}", { title: note.title })}
-                    >
-                      ×
-                    </button>
-                  )}
-                </span>
-              ))}
-              {selectedFolders.map((folder) => (
-                <span key={folder.id} className="flex items-center gap-1 px-2 py-1 rounded-full border border-border bg-surface text-xs text-text-secondary">
-                  <FolderIcon className="w-3 h-3 flex-shrink-0" />
-                  <span className="truncate max-w-[120px]">{folder.title}</span>
-                  {onRemoveFolder && (
-                    <button
-                      onClick={() => onRemoveFolder(folder.id)}
-                      className="touch-target-44 -mr-0.5 ml-0.5 rounded-full px-0.5 leading-4 opacity-60 transition-opacity hover:opacity-100"
-                      aria-label={t("Remove {title}", { title: folder.title })}
-                      title={t("Remove {title}", { title: folder.title })}
-                    >
-                      ×
-                    </button>
-                  )}
-                </span>
-              ))}
-            </div>
-          )}
-          <div className="mb-1.5 flex flex-wrap items-center gap-1.5 px-1">
-            <TogglePill
-              active={useRag}
-              onClick={toggleRag}
-              icon={<DocumentTextIcon className="h-3 w-3" />}
-              label={t("chat.use_notes")}
-              tooltipTitle={t("chat.rag_title")}
-              tooltipText={t("chat.rag_tooltip")}
-            />
-            <TogglePill
-              active={thinkingActive}
-              onClick={toggleThinking}
-              icon={<span aria-hidden="true">◆</span>}
-              label={thinkingLabel}
-              tooltipTitle={t("chat.thinking_title")}
-              tooltipText={t("chat.thinking_tooltip")}
-              tooltipAlign="right"
-            />
-          </div>
-          <form
-            onSubmit={(e: FormEvent) => {
-              e.preventDefault();
-              handleSend();
-            }}
-            className="flex items-end gap-1.5 rounded-radius-xl border border-border-strong bg-input py-1.5 pl-3.5 pr-1.5 transition-[border-color,box-shadow] focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/25 lg:items-center lg:py-1.5"
-          >
-            <textarea
-              ref={inputRef as React.RefObject<HTMLTextAreaElement>}
-              value={input}
-              onChange={(e) => {
-                setInput(e.target.value);
-                e.target.style.height = "auto";
-                e.target.style.height = `${Math.min(e.target.scrollHeight, 96)}px`;
-              }}
-              onKeyDown={handleKeyDown}
-              placeholder={t("chat.ask_placeholder")}
-              aria-label={t("chat.ask_placeholder")}
-              disabled={composerDisabled}
-              rows={1}
-              className="min-h-11 max-h-24 min-w-0 flex-1 resize-none bg-transparent py-2 text-base leading-relaxed text-text placeholder:text-text-tertiary focus:outline-none disabled:opacity-50 lg:min-h-5 lg:py-0 lg:text-sm"
-            />
-            {busy ? (
-              <button
-                type="button"
-                onClick={stopGenerating}
-                className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-radius-md border border-border bg-surface text-text transition-colors hover:bg-subtle lg:h-9 lg:w-9"
-                aria-label={t("Stop generating")}
-                title={t("Stop generating")}
-              >
-                <StopCircleIcon
-                  className={`h-4 w-4 ${backgroundLoading ? "animate-pulse" : ""}`}
-                />
-              </button>
-            ) : (
-              <button
-                type="submit"
-                onPointerDown={preserveComposerFocus}
-                disabled={composerDisabled || !input.trim()}
-                className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-radius-md bg-action text-on-action transition-colors hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-40 lg:h-9 lg:w-9"
-                aria-label={t("Send message")}
-              >
-                <PaperAirplaneIcon className="h-4 w-4" />
-              </button>
-            )}
-          </form>
+            </form>
 
-          <p className="text-center text-xs leading-relaxed text-text-tertiary mt-1.5">
-            {t("chat.disclaimer")}
-          </p>
+            <p className="text-center text-xs leading-relaxed text-text-tertiary mt-1.5">
+              {t("chat.disclaimer")}
+            </p>
+          </div>
         </div>
       </div>
+      {!compact && latestSources.length > 0 && <ChatSourcePanel sources={latestSources} />}
     </div>
   );
 };

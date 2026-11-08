@@ -245,7 +245,7 @@ export function ConversationHistory({
                         <Link
                           href={`/chat/${conv.id}`}
                           onClick={() => onSelectConversation(conv.id)}
-                          className="flex min-h-11 w-full items-center gap-1.5 px-2.5 pr-36 text-left transition-[padding] duration-150 focus-visible:outline-none lg:min-h-7 lg:pr-16 lg:group-hover:pr-28 lg:group-focus-within:pr-28"
+                          className="flex min-h-11 w-full items-center gap-1.5 px-2.5 pr-36 text-left transition-[padding] duration-150 focus-visible:outline-none lg:min-h-7 lg:pr-[4.75rem] lg:group-hover:pr-28 lg:group-focus-within:pr-28"
                           aria-current={
                             conv.id === activeId ? "page" : undefined
                           }
@@ -259,7 +259,7 @@ export function ConversationHistory({
                         </Link>
                       )}
                       {editingId !== conv.id && (
-                        <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-14 items-center justify-end pr-2 lg:flex">
+                        <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-[4.5rem] items-center justify-end pr-2 lg:flex">
                           <span
                             className="shrink-0 whitespace-nowrap text-right font-mono text-[11px] text-text-tertiary transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0"
                             suppressHydrationWarning

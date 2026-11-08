@@ -1075,9 +1075,7 @@ test("original-note labels, map pickers and all-module facets agree on desktop a
   );
 
   await page.goto(`/notes/${shared.id}`);
-  await page
-    .getByRole("button", { name: "Toggle metadata panel", exact: true })
-    .click();
+  await page.getByRole("tab", { name: "Meta", exact: true }).click();
   const labels = page.getByRole("region", {
     name: "Note study labels",
     exact: true,
@@ -1103,9 +1101,7 @@ test("original-note labels, map pickers and all-module facets agree on desktop a
     [`database-${suffix}`],
   );
   await page.reload();
-  await page
-    .getByRole("button", { name: "Toggle metadata panel", exact: true })
-    .click();
+  await page.getByRole("tab", { name: "Meta", exact: true }).click();
   await expect(
     labels.getByRole("link", {
       name: "Queries, supporting, accepted",

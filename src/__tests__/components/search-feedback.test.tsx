@@ -96,4 +96,12 @@ describe("search recovery", () => {
       expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled(),
     );
   });
+  it("hands the typed query to a new AI chat without sending it", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response("Normalisation")));
+    render(<GlobalSearchModal />);
+    const input = screen.getByRole("combobox", { name: "Search OghmaNotes" });
+    fireEvent.change(input, { target: { value: "  2NF & BCNF " } });
+    fireEvent.click(screen.getByRole("button", { name: /Ask AI Chat about/ }));
+    expect(mocks.push).toHaveBeenCalledWith("/chat?q=2NF%20%26%20BCNF");
+  });
 });

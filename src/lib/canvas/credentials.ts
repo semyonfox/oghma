@@ -28,3 +28,20 @@ export async function loadCanvasCredentials(
     token: decrypt(row.canvas_token, userId),
   };
 }
+
+// only the first rejection is stamped, so the banner can say since when
+export async function markCanvasTokenInvalid(userId: string): Promise<void> {
+  await sql`
+    UPDATE app.login
+    SET canvas_token_invalid_at = COALESCE(canvas_token_invalid_at, NOW())
+    WHERE user_id = ${userId}::uuid AND canvas_token IS NOT NULL
+  `;
+}
+
+export async function clearCanvasTokenInvalid(userId: string): Promise<void> {
+  await sql`
+    UPDATE app.login
+    SET canvas_token_invalid_at = NULL
+    WHERE user_id = ${userId}::uuid AND canvas_token_invalid_at IS NOT NULL
+  `;
+}

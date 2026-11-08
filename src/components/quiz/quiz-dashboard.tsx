@@ -212,9 +212,10 @@ export default function QuizDashboard({
   };
 
   return (
-    <div className="max-w-container-content mx-auto px-6 py-8">
-      <div className="mb-6 flex items-start justify-between gap-4">
-        <div>
+    <div className="max-w-container-content mx-auto px-4 py-5 sm:px-6 sm:py-8">
+      <div className="mb-4 flex flex-col gap-4 sm:mb-6 sm:flex-row sm:items-start sm:justify-between">
+        {/* phones show the title and counts in the app header, as in the mockup */}
+        <div className="hidden lg:block">
           <h1 className="font-serif text-3xl font-semibold tracking-tight text-text sm:text-4xl">
             {t("quiz.title")}
           </h1>
@@ -232,7 +233,7 @@ export default function QuizDashboard({
             (visibleDashboard.dueCount === 0 &&
               (visibleDashboard.totalCards > 0 || !visibleDashboard.hasContent))
           }
-          className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-radius-lg bg-action px-5 py-2 text-sm font-semibold text-on-action transition-colors hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex min-h-12 w-full shrink-0 items-center justify-center gap-2 rounded-radius-lg bg-action px-5 py-2 text-sm font-semibold text-on-action sm:min-h-11 sm:w-auto transition-colors hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-50"
         >
           {startingSession === "all" ? t("quiz.loading") : t("Start Review")}
           <span aria-hidden="true">→</span>
