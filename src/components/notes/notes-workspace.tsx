@@ -40,6 +40,8 @@ interface NotesWorkspaceProps {
   view?: "notes" | "trash";
 }
 
+let narrowPanelChecked = false;
+
 export default function NotesWorkspace({
   view = "notes",
 }: NotesWorkspaceProps) {
@@ -65,25 +67,13 @@ export default function NotesWorkspace({
   const isTrashView = view === "trash";
 
   // the panel defaults open for wide screens, below that it is an explicit
-  // drawer. only close state carried in from before this mount: a tap on Meta
-  // made before the media query resolves must not be undone
-  const panelAtMount = useRef<{ open: boolean; tab: string } | null>(null);
-  if (panelAtMount.current === null) {
-    const { rightPanelOpen: open, rightPanelTab: tab } = useLayoutStore.getState();
-    panelAtMount.current = { open, tab };
-  }
-  const narrowChecked = useRef(false);
+  // drawer. close a carried-over open panel once per page load, not per mount:
+  // opening the drawer lazy-loads the inspector, which can remount this
+  // component, and a per-mount check would close the drawer just opened
   useEffect(() => {
-    if (hasInspectorSpace === null || narrowChecked.current) return;
-    narrowChecked.current = true;
-    const atMount = panelAtMount.current;
-    const now = useLayoutStore.getState();
-    if (
-      !hasInspectorSpace &&
-      atMount?.open &&
-      now.rightPanelOpen &&
-      now.rightPanelTab === atMount.tab
-    ) {
+    if (hasInspectorSpace === null || narrowPanelChecked) return;
+    narrowPanelChecked = true;
+    if (!hasInspectorSpace && useLayoutStore.getState().rightPanelOpen) {
       setRightPanelOpen(false);
     }
   }, [hasInspectorSpace, setRightPanelOpen]);
