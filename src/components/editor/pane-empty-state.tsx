@@ -4,6 +4,7 @@ import { FC, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowPathIcon, ArrowUpTrayIcon, DocumentIcon } from "@heroicons/react/24/outline";
 import { OPEN_UPLOAD_EVENT } from "@/lib/notes/upload-events";
+import ProcessingFilesCard from "@/components/canvas/processing-files-card";
 import { toast } from "sonner";
 import useLayoutStore from "@/lib/notes/state/layout";
 import useNoteStore from "@/lib/notes/state/note";
@@ -108,6 +109,7 @@ const PaneEmptyState: FC<{ pane: "A" | "B" }> = ({ pane }) => {
 
   return (
     <div className="h-full flex flex-col items-center justify-center px-6 text-text-tertiary gap-4">
+      {pane === "A" && <ProcessingFilesCard />}
       <div className="rounded-radius-xl border border-border-subtle bg-subtle p-3">
         <DocumentIcon className="w-7 h-7" aria-hidden="true" />
       </div>
