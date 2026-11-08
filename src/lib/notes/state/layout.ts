@@ -104,8 +104,9 @@ const useLayoutStore = create<LayoutState>()(
       paneA: { fileId: "", fileType: "note" as FileType },
       paneB: null,
       activePane: "A",
-      rightPanelOpen: false,
-      rightPanelTab: "meta",
+      // the Atlas layout keeps the side panel open on the AI tab until the user closes it
+      rightPanelOpen: true,
+      rightPanelTab: "ai",
       treeWidth: 256,
       rightPanelWidth: 280,
       splitPosition: 50,
@@ -254,8 +255,8 @@ const useLayoutStore = create<LayoutState>()(
           paneA: { fileId: "", fileType: "note" },
           paneB: null,
           activePane: "A",
-          rightPanelOpen: false,
-          rightPanelTab: "meta",
+          rightPanelOpen: true,
+          rightPanelTab: "ai",
           selectedNode: null,
         }),
     }),
@@ -264,6 +265,8 @@ const useLayoutStore = create<LayoutState>()(
       partialize: (state) => ({
         treeWidth: state.treeWidth,
         rightPanelWidth: state.rightPanelWidth,
+        rightPanelOpen: state.rightPanelOpen,
+        rightPanelTab: state.rightPanelTab,
         splitPosition: state.splitPosition,
         paneA: state.paneA,
         paneB: state.paneB,
@@ -281,6 +284,16 @@ const useLayoutStore = create<LayoutState>()(
             typeof persistedState.rightPanelWidth === "number"
               ? persistedState.rightPanelWidth
               : currentState.rightPanelWidth,
+          rightPanelOpen:
+            typeof persistedState.rightPanelOpen === "boolean"
+              ? persistedState.rightPanelOpen
+              : currentState.rightPanelOpen,
+          rightPanelTab:
+            persistedState.rightPanelTab === "meta" ||
+            persistedState.rightPanelTab === "ai" ||
+            persistedState.rightPanelTab === "tasks"
+              ? persistedState.rightPanelTab
+              : currentState.rightPanelTab,
           splitPosition:
             typeof persistedState.splitPosition === "number"
               ? persistedState.splitPosition

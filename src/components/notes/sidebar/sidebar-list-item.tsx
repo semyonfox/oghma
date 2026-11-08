@@ -7,6 +7,7 @@ import { useRouter, usePathname } from "next/navigation";
 import IconButton from "@/components/icon-button";
 import useNoteTreeStore from "@/lib/notes/state/tree";
 import useSyncStatusStore from "@/lib/notes/state/sync-status";
+import { splitModuleCode } from "@/lib/notes/module-code";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import useLayoutStore from "@/lib/notes/state/layout";
 import { buildFileSpec } from "@/lib/notes/utils/file-spec";
@@ -60,6 +61,9 @@ const SidebarListItem: FC<{
   };
 
   const emojiMatch = item.title?.match(/\p{Emoji}/u);
+  // course folders read as "CT230  Database Systems I" like the mockups
+  const splitTitle = isFolder && item.title ? splitModuleCode(item.title) : null;
+  const moduleCode = splitTitle?.code ? splitTitle : null;
   const emoji = emojiMatch?.length === 1 ? emojiMatch[0] : undefined;
 
   return (
@@ -125,9 +129,16 @@ const SidebarListItem: FC<{
             }`}
             dir="auto"
           >
-            {(emoji
-              ? item.title.replace(emoji, "").trimStart()
-              : item.title) ||
+            {moduleCode && (
+              <span className="mr-2 inline-block w-[46px] font-mono text-[11px] text-text-tertiary">
+                {moduleCode.code}
+              </span>
+            )}
+            {(moduleCode
+              ? moduleCode.title
+              : emoji
+                ? item.title.replace(emoji, "").trimStart()
+                : item.title) ||
               (initLoaded ? t("Untitled") : <TextSkeleton />)}
             {syncStatus === "modified" && (
               <span

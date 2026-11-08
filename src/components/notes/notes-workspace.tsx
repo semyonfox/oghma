@@ -62,6 +62,16 @@ export default function NotesWorkspace({
   const treeWidthRef = useRef(treeWidth);
   const rightPanelWidthRef = useRef(rightPanelWidth);
   const isTrashView = view === "trash";
+
+  // the panel defaults open for wide screens, below that it is an explicit drawer
+  const narrowChecked = useRef(false);
+  useEffect(() => {
+    if (hasInspectorSpace === null || narrowChecked.current) return;
+    narrowChecked.current = true;
+    if (!hasInspectorSpace && useLayoutStore.getState().rightPanelOpen) {
+      setRightPanelOpen(false);
+    }
+  }, [hasInspectorSpace, setRightPanelOpen]);
   const showMobileLibrary = !isTrashView && pathname === "/notes";
 
   useEffect(() => {

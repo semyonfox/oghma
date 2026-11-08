@@ -42,7 +42,7 @@ describe("editor pane context", () => {
   it("switches inspector context without closing the open tab", () => {
     render(<EditorPane pane="B" file={b} />);
     const toggle = screen.getByRole("button", {
-      name: "Toggle metadata panel",
+      name: "Toggle side panel",
     });
     fireEvent.mouseDown(toggle);
     fireEvent.focus(toggle);

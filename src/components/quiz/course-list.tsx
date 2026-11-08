@@ -1,6 +1,7 @@
 "use client";
 
 import useI18n from "@/lib/notes/hooks/use-i18n";
+import { splitModuleCode } from "@/lib/notes/module-code";
 
 interface Course {
   courseId: string;
@@ -25,18 +26,6 @@ interface CourseListProps {
   showArchived: boolean;
   onToggleArchived: () => void;
   onOpenManager: () => void;
-}
-
-// "CT230-Database-Systems-I" or "CT230 Database Systems I" → code + name, display only
-const MODULE_CODE = /^([A-Z]{2,4}[0-9]{3,4}[A-Z]?)(?![A-Za-z0-9])[\s:–—-]*/i;
-
-function splitModuleCode(name: string): { code: string | null; title: string } {
-  const match = MODULE_CODE.exec(name.trim());
-  if (!match) return { code: null, title: name };
-  const title = name.trim().slice(match[0].length).trim();
-  return title
-    ? { code: match[1].toUpperCase(), title }
-    : { code: null, title: name };
 }
 
 function CourseButton({
