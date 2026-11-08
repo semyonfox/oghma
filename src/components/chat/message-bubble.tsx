@@ -4,6 +4,7 @@ import { FC, memo, useState } from "react";
 import {
   ChevronDownIcon,
   ClipboardDocumentIcon,
+  SparklesIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 import type { Message } from "./chat-interface";
@@ -200,6 +201,7 @@ const FullMessageBubbleComponent: FC<{
   sessionId?: string | null;
   isStreaming?: boolean;
 }> = ({ message: m, isStreaming = false }) => {
+  const { t } = useI18n();
   const hasContent = m.content.trim().length > 0;
 
   if (m.role === "user") {
@@ -234,6 +236,12 @@ const FullMessageBubbleComponent: FC<{
 
   return (
     <div className="group/msg space-y-2.5">
+      {hasSources && (
+        <p className="flex items-center gap-1.5 text-xs text-text-secondary">
+          <SparklesIcon className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
+          {t("Answered from {count} of your sources", { count: m.sources!.length })}
+        </p>
+      )}
       <AssistantBody message={m} active={isStreaming} />
 
       {m.error && !hasPartError && (

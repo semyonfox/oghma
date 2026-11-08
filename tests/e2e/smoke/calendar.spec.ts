@@ -95,6 +95,8 @@ test.describe("calendar responsive smoke", () => {
       );
     } else {
       await page.setViewportSize({ width, height: 1400 });
+      await expect(page.getByLabel("Week view")).toBeVisible();
+      await page.getByRole("button", { name: "Month", exact: true }).click();
       await expect(page.getByLabel("Month view")).toBeVisible();
       const weekToggle = page.getByRole("button", { name: "Week", exact: true });
       await weekToggle.click();

@@ -479,7 +479,28 @@ export default function GlobalSearchModal() {
                   </div>
                 )}
                 <div className="grid min-h-[320px] grid-cols-1 md:min-h-[430px] md:grid-cols-[minmax(0,1.1fr)_minmax(280px,0.9fr)]">
-                  <div id={resultsId} role="listbox" aria-label={t("Search OghmaNotes")} aria-busy={loading} className="max-h-[62vh] overflow-y-auto border-border md:border-r">
+                  <div className="flex min-h-0 flex-col border-border md:border-r">
+                  {trimmedQuery && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleClose();
+                        router.push(`/chat?q=${encodeURIComponent(trimmedQuery)}`);
+                      }}
+                      className="mx-2 mt-2 flex items-center gap-3 rounded-radius-md bg-accent-soft px-3 py-2.5 text-left transition-colors hover:bg-accent-soft/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                    >
+                      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-radius-md bg-action text-on-action">
+                        <SparklesIcon className="h-4 w-4" aria-hidden="true" />
+                      </span>
+                      <span className="flex min-w-0 flex-col">
+                        <span className="truncate text-sm font-medium text-text">
+                          {t("Ask AI Chat about “{query}”", { query: trimmedQuery })}
+                        </span>
+                        <span className="text-xs text-text-secondary">{t("Searches your notes and cites them")}</span>
+                      </span>
+                    </button>
+                  )}
+                  <div id={resultsId} role="listbox" aria-label={t("Search OghmaNotes")} aria-busy={loading} className="max-h-[62vh] overflow-y-auto">
                     {SECTION_ORDER.map((section) => {
                       const sectionResults = results[section];
                       if (sectionResults.length === 0) return null;
@@ -603,6 +624,7 @@ export default function GlobalSearchModal() {
                         </div>
                       </div>
                     )}
+                  </div>
                   </div>
 
                   <aside className="hidden max-h-[62vh] overflow-y-auto bg-surface p-5 md:block">

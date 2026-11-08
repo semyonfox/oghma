@@ -10,6 +10,7 @@ import {
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Bars3BottomLeftIcon, PlusIcon } from "@heroicons/react/24/outline";
 import ChatInterface from "@/components/chat/chat-interface";
+import CourseScopeMenu from "@/components/chat/course-scope-menu";
 import {
   ConversationHistory,
   type ConversationHistoryProps,
@@ -500,10 +501,11 @@ export default function ChatPageClient() {
         )}
 
         <main className="flex min-w-0 flex-1 flex-col">
-          <header className="glass-panel hidden min-h-[52px] flex-shrink-0 items-center border-b border-border-subtle px-5 lg:flex">
-            <h1 className="truncate text-[15px] font-semibold text-text">
+          <header className="glass-panel hidden min-h-[56px] flex-shrink-0 items-center gap-3 border-b border-border-subtle px-6 lg:flex">
+            <h1 className="min-w-0 flex-1 truncate text-[15px] font-semibold text-text">
               {conversationTitle}
             </h1>
+            <CourseScopeMenu current={selectedFolders.length === 1 ? selectedFolders[0] : undefined} />
           </header>
 
           <ChatInterface
@@ -525,6 +527,7 @@ export default function ChatPageClient() {
             }
             selectedNotes={selectedNotes}
             selectedFolders={selectedFolders}
+            initialPrompt={routeSessionId ? undefined : searchParams.get("q") ?? undefined}
             onSessionCreated={handleSessionCreated}
             onClearContext={clearContextAndStartNewChat}
             onStreamComplete={handleStreamComplete}
