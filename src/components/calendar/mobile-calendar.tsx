@@ -66,32 +66,41 @@ export default function MobileCalendar({
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto overscroll-contain">
-      <div className="sticky top-0 z-10 shrink-0 border-b border-border-subtle bg-app-page px-3 pt-2">
-        <div className="flex items-center justify-between gap-2 pb-1">
-          <p className="text-xs font-medium text-text-tertiary">
-            {t("Select date")}
-          </p>
-          <div className="flex items-center gap-1">
-            {onOpenTasks && (
-              <button
-                type="button"
-                onClick={onOpenTasks}
-                className="flex min-h-11 items-center justify-center gap-1.5 rounded-radius-md px-3 text-xs font-medium text-text-secondary transition-colors hover:bg-subtle"
-              >
-                <ClipboardDocumentListIcon className="h-5 w-5" aria-hidden="true" />
-                {t("Tasks")}
-              </button>
-            )}
+      <div className="sticky top-0 z-10 shrink-0 border-b border-border-subtle bg-surface px-3 pt-2">
+        <div className="relative flex items-center justify-center pb-2 pt-1">
+          <div
+            role="group"
+            aria-label={t("Calendar")}
+            className="flex gap-0.5 rounded-[9px] border border-border bg-subtle p-[3px]"
+          >
             <button
               type="button"
-              onClick={onToggleMonth}
+              onClick={() => { if (!monthOpen) onToggleMonth(); }}
               aria-expanded={monthOpen}
               aria-controls="mobile-calendar-month"
-              className="min-h-11 rounded-radius-md px-3 text-xs font-medium text-accent transition-colors hover:bg-accent-soft"
+              className={`h-[30px] rounded-[6px] px-3.5 text-[13px] transition-colors ${monthOpen ? "atlas-raised font-semibold text-text" : "text-text-secondary"}`}
             >
-              {t(monthOpen ? "Week" : "Month")}
+              {t("Month")}
+            </button>
+            <button
+              type="button"
+              onClick={() => { if (monthOpen) onToggleMonth(); }}
+              aria-pressed={!monthOpen}
+              className={`h-[30px] rounded-[6px] px-3.5 text-[13px] transition-colors ${!monthOpen ? "atlas-raised font-semibold text-text" : "text-text-secondary"}`}
+            >
+              {t("Week")}
             </button>
           </div>
+          {onOpenTasks && (
+            <button
+              type="button"
+              onClick={onOpenTasks}
+              className="absolute right-0 flex min-h-11 items-center justify-center gap-1.5 rounded-radius-md px-2 text-xs font-medium text-text-secondary transition-colors hover:bg-subtle"
+            >
+              <ClipboardDocumentListIcon className="h-5 w-5" aria-hidden="true" />
+              {t("Tasks")}
+            </button>
+          )}
         </div>
         <div className="grid grid-cols-7 gap-1 pb-2" aria-label={t("Select date")}>
           {weekDates.map((dateKey) => {

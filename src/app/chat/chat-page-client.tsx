@@ -8,7 +8,7 @@ import {
   useEffectEvent,
 } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { ChatBubbleLeftRightIcon, PlusIcon } from "@heroicons/react/24/outline";
+import { Bars3BottomLeftIcon, PlusIcon } from "@heroicons/react/24/outline";
 import ChatInterface from "@/components/chat/chat-interface";
 import {
   ConversationHistory,
@@ -464,26 +464,27 @@ export default function ChatPageClient() {
   return (
     <div className="flex h-dvh w-full flex-col overflow-hidden bg-app-page text-text">
       <MobileAppHeader
-        title={conversationTitle}
+        leading={
+          <button
+            type="button"
+            onClick={() => setHistoryOpen(true)}
+            className="-ml-2 flex h-11 w-11 items-center justify-center rounded-radius-md text-text transition-colors hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+            aria-label={t("Chat history")}
+          >
+            <Bars3BottomLeftIcon className="h-5 w-5" aria-hidden="true" />
+          </button>
+        }
+        title={t("AI Chat")}
+        subtitle={conversationTitle}
         actions={
-          <div className="flex items-center gap-0.5">
-            <button
-              type="button"
-              onClick={newConversation}
-              className="flex h-11 w-11 items-center justify-center rounded-radius-md text-text transition-colors hover:bg-subtle"
-              aria-label={t("chat.new_conversation")}
-            >
-              <PlusIcon className="h-5 w-5" aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setHistoryOpen(true)}
-              className="flex h-11 w-11 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
-              aria-label={t("Chat history")}
-            >
-              <ChatBubbleLeftRightIcon className="h-5 w-5" aria-hidden="true" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={newConversation}
+            className="flex h-11 w-11 items-center justify-center rounded-radius-md text-text transition-colors hover:bg-subtle"
+            aria-label={t("chat.new_conversation")}
+          >
+            <PlusIcon className="h-5 w-5" aria-hidden="true" />
+          </button>
         }
       />
 

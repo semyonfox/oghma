@@ -214,7 +214,8 @@ export default function QuizDashboard({
   return (
     <div className="max-w-container-content mx-auto px-4 py-5 sm:px-6 sm:py-8">
       <div className="mb-4 flex flex-col gap-4 sm:mb-6 sm:flex-row sm:items-start sm:justify-between">
-        <div>
+        {/* phones show the title and counts in the app header, as in the mockup */}
+        <div className="hidden lg:block">
           <h1 className="font-serif text-3xl font-semibold tracking-tight text-text sm:text-4xl">
             {t("quiz.title")}
           </h1>

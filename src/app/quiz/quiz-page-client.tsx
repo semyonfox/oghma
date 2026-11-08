@@ -23,7 +23,13 @@ export default function QuizPageClient({
 
   return (
     <div className="flex h-dvh flex-col bg-app-page text-text">
-      <MobileAppHeader title={t("quiz.title")} />
+      <MobileAppHeader
+        title={t("quiz.title")}
+        subtitle={t("quiz.cards_due_summary", {
+          dueCount: initialData.dashboard.dueCount,
+          totalCards: initialData.dashboard.totalCards,
+        })}
+      />
       <div className="flex min-h-0 flex-1">
         <div className="desktop-navigation-rail hidden w-64 shrink-0 border-r border-border lg:block">
           <PrimaryNavigation variant="sidebar" />
