@@ -63,6 +63,8 @@ vi.mock("@/lib/canvas/client", () => ({
 }));
 vi.mock("@/lib/canvas/credentials", () => ({
   loadCanvasCredentials: vi.fn(),
+  markCanvasTokenInvalid: vi.fn(),
+  clearCanvasTokenInvalid: vi.fn(),
 }));
 vi.mock("@/lib/queue", () => ({ enqueueCanvasDiscoverJob: vi.fn() }));
 vi.mock("@/lib/marketing/events", () => ({

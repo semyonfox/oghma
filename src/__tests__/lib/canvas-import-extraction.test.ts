@@ -15,6 +15,7 @@ vi.mock("@/lib/queue", () => ({
 }));
 import { enqueueExtractRetryJob } from "@/lib/queue";
 
+vi.mock("@/lib/canvas/credentials", () => ({ markCanvasTokenInvalid: vi.fn() }));
 vi.mock("@/database/pgsql", () => {
   const sqlMock = vi.fn();
   sqlMock.mockResolvedValue([]);

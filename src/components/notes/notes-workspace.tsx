@@ -18,6 +18,7 @@ import PrimaryNavigation from "@/components/navigation/primary-navigation";
 import MobileAppHeader from "@/components/navigation/mobile-app-header";
 import MobileDrawer from "@/components/navigation/mobile-drawer";
 import MobileBottomNavigation from "@/components/navigation/mobile-bottom-navigation";
+import CanvasTokenBanner from "@/components/canvas/canvas-token-banner";
 import MobileLibrary from "@/components/notes/mobile-library";
 import FirstLoginWelcome from "@/components/notes/first-login-welcome";
 
@@ -184,6 +185,7 @@ export default function NotesWorkspace({
         </>
       )}
 
+      {isDesktop === false && <CanvasTokenBanner />}
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {isDesktop === true && (
           <PanelGroup
@@ -220,10 +222,11 @@ export default function NotesWorkspace({
               className="w-px cursor-col-resize bg-border transition-colors hover:bg-accent/40 active:bg-accent/60"
             />
 
-            <Panel id="note-editor" minSize="320px" className="flex min-w-0">
+            <Panel id="note-editor" minSize="320px" className="flex min-w-0 flex-col">
+              <CanvasTokenBanner />
               <main
                 aria-label={isTrashView ? t("Trash") : t("Note editor")}
-                className="h-full min-h-0 w-full overflow-hidden bg-background"
+                className="min-h-0 w-full flex-1 overflow-hidden bg-background"
               >
                 {!noteDependenciesReady ? (
                   <div role="status" className="flex h-full items-center justify-center text-sm text-text-tertiary">
