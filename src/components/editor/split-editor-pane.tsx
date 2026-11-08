@@ -53,7 +53,7 @@ const SplitEditorPane: FC = () => {
         </Panel>
 
         {showSecondaryPane && (
-          <PanelResizeHandle className="w-px cursor-col-resize bg-border-subtle transition-colors hover:bg-primary-500/40 active:bg-primary-500/60" />
+          <PanelResizeHandle className="w-px cursor-col-resize bg-border-subtle transition-colors hover:bg-accent/40 active:bg-accent/60" />
         )}
 
         {showSecondaryPane && (

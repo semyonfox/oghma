@@ -9,7 +9,6 @@ import {
   ArrowPathIcon,
   ArrowLeftIcon,
   EllipsisHorizontalIcon,
-  CheckCircleIcon,
   ClipboardDocumentCheckIcon,
   CloudArrowUpIcon,
   DocumentIcon,
@@ -209,7 +208,7 @@ const EditorPane: FC<EditorPaneProps> = ({
       {dropTarget && (
         <div
           aria-hidden="true"
-          className={`pointer-events-none absolute inset-y-2 z-30 rounded-radius-md border border-primary-400/70 bg-primary-500/10 shadow-[inset_0_0_0_1px_rgb(96_165_250_/_0.14)] transition-[left,right] duration-100 ${
+          className={`pointer-events-none absolute inset-y-2 z-30 rounded-radius-md border border-accent/60 bg-accent-soft/60 transition-[left,right] duration-100 ${
             !hasSecondaryPane && dropTarget === "A"
               ? "left-2 right-1/2"
               : !hasSecondaryPane && dropTarget === "B"
@@ -329,13 +328,13 @@ const EditorPane: FC<EditorPaneProps> = ({
               onClick={openSourceBeside}
               aria-pressed={sourceIsOpenBeside}
               title={sourceFile.title}
-              className={`ml-1 flex min-h-7 shrink-0 items-center gap-1 rounded-radius-md px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 ${
+              className={`ml-1 flex min-h-7 shrink-0 items-center gap-1 rounded-radius-md px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
                 sourceIsOpenBeside
-                  ? "bg-primary-500/10 text-primary-700 dark:text-primary-300"
-                  : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
+                  ? "atlas-raised text-text"
+                  : "border border-border bg-surface text-text-secondary hover:bg-subtle hover:text-text"
               }`}
             >
-              <DocumentIcon className="h-4 w-4 text-red-400" aria-hidden="true" />
+              <DocumentIcon className="h-4 w-4" aria-hidden="true" />
               <span>
                 {sourceFile.fileType === "pdf" ? t("Original PDF") : t("Original file")}
               </span>
@@ -353,8 +352,8 @@ const EditorPane: FC<EditorPaneProps> = ({
             onClick={() => openRightPanelTab("meta")}
             className={`ui-icon-button w-auto gap-1.5 px-2 lg:w-8 lg:px-0 ${
               metadataIsOpen
-                ? "bg-primary-500/10 text-primary-700 dark:text-primary-300"
-                : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
+                ? "atlas-raised text-text"
+                : "text-text-tertiary hover:bg-subtle hover:text-text"
             }`}
             title={t("Toggle metadata panel")}
             aria-label={t("Toggle metadata panel")}
@@ -369,8 +368,8 @@ const EditorPane: FC<EditorPaneProps> = ({
             onClick={() => openRightPanelTab("ai")}
             className={`ui-icon-button w-auto gap-1.5 px-2 lg:w-8 lg:px-0 ${
               aiChatIsOpen
-                ? "bg-primary-500/10 text-primary-700 dark:text-primary-300"
-                : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
+                ? "atlas-raised text-text"
+                : "text-text-tertiary hover:bg-subtle hover:text-text"
             }`}
             title={aiChatLabel}
             aria-label={aiChatLabel}
@@ -387,8 +386,8 @@ const EditorPane: FC<EditorPaneProps> = ({
             onClick={() => openRightPanelTab("tasks")}
             className={`ui-icon-button w-auto gap-1.5 px-2 lg:w-8 lg:px-0 ${
               tasksAreOpen
-                ? "bg-primary-500/10 text-primary-700 dark:text-primary-300"
-                : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
+                ? "atlas-raised text-text"
+                : "text-text-tertiary hover:bg-subtle hover:text-text"
             }`}
             title={t("Global Tasks")}
             aria-label={t("Global Tasks")}
@@ -438,11 +437,12 @@ const SaveIndicatorButton: FC<SaveIndicatorButtonProps> = ({
   if (state === "saved") {
     return (
       <span
-        className="flex h-6 w-6 shrink-0 items-center justify-center text-text-tertiary"
+        className="flex h-6 shrink-0 items-center gap-1.5 px-1 text-xs text-text-tertiary"
         title={t("Saved")}
         aria-label={t("Saved")}
       >
-        <CheckCircleIcon className="h-4 w-4" aria-hidden="true" />
+        <span className="h-1.5 w-1.5 rounded-full bg-success-500" aria-hidden="true" />
+        <span aria-hidden="true">{t("Saved")}</span>
       </span>
     );
   }
@@ -476,7 +476,7 @@ const SaveIndicatorButton: FC<SaveIndicatorButtonProps> = ({
       className={`flex min-h-11 shrink-0 items-center gap-1 rounded-radius-md px-2 text-xs font-medium transition-colors lg:min-h-7 ${
         isError
           ? "text-error-700 dark:text-error-400 hover:bg-error-500/10"
-          : "text-amber-700 dark:text-amber-400 hover:bg-amber-500/10"
+          : "text-warning-700 dark:text-warning-400 hover:bg-warning-500/10"
       }`}
     >
       {isError ? (

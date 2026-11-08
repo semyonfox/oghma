@@ -97,10 +97,10 @@ export default function PomodoroStatusBar({
   if (phase === "idle") return null;
 
   // progress bar color
-  const barColor = isFocus ? "bg-primary-500" : "bg-green-500";
+  const barColor = isFocus ? "bg-accent" : "bg-neutral-400";
 
   // status dot
-  const dotColor = isFocus ? "bg-primary-400" : "bg-green-400";
+  const dotColor = isFocus ? "bg-accent" : "bg-neutral-400";
 
   // build status text
   let statusText: React.ReactNode;
@@ -113,15 +113,14 @@ export default function PomodoroStatusBar({
           </span>
         )}
         {courseName && (
-          <span
-            className="shrink-0 rounded px-1 py-0.5 text-xs font-medium"
-            style={{
-              backgroundColor: courseColor
-                ? `${courseColor}20`
-                : "rgba(139,92,246,0.12)",
-              color: courseColor || "#a78bfa",
-            }}
-          >
+          <span className="flex shrink-0 items-center gap-1 rounded-radius-sm bg-accent-soft px-1.5 py-0.5 font-mono text-xs font-medium text-accent-soft-text">
+            {courseColor && (
+              <span
+                className="h-1.5 w-1.5 shrink-0 rounded-full"
+                style={{ backgroundColor: courseColor }}
+                aria-hidden="true"
+              />
+            )}
             {courseName}
           </span>
         )}
@@ -136,7 +135,7 @@ export default function PomodoroStatusBar({
     statusText = <span className="text-text-tertiary">{t("Long break")}</span>;
   } else if (isComplete) {
     statusText = (
-      <span className="text-green-400">
+      <span className="text-success-700 dark:text-success-400">
         {t("{count}m logged", { count: totalMinutesLogged })}
       </span>
     );
@@ -152,7 +151,7 @@ export default function PomodoroStatusBar({
       {/* progress track */}
       <div className="h-0.5 w-full bg-subtle">
         <div
-          className={`h-full ${isComplete ? "bg-green-500" : barColor} transition-all duration-700 ease-out`}
+          className={`h-full ${isComplete ? "bg-success-500" : barColor} transition-all duration-700 ease-out`}
           style={{ width: `${isComplete ? 100 : progress}%` }}
         />
       </div>
@@ -162,7 +161,7 @@ export default function PomodoroStatusBar({
         <div className="flex items-center gap-2 min-w-0">
           {/* status dot or check icon */}
           {isComplete ? (
-            <CheckCircleIcon className="w-3.5 h-3.5 text-green-400 shrink-0" />
+            <CheckCircleIcon className="w-3.5 h-3.5 text-success-700 dark:text-success-400 shrink-0" />
           ) : (
             <span
               className={`shrink-0 w-1.5 h-1.5 rounded-full ${dotColor} ${isFocus ? "animate-pulse" : ""}`}
@@ -174,14 +173,14 @@ export default function PomodoroStatusBar({
         <div className="flex items-center gap-2 shrink-0 ml-3">
           {/* countdown */}
           {isActive && (
-            <span className="tabular-nums text-text-tertiary/60">
+            <span className="font-mono tabular-nums text-text-tertiary">
               {countdown}
             </span>
           )}
 
           {/* session counter (focus only) */}
           {isFocus && (
-            <span className="text-text-tertiary/40">
+            <span className="font-mono tabular-nums text-text-tertiary">
               {completedFocusSessions + 1}/{totalSessions}
             </span>
           )}
@@ -190,7 +189,7 @@ export default function PomodoroStatusBar({
           {isActive && (
             <button
               onClick={paused ? resume : pause}
-              className="text-text-tertiary hover:text-text-secondary p-0.5"
+              className="text-text-tertiary hover:text-text p-0.5"
               aria-label={paused ? t("Resume") : t("Pause")}
             >
               {paused ? (
@@ -205,7 +204,7 @@ export default function PomodoroStatusBar({
           {isActive && (
             <button
               onClick={skip}
-              className="text-text-tertiary hover:text-text-secondary p-0.5"
+              className="text-text-tertiary hover:text-text p-0.5"
               aria-label={t("Skip")}
             >
               <ForwardIcon className="w-3.5 h-3.5" />
@@ -218,7 +217,7 @@ export default function PomodoroStatusBar({
               setVisible(false);
               setTimeout(stop, 300);
             }}
-            className="text-text-tertiary hover:text-text-secondary p-0.5"
+            className="text-text-tertiary hover:text-text p-0.5"
             aria-label={t("Close")}
           >
             <XMarkIcon className="w-3.5 h-3.5" />

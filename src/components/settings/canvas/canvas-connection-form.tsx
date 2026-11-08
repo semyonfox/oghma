@@ -8,6 +8,12 @@ import useI18n from "@/lib/notes/hooks/use-i18n";
 import { canvasHostFromInput } from "@/lib/canvas/institution-search";
 import type { RefObject } from "react";
 import CanvasInstitutionPicker from "./canvas-institution-picker";
+import {
+  errorTextClass,
+  inputClass,
+  saveBtnClass,
+  warningNoticeClass,
+} from "../settings-utils";
 
 type CanvasConnectionFormProps = {
   domain: string;
@@ -36,7 +42,7 @@ export default function CanvasConnectionForm({
       {connectionWarning && (
         <div
           role="alert"
-          className="flex items-center gap-2 rounded-radius-md bg-yellow-500/10 px-3 py-2 text-sm text-yellow-400 ring-1 ring-yellow-500/20"
+          className={`flex items-center gap-2 ${warningNoticeClass}`}
         >
           <ExclamationTriangleIcon
             className="size-4 shrink-0"
@@ -48,7 +54,7 @@ export default function CanvasConnectionForm({
 
       <CanvasInstitutionPicker domain={domain} setDomain={setDomain} />
 
-      <div className="glass-card rounded-radius-lg p-4">
+      <div className="rounded-radius-lg border border-border bg-surface-elevated p-4">
         <h3 className="text-sm font-semibold text-text-secondary mb-2">
           {t("How to generate your Canvas API token")}
         </h3>
@@ -59,7 +65,7 @@ export default function CanvasConnectionForm({
                 href={`https://${canvasHost}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-primary-400 underline underline-offset-2"
+                className="text-accent underline underline-offset-2 hover:text-accent-hover"
               >
                 {t("Log into your Canvas account")}
               </a>
@@ -115,7 +121,7 @@ export default function CanvasConnectionForm({
             autoCapitalize="none"
             spellCheck={false}
             placeholder={t("Paste your Canvas API token here")}
-            className="block w-full rounded-radius-md bg-surface border border-border-subtle px-3 py-1.5 text-sm text-text placeholder:text-text-tertiary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50 focus:outline-none"
+            className={inputClass}
           />
         </div>
       </div>
@@ -127,7 +133,7 @@ export default function CanvasConnectionForm({
       </p>
 
       {connectionError && (
-        <div role="alert" className="flex items-center gap-2 text-sm text-red-400">
+        <div role="alert" className={`flex items-center gap-2 text-sm ${errorTextClass}`}>
           <ExclamationCircleIcon className="size-4 shrink-0" />
           {connectionError}
         </div>
@@ -137,7 +143,7 @@ export default function CanvasConnectionForm({
         type="button"
         disabled={!canvasHost || isConnecting}
         onClick={onConnect}
-        className="rounded-radius-md bg-primary-600 px-3 py-2 text-sm font-semibold text-text-on-primary hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        className={`${saveBtnClass} justify-self-start`}
       >
         {isConnecting ? t("Connecting...") : t("Connect Canvas")}
       </button>

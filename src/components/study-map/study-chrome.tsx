@@ -23,14 +23,14 @@ import {
 import type { StudyMapSummary } from "@/lib/study-map/types";
 
 export const islandClass =
-  "pointer-events-auto flex min-w-0 items-center gap-0.5 rounded-radius-lg border border-border-subtle bg-surface/95 p-1 shadow-md backdrop-blur";
+  "pointer-events-auto flex min-w-0 items-center gap-0.5 rounded-radius-lg border border-border-subtle bg-surface/95 p-1 shadow-float backdrop-blur";
 export const islandButton =
-  "inline-flex min-h-8 min-w-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-radius-md px-2 text-xs font-medium text-text-secondary hover:bg-primary-500/10 hover:text-text focus-visible:outline-2 focus-visible:outline-primary-500 disabled:cursor-not-allowed disabled:opacity-50 data-[open]:bg-primary-500/10 data-[open]:text-text";
+  "inline-flex min-h-8 min-w-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-radius-md px-2 text-xs font-medium text-text-secondary hover:bg-subtle-hover hover:text-text focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50 data-[open]:bg-subtle-hover data-[open]:text-text";
 export const islandDivider = "mx-0.5 h-5 w-px shrink-0 bg-border-subtle";
 export const menuPanelClass =
-  "z-[60] w-64 max-w-[calc(100vw-1rem)] rounded-radius-lg border border-border-subtle bg-surface p-1 text-sm text-text shadow-lg [--anchor-gap:8px] [--anchor-padding:8px] focus:outline-none";
+  "z-[60] w-64 max-w-[calc(100vw-1rem)] rounded-radius-lg border border-border-subtle bg-surface p-1 text-sm text-text shadow-float [--anchor-gap:8px] [--anchor-padding:8px] focus:outline-none";
 export const menuItemClass =
-  "flex min-h-9 w-full items-center gap-2 rounded-radius-md px-2.5 py-1.5 text-left data-[disabled]:cursor-not-allowed data-[focus]:bg-primary-500/10 data-[disabled]:opacity-50";
+  "flex min-h-9 w-full items-center gap-2 rounded-radius-md px-2.5 py-1.5 text-left data-[disabled]:cursor-not-allowed data-[focus]:bg-subtle-hover data-[disabled]:opacity-50";
 export const menuHeadingClass =
   "px-2.5 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-tertiary";
 export const menuSeparatorClass = "my-1 h-px bg-border-subtle";
@@ -90,7 +90,7 @@ export function ModuleSwitcher({
                 </span>
                 {map.id === mapId && (
                   <CheckIcon
-                    className="h-4 w-4 shrink-0 text-primary-600 dark:text-primary-300"
+                    className="h-4 w-4 shrink-0 text-accent"
                     aria-hidden="true"
                   />
                 )}
@@ -145,7 +145,7 @@ export function ScopeToggle({
             type="button"
             aria-pressed={scope === value}
             title={value === "module" ? "This module" : "All modules"}
-            className={`inline-flex min-h-7 min-w-7 items-center justify-center gap-1 rounded-[5px] px-1.5 text-xs font-medium focus-visible:outline-2 focus-visible:outline-primary-500 sm:px-2 ${scope === value ? "bg-primary-600 text-text-on-primary" : "text-text-secondary hover:text-text"}`}
+            className={`inline-flex min-h-7 min-w-7 items-center justify-center gap-1 rounded-[5px] px-1.5 text-xs font-medium focus-visible:outline-2 focus-visible:outline-accent sm:px-2 ${scope === value ? "atlas-raised text-text" : "text-text-secondary hover:text-text"}`}
             onClick={() => onChange(value)}
           >
             <Icon className="h-4 w-4 sm:hidden" aria-hidden="true" />
@@ -163,8 +163,8 @@ export function ScopeToggle({
 
 const toneDot = {
   error: "bg-error-500",
-  warning: "bg-ai-500",
-  info: "bg-primary-500",
+  warning: "bg-warning-500",
+  info: "bg-accent",
 } as const;
 
 /** a floating notice; errors and warnings announce as alerts, the rest as status */
@@ -192,7 +192,7 @@ export function Toast({
   return (
     <div
       role={tone === "info" ? "status" : "alert"}
-      className="pointer-events-auto flex w-full items-start gap-2.5 rounded-radius-lg border border-border-subtle bg-surface px-3 py-2 text-sm text-text shadow-lg lg:w-auto lg:max-w-md"
+      className="pointer-events-auto flex w-full items-start gap-2.5 rounded-radius-lg border border-border-subtle bg-surface px-3 py-2 text-sm text-text shadow-float lg:w-auto lg:max-w-md"
     >
       <span
         className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${toneDot[tone]}`}
@@ -204,7 +204,7 @@ export function Toast({
       {onDismiss && (
         <button
           type="button"
-          className="-mr-1 grid h-6 w-6 shrink-0 place-items-center rounded-radius-md text-text-tertiary hover:bg-primary-500/10 hover:text-text focus-visible:outline-2 focus-visible:outline-primary-500"
+          className="-mr-1 grid h-6 w-6 shrink-0 place-items-center rounded-radius-md text-text-tertiary hover:bg-subtle-hover hover:text-text focus-visible:outline-2 focus-visible:outline-accent"
           aria-label="Dismiss"
           onClick={onDismiss}
         >

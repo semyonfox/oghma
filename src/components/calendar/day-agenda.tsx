@@ -131,7 +131,7 @@ export default function DayAgenda({
               {heading}
             </h2>
             {reviewDates.has(dateKey) && (
-              <p className="mt-0.5 text-xs text-primary-700 dark:text-primary-300">
+              <p className="mt-0.5 text-xs text-accent">
                 ᚑ {t("Quiz reviewed")}
               </p>
             )}
@@ -153,7 +153,7 @@ export default function DayAgenda({
         </p>
       ) : error && dayAssignments.length === 0 && dayBlocks.length === 0 ? (
         <div role="alert" className="flex flex-col items-center gap-3 px-4 py-10 text-center">
-          <p className="text-sm text-error-300">{t("Something went wrong")}</p>
+          <p className="text-sm text-error-700 dark:text-error-300">{t("Something went wrong")}</p>
           <button
             type="button"
             onClick={onRetry}
@@ -180,7 +180,7 @@ export default function DayAgenda({
               role="alert"
               className="flex items-center justify-between gap-2 rounded-radius-md border border-error-500/20 bg-error-500/10 px-3 py-2"
             >
-              <span className="text-xs text-error-300">{t("Something went wrong")}</span>
+              <span className="text-xs text-error-700 dark:text-error-300">{t("Something went wrong")}</span>
               <button
                 type="button"
                 onClick={onRetry}
@@ -200,10 +200,7 @@ export default function DayAgenda({
                 {dayBlocks.map((block) => (
                   <article
                     key={block.id}
-                    className="glass-card rounded-radius-lg border-l-2 p-3"
-                    style={{
-                      borderColor: block.course_color ?? "var(--color-primary-500)",
-                    }}
+                    className={`rounded-radius-lg border border-dashed p-3 ${block.completed ? "border-success-500/40 bg-success-500/10" : "border-border-strong bg-surface"}`}
                   >
                     <div className="flex items-start gap-2">
                       <button
@@ -215,13 +212,13 @@ export default function DayAgenda({
                             event.currentTarget,
                           )
                         }
-                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-md text-text-tertiary hover:bg-subtle hover:text-primary-700 dark:hover:text-primary-300"
+                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-md text-text-tertiary hover:bg-subtle hover:text-accent"
                         aria-label={
                           block.completed ? t("Mark incomplete") : t("Mark complete")
                         }
                       >
                         {block.completed ? (
-                          <CheckCircleSolid className="h-5 w-5 text-primary-700 dark:text-primary-300" />
+                          <CheckCircleSolid className="h-5 w-5 text-success-500" />
                         ) : (
                           <CheckCircleIcon className="h-5 w-5" />
                         )}
@@ -237,15 +234,17 @@ export default function DayAgenda({
                           {block.assignment_title || block.title || t("Study block")}
                         </h4>
                         <p className="mt-1 text-xs text-text-tertiary">
-                          {timeFormatter.format(new Date(block.starts_at))}–
-                          {timeFormatter.format(new Date(block.ends_at))}
+                          <span className="font-mono">
+                            {timeFormatter.format(new Date(block.starts_at))}–
+                            {timeFormatter.format(new Date(block.ends_at))}
+                          </span>
                           {block.course_name ? ` · ${block.course_name}` : ""}
                         </p>
                       </div>
                       <button
                         type="button"
                         onClick={() => void removeBlock(block.id)}
-                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-md text-text-tertiary hover:bg-error-500/10 hover:text-error-400"
+                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-md text-text-tertiary hover:bg-error-500/10 hover:text-error-600 dark:hover:text-error-400"
                         aria-label={t("Delete study block")}
                       >
                         <TrashIcon className="h-4 w-4" aria-hidden="true" />
@@ -269,11 +268,7 @@ export default function DayAgenda({
                   return (
                     <article
                       key={assignment.id}
-                      className="glass-card rounded-radius-lg border-l-2 p-3"
-                      style={{
-                        borderColor:
-                          assignment.course_color ?? "var(--color-primary-500)",
-                      }}
+                      className={`rounded-radius-lg border p-3 ${completed ? "border-success-500/30 bg-success-500/10" : "border-border bg-surface"}`}
                     >
                       <div className="flex items-start gap-2">
                         <button
@@ -285,11 +280,11 @@ export default function DayAgenda({
                               event.currentTarget,
                             )
                           }
-                          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-md text-text-tertiary hover:bg-subtle hover:text-primary-700 dark:hover:text-primary-300"
+                          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-md text-text-tertiary hover:bg-subtle hover:text-accent"
                           aria-label={completed ? t("Mark as upcoming") : t("Mark as done")}
                         >
                           {completed ? (
-                            <CheckCircleSolid className="h-5 w-5 text-primary-700 dark:text-primary-300" />
+                            <CheckCircleSolid className="h-5 w-5 text-success-500" />
                           ) : (
                             <CheckCircleIcon className="h-5 w-5" />
                           )}
@@ -306,18 +301,29 @@ export default function DayAgenda({
                             >
                               <AssignmentDetailsTrigger
                                 assignment={assignment}
-                                className="flex min-h-11 w-full items-center rounded-radius-sm px-1 text-left underline decoration-border-subtle underline-offset-4 transition-colors hover:bg-subtle hover:decoration-current focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/60"
+                                className="flex min-h-11 w-full items-center rounded-radius-sm px-1 text-left underline decoration-border-subtle underline-offset-4 transition-colors hover:bg-subtle hover:decoration-current focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
                               />
                             </h4>
                           </div>
                           <p className="mt-1 text-xs text-text-tertiary">
-                            {assignment.due_at
-                              ? timeFormatter.format(new Date(assignment.due_at))
-                              : t("No due date")}
+                            {assignment.due_at ? (
+                              <span className="font-mono">
+                                {timeFormatter.format(new Date(assignment.due_at))}
+                              </span>
+                            ) : (
+                              t("No due date")
+                            )}
                             {assignment.course_name
                               ? ` · ${assignment.course_name}`
                               : ""}
-                            {effectiveStatus === "late" ? ` · ${t("Overdue")}` : ""}
+                            {effectiveStatus === "late" && (
+                              <>
+                                {" · "}
+                                <span className="font-medium text-error-700 dark:text-error-300">
+                                  {t("Overdue")}
+                                </span>
+                              </>
+                            )}
                           </p>
                         </div>
                         {!completed && (
@@ -331,7 +337,7 @@ export default function DayAgenda({
                                 courseColor: assignment.course_color ?? undefined,
                               })
                             }
-                            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-md text-text-tertiary hover:bg-primary-500/10 hover:text-primary-700 dark:hover:text-primary-300"
+                            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-md text-text-tertiary hover:bg-accent-soft hover:text-accent"
                             aria-label={t("Start Focus")}
                           >
                             <PlayIcon className="h-4 w-4" aria-hidden="true" />

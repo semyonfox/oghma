@@ -8,6 +8,7 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { fonts } from "./lib/palette";
 import { useTheme } from "./lib/theme";
 
 export function Button({
@@ -32,17 +33,18 @@ export function Button({
         minHeight: 48,
         paddingHorizontal: 18,
         paddingVertical: 12,
-        borderRadius: 8,
+        borderRadius: 10,
         alignItems: "center",
         justifyContent: "center",
+        // primary = action fill; quiet = secondary surface button with a hairline
         backgroundColor: disabled
           ? colors.surfaceElevated
-          : pressed
-            ? quiet
-              ? colors.selected
-              : colors.actionPressed
-            : quiet
-              ? colors.accentSoft
+          : quiet
+            ? pressed
+              ? colors.surfaceElevated
+              : colors.surface
+            : pressed
+              ? colors.actionPressed
               : colors.action,
         borderWidth: quiet ? 1 : 0,
         borderColor: quiet ? colors.border : "transparent",
@@ -51,11 +53,11 @@ export function Button({
     >
       <Text
         style={{
-          fontFamily: "SourceSans3_600SemiBold",
+          fontFamily: fonts.uiMedium,
           fontSize: 16,
           lineHeight: 22,
           textAlign: "center",
-          color: disabled ? colors.muted : quiet ? colors.accent : colors.textOnAccent,
+          color: disabled ? colors.faint : quiet ? colors.text : colors.textOnAccent,
         }}
       >
         {title}
@@ -88,12 +90,12 @@ export function IconButton({
         minHeight: 48,
         alignItems: "center",
         justifyContent: "center",
-        borderRadius: 24,
-        backgroundColor: pressed && !disabled ? colors.accentSoft : "transparent",
+        borderRadius: 999,
+        backgroundColor: pressed && !disabled ? colors.surfaceElevated : "transparent",
         opacity: disabled ? 0.5 : 1,
       })}
     >
-      <Ionicons name={name} size={24} color={colors.accent} />
+      <Ionicons name={name} size={24} color={colors.muted} />
     </Pressable>
   );
 }

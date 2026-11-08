@@ -43,8 +43,8 @@ const FirstNoteOnboarding: FC = () => {
 
   return (
     <div className="flex h-full flex-col overflow-y-auto p-6">
-      <div className="mx-auto my-auto w-full max-w-lg rounded-radius-lg border border-border-subtle bg-surface/70 p-6">
-        <h2 className="text-lg font-semibold text-text-secondary">
+      <div className="mx-auto my-auto w-full max-w-lg rounded-radius-lg border border-border bg-surface p-6">
+        <h2 className="font-serif text-xl font-semibold tracking-tight text-text">
           {t("Welcome to OghmaNotes")}
         </h2>
         <p className="mt-2 text-sm text-text-tertiary leading-relaxed">
@@ -64,7 +64,7 @@ const FirstNoteOnboarding: FC = () => {
             type="button"
             onClick={() => void handleCreateFirstNote()}
             disabled={isCreating}
-            className="rounded-md bg-primary-600 px-3 py-2 text-sm font-semibold text-text-on-primary hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="rounded-radius-md bg-action px-3 py-2 text-sm font-semibold text-on-action hover:bg-action-hover disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isCreating ? t("Creating note...") : t("Create first note")}
           </button>

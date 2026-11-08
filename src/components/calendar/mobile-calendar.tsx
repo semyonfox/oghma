@@ -87,7 +87,7 @@ export default function MobileCalendar({
               onClick={onToggleMonth}
               aria-expanded={monthOpen}
               aria-controls="mobile-calendar-month"
-              className="min-h-11 rounded-radius-md px-3 text-xs font-medium text-primary-700 transition-colors hover:bg-primary-500/10 dark:text-primary-300"
+              className="min-h-11 rounded-radius-md px-3 text-xs font-medium text-accent transition-colors hover:bg-accent-soft"
             >
               {t(monthOpen ? "Week" : "Month")}
             </button>
@@ -105,11 +105,11 @@ export default function MobileCalendar({
                 onClick={() => setSelectedDate(dateKey)}
                 aria-pressed={selected}
                 aria-label={fullDateFormatter.format(date)}
-                className={`flex min-h-12 min-w-0 flex-col items-center justify-center rounded-radius-md text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 ${
+                className={`flex min-h-12 min-w-0 flex-col items-center justify-center rounded-radius-md text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
                   selected
-                    ? "bg-primary-600 text-text-on-primary"
+                    ? "bg-text text-background"
                     : dateKey === today
-                      ? "bg-primary-500/10 font-semibold text-primary-700 dark:text-primary-300"
+                      ? "bg-accent font-semibold text-on-action"
                       : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
                 }`}
               >
@@ -142,11 +142,11 @@ export default function MobileCalendar({
                     onClick={() => setSelectedDate(day.date)}
                     aria-pressed={day.isSelected}
                     aria-label={fullDateFormatter.format(date)}
-                    className={`relative flex aspect-square min-h-11 min-w-0 flex-col items-center justify-center text-xs transition-colors focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 ${
+                    className={`relative flex aspect-square min-h-11 min-w-0 flex-col items-center justify-center text-xs transition-colors focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
                       day.isSelected
-                        ? "bg-primary-600 text-text-on-primary"
+                        ? "bg-text text-background"
                         : day.isToday
-                          ? "bg-surface font-semibold text-primary-700 dark:text-primary-300"
+                          ? "bg-accent font-semibold text-on-action"
                           : "bg-surface text-text-secondary hover:bg-surface-elevated"
                     } ${!day.isCurrentMonth ? "opacity-40" : ""}`}
                   >
@@ -157,7 +157,7 @@ export default function MobileCalendar({
                           <span
                             key={index}
                             className={`h-1 w-1 rounded-full ${
-                              day.isSelected ? "bg-text-on-primary" : "bg-primary-400"
+                              day.isSelected ? "bg-background" : day.isToday ? "bg-on-action" : "bg-accent"
                             }`}
                           />
                         ))}

@@ -470,7 +470,7 @@ export default function ChatPageClient() {
             <button
               type="button"
               onClick={newConversation}
-              className="flex h-11 w-11 items-center justify-center rounded-radius-md text-primary-700 transition-colors hover:bg-primary-500/10 dark:text-primary-300"
+              className="flex h-11 w-11 items-center justify-center rounded-radius-md text-text transition-colors hover:bg-subtle"
               aria-label={t("chat.new_conversation")}
             >
               <PlusIcon className="h-5 w-5" aria-hidden="true" />
@@ -478,7 +478,7 @@ export default function ChatPageClient() {
             <button
               type="button"
               onClick={() => setHistoryOpen(true)}
-              className="flex h-11 w-11 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50"
+              className="flex h-11 w-11 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
               aria-label={t("Chat history")}
             >
               <ChatBubbleLeftRightIcon className="h-5 w-5" aria-hidden="true" />
@@ -501,7 +501,7 @@ export default function ChatPageClient() {
 
         <main className="flex min-w-0 flex-1 flex-col">
           <header className="glass-panel hidden min-h-[52px] flex-shrink-0 items-center border-b border-border-subtle px-5 lg:flex">
-            <h1 className="truncate text-sm font-medium text-text-secondary">
+            <h1 className="truncate text-[15px] font-semibold text-text">
               {conversationTitle}
             </h1>
           </header>

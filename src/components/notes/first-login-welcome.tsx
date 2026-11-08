@@ -83,16 +83,16 @@ export default function FirstLoginWelcome() {
       <div className="fixed inset-0 flex items-end justify-center sm:items-center sm:p-4">
         <DialogPanel
           aria-describedby={descriptionId}
-          className="w-full max-w-md rounded-t-radius-lg border border-border-subtle bg-surface p-6 shadow-xl sm:rounded-radius-lg"
+          className="w-full max-w-md rounded-t-radius-lg border border-border bg-surface p-6 shadow-float sm:rounded-radius-lg"
         >
-          <DialogTitle className="font-serif text-2xl font-semibold text-text-primary">
+          <DialogTitle className="font-serif text-2xl font-semibold tracking-tight text-text">
             {t("Welcome to OghmaNotes")}
           </DialogTitle>
           <p id={descriptionId} className="mt-3 text-sm leading-6 text-text-secondary">
             {t("Your Getting Started note is open. Connect Canvas to add your courses and files.")}
           </p>
           {error && (
-            <p role="alert" className="mt-3 text-sm text-error-300">
+            <p role="alert" className="mt-3 text-sm text-error-700 dark:text-error-300">
               {t("Could not save your choice. Try again.")}
             </p>
           )}
@@ -102,7 +102,7 @@ export default function FirstLoginWelcome() {
               autoFocus
               disabled={saving}
               onClick={() => void choose("canvas")}
-              className="min-h-11 rounded-radius-md bg-primary-600 px-4 text-sm font-medium text-text-on-primary transition-colors hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 disabled:opacity-50"
+              className="min-h-11 rounded-radius-md bg-action px-4 text-sm font-medium text-on-action transition-colors hover:bg-action-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 disabled:opacity-50"
             >
               {t("Connect Canvas")}
             </button>
@@ -110,7 +110,7 @@ export default function FirstLoginWelcome() {
               type="button"
               disabled={saving}
               onClick={() => void choose("note")}
-              className="min-h-11 rounded-radius-md border border-border-subtle px-4 text-sm font-medium text-text-secondary transition-colors hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 disabled:opacity-50"
+              className="min-h-11 rounded-radius-md border border-border bg-surface px-4 text-sm font-medium text-text transition-colors hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 disabled:opacity-50"
             >
               {t("Read Getting Started")}
             </button>
@@ -118,7 +118,7 @@ export default function FirstLoginWelcome() {
               type="button"
               disabled={saving}
               onClick={() => void choose()}
-              className="min-h-11 rounded-radius-md px-4 text-sm text-text-tertiary transition-colors hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 disabled:opacity-50"
+              className="min-h-11 rounded-radius-md px-4 text-sm text-text-tertiary transition-colors hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 disabled:opacity-50"
             >
               {t("Skip")}
             </button>

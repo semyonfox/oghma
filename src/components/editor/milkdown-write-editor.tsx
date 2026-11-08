@@ -795,7 +795,7 @@ export default function MilkdownWriteEditor({
       />
       {pickerOpen && (
         <div
-          className="sticky bottom-4 z-50 mx-auto w-[min(28rem,calc(100%-2rem))] rounded-radius-lg border border-border-subtle bg-surface-elevated p-2 shadow-2xl"
+          className="sticky bottom-4 z-50 mx-auto w-[min(28rem,calc(100%-2rem))] rounded-radius-lg border border-border bg-surface-elevated p-2 shadow-float"
           role="dialog"
           aria-label="Reference a note"
           onKeyDown={(event) => {
@@ -832,7 +832,7 @@ export default function MilkdownWriteEditor({
                 }
               }}
               placeholder="Search notes…"
-              className="min-w-0 flex-1 rounded-radius-md border border-border-subtle bg-background px-3 py-2 text-sm text-text outline-none focus:border-primary-500"
+              className="min-w-0 flex-1 rounded-radius-md border border-border-subtle bg-background px-3 py-2 text-sm text-text outline-none focus:border-accent"
             />
             <button
               type="button"
@@ -865,8 +865,8 @@ export default function MilkdownWriteEditor({
                   onClick={() => insertNoteReference(note)}
                   className={`block w-full rounded-radius-sm px-3 py-2 text-left text-sm ${
                     index === selectedOption
-                      ? "bg-primary-500/15 text-text"
-                      : "text-text-secondary hover:bg-subtle"
+                      ? "atlas-raised text-text"
+                      : "text-text-secondary hover:bg-subtle hover:text-text"
                   }`}
                 >
                   {note.title || "Untitled"}

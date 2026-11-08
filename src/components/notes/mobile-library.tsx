@@ -202,7 +202,7 @@ export default function MobileLibrary() {
               disabled={
                 !initLoaded || resolving || invalidPath || busy || uploading
               }
-              className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl bg-primary-600 px-3 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
+              className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-radius-xl bg-action px-3 text-sm font-semibold text-on-action hover:bg-action-hover disabled:opacity-50"
             >
               <PlusIcon className="h-5 w-5" aria-hidden="true" />
               {t("New note")}
@@ -214,7 +214,7 @@ export default function MobileLibrary() {
         <button
           type="button"
           onClick={() => useGlobalSearchStore.getState().open()}
-          className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-border-subtle bg-surface px-4 text-base text-text-tertiary hover:border-border"
+          className="flex min-h-12 w-full items-center gap-3 rounded-radius-xl border border-border bg-surface px-4 text-base text-text-tertiary hover:border-border-strong"
         >
           <MagnifyingGlassIcon className="h-5 w-5" aria-hidden="true" />
           {t("Search OghmaNotes")}
@@ -253,7 +253,7 @@ export default function MobileLibrary() {
                 type="button"
                 aria-pressed={!pinnedOnly}
                 onClick={() => setPinnedOnly(false)}
-                className={`min-h-11 whitespace-nowrap rounded-lg px-3 text-sm font-semibold ${!pinnedOnly ? "bg-subtle text-text" : "text-text-tertiary"}`}
+                className={`min-h-11 whitespace-nowrap rounded-full px-3 text-sm font-semibold ${!pinnedOnly ? "atlas-raised text-text" : "text-text-tertiary hover:text-text"}`}
               >
                 {t("All notes")}
               </button>
@@ -261,7 +261,7 @@ export default function MobileLibrary() {
                 type="button"
                 aria-pressed={pinnedOnly}
                 onClick={() => setPinnedOnly(true)}
-                className={`min-h-11 whitespace-nowrap rounded-lg px-3 text-sm font-semibold ${pinnedOnly ? "bg-subtle text-text" : "text-text-tertiary"}`}
+                className={`min-h-11 whitespace-nowrap rounded-full px-3 text-sm font-semibold ${pinnedOnly ? "atlas-raised text-text" : "text-text-tertiary hover:text-text"}`}
               >
                 {t("Pinned")}
               </button>
@@ -272,7 +272,7 @@ export default function MobileLibrary() {
               type="button"
               disabled={selectedIds.size === 0 || busy}
               onClick={() => handleBulkDeleteRequest([...selectedIds])}
-              className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl bg-error-600 px-3 text-sm font-semibold text-white hover:bg-error-700 disabled:opacity-50"
+              className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-radius-xl bg-error-600 px-3 text-sm font-semibold text-text-on-primary hover:bg-error-700 disabled:opacity-50"
             >
               <TrashIcon className="h-5 w-5" aria-hidden="true" />
               {t("Trash")}
@@ -315,7 +315,7 @@ export default function MobileLibrary() {
             </p>
             <button
               type="button"
-              className="mt-3 min-h-11 px-4 font-medium text-primary-700 dark:text-primary-300"
+              className="mt-3 min-h-11 px-4 font-medium text-accent"
               onClick={() => router.replace("/notes")}
             >
               {t("Back to notes")}
@@ -361,7 +361,7 @@ export default function MobileLibrary() {
             {items.map((item) => (
               <li
                 key={item.id}
-                className="flex items-center rounded-xl hover:bg-subtle/60"
+                className="flex items-center rounded-radius-xl hover:bg-subtle/60"
               >
                 <button
                   type="button"
@@ -375,20 +375,20 @@ export default function MobileLibrary() {
                   aria-pressed={
                     selecting ? selectedIds.has(item.id) : undefined
                   }
-                  className={`flex min-h-[76px] min-w-0 flex-1 items-center gap-3 px-2 py-3 text-left ${selecting && selectedIds.has(item.id) ? "bg-primary-500/10" : ""}`}
+                  className={`flex min-h-[76px] min-w-0 flex-1 items-center gap-3 px-2 py-3 text-left ${selecting && selectedIds.has(item.id) ? "bg-subtle-hover" : ""}`}
                   onClick={() =>
                     selecting ? toggleSelected(item.id) : openItem(item.id)
                   }
                 >
                   {selecting && (
                     <span
-                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${selectedIds.has(item.id) ? "border-primary-600 bg-primary-600 text-white" : "border-border text-transparent"}`}
+                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${selectedIds.has(item.id) ? "border-accent bg-accent text-on-action" : "border-border text-transparent"}`}
                     >
                       <CheckIcon className="h-4 w-4" aria-hidden="true" />
                     </span>
                   )}
                   <span
-                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${item.isFolder ? "bg-primary-500/10 text-primary-600 dark:text-primary-300" : "bg-subtle text-text-tertiary"}`}
+                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-xl ${item.isFolder ? "bg-accent-soft text-accent" : "bg-subtle text-text-tertiary"}`}
                   >
                     {item.isFolder ? (
                       <FolderIcon className="h-6 w-6" aria-hidden="true" />
@@ -530,7 +530,7 @@ export default function MobileLibrary() {
               maxLength={255}
               value={name}
               onChange={(event) => setName(event.target.value)}
-              className="mt-2 min-h-12 w-full rounded-xl border border-border bg-background px-3 text-base outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
+              className="mt-2 min-h-12 w-full rounded-radius-xl border border-border bg-background px-3 text-base outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
             />
           </label>
           {error && (
@@ -544,7 +544,7 @@ export default function MobileLibrary() {
           <div className="flex justify-end gap-2">
             <button
               type="button"
-              className="min-h-11 rounded-xl px-4 hover:bg-subtle"
+              className="min-h-11 rounded-radius-xl px-4 hover:bg-subtle"
               disabled={busy}
               onClick={() => setCreateKind(null)}
             >
@@ -552,7 +552,7 @@ export default function MobileLibrary() {
             </button>
             <button
               type="submit"
-              className="min-h-11 rounded-xl bg-primary-600 px-5 font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
+              className="min-h-11 rounded-radius-xl bg-action px-5 font-semibold text-on-action hover:bg-action-hover disabled:opacity-50"
               disabled={busy || !name.trim()}
             >
               {t(busy ? "Creating..." : "Create")}
@@ -576,14 +576,14 @@ export default function MobileLibrary() {
           <div className="flex justify-end gap-2">
             <button
               type="button"
-              className="min-h-11 rounded-xl px-4 hover:bg-subtle"
+              className="min-h-11 rounded-radius-xl px-4 hover:bg-subtle"
               onClick={() => setDeleteConfirmTarget(null)}
             >
               {t("Cancel")}
             </button>
             <button
               type="button"
-              className="min-h-11 rounded-xl bg-error-600 px-4 font-semibold text-white"
+              className="min-h-11 rounded-radius-xl bg-error-600 px-4 font-semibold text-text-on-primary"
               disabled={busy}
               onClick={() => {
                 setBusy(true);

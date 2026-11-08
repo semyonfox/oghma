@@ -31,11 +31,11 @@ export interface PlacedItem {
 const contentSchema = z.object({ content: z.string().nullable().optional() });
 const noteCache = new Map<string, Promise<string>>();
 const linkClass =
-  "flex w-full min-w-0 items-baseline gap-2 rounded-radius-md px-2 py-1 text-left text-sm text-text-secondary hover:bg-primary-500/5 hover:text-text focus-visible:outline-2 focus-visible:outline-primary-500";
+  "flex w-full min-w-0 items-baseline gap-2 rounded-radius-md px-2 py-1 text-left text-sm text-text-secondary hover:bg-subtle hover:text-text focus-visible:outline-2 focus-visible:outline-accent";
 const smallButton =
-  "inline-flex min-h-8 items-center gap-1.5 rounded-radius-md px-2.5 py-1 text-xs font-medium focus-visible:outline-2 focus-visible:outline-primary-500";
-export const primarySmall = `${smallButton} bg-primary-600 text-text-on-primary hover:bg-primary-700`;
-export const secondarySmall = `${smallButton} border border-border-subtle bg-surface text-text hover:bg-primary-500/5`;
+  "inline-flex min-h-8 items-center gap-1.5 rounded-radius-md px-2.5 py-1 text-xs font-medium focus-visible:outline-2 focus-visible:outline-accent";
+export const primarySmall = `${smallButton} bg-action text-on-action hover:bg-action-hover`;
+export const secondarySmall = `${smallButton} border border-border-subtle bg-surface text-text hover:bg-subtle`;
 const sectionTitle =
   "mb-1 mt-3 text-[11px] font-semibold uppercase tracking-wide text-text-tertiary";
 
@@ -167,8 +167,8 @@ function MergedPdfNoteBody({
           type="button"
           className={`rounded-radius-sm px-2.5 py-1 text-xs font-medium transition-colors ${
             tab === "note"
-              ? "bg-primary-500/10 font-semibold text-primary-600 dark:text-primary-400"
-              : "text-text-secondary hover:bg-surface-hover hover:text-text"
+              ? "atlas-raised font-medium text-text"
+              : "text-text-secondary hover:bg-subtle hover:text-text"
           }`}
           onClick={() => setTab("note")}
         >
@@ -178,8 +178,8 @@ function MergedPdfNoteBody({
           type="button"
           className={`rounded-radius-sm px-2.5 py-1 text-xs font-medium transition-colors ${
             tab === "pdf"
-              ? "bg-primary-500/10 font-semibold text-primary-600 dark:text-primary-400"
-              : "text-text-secondary hover:bg-surface-hover hover:text-text"
+              ? "atlas-raised font-medium text-text"
+              : "text-text-secondary hover:bg-subtle hover:text-text"
           }`}
           onClick={() => setTab("pdf")}
         >
@@ -315,7 +315,7 @@ export function ItemRelations({
                     {topic.name}
                   </button>
                   <span
-                    className={`ml-auto shrink-0 text-xs ${tag.suggested ? "text-ai-700 dark:text-ai-300" : "text-text-tertiary"}`}
+                    className={`ml-auto shrink-0 text-xs ${tag.suggested ? "text-accent" : "text-text-tertiary"}`}
                   >
                     {tag.relevance}
                     {tag.probability !== null
@@ -547,7 +547,7 @@ export function TrailPanel({
   return (
     <aside
       aria-label={`${topic.name} through the course`}
-      className="absolute left-3 top-16 z-30 flex max-h-[calc(100%-8.5rem)] w-[min(320px,calc(100%-1.5rem))] max-sm:top-[7.5rem] max-sm:max-h-[calc(100%-12rem)] flex-col overflow-hidden rounded-radius-xl border border-border-subtle bg-surface shadow-lg"
+      className="absolute left-3 top-16 z-30 flex max-h-[calc(100%-8.5rem)] w-[min(320px,calc(100%-1.5rem))] max-sm:top-[7.5rem] max-sm:max-h-[calc(100%-12rem)] flex-col overflow-hidden rounded-radius-xl border border-border-subtle bg-surface shadow-float"
     >
       <div className="flex items-start gap-2 px-4 pt-3">
         <span
@@ -564,7 +564,7 @@ export function TrailPanel({
         </div>
         <button
           type="button"
-          className="ml-auto rounded-radius-md p-1.5 text-text-tertiary hover:bg-primary-500/5 hover:text-text"
+          className="ml-auto rounded-radius-md p-1.5 text-text-tertiary hover:bg-subtle hover:text-text"
           onClick={onClose}
           aria-label="Stop following this topic"
         >
@@ -607,11 +607,11 @@ export function TrailPanel({
               <button
                 type="button"
                 aria-current={index === stop ? "step" : undefined}
-                className={`flex w-full min-w-0 items-center gap-2 rounded-radius-md px-1.5 py-1 text-left text-sm ${index === stop ? "bg-primary-500/10 text-text" : "text-text-secondary hover:bg-primary-500/5"}`}
+                className={`flex w-full min-w-0 items-center gap-2 rounded-radius-md px-1.5 py-1 text-left text-sm ${index === stop ? "atlas-raised font-medium text-text" : "text-text-secondary hover:bg-subtle"}`}
                 onClick={() => onStep(index)}
               >
                 <span
-                  className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white"
+                  className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-[11px] font-bold text-background"
                   style={{ background: topic.colour }}
                 >
                   {index + 1}

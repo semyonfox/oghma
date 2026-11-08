@@ -137,12 +137,12 @@ export function WorkLog({
           aria-expanded={expanded}
           aria-controls={panelId}
           onClick={() => setExpanded((current) => !current)}
-          className="flex min-h-11 items-center gap-2 rounded-radius-sm text-left hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 lg:min-h-8"
+          className="flex min-h-11 items-center gap-2 rounded-radius-sm text-left hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 lg:min-h-8"
         >
           {showProgress ? (
             <span className="h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-text-tertiary/25 border-t-text-tertiary motion-reduce:animate-none" />
           ) : (
-            <DocumentTextIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <DocumentTextIcon className="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
           )}
           <span>{label}</span>
           <ChevronDownIcon
@@ -162,18 +162,21 @@ export function WorkLog({
       {expanded && notes.length > 0 && (
         <ul
           id={panelId}
-          className="ml-2 space-y-1 border-l border-border-subtle pl-4 pb-1"
+          className="mt-1 space-y-1.5 pb-1"
         >
           {notes.map((note) => (
-            <li key={note.id} className="flex min-w-0 items-center gap-2">
+            <li
+              key={note.id}
+              className="flex min-w-0 items-center gap-2 rounded-radius-md border border-border bg-surface px-3"
+            >
               <Link
                 href={`/notes/${note.id}`}
-                className="min-w-0 truncate rounded-radius-sm py-1 text-text-secondary underline-offset-2 hover:text-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50"
+                className="min-w-0 flex-1 truncate rounded-radius-sm py-1.5 text-text-secondary underline-offset-2 hover:text-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
                 title={note.title}
               >
                 {note.title}
               </Link>
-              <span className="shrink-0 text-xs text-text-tertiary/70">
+              <span className="shrink-0 font-mono text-xs text-text-tertiary">
                 {t(note.action === "read" ? "Read" : "Found")}
               </span>
             </li>

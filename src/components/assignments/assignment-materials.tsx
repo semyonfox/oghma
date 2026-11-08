@@ -75,7 +75,7 @@ export default function AssignmentMaterials({ assignmentId }: { assignmentId: st
   return (
     <section aria-label={t("Materials")} className="space-y-3 border-t border-border-subtle pt-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="font-medium text-text-primary">{t("Materials")}</h3>
+        <h3 className="font-medium text-text">{t("Materials")}</h3>
         <button type="button" disabled={loading || saving} onClick={() => { setError(""); setQueued(false); setRefresh(value => value + 1); }} className="min-h-11 px-2 text-sm text-text-secondary disabled:opacity-50">{t("Refresh materials")}</button>
       </div>
       {loading && <p role="status" className="text-sm text-text-tertiary">{t("Loading materials...")}</p>}
@@ -83,12 +83,12 @@ export default function AssignmentMaterials({ assignmentId }: { assignmentId: st
       <ul className="divide-y divide-border-subtle">
         {materials.map(material => <li key={material.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
           <div className="min-w-0 flex-1"><p className="break-words text-sm text-text-secondary">{material.name}</p><p className="mt-1 text-xs text-text-tertiary">{labels[material.status]}</p></div>
-          <a href={material.noteId ? `/notes/${material.noteId}` : material.url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center text-sm text-primary-400 underline underline-offset-4">{material.noteId ? t("Open in OghmaNotes") : t("Open in Canvas")}</a>
+          <a href={material.noteId ? `/notes/${material.noteId}` : material.url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center text-sm text-accent underline underline-offset-4">{material.noteId ? t("Open in OghmaNotes") : t("Open in Canvas")}</a>
         </li>)}
       </ul>
-      {materials.some(material => material.status === "available") && !queued && <button type="button" disabled={saving || loading} onClick={() => void importMaterials()} className="min-h-11 rounded-radius-md bg-primary-600 px-4 text-sm text-text-on-primary disabled:opacity-50">{saving ? t("Starting import...") : t("Import materials")}</button>}
+      {materials.some(material => material.status === "available") && !queued && <button type="button" disabled={saving || loading} onClick={() => void importMaterials()} className="min-h-11 rounded-radius-md bg-action px-4 text-sm text-on-action hover:bg-action-hover disabled:opacity-50">{saving ? t("Starting import...") : t("Import materials")}</button>}
       {queued && <p role="status" className="text-sm text-text-secondary">{t("Materials queued for import. You can close this assignment while they process. Refresh materials to check progress.")}</p>}
-      {error && <p role="alert" className="text-sm text-error-300">{t(error)}</p>}
+      {error && <p role="alert" className="text-sm text-error-700 dark:text-error-300">{t(error)}</p>}
     </section>
   );
 }

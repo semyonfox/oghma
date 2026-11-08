@@ -2,14 +2,17 @@ import type { ReactNode } from "react";
 
 type Translate = (key: string) => string;
 
-const sectionClass = "text-3xl font-bold mt-6 mb-3";
-const subheadingClass = "text-2xl font-bold mt-4 mb-2";
+const sectionClass = "font-serif text-3xl font-semibold tracking-tight text-text mt-6 mb-3";
+const subheadingClass = "font-serif text-2xl font-semibold tracking-tight text-text mt-4 mb-2";
 const listClass = "list-disc list-outside pl-6 my-3 space-y-1 text-text";
 const orderedListClass = "list-decimal list-outside pl-6 my-3 space-y-1 text-text";
-const codeClass = "block overflow-x-auto rounded bg-surface px-4 py-3 my-4 whitespace-pre";
+const codeClass =
+  "block overflow-x-auto rounded-radius-md border border-[var(--md-code-border)] bg-[var(--md-code-bg)] px-4 py-3 my-4 whitespace-pre font-mono text-sm text-text";
+const quoteClass = "rounded-radius-md bg-[var(--md-quote-bg)] px-4 py-3 italic my-4 text-[var(--md-quote-text)]";
+const nestedQuoteClass = "rounded-radius-sm bg-subtle px-4 py-2 my-2";
 
 function Rule() {
-  return <hr className="my-6" />;
+  return <hr className="my-6 border-border" />;
 }
 
 function Code({ children }: { children: ReactNode }) {
@@ -25,11 +28,11 @@ function Table({
 }) {
   return (
     <div className="overflow-x-auto my-4">
-      <table className="min-w-full border border-border">
+      <table className="min-w-full overflow-hidden rounded-radius-md border border-border">
         <thead>
           <tr>
             {headings.map((heading, index) => (
-              <th key={index} className="border border-border px-4 py-2 bg-surface font-semibold text-left">
+              <th key={index} className="border border-border px-4 py-2 bg-surface-elevated font-semibold text-left text-text">
                 {heading}
               </th>
             ))}
@@ -54,7 +57,7 @@ function Table({
 export default function SyntaxGuideContent({ t }: { t: Translate }) {
   return (
     <article className="markdown-preview w-full max-w-none">
-      <h1 className="text-4xl font-bold mt-8 mb-4">{t("Markdown Syntax Guide")}</h1>
+      <h1 className="font-serif text-4xl font-semibold tracking-tight text-text mt-8 mb-4">{t("Markdown Syntax Guide")}</h1>
       <p>{t("Everything you can write in OghmaNotes. Write in one clean surface: Markdown stays editable where you are typing and renders into readable blocks around it.")}</p>
       <Rule />
 
@@ -90,8 +93,8 @@ export default function SyntaxGuideContent({ t }: { t: Translate }) {
 
       <h2 className={sectionClass}>{t("Blockquotes")}</h2>
       <Code>{`> ${t("Single level quote")}\n\n> ${t("Nested quotes")}\n>> ${t("Second level")}\n>>> ${t("Third level")}`}</Code>
-      <blockquote className="border-l-4 border-[var(--md-accent)] pl-4 italic my-4 text-[var(--md-text-muted)]">{t("Single level quote")}</blockquote>
-      <blockquote className="border-l-4 border-[var(--md-accent)] pl-4 italic my-4 text-[var(--md-text-muted)]">{t("Nested quotes")}<blockquote className="border-l-4 border-[var(--md-accent)] pl-4 my-2">{t("Second level")}<blockquote className="border-l-4 border-[var(--md-accent)] pl-4 my-2">{t("Third level")}</blockquote></blockquote></blockquote>
+      <blockquote className={quoteClass}>{t("Single level quote")}</blockquote>
+      <blockquote className={quoteClass}>{t("Nested quotes")}<blockquote className={nestedQuoteClass}>{t("Second level")}<blockquote className={nestedQuoteClass}>{t("Third level")}</blockquote></blockquote></blockquote>
       <Rule />
 
       <h2 className={sectionClass}>{t("Code")}</h2>

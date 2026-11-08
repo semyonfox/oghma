@@ -29,10 +29,10 @@ const INDENT_PX = 14;
 
 const FILE_ICONS: Record<FileType, { Icon: typeof DocumentIcon; className: string }> = {
   note: { Icon: DocumentTextIcon, className: "text-text-tertiary" },
-  pdf: { Icon: DocumentIcon, className: "text-red-400" },
-  image: { Icon: PhotoIcon, className: "text-emerald-500 dark:text-emerald-400" },
-  video: { Icon: FilmIcon, className: "text-violet-500 dark:text-violet-400" },
-  text: { Icon: CodeBracketIcon, className: "text-sky-500 dark:text-sky-400" },
+  pdf: { Icon: DocumentIcon, className: "text-text-tertiary" },
+  image: { Icon: PhotoIcon, className: "text-text-tertiary" },
+  video: { Icon: FilmIcon, className: "text-text-tertiary" },
+  text: { Icon: CodeBracketIcon, className: "text-text-tertiary" },
   attachment: { Icon: PaperClipIcon, className: "text-text-tertiary" },
 };
 
@@ -188,10 +188,10 @@ function TreeItem({
         className={`
           group/item mb-0.5 flex min-h-12 items-center pr-1 cursor-pointer select-none md:min-h-7
           transition-colors duration-75 rounded-radius-sm mx-0.5
-          ${isActive ? "bg-subtle text-text-secondary" : ""}
+          ${isActive && !isDraggingOver ? "atlas-raised text-text" : ""}
           ${
-            !isActive && isSelected
-              ? "bg-primary-500/10 text-text-secondary"
+            !isActive && isSelected && !isDraggingOver
+              ? "bg-subtle-hover text-text"
               : ""
           }
           ${
@@ -199,9 +199,8 @@ function TreeItem({
               ? "text-text-secondary hover:text-text hover:bg-subtle"
               : ""
           }
-          ${isActive && isSelected ? "ring-1 ring-primary-500/20" : ""}
           ${isDragging ? "opacity-40" : ""}
-          ${isDraggingOver ? "bg-primary-500/20 text-text-secondary ring-2 ring-inset ring-primary-400/70 shadow-[inset_3px_0_0_rgb(96_165_250)]" : ""}
+          ${isDraggingOver ? "bg-accent-soft text-accent-soft-text ring-1 ring-inset ring-accent/40" : ""}
         `}
         style={{ paddingLeft: `${pl + 4}px` }}
         draggable={true}
@@ -276,7 +275,7 @@ function TreeItem({
               }}
               onClick={(e) => e.stopPropagation()}
               aria-label={t("Rename")}
-              className="w-full min-w-0 truncate bg-surface border border-primary-500/50 rounded-radius-sm px-1 py-1 outline-none text-text text-base md:py-0 md:text-[13px] leading-snug"
+              className="w-full min-w-0 truncate bg-surface border border-accent/50 rounded-radius-sm px-1 py-1 outline-none text-text text-base md:py-0 md:text-[13px] leading-snug"
             />
           </div>
         ) : (
@@ -286,9 +285,9 @@ function TreeItem({
               isFolder && !bundle ? "font-medium" : ""
             } ${
               syncStatus === "modified"
-                ? "text-amber-700 dark:text-amber-400"
+                ? "text-warning-700 dark:text-warning-400"
                 : syncStatus === "new"
-                  ? "text-green-700 dark:text-green-400"
+                  ? "text-accent"
                   : ""
             }`}
           >
@@ -305,7 +304,7 @@ function TreeItem({
           (syncStatus === "modified" || syncStatus === "new") && (
             <span
               className={`flex-shrink-0 w-1.5 h-1.5 rounded-full ml-1 ${
-                syncStatus === "modified" ? "bg-amber-400" : "bg-green-400"
+                syncStatus === "modified" ? "bg-warning-500" : "bg-accent"
               }`}
             />
           )}
@@ -314,7 +313,7 @@ function TreeItem({
           <span className="flex-shrink-0 ml-0.5">
             <button
               type="button"
-              className="flex h-11 w-11 items-center justify-center rounded-radius-sm text-text-tertiary transition-[color,background-color,opacity] hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 md:h-6 md:w-6 md:opacity-0 md:group-hover/item:opacity-100 md:group-focus-within/item:opacity-100 pointer-coarse:opacity-100"
+              className="flex h-11 w-11 items-center justify-center rounded-radius-sm text-text-tertiary transition-[color,background-color,opacity] hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent md:h-6 md:w-6 md:opacity-0 md:group-hover/item:opacity-100 md:group-focus-within/item:opacity-100 pointer-coarse:opacity-100"
               onClick={onDotsClick}
               title={t("More actions")}
               aria-label={t("More actions")}
@@ -327,10 +326,6 @@ function TreeItem({
 
       {hasChildren && isExpanded && (
         <div className="relative">
-          <div
-            className="absolute top-0 bottom-0 w-px bg-primary-500/20 pointer-events-none"
-            style={{ left: `${pl + 11}px` }}
-          />
           {children}
         </div>
       )}

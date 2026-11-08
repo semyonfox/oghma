@@ -50,9 +50,9 @@ const localeFlags: Record<Locale, string> = {
 
 const selectClass: Record<"compact" | "footer", string> = {
   compact:
-    "block w-full rounded-radius-md bg-surface border border-border-subtle py-1.5 px-3 text-sm text-text placeholder:text-text-tertiary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50 focus:outline-none appearance-none disabled:opacity-50",
+    "block w-full rounded-radius-md bg-surface border border-border-subtle py-1.5 px-3 text-sm text-text placeholder:text-text-tertiary focus:ring-1 focus:ring-accent/50 focus:border-accent/50 focus:outline-none appearance-none disabled:opacity-50",
   footer:
-    "bg-input border border-border-subtle text-text-secondary text-sm rounded-radius-lg focus:ring-primary-500 focus:border-primary-500 block p-2.5 appearance-none disabled:opacity-50",
+    "bg-input border border-border-subtle text-text-secondary text-sm rounded-radius-lg focus:ring-accent focus:border-accent block p-2.5 appearance-none disabled:opacity-50",
 };
 
 const labelClass: Record<"compact" | "footer", string> = {
@@ -189,7 +189,7 @@ export default function LanguageSelector({
       >
         <div className="relative">
           <ComboboxInput
-            className="block w-full rounded-radius-md bg-surface border border-border-subtle py-1.5 pr-12 pl-3 text-sm text-text placeholder:text-text-tertiary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50 focus:outline-none"
+            className="block w-full rounded-radius-md bg-surface border border-border-subtle py-1.5 pr-12 pl-3 text-sm text-text placeholder:text-text-tertiary focus:ring-1 focus:ring-accent/50 focus:border-accent/50 focus:outline-none"
             onChange={(event) => setQuery(event.target.value)}
             onBlur={() => setQuery("")}
             displayValue={(_code) =>
@@ -219,7 +219,7 @@ export default function LanguageSelector({
                 <ComboboxOption
                   key={lang.code}
                   value={lang.code}
-                  className="cursor-default px-3 py-2 text-text select-none data-focus:bg-primary-600 data-focus:text-text-on-primary data-focus:outline-hidden"
+                  className="cursor-default px-3 py-2 text-text select-none data-focus:bg-subtle-hover data-focus:text-text data-focus:outline-hidden"
                 >
                   <div className="flex items-center">
                     <span className="text-xl mr-3">{lang.flag}</span>

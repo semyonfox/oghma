@@ -11,7 +11,7 @@ import { XMarkIcon } from "@heroicons/react/24/outline";
 import useSwipeDismiss from "@/components/navigation/use-swipe-dismiss";
 
 const closeClass =
-  "grid h-8 w-8 shrink-0 place-items-center rounded-radius-md text-text-tertiary hover:bg-primary-500/10 hover:text-text focus-visible:outline-2 focus-visible:outline-primary-500";
+  "grid h-8 w-8 shrink-0 place-items-center rounded-radius-md text-text-tertiary hover:bg-subtle-hover hover:text-text focus-visible:outline-2 focus-visible:outline-accent";
 
 /**
  * the one sheet over the study map: docked to the right on large screens,
@@ -89,7 +89,7 @@ export default function StudyDrawer({
       <aside
         ref={panelRef}
         aria-label={title}
-        className={`absolute bottom-16 right-3 top-16 z-50 flex flex-col overflow-hidden rounded-radius-xl border border-border-subtle bg-surface text-text shadow-xl ${wide ? "w-[min(640px,calc(100%-1.5rem))]" : "w-[min(440px,calc(100%-1.5rem))]"}`}
+        className={`absolute bottom-16 right-3 top-16 z-50 flex flex-col overflow-hidden rounded-radius-xl border border-border-subtle bg-surface text-text shadow-float ${wide ? "w-[min(640px,calc(100%-1.5rem))]" : "w-[min(440px,calc(100%-1.5rem))]"}`}
       >
         {header && (
           <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle py-2 pl-4 pr-2">

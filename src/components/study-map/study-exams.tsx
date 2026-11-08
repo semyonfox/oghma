@@ -23,11 +23,11 @@ interface StudyExamsProps {
 }
 
 const inputClass =
-  "min-h-11 w-full rounded-radius-md border border-border-subtle bg-surface px-3 py-2 text-base text-text placeholder:text-text-tertiary focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30 disabled:opacity-50 sm:text-sm";
+  "min-h-11 w-full rounded-radius-md border border-border-subtle bg-surface px-3 py-2 text-base text-text placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 disabled:opacity-50 sm:text-sm";
 const buttonClass =
-  "inline-flex min-h-11 items-center justify-center rounded-radius-md border border-border-subtle px-3 py-2 text-sm font-medium text-text hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex min-h-11 items-center justify-center rounded-radius-md border border-border bg-surface px-3 py-2 text-sm font-medium text-text hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50";
 const primaryClass =
-  "inline-flex min-h-11 items-center justify-center rounded-radius-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex min-h-11 items-center justify-center rounded-radius-md bg-action px-4 py-2 text-sm font-semibold text-on-action hover:bg-action-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
 function numberOrUnknown(value: string): number | null {
   return value.trim() === "" ? null : Number(value);
@@ -47,7 +47,7 @@ function sourceLocation(source: SourceAnchor): string {
 
 function SourceQuote({ source }: { source: SourceAnchor }) {
   return (
-    <div className="rounded-radius-md border-l-2 border-primary-500/40 bg-surface p-3">
+    <div className="rounded-radius-md bg-surface-elevated p-3">
       <blockquote className="whitespace-pre-wrap break-words text-sm leading-relaxed text-text-secondary">
         {source.quote}
       </blockquote>
@@ -55,7 +55,7 @@ function SourceQuote({ source }: { source: SourceAnchor }) {
         href={`/notes/${source.noteId}`}
         target="_blank"
         rel="noopener noreferrer"
-        className="mt-1 inline-flex min-h-11 items-center text-xs text-primary-500 underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+        className="mt-1 inline-flex min-h-11 items-center text-xs text-accent underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       >
         {sourceLocation(source)} · Open source note
       </a>
@@ -426,7 +426,7 @@ function PaperEditor({
                     >
                       <input
                         type="checkbox"
-                        className="size-4 accent-primary-600"
+                        className="size-4 accent-accent"
                         checked={section.questionIds.includes(question.id)}
                         onChange={(event) => {
                           changed();
@@ -615,7 +615,7 @@ function PaperEditor({
                 >
                   <input
                     type="checkbox"
-                    className="size-4 shrink-0 accent-primary-600"
+                    className="size-4 shrink-0 accent-accent"
                     checked={question.topicIds.includes(topic.id)}
                     onChange={(event) =>
                       updateQuestion(index, {
@@ -729,7 +729,7 @@ function PaperEditor({
       <label className="flex min-h-11 items-start gap-3 py-2 text-sm leading-relaxed text-text-secondary">
         <input
           type="checkbox"
-          className="mt-1 size-4 shrink-0 accent-primary-600"
+          className="mt-1 size-4 shrink-0 accent-accent"
           checked={confirmed}
           disabled={disabled || issues.length > 0}
           onChange={(event) => setConfirmed(event.target.checked)}
@@ -883,7 +883,7 @@ export default function StudyExams({
     return message ? (
       <p
         role={message.error ? "alert" : "status"}
-        className={`mt-2 text-sm ${message.error ? "text-error-600" : "text-text-secondary"}`}
+        className={`mt-2 text-sm ${message.error ? "text-error-700 dark:text-error-400" : "text-text-secondary"}`}
       >
         {message.text}
       </p>
@@ -898,7 +898,7 @@ export default function StudyExams({
     <div className="space-y-6 text-text">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="max-w-2xl">
-          <h2 className="text-xl font-semibold tracking-tight">
+          <h2 className="font-serif text-xl font-semibold tracking-tight">
             Past paper coverage
           </h2>
           <p className="mt-1 text-sm leading-relaxed text-text-secondary">
@@ -977,7 +977,7 @@ export default function StudyExams({
           <label className="flex min-h-11 items-center gap-2 text-sm text-text-secondary">
             <input
               type="checkbox"
-              className="size-4 accent-primary-600"
+              className="size-4 accent-accent"
               checked={showBounds}
               onChange={(event) => setShowBounds(event.target.checked)}
             />
@@ -1135,7 +1135,7 @@ export default function StudyExams({
                     );
                 }}
               >
-                <summary className="min-h-11 cursor-pointer p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500">
+                <summary className="min-h-11 cursor-pointer p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent">
                   <span className="ml-1 font-medium">{paper.title}</span>
                   <span className="ml-3 inline-block rounded-radius-sm bg-surface px-2 py-1 text-xs text-text-secondary">
                     {paperStatus}
@@ -1150,7 +1150,7 @@ export default function StudyExams({
                   <p className="px-4 pb-3 text-sm text-text-secondary">
                     This source matches another upload and is counted once.{" "}
                     <a
-                      className="text-primary-500 underline underline-offset-4"
+                      className="text-accent underline underline-offset-4 hover:text-accent-hover"
                       href={`/notes/${metric.duplicateOf}`}
                       target="_blank"
                       rel="noopener noreferrer"

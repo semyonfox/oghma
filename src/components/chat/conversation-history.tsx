@@ -130,7 +130,7 @@ export function ConversationHistory({
             <ArrowLeftIcon className="h-4 w-4" />
           </Link>
           <div className="flex min-w-0 flex-1 items-center gap-2">
-            <SparklesIcon className="h-4 w-4 flex-shrink-0 text-primary-400" />
+            <SparklesIcon className="h-4 w-4 flex-shrink-0 text-accent" />
             <span className="truncate text-sm font-medium text-text-secondary">
               {t("chat.title")}
             </span>
@@ -149,7 +149,7 @@ export function ConversationHistory({
         <button
           type="button"
           onClick={onNewConversation}
-          className="glass-card-interactive flex h-11 w-full items-center gap-2 rounded-radius-md px-3 text-sm font-medium text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-400/30 lg:h-9"
+          className="flex h-11 w-full items-center gap-2 rounded-radius-md border border-border bg-surface px-3 text-sm font-medium text-text transition-colors hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 lg:h-9"
         >
           <PlusIcon className="h-4 w-4" />
           {t("chat.new_conversation")}
@@ -178,12 +178,12 @@ export function ConversationHistory({
                   <button
                     type="button"
                     onClick={() => setPinnedOpen((open) => !open)}
-                    className="flex min-h-11 w-full items-center rounded-radius-sm px-2 text-xs font-semibold text-text-tertiary transition-colors hover:bg-subtle/70 hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-primary-400/40 lg:min-h-0 lg:h-7 "
+                    className="flex min-h-11 w-full items-center rounded-radius-sm px-2 text-[11px] font-medium uppercase tracking-wider text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-accent/40 lg:min-h-0 lg:h-7 "
                     aria-expanded={pinnedOpen}
                     aria-controls="pinned-conversations"
                   >
                     <span className="flex-1 text-left">{t("Pinned")}</span>
-                    <span className="mr-1 tabular-nums text-text-tertiary">
+                    <span className="mr-1 font-mono tabular-nums text-text-tertiary">
                       {pinnedConversations.length}
                     </span>
                     <ChevronDownIcon
@@ -194,7 +194,7 @@ export function ConversationHistory({
                 </h3>
               ) : (
                 hasBothSections && (
-                  <h3 className="flex h-7 shrink-0 items-center px-3.5 text-xs font-semibold text-text-tertiary">
+                  <h3 className="flex h-7 shrink-0 items-center px-3.5 text-[11px] font-medium uppercase tracking-wider text-text-tertiary">
                     {t("Recent")}
                   </h3>
                 )
@@ -207,7 +207,7 @@ export function ConversationHistory({
                   {section.items.map((conv) => (
                     <div
                       key={conv.id}
-                      className={`group relative min-h-11 overflow-hidden rounded-radius-sm text-xs transition-colors lg:min-h-7 ${conv.id === activeId ? "bg-subtle text-text-secondary" : "text-text-tertiary hover:bg-subtle/70 hover:text-text-secondary"} focus-within:ring-1 focus-within:ring-inset focus-within:ring-primary-400/30`}
+                      className={`group relative min-h-11 overflow-hidden rounded-radius-sm text-xs transition-colors lg:min-h-7 ${conv.id === activeId ? "atlas-raised font-medium text-text" : "text-text-secondary hover:bg-subtle hover:text-text"} focus-within:ring-1 focus-within:ring-inset focus-within:ring-accent/30`}
                     >
                       {editingId === conv.id ? (
                         <form
@@ -236,7 +236,7 @@ export function ConversationHistory({
                               }
                               void finishRename();
                             }}
-                            className="h-11 min-w-0 flex-1 rounded-radius-sm border border-primary-500/40 bg-surface px-2 text-base text-text-secondary outline-none ring-1 ring-primary-500/20 lg:h-8 lg:text-sm"
+                            className="h-11 min-w-0 flex-1 rounded-radius-sm border border-accent bg-input px-2 text-base text-text outline-none ring-1 ring-accent/25 lg:h-8 lg:text-sm"
                             aria-label={t("Rename")}
                             autoFocus
                           />
@@ -251,7 +251,7 @@ export function ConversationHistory({
                           }
                         >
                           {conv.pinned && (
-                            <PushPinIcon className="h-3 w-3 shrink-0 text-primary-400" />
+                            <PushPinIcon className="h-3 w-3 shrink-0 text-text-tertiary" />
                           )}
                           <span className="min-w-0 flex-1 truncate text-sm font-medium lg:font-normal">
                             {conv.title}
@@ -261,7 +261,7 @@ export function ConversationHistory({
                       {editingId !== conv.id && (
                         <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-14 items-center justify-end pr-2 lg:flex">
                           <span
-                            className="shrink-0 whitespace-nowrap text-right text-xs text-text-tertiary opacity-70 transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0"
+                            className="shrink-0 whitespace-nowrap text-right font-mono text-[11px] text-text-tertiary transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0"
                             suppressHydrationWarning
                           >
                             {relativeDate(conv.createdAt, t)}
@@ -275,7 +275,7 @@ export function ConversationHistory({
                             onClick={() =>
                               void onTogglePinned(conv.id, !conv.pinned)
                             }
-                            className="flex h-11 w-11 items-center justify-center rounded-radius-sm text-text-tertiary hover:text-primary-400 lg:h-7 lg:w-7"
+                            className="flex h-11 w-11 items-center justify-center rounded-radius-sm text-text-tertiary hover:text-accent lg:h-7 lg:w-7"
                             title={
                               conv.pinned ? t("Unpin") : t("Pin to favorites")
                             }
@@ -284,7 +284,7 @@ export function ConversationHistory({
                             }
                           >
                             <PushPinIcon
-                              className={`h-3.5 w-3.5 ${conv.pinned ? "text-primary-400" : ""}`}
+                              className={`h-3.5 w-3.5 ${conv.pinned ? "text-accent" : ""}`}
                             />
                           </button>
                           <button
@@ -299,7 +299,7 @@ export function ConversationHistory({
                           <button
                             type="button"
                             onClick={() => onDeleteConversation(conv.id)}
-                            className="flex h-11 w-11 items-center justify-center rounded-radius-sm text-text-tertiary hover:text-error-400 lg:h-7 lg:w-7"
+                            className="flex h-11 w-11 items-center justify-center rounded-radius-sm text-text-tertiary hover:text-error-600 dark:hover:text-error-400 lg:h-7 lg:w-7"
                             title={t("chat.delete_conversation")}
                             aria-label={t("chat.delete_conversation")}
                           >

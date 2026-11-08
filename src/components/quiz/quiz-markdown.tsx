@@ -24,7 +24,7 @@ const quizComponents: Partial<Components> = {
   ),
   li: ({ children }) => <li className="leading-relaxed">{children}</li>,
   blockquote: ({ children }) => (
-    <blockquote className="border-l-2 border-border-subtle pl-3 text-text-tertiary my-1.5 italic">
+    <blockquote className="my-1.5 rounded-radius-md bg-surface-elevated px-3 py-2 text-text-secondary italic">
       {children}
     </blockquote>
   ),

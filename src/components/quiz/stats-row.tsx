@@ -35,11 +35,14 @@ export default function StatsRow({
   return (
     <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
       {statCards.map((stat) => (
-        <div key={stat.label} className="glass-card rounded-radius-lg p-4">
-          <div className="text-text-tertiary text-xs uppercase tracking-wider">
-            {stat.label}
+        <div
+          key={stat.label}
+          className="rounded-radius-xl border border-border bg-surface px-4 py-3.5"
+        >
+          <div className="text-xs text-text-tertiary">{stat.label}</div>
+          <div className="mt-1 font-sans text-2xl font-semibold tabular-nums text-text">
+            {stat.value}
           </div>
-          <div className="text-text text-2xl font-bold mt-1">{stat.value}</div>
         </div>
       ))}
     </div>

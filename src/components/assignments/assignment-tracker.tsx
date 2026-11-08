@@ -62,7 +62,7 @@ function toCourseRings(assignments: Assignment[]): CourseRingData[] {
     const name = assignment.course_name ?? "Other";
     const ring = rings.get(name) ?? {
       name,
-      color: assignment.course_color ?? "var(--color-primary-500)",
+      color: assignment.course_color ?? "var(--color-accent)",
       done: 0,
       total: 0,
     };
@@ -135,7 +135,7 @@ function ConcentricRings({ courses }: { courses: CourseRingData[] }) {
                 style={{ backgroundColor: course.color }}
               />
               <span className="max-w-[120px] truncate">{course.name}</span>
-              <span className="ml-auto tabular-nums opacity-70">{progress}%</span>
+              <span className="ml-auto font-mono tabular-nums opacity-70">{progress}%</span>
             </div>
           );
         })}
@@ -182,8 +182,8 @@ function urgencyLabel(
 }
 
 const toneClasses = {
-  red: "text-error-400",
-  amber: "text-warning-400",
+  red: "rounded-full bg-error-500/10 px-1.5 font-medium text-error-700 dark:text-error-700 dark:text-error-300",
+  amber: "rounded-full bg-warning-500/15 px-1.5 font-medium text-warning-700 dark:text-warning-400",
   muted: "text-text-tertiary",
   none: "text-text-tertiary",
 };
@@ -402,7 +402,7 @@ export default function AssignmentTracker({
     if (error && assignments.length === 0) {
       return (
         <div role="alert" className="flex flex-col items-center gap-3 px-3 py-8 text-center">
-          <p className="text-xs text-error-300">{t("Something went wrong")}</p>
+          <p className="text-xs text-error-700 dark:text-error-700 dark:text-error-300">{t("Something went wrong")}</p>
           <button
             type="button"
             onClick={() => void retry()}
@@ -448,12 +448,12 @@ export default function AssignmentTracker({
               type="button"
               onClick={(event) => void handleToggleDone(assignment, event.currentTarget)}
               disabled={updatingTaskId === assignment.id}
-              className={`relative z-20 flex ${completed ? "h-8 min-w-16 max-lg:h-11" : actionSize} shrink-0 items-center justify-center gap-1 rounded-radius-md px-1 text-text-tertiary transition-colors hover:bg-subtle hover:text-primary-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 disabled:opacity-50`}
+              className={`relative z-20 flex ${completed ? "h-8 min-w-16 max-lg:h-11" : actionSize} shrink-0 items-center justify-center gap-1 rounded-radius-md px-1 text-text-tertiary transition-colors hover:bg-subtle hover:text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 disabled:opacity-50`}
               aria-label={completed ? t("Undo") : t("Mark as done")}
               aria-pressed={completed}
             >
               {completed ? (
-                <CheckCircleSolid className="h-4 w-4 text-primary-400" />
+                <CheckCircleSolid className="h-4 w-4 text-success-500" />
               ) : (
                 <CheckCircleIcon className="h-4 w-4" />
               )}
@@ -472,7 +472,7 @@ export default function AssignmentTracker({
                 >
                   <AssignmentDetailsTrigger
                     assignment={assignment}
-                    className={`flex ${titleHeight} w-full min-w-0 items-center text-left transition-colors after:absolute after:inset-0 after:z-10 after:content-[''] hover:text-primary-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400`}
+                    className={`flex ${titleHeight} w-full min-w-0 items-center text-left transition-colors after:absolute after:inset-0 after:z-10 after:content-[''] hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
                   >
                     <span className="flex w-full min-w-0 items-center justify-between gap-1.5">
                       <span className="min-w-0 break-words line-clamp-2">{assignment.title}</span>
@@ -487,7 +487,7 @@ export default function AssignmentTracker({
               <button
                 type="button"
                 onClick={() => setTaskToEdit(assignment)}
-                className={`relative z-20 flex ${actionSize} shrink-0 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-primary-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50`}
+                className={`relative z-20 flex ${actionSize} shrink-0 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50`}
                 aria-label={`${t("Edit task")}: ${assignment.title}`}
                 title={t("Edit task")}
               >
@@ -506,7 +506,7 @@ export default function AssignmentTracker({
                     courseColor: assignment.course_color ?? undefined,
                   })
                 }
-                className={`relative z-20 flex ${actionSize} shrink-0 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-primary-500/10 hover:text-primary-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50`}
+                className={`relative z-20 flex ${actionSize} shrink-0 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-accent-soft hover:text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50`}
                 aria-label={t("Start Focus")}
               >
                 <PlayIcon className="h-4 w-4" />
@@ -519,21 +519,18 @@ export default function AssignmentTracker({
               {assignment.course_name && (
                 <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 text-text-tertiary">
                   <span
-                    className="h-1.5 w-1.5 shrink-0 rounded-full"
-                    style={{
-                      backgroundColor:
-                        assignment.course_color ?? "var(--color-primary-500)",
-                    }}
+                    aria-hidden="true"
+                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${completed ? "bg-success-500" : "bg-accent"}`}
                   />
                   <span className="truncate">{assignment.course_name}</span>
                 </span>
               )}
               {due.text && <span className={toneClasses[due.tone]}>{due.text}</span>}
               {completed && (
-                <span className="font-medium text-primary-400">{t("Done")}</span>
+                <span className="font-medium text-success-700 dark:text-success-400">{t("Done")}</span>
               )}
               {assignment.points_possible != null && (
-                <span className="text-text-tertiary">
+                <span className="font-mono text-text-tertiary">
                   {assignment.score != null ? `${assignment.score}/` : ""}
                   {assignment.points_possible} {t("assignments.pts")}
                 </span>
@@ -545,16 +542,13 @@ export default function AssignmentTracker({
             <div className={`mt-2 flex items-center gap-2 ${detailsIndent}`}>
               <div className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-subtle" aria-hidden="true">
                 <div
-                  className="h-full rounded-full transition-all duration-300"
+                  className="h-full rounded-full bg-accent transition-all duration-300"
                   style={{
                     width: `${progress}%`,
-                    backgroundColor:
-                      assignment.course_color ?? "var(--color-primary-500)",
-                    opacity: 0.6,
                   }}
                 />
               </div>
-              <span className="shrink-0 whitespace-nowrap text-xs tabular-nums text-text-tertiary">
+              <span className="shrink-0 whitespace-nowrap font-mono text-xs tabular-nums text-text-tertiary">
                 {formatHours.format(hoursLogged)} / {formatHours.format(hoursEstimated)}h
               </span>
             </div>
@@ -571,7 +565,7 @@ export default function AssignmentTracker({
           <button
             type="button"
             onClick={() => setShowNewTask(true)}
-            className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-radius-md bg-primary-600 px-3 text-sm font-medium text-text-on-primary transition-colors hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50"
+            className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-radius-md bg-action px-3 text-sm font-medium text-on-action transition-colors hover:bg-action-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
           >
             <PlusIcon className="h-4 w-4" aria-hidden="true" />
             {t("New Task")}
@@ -581,7 +575,7 @@ export default function AssignmentTracker({
       <div className="space-y-2 px-3 pb-2 pt-3">
         <Listbox value={courseFilter} onChange={setCourseFilter}>
           <div className="relative z-40 min-w-0">
-            <ListboxButton className={`relative flex ${compact ? "h-8" : "h-11"} w-full items-center rounded-radius-md py-1.5 pl-3 pr-9 text-left text-xs font-medium text-text-secondary glass-card-interactive focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50`}>
+            <ListboxButton className={`relative flex ${compact ? "h-8" : "h-11"} w-full items-center rounded-radius-md py-1.5 pl-3 pr-9 text-left text-xs font-medium text-text-secondary glass-card-interactive focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50`}>
               <span className="min-w-0 truncate">
                 {courseFilter || t("All Courses")}
               </span>
@@ -589,7 +583,7 @@ export default function AssignmentTracker({
                 <ChevronUpDownIcon className="h-3.5 w-3.5 text-text-tertiary" />
               </span>
             </ListboxButton>
-            <ListboxOptions className="absolute z-[80] mt-1 max-h-56 w-full overflow-auto rounded-radius-md border border-border bg-app-page py-1 text-xs shadow-2xl ring-1 ring-black/20 focus:outline-none">
+            <ListboxOptions className="absolute z-[80] mt-1 max-h-56 w-full overflow-auto rounded-radius-md bg-app-page py-1 text-xs shadow-float focus:outline-none">
               <ListboxOption
                 value={null}
                 className={`${compact ? "min-h-8 py-1.5" : "min-h-11 py-3"} cursor-pointer bg-app-page px-3 text-text-secondary hover:bg-subtle data-[focus]:bg-subtle`}
@@ -615,7 +609,7 @@ export default function AssignmentTracker({
             onClick={() => setIncludeAll(!includeAll)}
             className={`${compact ? "h-7" : "h-11"} min-w-0 flex-1 rounded-radius-sm px-2 text-xs font-medium transition-colors ${
               includeAll
-                ? "bg-surface text-text-secondary shadow-sm"
+                ? "atlas-raised text-text"
                 : "text-text-secondary hover:bg-surface/60"
             }`}
             aria-pressed={includeAll}
@@ -648,7 +642,7 @@ export default function AssignmentTracker({
           type="checkbox"
           checked={includeArchived}
           onChange={(event) => void setIncludeArchived(event.target.checked)}
-          className="h-4 w-4 rounded border border-border-subtle accent-primary-500 text-primary-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50"
+          className="h-4 w-4 rounded border border-border-subtle accent-accent text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
         />
         {t("Show archived courses")}
       </label>
@@ -660,7 +654,7 @@ export default function AssignmentTracker({
           role="alert"
           className="mx-3 mb-2 flex items-center justify-between gap-2 rounded-radius-md border border-error-500/20 bg-error-500/10 px-2.5 py-2"
         >
-          <span className="text-xs text-error-300">{t("Something went wrong")}</span>
+          <span className="text-xs text-error-700 dark:text-error-700 dark:text-error-300">{t("Something went wrong")}</span>
           <button
             type="button"
             onClick={() => void retry()}
@@ -683,17 +677,25 @@ export default function AssignmentTracker({
         className="flex min-h-0 flex-1 flex-col"
       >
         <TabList
-          className="mx-3 mb-2 flex rounded-radius-md bg-subtle p-0.5"
+          className="mx-3 mb-2 flex gap-3 border-b border-border"
           aria-label={t("Tasks")}
         >
           {tabs.map((tab) => (
             <Tab
               key={tab}
-              className={`${compact ? "h-8" : "min-h-11"} flex-1 rounded-radius-sm py-1.5 text-center text-xs font-medium text-text-tertiary transition-all data-selected:bg-surface data-selected:text-text-secondary data-selected:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50`}
+              className={`${compact ? "h-8 max-lg:min-h-11" : "min-h-11"} -mb-px border-b-2 border-transparent px-1 py-1.5 text-center text-xs font-medium text-text-tertiary transition-colors hover:text-text-secondary data-selected:border-accent data-selected:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50`}
             >
               {tabLabels[tab]}
               {counts[tab] > 0 && (
-                <span className="ml-1 text-xs opacity-60">{counts[tab]}</span>
+                <span
+                  className={`ml-1 font-mono text-xs ${
+                    tab === "late"
+                      ? "text-error-700 dark:text-error-700 dark:text-error-300"
+                      : "text-text-tertiary"
+                  }`}
+                >
+                  {counts[tab]}
+                </span>
               )}
             </Tab>
           ))}
@@ -716,7 +718,7 @@ export default function AssignmentTracker({
           <button
             type="button"
             onClick={() => setShowNewTask(true)}
-            className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-radius-lg border border-dashed border-border-subtle py-2 text-xs text-text-tertiary transition-colors hover:border-border hover:text-text-secondary"
+            className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-radius-md bg-action py-2 text-xs font-medium text-on-action transition-colors hover:bg-action-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
           >
             <PlusIcon className="h-3.5 w-3.5" aria-hidden="true" />
             {t("New Task")}

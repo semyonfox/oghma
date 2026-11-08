@@ -92,7 +92,7 @@ export default function ContactForm({ source = "contact", centered = false }: Co
               type="text"
               autoComplete="name"
               required
-              className="block w-full rounded-radius-md bg-input px-3.5 py-2 text-base text-text outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500"
+              className="block w-full rounded-radius-md bg-input px-3.5 py-2 text-base text-text outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-accent"
             />
           </div>
         </div>
@@ -109,7 +109,7 @@ export default function ContactForm({ source = "contact", centered = false }: Co
               name="email"
               type="email"
               required
-              className="block w-full rounded-radius-md bg-input px-3.5 py-2 text-base text-text outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500"
+              className="block w-full rounded-radius-md bg-input px-3.5 py-2 text-base text-text outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-accent"
             />
           </div>
         </div>
@@ -126,7 +126,7 @@ export default function ContactForm({ source = "contact", centered = false }: Co
               name="interest"
               required
               defaultValue=""
-              className="block w-full rounded-radius-md bg-input px-3.5 py-2 text-base text-text outline-1 -outline-offset-1 outline-border focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500"
+              className="block w-full rounded-radius-md bg-input px-3.5 py-2 text-base text-text outline-1 -outline-offset-1 outline-border focus:outline-2 focus:-outline-offset-2 focus:outline-accent"
             >
               <option value="" disabled>
                 {t("Select an option")}
@@ -153,7 +153,7 @@ export default function ContactForm({ source = "contact", centered = false }: Co
               name="message"
               rows={4}
               required
-              className="block w-full rounded-radius-md bg-input px-3.5 py-2 text-base text-text outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500"
+              className="block w-full rounded-radius-md bg-input px-3.5 py-2 text-base text-text outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-accent"
             />
           </div>
         </div>
@@ -162,7 +162,7 @@ export default function ContactForm({ source = "contact", centered = false }: Co
         <button
           type="submit"
           disabled={isLoading}
-          className="rounded-radius-md bg-primary-600 px-3.5 py-2.5 text-center text-sm font-semibold text-text-on-primary shadow-xs hover:bg-primary-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="rounded-radius-md bg-action px-3.5 py-2.5 text-center text-sm font-semibold text-on-action transition-colors hover:bg-action-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isLoading ? t("Sending...") : t("Send message")}
         </button>

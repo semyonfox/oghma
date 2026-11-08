@@ -99,14 +99,14 @@ export default function ActionConfirmation({ actionId }: { actionId: string }) {
               </p>
               <div className="flex gap-3">
                 <button
-                  className="min-h-11 rounded-radius-md bg-primary-600 px-4 text-white disabled:opacity-50"
+                  className="min-h-11 rounded-radius-md bg-action px-4 text-on-action hover:bg-action-hover disabled:opacity-50"
                   disabled={busy}
                   onClick={() => void decide("approve")}
                 >
                   Approve action
                 </button>
                 <button
-                  className="min-h-11 rounded-radius-md border border-border-subtle px-4 disabled:opacity-50"
+                  className="min-h-11 rounded-radius-md border border-border bg-surface px-4 text-text hover:bg-subtle disabled:opacity-50"
                   disabled={busy}
                   onClick={() => void decide("reject")}
                 >

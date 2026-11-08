@@ -65,8 +65,8 @@ const SidebarListItem: FC<{
   return (
     <>
       <div
-        className={`flex items-center pr-2 overflow-hidden text-text-tertiary hover:text-text-secondary hover:bg-subtle transition-colors duration-200 rounded-radius-sm px-2 py-1.5 cursor-pointer group ${
-          isActive ? "bg-primary-500/10 text-primary-400" : ""
+        className={`flex items-center pr-2 overflow-hidden transition-colors duration-200 rounded-radius-sm px-2 py-1.5 cursor-pointer group ${
+          isActive ? "atlas-raised text-text font-medium" : "text-text-secondary hover:text-text hover:bg-subtle"
         }`}
         role="treeitem"
         aria-expanded={isFolder ? isExpanded : undefined}
@@ -118,9 +118,9 @@ const SidebarListItem: FC<{
           <span
             className={`flex-1 truncate text-sm ${
               syncStatus === "modified"
-                ? "text-amber-400"
+                ? "text-warning-700 dark:text-warning-400"
                 : syncStatus === "new"
-                  ? "text-green-400"
+                  ? "text-accent"
                   : ""
             }`}
             dir="auto"
@@ -131,14 +131,14 @@ const SidebarListItem: FC<{
               (initLoaded ? t("Untitled") : <TextSkeleton />)}
             {syncStatus === "modified" && (
               <span
-                className="ml-1 text-amber-400 text-xs"
+                className="ml-1 font-mono text-warning-700 dark:text-warning-400 text-xs"
                 title={t("Modified")}
               >
                 M
               </span>
             )}
             {syncStatus === "new" && (
-              <span className="ml-1 text-green-400 text-xs" title={t("New")}>
+              <span className="ml-1 font-mono text-accent text-xs" title={t("New")}>
                 U
               </span>
             )}

@@ -5,6 +5,7 @@ import useI18n from "@/lib/notes/hooks/use-i18n";
 import { BLOOM_NAMES } from "@/lib/quiz/types";
 import type { QuizSessionQuestion } from "@/lib/quiz/types";
 import { answersByTyping, gradeAnswer } from "@/lib/quiz/grade";
+import { CheckIcon, XMarkIcon } from "@heroicons/react/20/solid";
 import QuizMarkdown from "./quiz-markdown";
 
 interface QuestionCardProps {
@@ -98,18 +99,18 @@ export default function QuestionCard({
     <div className="flex-1 flex flex-col justify-center gap-5">
       {/* tags */}
       <div className="flex gap-2 items-center">
-        <span className="bg-surface-elevated text-text-tertiary px-2.5 py-0.5 rounded-radius-sm text-xs font-medium">
+        <span className="rounded-full bg-subtle-hover px-2.5 py-0.5 text-xs font-medium text-text-secondary">
           {BLOOM_NAMES[question.bloom_level]}
         </span>
         {moduleName && (
-          <span className="bg-surface-elevated text-text-tertiary px-2.5 py-0.5 rounded-radius-sm text-xs">
+          <span className="rounded-full border border-border bg-surface px-2.5 py-0.5 text-xs text-text-secondary">
             {moduleName}
           </span>
         )}
       </div>
 
       {/* question text */}
-      <div className="text-text text-base font-medium leading-relaxed">
+      <div className="font-serif text-xl font-semibold leading-snug tracking-tight text-text sm:text-2xl">
         <QuizMarkdown>{question.question_text}</QuizMarkdown>
       </div>
 
@@ -118,51 +119,54 @@ export default function QuestionCard({
         <div className="flex flex-col gap-2">
           {options.map((option, i) => {
             const letter = String.fromCharCode(65 + i);
-            let borderColor = "border-border-subtle";
-            let bgColor = "bg-surface";
+            const isCorrect = submitted && option.is_correct;
+            const isWrongPick =
+              submitted && i === selected && !option.is_correct;
+            const isPicked = !submitted && i === selected;
 
-            if (submitted) {
-              if (option.is_correct) {
-                borderColor = "border-success-500/20";
-                bgColor = "bg-success-500/3";
-              } else if (i === selected && !option.is_correct) {
-                borderColor = "border-error-500/20";
-                bgColor = "bg-error-500/3";
-              }
-            } else if (i === selected) {
-              borderColor = "border-text-tertiary";
-              bgColor = "bg-primary-500/10";
-            }
+            const cardClass = isCorrect
+              ? "border-success-700 bg-success-50 ring-1 ring-success-700 dark:border-success-400 dark:bg-success-500/10 dark:ring-success-400"
+              : isWrongPick
+                ? "border-error-700 bg-error-50 ring-1 ring-error-700 dark:border-error-400 dark:bg-error-500/10 dark:ring-error-400"
+                : isPicked
+                  ? "atlas-raised ring-1 ring-border-strong"
+                  : `border-border bg-surface ${!submitted ? "hover:bg-subtle cursor-pointer" : ""}`;
+
+            const markerClass = isCorrect
+              ? "border-transparent bg-success-700 text-on-action dark:bg-success-400"
+              : isWrongPick
+                ? "border-transparent bg-error-700 text-on-action dark:bg-error-400"
+                : isPicked
+                  ? "border-border-strong bg-subtle-hover text-text"
+                  : "border-border text-text-tertiary";
 
             return (
               <button
                 key={i}
                 onClick={() => handleMCQSelect(i)}
                 disabled={submitted}
-                className={`${bgColor} border ${borderColor} rounded-radius-lg px-4 py-3 text-sm text-left flex items-center gap-3 transition-colors ${!submitted ? "hover:border-text-tertiary cursor-pointer" : ""}`}
+                className={`flex min-h-12 items-center gap-3 rounded-radius-lg border px-4 py-3 text-left text-sm transition-colors ${cardClass}`}
               >
                 <div
-                  className={`w-6 h-6 rounded-full border flex items-center justify-center text-xs flex-shrink-0 ${
-                    i === selected
-                      ? submitted
-                        ? option.is_correct
-                          ? "bg-success-500/20 border-success-500/30 text-text-secondary"
-                          : "bg-error-500/20 border-error-500/30 text-text-secondary"
-                        : "bg-subtle border-text-tertiary text-text-secondary"
-                      : submitted && option.is_correct
-                        ? "bg-success-500/20 border-success-500/30 text-text-secondary"
-                        : "border-border-subtle text-text-tertiary"
-                  }`}
+                  className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border font-mono text-xs ${markerClass}`}
                 >
-                  {letter}
+                  {isCorrect ? (
+                    <CheckIcon aria-hidden="true" className="h-4 w-4" />
+                  ) : isWrongPick ? (
+                    <XMarkIcon aria-hidden="true" className="h-4 w-4" />
+                  ) : (
+                    letter
+                  )}
                 </div>
                 <span
                   className={
-                    submitted && option.is_correct
-                      ? "text-text"
-                      : i === selected && submitted && !option.is_correct
-                        ? "text-text-tertiary line-through"
-                        : "text-text-secondary"
+                    isCorrect
+                      ? "font-medium text-text"
+                      : isWrongPick
+                        ? "text-text-secondary line-through"
+                        : isPicked
+                          ? "font-medium text-text"
+                          : "text-text-secondary"
                   }
                 >
                   <QuizOptionText>{option.text}</QuizOptionText>
@@ -182,7 +186,7 @@ export default function QuestionCard({
             onChange={(e) => setFillInAnswer(e.target.value)}
             disabled={submitted}
             placeholder={t("quiz.question.type_answer")}
-            className="flex-1 bg-surface border border-border-subtle rounded-radius-lg px-4 py-3 text-sm text-text placeholder:text-text-tertiary focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/50"
+            className="flex-1 rounded-radius-lg border border-border bg-input px-4 py-3 text-base text-text placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/50 sm:text-sm"
             onKeyDown={(e) =>
               e.key === "Enter" &&
               !submitted &&
@@ -198,7 +202,7 @@ export default function QuestionCard({
         <button
           onClick={handleSubmit}
           disabled={typed ? !fillInAnswer.trim() : selected === null}
-          className="glass-card-interactive text-text px-6 py-2.5 rounded-radius-lg text-sm font-medium self-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className="min-h-11 self-end rounded-radius-lg bg-action px-6 py-2.5 text-sm font-semibold text-on-action transition-colors hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-40"
         >
           {t("quiz.question.check_answer")}
         </button>

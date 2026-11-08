@@ -12,15 +12,15 @@ export const metadata: Metadata = {
 export default async function MobileAlphaPage() {
   const release = await getMobileRelease();
   return (
-    <main className="mx-auto flex min-h-dvh max-w-2xl flex-col justify-center gap-8 px-6 py-16">
-      <Link href="/" className="text-sm font-semibold text-text-secondary">
+    <main className="bg-background mx-auto flex min-h-dvh max-w-2xl flex-col justify-center gap-8 px-6 py-16">
+      <Link href="/" className="font-serif text-lg font-semibold tracking-tight text-text">
         OghmaNotes
       </Link>
       <div className="space-y-4">
-        <p className="text-xs font-semibold uppercase tracking-widest text-primary-600 dark:text-primary-300">
+        <p className="font-mono text-xs font-medium uppercase tracking-[0.14em] text-text-tertiary">
           Android alpha
         </p>
-        <h1 className="font-serif text-4xl leading-tight text-text sm:text-5xl">
+        <h1 className="font-serif text-4xl font-semibold leading-tight tracking-tight text-text sm:text-5xl">
           Your study space,
           <br />
           in your pocket.
@@ -31,7 +31,7 @@ export default async function MobileAlphaPage() {
         </p>
       </div>
       <section
-        className="space-y-5 rounded-2xl border border-border-subtle bg-surface p-6"
+        className="space-y-5 rounded-radius-2xl border border-border bg-surface p-6"
         aria-label="Android download"
       >
         {release ? (
@@ -39,11 +39,11 @@ export default async function MobileAlphaPage() {
             <a
               href="/downloads/oghmanotes-alpha.apk"
               download
-              className="inline-flex min-h-12 items-center justify-center rounded-xl bg-primary-600 px-6 py-3 font-semibold text-white hover:bg-primary-700"
+              className="inline-flex min-h-12 items-center justify-center rounded-radius-md bg-action px-6 py-3 font-semibold text-on-action transition-colors hover:bg-action-hover"
             >
               Download Android alpha
             </a>
-            <p className="text-sm text-text-secondary">
+            <p className="font-mono text-xs text-text-tertiary">
               Version {release.version} ·{" "}
               {(release.bytes / 1024 / 1024).toFixed(1)} MB · APK
             </p>
@@ -57,12 +57,12 @@ export default async function MobileAlphaPage() {
               <summary className="cursor-pointer py-2">
                 Verify download checksum
               </summary>
-              <code className="block break-all py-2">{release.sha256}</code>
+              <code className="block break-all rounded-radius-sm bg-surface-elevated px-3 py-2 font-mono">{release.sha256}</code>
             </details>
           </>
         ) : (
           <>
-            <h2 className="text-xl font-semibold text-text">
+            <h2 className="font-serif text-xl font-semibold tracking-tight text-text">
               The first APK is being prepared
             </h2>
             <p className="text-text-secondary">
@@ -72,7 +72,7 @@ export default async function MobileAlphaPage() {
         )}
       </section>
       <div className="space-y-3 text-sm leading-relaxed text-text-secondary">
-        <h2 className="text-lg font-semibold text-text">What to expect</h2>
+        <h2 className="font-serif text-lg font-semibold tracking-tight text-text">What to expect</h2>
         <p>
           This is an early Android version. Sign in with your existing email and
           password, Google or GitHub. Notes and chat connect to the same account
@@ -87,7 +87,7 @@ export default async function MobileAlphaPage() {
       </div>
       <Link
         href="/notes"
-        className="text-sm font-semibold text-primary-600 dark:text-primary-300 underline underline-offset-4"
+        className="text-sm font-semibold text-accent hover:text-accent-hover underline underline-offset-4"
       >
         Continue on the website
       </Link>

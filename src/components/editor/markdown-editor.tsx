@@ -542,7 +542,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
             <button
               type="button"
               onClick={() => setLoadAttempt((attempt) => attempt + 1)}
-              className="rounded-radius-md px-3 py-2 text-sm font-medium text-primary-400 hover:bg-subtle hover:text-primary-300"
+              className="rounded-radius-md px-3 py-2 text-sm font-medium text-accent hover:bg-subtle hover:text-accent-hover"
             >
               {t("Try again")}
             </button>

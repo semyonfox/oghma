@@ -38,7 +38,7 @@ export default function TelemetryPreference() {
           type="checkbox"
           checked={disabled}
           aria-describedby={`${id}-description ${id}-status`}
-          className="h-5 w-5 accent-primary-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-400"
+          className="h-5 w-5 accent-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           onChange={(event) => {
             const saved = setTelemetryDisabled(event.currentTarget.checked);
             setDisabled(telemetryDisabled());

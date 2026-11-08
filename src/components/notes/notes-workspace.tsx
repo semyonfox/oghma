@@ -176,7 +176,7 @@ export default function NotesWorkspace({
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {isDesktop === true && (
-          <div className="desktop-navigation-rail w-14 shrink-0 border-r border-border-subtle bg-background">
+          <div className="desktop-navigation-rail w-14 shrink-0 border-r border-border bg-sidebar">
             <PrimaryNavigation />
           </div>
         )}
@@ -203,14 +203,14 @@ export default function NotesWorkspace({
               }}
               className="flex min-w-0"
             >
-              <div className="flex h-full w-full flex-col overflow-hidden bg-background">
+              <div className="flex h-full w-full flex-col overflow-hidden bg-sidebar">
                 <NoteTreePanel />
               </div>
             </Panel>
 
             <PanelResizeHandle
               aria-label={t("Resize notes panel")}
-              className="w-px cursor-col-resize bg-border-subtle transition-colors hover:bg-primary-500/40 active:bg-primary-500/60"
+              className="w-px cursor-col-resize bg-border transition-colors hover:bg-accent/40 active:bg-accent/60"
             />
 
             <Panel id="note-editor" minSize="320px" className="flex min-w-0">
@@ -233,7 +233,7 @@ export default function NotesWorkspace({
             {rightPanelOpen && hasInspectorSpace === true && !isTrashView && (
               <PanelResizeHandle
                 aria-label={t("Resize details panel")}
-                className="w-px cursor-col-resize bg-border-subtle transition-colors hover:bg-primary-500/40 active:bg-primary-500/60"
+                className="w-px cursor-col-resize bg-border transition-colors hover:bg-accent/40 active:bg-accent/60"
               />
             )}
 

@@ -47,15 +47,15 @@ export function CourseBadge({ status, errorMsg, t = untranslated }: { status: Co
       label: t("Synced"),
     },
     outOfSync: {
-      color: "fill-yellow-500",
+      color: "fill-warning-500",
       text: "text-text-secondary",
-      ring: "ring-yellow-500/40",
+      ring: "ring-warning-500/40",
       label: t("Out of sync"),
     },
     syncing: {
-      color: "fill-blue-500",
+      color: "fill-accent",
       text: "text-text-secondary",
-      ring: "ring-blue-500/40",
+      ring: "ring-accent/40",
       label: t("Syncing"),
     },
     checking: {
@@ -66,9 +66,9 @@ export function CourseBadge({ status, errorMsg, t = untranslated }: { status: Co
       pulse: true,
     },
     forbidden: {
-      color: "fill-orange-500",
+      color: "fill-warning-500",
       text: "text-text-secondary",
-      ring: "ring-orange-500/40",
+      ring: "ring-warning-500/40",
       label: t("Restricted"),
     },
     error: {
@@ -123,8 +123,8 @@ export function CanvasAvailabilityBadge({
       label: t("Past"),
     },
     pending: {
-      color: "fill-yellow-500",
-      ring: "ring-yellow-500/40",
+      color: "fill-warning-500",
+      ring: "ring-warning-500/40",
       label: t("Pending"),
     },
     inaccessible: {
@@ -162,22 +162,23 @@ export function CanvasAvailabilityBadge({
 /** Status dot + label for a single log entry */
 export function LogStatusIcon({ status, t = untranslated }: { status: string; t?: Translate }) {
   const map: Record<string, { dot: string; label: string }> = {
-    complete: { dot: "bg-green-400", label: t("done") },
-    processing: { dot: "bg-blue-400 animate-pulse", label: t("processing") },
-    pending_extract: { dot: "bg-blue-400 animate-pulse", label: t("processing") },
-    indexing: { dot: "bg-blue-400 animate-pulse", label: t("processing") },
+    // in progress is always the accent; only the outcome gets a status colour
+    complete: { dot: "bg-success-500", label: t("done") },
+    processing: { dot: "bg-accent animate-pulse", label: t("processing") },
+    pending_extract: { dot: "bg-accent animate-pulse", label: t("processing") },
+    indexing: { dot: "bg-accent animate-pulse", label: t("processing") },
     pending_marker: {
-      dot: "bg-amber-400 animate-pulse",
+      dot: "bg-accent animate-pulse",
       label: t("processing"),
     },
-    pending_cache: { dot: "bg-amber-400 animate-pulse", label: t("processing") },
+    pending_cache: { dot: "bg-accent animate-pulse", label: t("processing") },
     pending_retry: {
-      dot: "bg-yellow-400 animate-pulse",
+      dot: "bg-accent animate-pulse",
       label: t("processing"),
     },
-    downloading: { dot: "bg-yellow-400 animate-pulse", label: t("downloading") },
-    forbidden: { dot: "bg-orange-400", label: t("restricted") },
-    error: { dot: "bg-red-400", label: t("error") },
+    downloading: { dot: "bg-accent animate-pulse", label: t("downloading") },
+    forbidden: { dot: "bg-warning-500", label: t("restricted") },
+    error: { dot: "bg-error-500", label: t("error") },
   };
   const cfg = map[status as keyof typeof map] ?? { dot: "bg-text-tertiary", label: status };
   return (

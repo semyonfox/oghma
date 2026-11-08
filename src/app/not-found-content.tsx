@@ -28,15 +28,15 @@ function NotFoundBody({ homeUrl }: { homeUrl: string }) {
   const { t } = useI18n();
 
   return (
-    <main className="grid min-h-dvh place-items-center bg-white px-6 py-24 dark:bg-zinc-900 sm:py-32 lg:px-8">
+    <main className="grid min-h-dvh place-items-center bg-background px-6 py-24 sm:py-32 lg:px-8">
       <div className="text-center">
-        <p className="text-base font-semibold text-blue-600 dark:text-blue-400">
+        <p className="font-mono text-sm font-medium text-accent">
           {t("error.404")}
         </p>
-        <Heading className="mt-4 text-5xl sm:text-7xl">
+        <Heading className="mt-4 font-serif text-5xl font-semibold tracking-tight sm:text-7xl">
           {t("error.page_not_found")}
         </Heading>
-        <Text className="mt-6 text-lg text-zinc-600 dark:text-zinc-400 sm:text-xl/8">
+        <Text className="mt-6 text-lg text-text-secondary sm:text-xl/8">
           {t("error.page_not_found_description")}
         </Text>
         <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row sm:gap-6">

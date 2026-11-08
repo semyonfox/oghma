@@ -19,7 +19,15 @@ import {
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { Locale, normalizeLocale } from "@/locales";
 import { useSettingsStore } from "@/lib/notes/state/ui/settings";
-import { cn } from "@/components/settings/settings-utils";
+import {
+  cn,
+  errorNoticeClass,
+  secondaryBtnClass,
+} from "@/components/settings/settings-utils";
+import {
+  SettingsCard,
+  SettingsCardBody,
+} from "@/components/settings/settings-card";
 import {
   DEFAULT_EDITOR_SIZE,
   normalizeEditorSize,
@@ -432,7 +440,7 @@ export default function SettingsPage() {
         <PrimaryNavigation />
       </div>
       <div className="shrink-0 border-b border-border-subtle">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex items-center gap-4 h-16">
+        <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4 sm:h-16 sm:px-6 lg:px-8">
           <button
             type="button"
             onClick={() => router.back()}
@@ -442,22 +450,22 @@ export default function SettingsPage() {
           >
             <ArrowLeftIcon className="h-5 w-5" />
           </button>
-          <h1 className="font-serif text-2xl font-semibold text-text">
+          <h1 className="font-serif text-2xl font-semibold tracking-tight text-text">
             {t("Settings")}
           </h1>
         </div>
       </div>
 
       <nav className="shrink-0 border-b border-border-subtle overflow-x-auto overscroll-x-contain lg:hidden">
-        <ul className="flex min-w-full gap-x-5 px-4 text-sm font-medium text-text-tertiary sm:px-6">
+        <ul className="flex min-w-full items-center gap-x-2 px-4 py-2.5 text-sm font-medium sm:px-6">
           {navigation.map((item) => (
             <li key={item.id} className="whitespace-nowrap">
               <button
                 className={cn(
-                  "min-h-12 border-b-2 px-1 py-3 transition-colors",
+                  "min-h-11 rounded-full px-4 transition-colors",
                   activeSection === item.id
-                    ? "text-primary-700 dark:text-primary-300 border-primary-500"
-                    : "border-transparent hover:text-text-secondary",
+                    ? "atlas-raised text-text"
+                    : "text-text-secondary ring-1 ring-inset ring-border hover:bg-subtle hover:text-text",
                 )}
                 aria-current={activeSection === item.id ? "location" : undefined}
                 onClick={() => scrollToSection(item.id)}
@@ -468,7 +476,7 @@ export default function SettingsPage() {
           ))}
           <li className="whitespace-nowrap">
             <button
-              className="min-h-12 px-1 py-3 text-error-700 hover:text-error-600 dark:text-error-400 dark:hover:text-error-300 disabled:opacity-50"
+              className="min-h-11 rounded-full px-4 text-error-700 hover:bg-error-500/10 dark:text-error-400 disabled:opacity-50"
               onClick={handleSignOut}
               disabled={isSigningOut}
             >
@@ -479,41 +487,48 @@ export default function SettingsPage() {
       </nav>
 
       <div ref={contentRef} className="mobile-dock-clearance min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:flex lg:gap-x-16 lg:px-8">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:flex lg:gap-x-10 lg:px-8">
           <aside className="hidden lg:block lg:flex-none lg:py-8">
-          <nav className="sticky top-24 w-56">
-            <ul className="space-y-1">
+          <nav className="sticky top-8 w-56">
+            <ul className="space-y-0.5">
               {navigation.map((item) => (
                 <li key={item.id}>
                   <button
                     className={cn(
-                      "group flex w-full items-center gap-x-3 rounded-radius-md px-3 py-2 text-sm font-medium transition-colors",
+                      "group flex w-full items-center gap-x-3 rounded-radius-md px-3 py-2 text-sm transition-colors",
                       activeSection === item.id
-                        ? "bg-primary-500/10 text-primary-700 dark:text-primary-300"
-                        : "text-text-tertiary hover:text-text-secondary hover:bg-subtle",
+                        ? "atlas-raised font-medium text-text"
+                        : "text-text-secondary hover:bg-subtle hover:text-text",
                     )}
+                    aria-current={activeSection === item.id ? "location" : undefined}
                     onClick={() => scrollToSection(item.id)}
                   >
-                    <item.icon className="h-5 w-5 shrink-0" />
+                    <item.icon
+                      className={cn(
+                        "h-[18px] w-[18px] shrink-0",
+                        activeSection === item.id ? "text-text" : "text-text-tertiary",
+                      )}
+                      aria-hidden="true"
+                    />
                     {item.name}
                   </button>
                 </li>
               ))}
             </ul>
-            <div className="mt-8 border-t border-border-subtle pt-4">
+            <div className="mt-6 border-t border-border-subtle pt-4">
               <button
                 onClick={handleSignOut}
                 disabled={isSigningOut}
-                className="flex w-full items-center gap-x-3 rounded-radius-md px-3 py-2 text-sm font-medium text-error-400 hover:bg-error-500/10 transition-colors disabled:opacity-50"
+                className="flex w-full items-center gap-x-3 rounded-radius-md px-3 py-2 text-sm font-medium text-error-700 hover:bg-error-500/10 transition-colors disabled:opacity-50 dark:text-error-400"
               >
-                <ArrowRightStartOnRectangleIcon className="h-5 w-5 shrink-0" />
+                <ArrowRightStartOnRectangleIcon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
                 {isSigningOut ? t("Signing out...") : t("Sign out")}
               </button>
             </div>
           </nav>
         </aside>
 
-          <main className="flex-1 divide-y divide-border">
+          <main className="min-w-0 max-w-3xl flex-1 space-y-5 py-5 lg:py-8">
           <AccountSection
             formState={formState}
             setFormState={setFormState}
@@ -528,11 +543,11 @@ export default function SettingsPage() {
             }}
           />
           {nativeAppBridge && (
-            <div className="pb-12 md:pl-[calc(33.333333%+1.333333rem)]">
+            <div className="flex justify-end">
               <button
                 type="button"
                 onClick={postNativeUpdates}
-                className="glass-card-interactive rounded-radius-md px-3 py-2 text-sm font-semibold text-text"
+                className={secondaryBtnClass}
               >
                 {t("Check for updates")}
               </button>
@@ -554,28 +569,20 @@ export default function SettingsPage() {
           />
           <CanvasSection />
           <AISection />
-          <section
-            className="grid grid-cols-1 gap-x-8 gap-y-10 py-12 md:grid-cols-3"
+          <SettingsCard
             id="course-visibility"
+            title={t("Course visibility")}
+            description={t(
+              "Hide archived courses from daily counts and restore them here when you need them again.",
+            )}
           >
-            <div>
-              <h2 className="text-base/7 font-semibold text-text">
-                {t("Course visibility")}
-              </h2>
-              <p className="mt-1 text-sm/6 text-text-tertiary">
-                {t(
-                  "Hide archived courses from daily counts and restore them here when you need them again.",
-                )}
-              </p>
-            </div>
-
-            <div className="md:col-span-2">
+            <SettingsCardBody>
               {courseVisibilityLoading ? (
-                <div className="rounded-radius-lg border border-border-subtle bg-surface/60 px-4 py-4 text-sm text-text-tertiary">
+                <div className="text-sm text-text-tertiary">
                   {t("Loading...")}
                 </div>
               ) : courseVisibilityError ? (
-                <div className="rounded-radius-lg border border-error-500/20 bg-error-500/5 px-4 py-4 text-sm text-text-tertiary">
+                <div className={errorNoticeClass}>
                   {t("Could not load course visibility settings.")}
                 </div>
               ) : (
@@ -586,22 +593,13 @@ export default function SettingsPage() {
                   onRestoreAll={handleRestoreArchivedCourses}
                 />
               )}
-            </div>
-          </section>
-          <section
-            className="grid grid-cols-1 gap-x-8 gap-y-10 py-12 md:grid-cols-3"
-            id="privacy"
-          >
-            <div>
-              <h2 className="text-base/7 font-semibold text-text">
-                {t("Privacy")}
-              </h2>
-            </div>
-
-            <div className="md:col-span-2">
+            </SettingsCardBody>
+          </SettingsCard>
+          <SettingsCard id="privacy" title={t("Privacy")}>
+            <SettingsCardBody>
               <TelemetryPreference />
-            </div>
-          </section>
+            </SettingsCardBody>
+          </SettingsCard>
           <DataExportSection />
           <DangerSection />
           </main>

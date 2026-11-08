@@ -49,27 +49,27 @@ const NoteTreePanel: FC<NoteTreePanelProps> = ({ onOpenNote }) => {
   }, []);
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-background">
+    <div className="flex h-full flex-col overflow-hidden bg-sidebar">
       <div className="obsidian-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
         <SidebarList onOpenNote={onOpenNote} />
       </div>
-      <div className="shrink-0 border-t border-border-subtle p-2 pb-[max(0.5rem,var(--safe-bottom))]">
+      <div className="shrink-0 border-t border-border p-2 pb-[max(0.5rem,var(--safe-bottom))]">
         <Link
           href="/notes/trash"
           onClick={() => onOpenNote?.()}
           aria-current={isTrash ? "page" : undefined}
           aria-label={trashCount > 0 ? `${t("Trash")} (${trashCount})` : undefined}
-          className={`flex min-h-11 items-center gap-2 rounded-radius-md px-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 ${
+          className={`flex min-h-11 items-center gap-2 rounded-radius-md px-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
             isTrash
-              ? "bg-primary-500/10 text-primary-700 dark:text-primary-300"
-              : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
+              ? "atlas-raised text-text"
+              : "text-text-secondary hover:bg-subtle hover:text-text"
           }`}
         >
           <TrashIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
           <span>{t("Trash")}</span>
           {trashCount > 0 && (
             <span
-              className="ml-auto inline-flex min-w-5 shrink-0 items-center justify-center rounded-radius-sm bg-subtle px-1.5 py-0.5 text-xs font-medium tabular-nums text-text-tertiary"
+              className="ml-auto inline-flex min-w-5 shrink-0 items-center justify-center rounded-radius-sm bg-subtle px-1.5 py-0.5 font-mono text-xs font-medium tabular-nums text-text-tertiary"
               aria-hidden="true"
             >
               {trashCount}

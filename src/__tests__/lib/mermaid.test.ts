@@ -29,7 +29,8 @@ describe("Mermaid rendering", () => {
       expect.objectContaining({
         securityLevel: "strict",
         startOnLoad: false,
-        theme: "dark",
+        theme: "base",
+        darkMode: true,
         layout: "dagre",
         look: "classic",
         htmlLabels: false,
@@ -41,12 +42,13 @@ describe("Mermaid rendering", () => {
     expect(preview.innerHTML).not.toContain("script");
     expect(preview.innerHTML).not.toContain("onload");
     expect(preview.getAttribute("role")).toBe("img");
+    // labels take the Atlas ink colour (the dark-theme fallback in jsdom)
     expect(preview.querySelector("text")?.style.getPropertyValue("fill")).toBe(
-      "rgb(255, 255, 255)",
+      "rgb(236, 236, 238)",
     );
     expect(
       preview.querySelector<HTMLElement>(".nodeLabel")?.style.getPropertyValue("color"),
-    ).toBe("rgb(255, 255, 255)");
+    ).toBe("rgb(236, 236, 238)");
   });
 
   it("preserves the diagram's intrinsic width for responsive sizing", async () => {
