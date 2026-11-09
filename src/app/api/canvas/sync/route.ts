@@ -4,7 +4,10 @@ import { CanvasClient } from "@/lib/canvas/client";
 import sql from "@/database/pgsql";
 import { enqueueCanvasDiscoverJob } from "@/lib/queue";
 import logger from "@/lib/logger";
-import { loadCanvasCredentials } from "@/lib/canvas/credentials";
+import {
+  loadCanvasCredentials,
+  markCanvasTokenInvalid,
+} from "@/lib/canvas/credentials";
 import {
   buildCanvasSyncCourses,
   discoverCanvasCourses,
@@ -119,6 +122,14 @@ export const POST = withErrorHandler(async (request) => {
       client,
       prevCourseIds,
     );
+    if (discovery.unauthorized) {
+      // an expired token is a reconnect prompt, not an upstream outage
+      await markCanvasTokenInvalid(user.user_id);
+      return NextResponse.json({
+        queued: false,
+        reason: "Canvas token is invalid or expired",
+      });
+    }
     if (discovery.error) {
       throw new ApiError(502, `Canvas course discovery failed: ${discovery.error}`);
     }

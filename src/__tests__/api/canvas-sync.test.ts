@@ -42,6 +42,7 @@ vi.mock("@/lib/canvas/client.js", () => ({
 vi.mock("@/database/pgsql.js", () => ({ default: vi.fn() }));
 vi.mock("@/lib/canvas/credentials", () => ({
   loadCanvasCredentials: vi.fn(),
+  markCanvasTokenInvalid: vi.fn(),
 }));
 vi.mock("@/lib/queue", () => ({ enqueueCanvasDiscoverJob: vi.fn() }));
 vi.mock("@/lib/canvas/cancel-import-jobs", () => ({
@@ -51,7 +52,10 @@ vi.mock("@/lib/logger", () => ({ default: { warn: vi.fn() } }));
 
 import { requireAuth } from "@/lib/api-error";
 import sql from "@/database/pgsql";
-import { loadCanvasCredentials } from "@/lib/canvas/credentials";
+import {
+  loadCanvasCredentials,
+  markCanvasTokenInvalid,
+} from "@/lib/canvas/credentials";
 import { enqueueCanvasDiscoverJob } from "@/lib/queue";
 import { cancelActiveCanvasImportJobs } from "@/lib/canvas/cancel-import-jobs";
 import { POST } from "@/app/api/canvas/sync/route";
@@ -97,6 +101,29 @@ describe("POST /api/canvas/sync", () => {
         "Canvas could not confirm access to all previously imported courses. Try again later.",
     });
     expect((sql as unknown as { begin?: unknown }).begin).toBeUndefined();
+  });
+
+  it("flags an expired Canvas token instead of reporting an upstream failure", async () => {
+    const expired = {
+      ok: false,
+      forbidden: false,
+      unauthorized: true,
+      error: "Invalid or expired Canvas token",
+    };
+    canvas.getDiscoverableCourses.mockResolvedValue(expired);
+    canvas.getSelfEnrollments.mockResolvedValue(expired);
+
+    const response = await POST(
+      new NextRequest("http://localhost/api/canvas/sync", { method: "POST" }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      queued: false,
+      reason: "Canvas token is invalid or expired",
+    });
+    expect(markCanvasTokenInvalid).toHaveBeenCalledWith("user-123");
+    expect(enqueueCanvasDiscoverJob).not.toHaveBeenCalled();
   });
 
   it("skips automatic sync during the server-side cooldown", async () => {
