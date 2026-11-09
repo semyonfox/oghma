@@ -166,7 +166,7 @@ export default function NotesWorkspace({
         : t("Meta");
 
   return (
-    <div className="relative flex h-dvh w-screen flex-col bg-background">
+    <div className="relative flex h-app w-screen flex-col bg-background">
       {!isTrashView && <FirstLoginWelcome />}
       {isTrashView && (
         <MobileAppHeader title={isTrashView ? t("Trash") : t("Notes")} />

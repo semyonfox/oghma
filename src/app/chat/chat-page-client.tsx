@@ -463,7 +463,7 @@ export default function ChatPageClient() {
   };
 
   return (
-    <div className="flex h-dvh w-full flex-col overflow-hidden bg-app-page text-text">
+    <div className="flex h-app w-full flex-col overflow-hidden bg-app-page text-text">
       <MobileAppHeader
         leading={
           <button

@@ -435,7 +435,7 @@ export default function SettingsPage() {
   }, [hasUnsavedSettings]);
 
   return (
-    <div className="settings-with-rail flex h-dvh flex-col overflow-hidden bg-app-page lg:pl-14">
+    <div className="settings-with-rail flex h-app flex-col overflow-hidden bg-app-page lg:pl-14">
       <div className="desktop-navigation-rail fixed inset-y-0 left-0 hidden w-14 border-r border-border-subtle bg-background lg:block">
         <PrimaryNavigation />
       </div>

@@ -18,7 +18,7 @@ export default function StudyMapPageClient(props: {
     setActiveNav("study-map");
   }, [setActiveNav]);
   return (
-    <div className="flex h-dvh flex-col bg-app-page text-text">
+    <div className="flex h-app flex-col bg-app-page text-text">
       <MobileAppHeader title="Study map" />
       <div className="flex min-h-0 flex-1">
         <div className="desktop-navigation-rail hidden w-64 shrink-0 border-r border-border lg:block">

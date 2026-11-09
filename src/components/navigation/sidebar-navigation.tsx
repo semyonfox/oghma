@@ -77,8 +77,9 @@ export default function SidebarNavigation({
                 {item.section === "search" ? t("Search") : t(item.labelKey)}
               </span>
               {item.section === "search" && (
-                <kbd aria-hidden="true" className="rounded-[5px] border border-border px-1.5 font-mono text-[11px] text-text-tertiary">
-                  ⌘K
+                <kbd aria-hidden="true" className="inline-flex items-center gap-0.5 rounded-[5px] border border-border px-1.5 font-mono text-[11px] text-text-tertiary">
+                  <span>⌘</span>
+                  <span>K</span>
                 </kbd>
               )}
               {item.section === "quiz" && dueCount !== null && dueCount > 0 && (

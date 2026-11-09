@@ -1184,6 +1184,16 @@ html.light .glass-card-active {
   --mobile-dock-space: calc(5rem + var(--safe-bottom));
 }
 
+/* the focus timer strip is fixed to the bottom, so app shells and the dock
+   give up its height instead of sliding under it */
+:root:has([data-focus-bar]) {
+  --focus-bar-space: calc(2.125rem + var(--safe-bottom));
+}
+
+@utility h-app {
+  height: calc(100dvh - var(--focus-bar-space, 0px));
+}
+
 :root:has([data-native-dock]) .desktop-navigation-rail {
   display: none;
 }

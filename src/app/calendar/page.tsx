@@ -142,7 +142,7 @@ export default function CalendarPage() {
   };
 
   return (
-    <div className="flex h-dvh flex-col bg-app-page text-text">
+    <div className="flex h-app flex-col bg-app-page text-text">
       <MobileAppHeader
         title={<span aria-label={monthYear}>{mobileMonthYear}</span>}
         actions={
