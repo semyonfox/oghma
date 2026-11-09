@@ -132,7 +132,7 @@ export default function MobileBottomNavigation({
         ref={dockRef}
         data-mobile-dock
         data-native-dock={nativeDock ? "" : undefined}
-        className={`${keyboardOpen ? "hidden" : "block"} pointer-events-none fixed inset-x-0 bottom-0 z-30 h-[var(--mobile-dock-space)] ${nativeDock ? "" : "lg:hidden"} ${className}`}
+        className={`${keyboardOpen ? "hidden" : "block"} pointer-events-none fixed inset-x-0 bottom-[var(--focus-bar-space,0px)] z-30 h-[var(--mobile-dock-space)] ${nativeDock ? "" : "lg:hidden"} ${className}`}
       >
         <nav
           aria-label={t("Main navigation")}

@@ -258,8 +258,9 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
                 className="pointer-events-none absolute left-full z-50 ml-2 flex items-center gap-2 whitespace-nowrap rounded-radius-md border border-border bg-surface-elevated px-2 py-1 text-xs text-text-secondary shadow-float opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
               >
                 {translatedLabel}
-                <kbd aria-hidden="true" className="rounded-radius-sm border border-border bg-surface px-1 font-mono text-[10px] leading-4 text-text-tertiary">
-                  ⌘K
+                <kbd aria-hidden="true" className="inline-flex items-center gap-0.5 rounded-radius-sm border border-border bg-surface px-1 font-mono text-[10px] leading-4 text-text-tertiary">
+                  <span>⌘</span>
+                  <span>K</span>
                 </kbd>
               </div>
             </button>

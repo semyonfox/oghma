@@ -22,7 +22,7 @@ export default function QuizPageClient({
   }, [setActiveNav]);
 
   return (
-    <div className="flex h-dvh flex-col bg-app-page text-text">
+    <div className="flex h-app flex-col bg-app-page text-text">
       <MobileAppHeader
         title={t("quiz.title")}
         subtitle={t("quiz.cards_due_summary", {

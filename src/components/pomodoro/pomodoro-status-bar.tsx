@@ -144,7 +144,8 @@ export default function PomodoroStatusBar({
   return (
     <div
       aria-live="polite"
-      className={`fixed bottom-0 left-0 right-0 z-40 transition-transform duration-300 ${
+      data-focus-bar
+      className={`fixed bottom-0 left-0 right-0 z-40 bg-background/95 pb-[var(--safe-bottom)] backdrop-blur-sm transition-transform duration-300 ${
         visible ? "translate-y-0" : "translate-y-full"
       }`}
     >
@@ -157,7 +158,7 @@ export default function PomodoroStatusBar({
       </div>
 
       {/* info strip */}
-      <div className="flex items-center justify-between px-4 py-1.5 bg-background/95 backdrop-blur-sm border-t border-border-subtle text-xs">
+      <div className="flex h-8 items-center justify-between px-4 text-xs">
         <div className="flex items-center gap-2 min-w-0">
           {/* status dot or check icon */}
           {isComplete ? (
