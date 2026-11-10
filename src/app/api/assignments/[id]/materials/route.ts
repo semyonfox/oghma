@@ -9,6 +9,7 @@ import { startCanvasRun } from "@/lib/canvas/import-runs";
 import { CanvasTrashConflictError } from "@/lib/canvas/trash-conflicts";
 import { enqueueCanvasDiscoverJob } from "@/lib/queue";
 import logger from "@/lib/logger";
+import { assertCanvasContentEnabled } from "@/lib/canvas/content-policy";
 
 async function loadMaterials(context: RouteParamsContext<{ id: string }>) {
   const loaded = await loadCanvasAssignment(context);
@@ -48,6 +49,7 @@ export const GET = withErrorHandler(async (_request, context: RouteParamsContext
 });
 
 export const POST = withErrorHandler(async (_request, context: RouteParamsContext<{ id: string }>) => {
+  assertCanvasContentEnabled();
   const { client, userId, courseId, assignmentId, materials } = await loadMaterials(context);
   if (!materials.some(material => material.status === "available")) {
     return NextResponse.json({ queued: false });

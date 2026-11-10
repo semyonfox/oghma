@@ -1175,5 +1175,6 @@
   "In {folder}": "{folder} में",
   "now": "अभी",
   "{count}m": "{count} मि",
-  "{count}h": "{count} घं"
+  "{count}h": "{count} घं",
+  "Importing Canvas files into OghmaNotes is paused while we agree it with lecturers. Deadlines still sync to your calendar, and you can upload your own files to Notes.": "लेक्चररों के साथ सहमति बनने तक Canvas फ़ाइलों को OghmaNotes में आयात करना रोका गया है। समय-सीमाएँ अब भी आपके कैलेंडर से सिंक होती हैं, और आप अपनी फ़ाइलें नोट्स में अपलोड कर सकते हैं।"
 }

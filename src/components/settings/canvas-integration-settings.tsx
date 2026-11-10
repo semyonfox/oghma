@@ -96,6 +96,7 @@ export default function CanvasIntegrationSettings() {
   // Post-connection state
   const [isConnected, setIsConnected] = useState(false);
   const [connectedDomain, setConnectedDomain] = useState("");
+  const [contentImport, setContentImport] = useState(false);
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>([]);
   const [courseErrors, setCourseErrors] = useState<Record<string, string>>({});
@@ -167,11 +168,13 @@ export default function CanvasIntegrationSettings() {
         courses?: Course[];
         forbiddenCourseIds?: Array<string | number>;
         courseDiscoveryDegraded?: boolean;
+        contentImport?: boolean;
       };
 
       if (res.ok && data.connected) {
         setIsConnected(true);
         setConnectedDomain(data.domain ?? "");
+        setContentImport(data.contentImport === true);
         setCourses(data.courses ?? []);
         setCourseDiscoveryDegraded(Boolean(data.courseDiscoveryDegraded));
 
@@ -587,16 +590,21 @@ export default function CanvasIntegrationSettings() {
               </p>
             </div>
           )}
+          {!contentImport && (
+            <p className="text-sm text-text-secondary">
+              {t("Importing Canvas files into OghmaNotes is paused while we agree it with lecturers. Deadlines still sync to your calendar, and you can upload your own files to Notes.")}
+            </p>
+          )}
           {/* Action buttons */}
           <div className="flex flex-wrap gap-3">
-            <button
+            {contentImport && <button
                 type="button"
                 disabled={selectedCourseCount === 0 || isSyncing}
                 onClick={handleImport}
                 className={saveBtnClass}
               >
                 {`${t("Import selected courses")}${selectedCourseCount > 0 ? ` (${selectedCourseCount})` : ""}`}
-              </button>
+              </button>}
             <button
               type="button"
               disabled={
@@ -617,7 +625,7 @@ export default function CanvasIntegrationSettings() {
                       : ` (${t("all courses")})`
                   }`}
             </button>
-            <button
+            {contentImport && <button
               type="button"
               disabled={
                 isImporting ||
@@ -630,8 +638,8 @@ export default function CanvasIntegrationSettings() {
               title={t("Check for new files in previously imported courses")}
             >
               {isSyncing ? t("Checking...") : t("Check for updates")}
-            </button>
-            {!isImporting && retrySourceJobId && <button type="button" onClick={() => void handleRetry()}
+            </button>}
+            {contentImport && !isImporting && retrySourceJobId && <button type="button" onClick={() => void handleRetry()}
               className={secondaryBtnClass}>
               {t("Retry failed files")}
             </button>}

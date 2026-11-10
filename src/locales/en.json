@@ -1175,5 +1175,6 @@
   "In {folder}": "In {folder}",
   "now": "now",
   "{count}m": "{count}m",
-  "{count}h": "{count}h"
+  "{count}h": "{count}h",
+  "Importing Canvas files into OghmaNotes is paused while we agree it with lecturers. Deadlines still sync to your calendar, and you can upload your own files to Notes.": "Importing Canvas files into OghmaNotes is paused while we agree it with lecturers. Deadlines still sync to your calendar, and you can upload your own files to Notes."
 }

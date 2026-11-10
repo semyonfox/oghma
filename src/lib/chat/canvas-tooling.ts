@@ -6,6 +6,7 @@ import {
   canvasToolInstruction,
   createCanvasMcpTools,
 } from "@/lib/chat/canvas-mcp-client";
+import { canvasContentEnabled } from "@/lib/canvas/content-policy";
 
 export async function getOptionalCanvasTooling(args: {
   userId: string;
@@ -15,6 +16,9 @@ export async function getOptionalCanvasTooling(args: {
   tools: ToolSet;
   instruction: string;
 }> {
+  if (!canvasContentEnabled()) {
+    return { client: null, tools: {}, instruction: "" };
+  }
   const settings = await getSettingsFromS3(args.userId);
   if (!settings?.ai_canvas_access) {
     return { client: null, tools: {}, instruction: "" };

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { createInternalMcpToken } from "@/lib/auth/internal-mcp-token";
 
@@ -62,6 +62,9 @@ beforeEach(() => {
 });
 
 describe("POST /api/mcp/canvas", () => {
+  beforeEach(() => vi.stubEnv("CANVAS_CONTENT_IMPORT", "on"));
+  afterEach(() => vi.unstubAllEnvs());
+
   it("requires a valid internal token before touching credentials", async () => {
     expect((await POST(mcpRequest("tools/list", {}, null))).status).toBe(401);
     expect(
@@ -144,5 +147,13 @@ describe("POST /api/mcp/canvas", () => {
     expect(text).toMatch(/not found|unknown/i);
     expect(mockPropose).not.toHaveBeenCalled();
     expect(mockSafeFetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/mcp/canvas while content import is paused", () => {
+  it("refuses before loading credentials", async () => {
+    const res = await POST(mcpRequest("tools/list", {}));
+    expect(res.status).toBe(403);
+    expect(mockLoadCredentials).not.toHaveBeenCalled();
   });
 });

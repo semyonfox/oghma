@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 const mocks = vi.hoisted(() => ({ load: vi.fn(), discover: vi.fn(), sql: vi.fn(), start: vi.fn(), enqueue: vi.fn(), course: vi.fn() }));
 vi.mock("@/lib/auth/session", () => ({ validateSession: vi.fn(), validateSessionLite: vi.fn() }));
@@ -16,6 +16,9 @@ const request = (method: string) => new NextRequest("http://localhost/api/assign
 const pdf = { id: "10", file: { id: "10", display_name: "Brief.pdf", content_type: "application/pdf" }, unavailable: false };
 
 describe("assignment materials API", () => {
+  beforeEach(() => vi.stubEnv("CANVAS_CONTENT_IMPORT", "on"));
+  afterEach(() => vi.unstubAllEnvs());
+
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.load.mockResolvedValue({ userId, courseId: "7", assignmentId: "8", assignment: { id: "8", name: "Essay" }, client: { baseUrl: "https://canvas.example.edu/api/v1", getCourse: mocks.course } });
@@ -67,5 +70,13 @@ describe("assignment materials API", () => {
     mocks.load.mockRejectedValue(new ApiError(404, "Not found"));
     expect((await GET(request("GET"), context)).status).toBe(404);
     expect(mocks.discover).not.toHaveBeenCalled();
+  });
+});
+
+describe("assignment materials import while content import is paused", () => {
+  it("refuses before starting a run", async () => {
+    const response = await POST(request("POST"), context);
+    expect(response.status).toBe(403);
+    expect(mocks.start).not.toHaveBeenCalled();
   });
 });

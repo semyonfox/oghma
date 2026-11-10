@@ -208,6 +208,7 @@ describe("CanvasIntegrationSettings connection check", () => {
       connected: true,
       connectionState: "connected",
       domain: "example.instructure.com",
+      contentImport: true,
       courses: Array.from({ length: 12 }, (_, index) => ({
         id: String(index + 1),
         name: `Course ${index + 1}`,
@@ -310,5 +311,23 @@ describe("CanvasIntegrationSettings connection check", () => {
     expect(await screen.findByText(/Connected to/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Disconnect" })).toBeTruthy();
     expect(localStorage.getItem("canvas_selected_courses")).toBe('["1"]');
+  });
+
+  it("hides importing while content import is paused but keeps the archive and deadlines", async () => {
+    mockConnectionResponse({
+      connected: true,
+      connectionState: "connected",
+      domain: "example.instructure.com",
+      contentImport: false,
+      courses: [{ id: "1", name: "Course 1", course_code: "CT1" }],
+    });
+
+    render(<CanvasIntegrationSettings />);
+
+    expect(await screen.findByText(/Importing Canvas files into OghmaNotes is paused/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Import selected courses/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Check for updates" })).toBeNull();
+    expect(screen.getByRole("button", { name: /Download full Canvas archive/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Disconnect" })).toBeTruthy();
   });
 });

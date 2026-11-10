@@ -1175,5 +1175,6 @@
   "In {folder}": "位于 {folder}",
   "now": "刚刚",
   "{count}m": "{count} 分钟",
-  "{count}h": "{count} 小时"
+  "{count}h": "{count} 小时",
+  "Importing Canvas files into OghmaNotes is paused while we agree it with lecturers. Deadlines still sync to your calendar, and you can upload your own files to Notes.": "在与讲师达成一致之前，将 Canvas 文件导入 OghmaNotes 的功能已暂停。截止日期仍会同步到你的日历，你也可以将自己的文件上传到笔记。"
 }

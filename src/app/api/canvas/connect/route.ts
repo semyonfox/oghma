@@ -18,6 +18,7 @@ import { discoverCanvasCourses } from "@/lib/canvas/sync-courses";
 import { recordCanvasCourseStatuses } from "@/lib/canvas/course-status";
 import { canvasHostFromInput } from "@/lib/canvas/institution-search";
 import logger from "@/lib/logger";
+import { canvasContentEnabled } from "@/lib/canvas/content-policy";
 
 const CANVAS_TOKEN_MAX_LENGTH = 4096;
 
@@ -90,6 +91,7 @@ export const GET = withErrorHandler(async () => {
     // settings-page refresh must not fan out one Canvas request per course.
     courses,
     courseDiscoveryDegraded,
+    contentImport: canvasContentEnabled(),
     // This is the durable source of truth for the restricted course badge.
     // Keep IDs as decimal strings: Canvas IDs can exceed JavaScript's safe
     // integer range.

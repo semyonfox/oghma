@@ -23,6 +23,25 @@ describe("syncAssignmentMetadata", () => {
     expect(sql).toHaveBeenCalledOnce();
   });
 
+  it("keeps the lecturer's brief only while content import is on", async () => {
+    const assignment = { id: "7", name: "Essay", due_at: "2026-10-01T10:00:00Z", description: "<p>Write 2000 words</p>" };
+    const client = { getAssignments: vi.fn() };
+    const values = () => vi.mocked(sql).mock.calls[0].slice(1);
+
+    await syncAssignmentMetadata("42", "11111111-1111-4111-8111-111111111111", "Course", client, [assignment]);
+    expect(values()).toContain("Essay");
+    expect(values()).not.toContain("<p>Write 2000 words</p>");
+
+    vi.mocked(sql).mockClear();
+    vi.stubEnv("CANVAS_CONTENT_IMPORT", "on");
+    try {
+      await syncAssignmentMetadata("42", "11111111-1111-4111-8111-111111111111", "Course", client, [assignment]);
+      expect(values()).toContain("<p>Write 2000 words</p>");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("bounds database writes while syncing independent assignments", async () => {
     let active = 0;
     let peak = 0;

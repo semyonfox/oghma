@@ -14,6 +14,7 @@ import { loadCanvasCredentials, markCanvasTokenInvalid } from "@/lib/canvas/cred
 import { activeCanvasRun, canonicalCanvasCourses, lockCanvasRuns, startCanvasRun } from "@/lib/canvas/import-runs";
 import { isValidUUID } from "@/lib/utils/uuid";
 import { cancelActiveCanvasImportJobs } from "@/lib/canvas/cancel-import-jobs";
+import { assertCanvasContentEnabled } from "@/lib/canvas/content-policy";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -31,6 +32,7 @@ function errorMessage(error: unknown): string {
  */
 export const POST = withErrorHandler(async (request) => {
   const user = await requireAuth();
+  assertCanvasContentEnabled();
 
   const { courseIds, expectedActiveJobId, keepTrashedFolders } = await parseJsonObject(request);
   if (expectedActiveJobId !== undefined && !isValidUUID(expectedActiveJobId)) {

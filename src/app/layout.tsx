@@ -52,7 +52,7 @@ export const metadata = {
     template: "%s | OghmaNotes",
   },
   description:
-    "A Canvas-connected study workspace that keeps supported course material, deadlines, cited answers, notes, flashcards, and planning together.",
+    "A study workspace that keeps your notes, files, deadlines, cited answers, flashcards and planning together.",
   metadataBase: new URL("https://oghmanotes.ie"),
   alternates: {
     canonical: "/",
@@ -63,7 +63,6 @@ export const metadata = {
     "RAG chat",
     "student notes",
     "semantic search",
-    "Canvas LMS",
     "adaptive quizzes",
     "spaced repetition",
     "PDF study assistant",
@@ -96,7 +95,7 @@ export const metadata = {
   openGraph: {
     title: "OghmaNotes",
     description:
-      "A Canvas-connected study workspace that keeps supported course material, deadlines, cited answers, notes, flashcards, and planning together.",
+      "A study workspace that keeps your notes, files, deadlines, cited answers, flashcards and planning together.",
     url: "https://oghmanotes.ie",
     siteName: "OghmaNotes",
     locale: "en_IE",
@@ -114,7 +113,7 @@ export const metadata = {
     card: "summary_large_image",
     title: "OghmaNotes",
     description:
-      "A Canvas-connected study workspace that keeps supported course material, deadlines, cited answers, notes, flashcards, and planning together.",
+      "A study workspace that keeps your notes, files, deadlines, cited answers, flashcards and planning together.",
     images: ["/notes-workspace-ultrawide.png"],
   },
 };

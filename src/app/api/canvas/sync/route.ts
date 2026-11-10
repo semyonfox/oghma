@@ -21,6 +21,7 @@ import {
 } from "@/lib/canvas/import-runs";
 import { isValidUUID } from "@/lib/utils/uuid";
 import { recordCanvasCourseStatuses } from "@/lib/canvas/course-status";
+import { canvasContentEnabled } from "@/lib/canvas/content-policy";
 
 const ACTIVE_CANVAS_JOB_STATUSES = new Set([
   "queued",
@@ -66,6 +67,11 @@ export const POST = withErrorHandler(async (request) => {
   const expectedActiveJobId = request.nextUrl.searchParams.get("expectedActiveJobId") ?? undefined;
   if (expectedActiveJobId !== undefined && !isValidUUID(expectedActiveJobId)) {
     throw new ApiError(400, "Invalid expected active import ID");
+  }
+
+  // automatic syncs fire from the background, so a paused import declines quietly
+  if (!canvasContentEnabled()) {
+    return NextResponse.json({ queued: false, reason: "Canvas file import is paused" });
   }
 
   const credentials = await loadCanvasCredentials(user.user_id);
@@ -238,7 +244,7 @@ export const GET = withErrorHandler(async () => {
   const courseCount = prevCourseRows[0]?.count ?? 0;
 
   return NextResponse.json({
-    available: !!(credentials && courseCount > 0),
+    available: !!(canvasContentEnabled() && credentials && courseCount > 0),
     courseCount,
     activeJob: activeJobRows[0] ?? null,
   });
