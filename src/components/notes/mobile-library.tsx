@@ -218,6 +218,16 @@ export default function MobileLibrary() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [byTopic]);
 
+  // deep links and pinned folders expand courses without toggle(), so pick up
+  // any open course that has no topics yet
+  useEffect(() => {
+    if (!byTopic) return;
+    for (const id of expanded) {
+      if (tree.items[id]?.data?.hasStudyMap && !topics[id]) fetchTopics(id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [byTopic, expanded, tree.items]);
+
   const toggle = (key: string) => {
     const opening = !expanded.has(key);
     setExpanded((current) => {
@@ -336,7 +346,8 @@ export default function MobileLibrary() {
     const isFolder = !!item.isFolder && !data?.bundle;
     const open = isFolder && expanded.has(item.id);
     const selected = selectedIds.has(item.id);
-    const hasTopics = byTopic && level === 1 && !!data?.hasStudyMap;
+    // finished courses render a level down in their fold, so a course is a root child, not level 1
+    const hasTopics = byTopic && rootChildren.includes(item.id) && !!data?.hasStudyMap;
     const fileIcon = data?.bundle || (data?.s3Key && inferFileType(data.title, data.mimeType, data.s3Key) !== "note")
       ? DocumentIcon
       : DocumentTextIcon;
@@ -413,7 +424,7 @@ export default function MobileLibrary() {
         </div>
         {open && (
           <ul role="group" className={groupClass}>
-            {hasTopics ? renderTopics(item.id) : renderChildren(item, level + 1)}
+            {hasTopics ? renderTopics(item.id, level) : renderChildren(item, level + 1)}
           </ul>
         )}
       </li>
@@ -433,7 +444,7 @@ export default function MobileLibrary() {
     return children.map((child) => renderItem(child, level));
   };
 
-  const renderTopics = (rootId: string): ReactNode => {
+  const renderTopics = (rootId: string, level: number): ReactNode => {
     const state = topics[rootId];
     if (!state || state.status === "loading") return statusRow(t("Loading..."), "status");
     if (state.status === "error") {
@@ -454,7 +465,7 @@ export default function MobileLibrary() {
       const name =
         group.kind === "review" ? t("To review") : group.kind === "untagged" ? t("Not tagged yet") : group.name;
       return (
-        <li key={key} role="treeitem" aria-level={2} aria-label={name} aria-expanded={open}>
+        <li key={key} role="treeitem" aria-level={level + 1} aria-label={name} aria-expanded={open}>
           <button type="button" className={rowClass} onClick={() => toggle(key)}>
             <ChevronRightIcon
               className={`h-4 w-4 shrink-0 text-text-tertiary transition-transform motion-reduce:transition-none ${open ? "rotate-90" : ""}`}
@@ -479,7 +490,7 @@ export default function MobileLibrary() {
                 const label = meta(Number.isFinite(time) ? time : 0);
                 const FileGlyph = file.isFile ? DocumentIcon : DocumentTextIcon;
                 return (
-                  <li key={file.id} role="treeitem" aria-level={3} aria-label={file.title}>
+                  <li key={file.id} role="treeitem" aria-level={level + 2} aria-label={file.title}>
                     <button type="button" className={rowClass} onClick={() => openTopicFile(file)}>
                       <FileGlyph className="h-4 w-4 shrink-0 text-text-tertiary" aria-hidden="true" />
                       <span className="min-w-0 flex-1 truncate">{file.title}</span>
@@ -588,7 +599,7 @@ export default function MobileLibrary() {
               </div>
             )}
             <span className="flex-1" />
-            {rootChildren.length > 1 && (
+            {rootChildren.length > 0 && (
               <label className="relative flex shrink-0 items-center">
                 <span className="sr-only">{t("Order")}</span>
                 <select

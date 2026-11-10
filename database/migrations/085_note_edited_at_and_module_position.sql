@@ -59,7 +59,8 @@ FROM newest
 WHERE folder.user_id = newest.user_id
   AND folder.note_id = newest.folder_id
   AND folder.is_folder
-  AND newest.edited_at > folder.edited_at;
+  AND newest.edited_at IS NOT NULL
+  AND (folder.edited_at IS NULL OR newest.edited_at > folder.edited_at);
 
 DO $$
 BEGIN

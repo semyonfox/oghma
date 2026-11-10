@@ -298,10 +298,45 @@ describe("MobileLibrary", () => {
     expect(mocks.bulkDelete).toHaveBeenCalledWith(["lab3"]);
   });
 
-  it("hides the view and order controls when they would change nothing", () => {
+  it("hides View without a study map but keeps Order for a single course", () => {
     render(<MobileLibrary />);
     expect(screen.queryByRole("group", { name: "View" })).toBeNull();
-    expect(screen.queryByRole("combobox", { name: "Order" })).toBeNull();
+    expect(screen.getByRole("combobox", { name: "Order" })).toBeTruthy();
+  });
+
+  it("shows topics for a finished course folded at the bottom", async () => {
+    mocks.view = { ...mocks.view, group: "tags" };
+    mocks.tree = treeOf([
+      folder("course", "CT101", null, ["lab"], {
+        hasStudyMap: true,
+        course: { canvasStatus: "past", isCanvasCourse: true, override: null, academicYear: "2425" },
+      }),
+      note("lab", "Lab 1", "course"),
+      folder("other", "MA284", null, []),
+    ]);
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ tags: [], courses: [] })));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<MobileLibrary />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Finished courses/ }));
+    fireEvent.click(screen.getByRole("button", { name: "CT101" }));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith("/api/tree/tags?root=course", { cache: "no-store" }),
+    );
+    expect(screen.queryByRole("treeitem", { name: "Lab 1" })).toBeNull();
+  });
+
+  it("loads topics for a course a deep link opens in Topics view", async () => {
+    mocks.view = { ...mocks.view, group: "tags" };
+    mocks.search = "folder=course";
+    mocks.tree = treeOf([folder("course", "CT331", null, [], { hasStudyMap: true })]);
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ tags: [], courses: [] })));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<MobileLibrary />);
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith("/api/tree/tags?root=course", { cache: "no-store" }),
+    );
   });
 
   it("offers Topics only once a course has a study map, and saves the choice", () => {
