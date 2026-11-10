@@ -87,3 +87,61 @@ it("fails discovery on an unexpected database error instead of using the parent 
   await expect(findOrCreateFolder(userId, "Week 1", folderId, { canvasCourseId: "101", canvasModuleId: "1" }))
     .rejects.toThrow("statement timeout");
 });
+
+describe("Canvas module position", () => {
+  const queries = () =>
+    (vi.mocked(sql).mock.calls as unknown as Array<[TemplateStringsArray, ...unknown[]]>).map(([parts, ...values]) => ({
+      text: Array.from(parts).join(""),
+      values,
+    }));
+
+  beforeEach(() => {
+    vi.mocked(sql).mockReset();
+    vi.mocked(sql).mockResolvedValue([] as never);
+  });
+
+  it("stores the position on a new module folder", async () => {
+    vi.mocked(sql)
+      .mockResolvedValueOnce([] as never) // advisory lock
+      .mockResolvedValueOnce([{ note_id: folderId, deleted_at: null }] as never) // active parent
+      .mockResolvedValueOnce([] as never); // no existing module folder
+
+    await findOrCreateFolder(userId, "Week 2", folderId, {
+      canvasCourseId: "101",
+      canvasModuleId: "7",
+      canvasModulePosition: 2,
+    });
+
+    const insert = queries().find((query) => query.text.includes("INSERT INTO app.notes"));
+    expect(insert?.text).toContain("canvas_module_position");
+    expect(insert?.values).toContain(2);
+  });
+
+  it("fills the position in on an existing folder at the next sync, only when it changed", async () => {
+    vi.mocked(sql)
+      .mockResolvedValueOnce([] as never) // advisory lock
+      .mockResolvedValueOnce([{ note_id: folderId, deleted_at: null }] as never) // active parent
+      .mockResolvedValueOnce([{ note_id: "44444444-4444-4444-8444-444444444444", deleted_at: null }] as never);
+
+    await findOrCreateFolder(userId, "Week 2", folderId, {
+      canvasCourseId: "101",
+      canvasModuleId: "7",
+      canvasModulePosition: 3,
+    });
+
+    const update = queries().find((query) => query.text.includes("SET canvas_module_position"));
+    expect(update?.values).toContain(3);
+    expect(update?.text).toContain("IS DISTINCT FROM");
+  });
+
+  it("keeps the stored position when canvas sends none", async () => {
+    vi.mocked(sql)
+      .mockResolvedValueOnce([] as never)
+      .mockResolvedValueOnce([{ note_id: folderId, deleted_at: null }] as never)
+      .mockResolvedValueOnce([{ note_id: "44444444-4444-4444-8444-444444444444", deleted_at: null }] as never);
+
+    await findOrCreateFolder(userId, "Week 2", folderId, { canvasCourseId: "101", canvasModuleId: "7" });
+
+    expect(queries().some((query) => query.text.includes("SET canvas_module_position"))).toBe(false);
+  });
+});

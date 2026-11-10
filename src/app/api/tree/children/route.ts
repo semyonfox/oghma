@@ -23,11 +23,14 @@ interface TreeChildRow {
   bundlePdfId: string | null;
   bundleNoteId: string | null;
   updatedAt: Date | string | null;
+  editedAt: Date | string | null;
+  modulePosition: number | null;
   // only the root listing selects these, for its top-level folders
   isCanvasCourse?: boolean;
   canvasStatus?: string | null;
   courseOverride?: boolean | null;
   academicYear?: string | null;
+  hasStudyMap?: boolean;
 }
 
 const COURSE_STATUSES: readonly string[] = ['current', 'past', 'pending', 'inaccessible'];
@@ -149,7 +152,10 @@ export const GET = withErrorHandler(async (request) => {
             n.pinned,
             bundle.pdf_id as "bundlePdfId",
             bundle.note_id as "bundleNoteId",
-            n.updated_at as "updatedAt"
+            n.updated_at as "updatedAt",
+            n.edited_at as "editedAt",
+            CASE WHEN n.is_folder AND n.canvas_module_id IS NOT NULL
+              THEN n.canvas_module_position END as "modulePosition"
           FROM app.tree_items ti
           JOIN app.notes n ON ti.note_id = n.note_id
           ${documentBundleJoin()}
@@ -172,6 +178,19 @@ export const GET = withErrorHandler(async (request) => {
             bundle.pdf_id as "bundlePdfId",
             bundle.note_id as "bundleNoteId",
             n.updated_at as "updatedAt",
+            n.edited_at as "editedAt",
+            CASE WHEN n.is_folder AND n.canvas_module_id IS NOT NULL
+              THEN n.canvas_module_position END as "modulePosition",
+            -- the Topics view needs a study map with something in it, matched the way the Tags view does
+            (n.is_folder AND EXISTS (
+              SELECT 1 FROM app.study_maps map
+              WHERE map.user_id = n.user_id
+                AND (map.root_note_id = n.note_id OR map.canvas_course_id = n.canvas_course_id::text)
+                AND EXISTS (
+                  SELECT 1 FROM app.study_materials material
+                  WHERE material.map_id = map.id AND NOT material.excluded
+                )
+            )) as "hasStudyMap",
             (n.canvas_course_id IS NOT NULL AND n.canvas_module_id IS NULL
               AND n.canvas_assignment_id IS NULL) as "isCanvasCourse",
             course.status as "canvasStatus",
@@ -203,6 +222,7 @@ export const GET = withErrorHandler(async (request) => {
       items: sortTreeChildren(
         rows.map((row) => {
           const updatedAt = isoTimestamp(row.updatedAt);
+          const editedAt = isoTimestamp(row.editedAt);
           const topics = marks.get(row.bundlePdfId ?? row.id);
           const course = courseState(row);
           return {
@@ -217,6 +237,9 @@ export const GET = withErrorHandler(async (request) => {
               ? { bundle: { pdfId: row.bundlePdfId, noteId: row.bundleNoteId } }
               : {}),
             ...(updatedAt ? { updatedAt } : {}),
+            ...(editedAt ? { editedAt } : {}),
+            ...(row.modulePosition != null ? { modulePosition: row.modulePosition } : {}),
+            ...(row.hasStudyMap ? { hasStudyMap: true } : {}),
             ...(topics ? { topics } : {}),
             ...(course ? { course } : {}),
           };

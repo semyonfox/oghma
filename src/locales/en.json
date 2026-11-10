@@ -1162,5 +1162,18 @@
   "Syllabus": "Syllabus",
   "To review": "To review",
   "changed": "changed",
-  "Search everything": "Search everything"
+  "Search everything": "Search everything",
+  "Order": "Order",
+  "Course order": "Course order",
+  "Collapse {title}": "Collapse {title}",
+  "Expand {title}": "Expand {title}",
+  "Empty folder": "Empty folder",
+  "Topics could not be loaded.": "Topics could not be loaded.",
+  "Finished courses": "Finished courses",
+  "New note here": "New note here",
+  "New folder here": "New folder here",
+  "In {folder}": "In {folder}",
+  "now": "now",
+  "{count}m": "{count}m",
+  "{count}h": "{count}h"
 }

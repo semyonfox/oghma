@@ -1162,5 +1162,18 @@
   "Syllabus": "Siollabas",
   "To review": "Le hathbhreithniú",
   "changed": "athraithe",
-  "Search everything": "Cuardaigh gach rud"
+  "Search everything": "Cuardaigh gach rud",
+  "Order": "Ord",
+  "Course order": "Ord an chúrsa",
+  "Collapse {title}": "Laghdaigh {title}",
+  "Expand {title}": "Leathnaigh {title}",
+  "Empty folder": "Fillteán folamh",
+  "Topics could not be loaded.": "Níorbh fhéidir na topaicí a lódáil.",
+  "Finished courses": "Cúrsaí críochnaithe",
+  "New note here": "Nóta nua anseo",
+  "New folder here": "Fillteán nua anseo",
+  "In {folder}": "In {folder}",
+  "now": "anois",
+  "{count}m": "{count} nóim",
+  "{count}h": "{count} uair"
 }

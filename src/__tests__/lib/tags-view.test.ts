@@ -19,6 +19,7 @@ function note(row: Partial<ScopeNoteRow> & Pick<ScopeNoteRow, "note_id">): Scope
     mime_type: null,
     extracted_from_note_id: null,
     tag_content: null,
+    edited_at: null,
     ...row,
   };
 }
@@ -172,6 +173,7 @@ describe("groupByKind", () => {
     main: false,
     suggested: false,
     kind,
+    editedAt: null,
   });
 
   it("orders slides, then past papers, then notes, and labels a kind with one file", () => {

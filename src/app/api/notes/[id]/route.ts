@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import type postgres from "postgres";
 import { filterNoteFields } from "@/lib/notes/utils/filter-fields";
 import { mapNoteFromDB } from "@/lib/notes/utils/map-note";
 import sql from "@/database/pgsql";
@@ -30,6 +31,7 @@ interface NoteSummaryRow {
   pinned: number;
   created_at: string;
   updated_at: string;
+  edited_at?: string | null;
   source_file: { id: string; title: string; s3Key: string; mimeType: string | null } | null;
 }
 
@@ -38,6 +40,38 @@ interface PreviousNoteRow {
   content: string;
   pinned: number;
   updated_at: string | Date;
+}
+
+/**
+ * A folder's recency is its newest descendant edit, so an edit carries up the
+ * tree. the notes trigger stamps the folders' updated_at too, which only the
+ * editor uses as a save fence and folders never open in the editor
+ */
+async function bumpFolderEdits(tx: postgres.TransactionSql, userId: string, noteId: string) {
+  await tx`
+    WITH RECURSIVE ancestors AS (
+      SELECT tree.parent_id, 1 AS depth
+      FROM app.tree_items tree
+      WHERE tree.user_id = ${userId}::uuid AND tree.note_id = ${noteId}::uuid
+        AND tree.parent_id IS NOT NULL
+      UNION ALL
+      SELECT tree.parent_id, ancestors.depth + 1
+      FROM app.tree_items tree
+      JOIN ancestors ON tree.note_id = ancestors.parent_id
+      WHERE tree.user_id = ${userId}::uuid AND tree.parent_id IS NOT NULL AND ancestors.depth < 50
+    )
+    UPDATE app.notes
+    SET edited_at = NOW()
+    WHERE user_id = ${userId}::uuid
+      AND note_id IN (
+        -- a folder another transaction holds (a move or trash) misses this one bump
+        -- rather than risk a deadlock with it
+        SELECT folder.note_id FROM app.notes folder
+        WHERE folder.user_id = ${userId}::uuid
+          AND folder.note_id IN (SELECT parent_id FROM ancestors)
+        FOR UPDATE SKIP LOCKED
+      )
+  `;
 }
 
 export const GET = withErrorHandler(async (request: NextRequest, { params }: NoteRouteContext) => {
@@ -129,16 +163,22 @@ export const PUT = withErrorHandler(async (request: NextRequest, { params }: Not
       return { kind: "conflict" as const, updatedAt: currentUpdatedAt };
     }
 
+    // a pin or a save of unchanged text isn't an edit, so it leaves the recent sort alone
+    const edited =
+      (body.title !== undefined && body.title !== previous.title) ||
+      (body.content !== undefined && body.content !== previous.content);
     const [row] = await tx<NoteSummaryRow[]>`
       UPDATE app.notes
       SET title = COALESCE(${body.title ?? null}::text, title),
           content = COALESCE(${body.content ?? null}::text, content),
           pinned = COALESCE(${body.pinned ?? null}::int, pinned),
+          edited_at = CASE WHEN ${edited}::boolean THEN NOW() ELSE edited_at END,
           updated_at = NOW()
       WHERE note_id = ${noteId}::uuid
         AND user_id = ${user.user_id}::uuid
-      RETURNING note_id, title, content, is_folder, s3_key, shared, pinned, created_at, updated_at
+      RETURNING note_id, title, content, is_folder, s3_key, shared, pinned, created_at, updated_at, edited_at
     `;
+    if (row && edited) await bumpFolderEdits(tx, user.user_id, noteId);
     return row ? { kind: "updated" as const, previous, row } : { kind: "missing" as const };
   });
 

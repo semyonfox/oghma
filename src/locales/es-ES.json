@@ -1162,5 +1162,18 @@
   "Syllabus": "Programa",
   "To review": "Por revisar",
   "changed": "cambiado",
-  "Search everything": "Buscar en todo"
+  "Search everything": "Buscar en todo",
+  "Order": "Orden",
+  "Course order": "Orden del curso",
+  "Collapse {title}": "Contraer {title}",
+  "Expand {title}": "Expandir {title}",
+  "Empty folder": "Carpeta vacía",
+  "Topics could not be loaded.": "No se pudieron cargar los temas.",
+  "Finished courses": "Cursos terminados",
+  "New note here": "Nueva nota aquí",
+  "New folder here": "Nueva carpeta aquí",
+  "In {folder}": "En {folder}",
+  "now": "ahora",
+  "{count}m": "{count} min",
+  "{count}h": "{count} h"
 }

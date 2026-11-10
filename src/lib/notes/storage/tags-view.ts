@@ -22,6 +22,7 @@ export interface ScopeNoteRow {
   extracted_from_note_id: string | null;
   /** only selected when it could hold a tag, so large notes without one stay in the database */
   tag_content: string | null;
+  edited_at: Date | string | null;
 }
 
 export interface ScopeMapRow {
@@ -50,6 +51,14 @@ const associationsSchema = z
 const titleCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 const byTitle = (left: TagsViewFile, right: TagsViewFile) =>
   titleCollator.compare(left.title, right.title) || left.id.localeCompare(right.id);
+
+function isoOrNull(...values: Array<Date | string | null | undefined>): string | null {
+  const times = values.flatMap((value) => {
+    const time = value ? new Date(value).getTime() : Number.NaN;
+    return Number.isFinite(time) ? [time] : [];
+  });
+  return times.length ? new Date(Math.max(...times)).toISOString() : null;
+}
 
 function stripExtension(title: string): string {
   return title.replace(/\.[a-z0-9]{1,8}$/i, "");
@@ -111,6 +120,7 @@ function documentsFor(rows: readonly ScopeNoteRow[]): Document[] {
         main: false,
         suggested: false,
         kind: null,
+        editedAt: isoOrNull(row.edited_at, note?.edited_at),
       },
     }];
   });
@@ -267,7 +277,7 @@ export async function readTagsView(userId: string, rootIds: readonly string[]): 
         WHERE child.user_id = ${userId}::uuid AND scope.depth < 50
       )
       SELECT scope.note_id, scope.parent_id, scope.root_id, n.title, n.is_folder, n.s3_key,
-        n.extracted_from_note_id,
+        n.extracted_from_note_id, n.edited_at,
         (SELECT a.mime_type FROM app.attachments a
          WHERE a.note_id = n.note_id AND a.user_id = n.user_id AND a.s3_key = n.s3_key
          ORDER BY a.id LIMIT 1) AS mime_type,

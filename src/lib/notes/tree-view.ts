@@ -24,8 +24,9 @@ function isLooseFile(data: NoteModel | undefined): boolean {
   return type === "image" || type === "video" || type === "attachment";
 }
 
-function updatedTime(data: NoteModel | undefined): number {
-  const time = data?.updatedAt ? Date.parse(data.updatedAt) : Number.NaN;
+/** when the user last edited it. updated_at also moves on imports, pins and reindexing, so it isn't used */
+export function editedTime(data: NoteModel | undefined): number {
+  const time = data?.editedAt ? Date.parse(data.editedAt) : Number.NaN;
   return Number.isFinite(time) ? time : 0;
 }
 
@@ -63,7 +64,7 @@ export function applyTreeView(
     }
     if (settings.sort === "recent") {
       children = [...children].sort(
-        (left, right) => updatedTime(tree.items[right]?.data) - updatedTime(tree.items[left]?.data),
+        (left, right) => editedTime(tree.items[right]?.data) - editedTime(tree.items[left]?.data),
       );
     }
     items[id] = children === item.children ? item : { ...item, children };

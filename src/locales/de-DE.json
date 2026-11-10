@@ -1162,5 +1162,18 @@
   "Syllabus": "Lehrplan",
   "To review": "Zu prüfen",
   "changed": "geändert",
-  "Search everything": "Alles durchsuchen"
+  "Search everything": "Alles durchsuchen",
+  "Order": "Reihenfolge",
+  "Course order": "Kursreihenfolge",
+  "Collapse {title}": "{title} einklappen",
+  "Expand {title}": "{title} ausklappen",
+  "Empty folder": "Leerer Ordner",
+  "Topics could not be loaded.": "Themen konnten nicht geladen werden.",
+  "Finished courses": "Abgeschlossene Kurse",
+  "New note here": "Neue Notiz hier",
+  "New folder here": "Neuer Ordner hier",
+  "In {folder}": "In {folder}",
+  "now": "jetzt",
+  "{count}m": "{count} Min.",
+  "{count}h": "{count} Std."
 }
