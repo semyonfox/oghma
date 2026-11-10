@@ -176,5 +176,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     success: true,
     courses: normalizedCourses,
     courseDiscoveryDegraded,
+    contentImport: canvasContentEnabled(),
   });
 });

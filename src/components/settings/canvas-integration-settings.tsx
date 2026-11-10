@@ -263,6 +263,7 @@ export default function CanvasIntegrationSettings() {
         courses?: Course[];
         error?: string;
         courseDiscoveryDegraded?: boolean;
+        contentImport?: boolean;
       };
 
       if (!res.ok) {
@@ -275,6 +276,7 @@ export default function CanvasIntegrationSettings() {
       setIsConnected(true);
       setConnectionWarning(null);
       setConnectedDomain(domain);
+      setContentImport(data.contentImport === true);
       setCourses(data.courses ?? []);
       setCourseDiscoveryDegraded(Boolean(data.courseDiscoveryDegraded));
 

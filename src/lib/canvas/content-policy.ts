@@ -12,3 +12,14 @@ export function assertCanvasContentEnabled(): void {
     throw new ApiError(403, "Canvas file import is paused. Deadlines still sync.");
   }
 }
+
+// while paused, canvas worker messages are acked without running. their rows
+// stay queued or pending in the database, and the recovery steps pick them up
+// again once the switch is back on
+export function unlessCanvasPaused<A extends unknown[]>(
+  work: (...args: A) => Promise<unknown>,
+): (...args: A) => Promise<void> {
+  return async (...args) => {
+    if (canvasContentEnabled()) await work(...args);
+  };
+}

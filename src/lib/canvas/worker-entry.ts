@@ -69,6 +69,7 @@ import { dispatchFairCanvasFiles } from "./import-scheduler";
 import { runImportedFileCacheRetention } from "./import-cache-retention";
 import { purgeStaleStudyCaches } from "../study-map/cache";
 import { dispatchCanvasJob, type CanvasJob } from "./job-dispatch";
+import { unlessCanvasPaused } from "./content-policy";
 
 const MINUTE_MS = 60_000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
@@ -91,12 +92,14 @@ const MARKER_DISPATCH_CONSUMER_ENABLED = markerDispatchConsumerEnabled();
 export async function processCanvasJob(job: CanvasJob): Promise<void> {
   const handled = await monitorOperation("worker.canvas", () =>
     dispatchCanvasJob(job, {
-      processDiscoverJob,
-      processCanvasFile,
-      processCanvasExtract,
-      processImportJob: (jobId) => processDiscoverJob(jobId),
+      processDiscoverJob: unlessCanvasPaused(processDiscoverJob),
+      processCanvasFile: unlessCanvasPaused(processCanvasFile),
+      processCanvasExtract: unlessCanvasPaused(processCanvasExtract),
+      processImportJob: unlessCanvasPaused((jobId) => processDiscoverJob(jobId)),
       processDirectExtraction,
-      processExtractionRetry,
+      // a canvas-bound retry carries its import row. direct-upload retries don't
+      processExtractionRetry: (data) =>
+        data.importRecordId ? unlessCanvasPaused(processExtractionRetry)(data) : processExtractionRetry(data),
       processMarkerComplete,
       processMarkerFailed,
       dispatchMarkerJob,
@@ -170,14 +173,15 @@ async function recoverChatGenerations(): Promise<void> {
 
 async function repairQueues(): Promise<void> {
   await runSteps([
-    ["republish queued canvas jobs", republishQueuedCanvasJobs],
+    ["republish queued canvas jobs", unlessCanvasPaused(republishQueuedCanvasJobs)],
     ["recover chat generations", recoverChatGenerations],
-    ["recover extraction retries", () => recoverPendingExtractionRetries()],
-    ["recover canvas extracts", () => recoverPendingCanvasExtracts()],
+    // only ever picks canvas rows
+    ["recover extraction retries", unlessCanvasPaused(() => recoverPendingExtractionRetries())],
+    ["recover canvas extracts", unlessCanvasPaused(() => recoverPendingCanvasExtracts())],
     ["recover marker dispatch", async () => {
       if (MARKER_DISPATCH_CONSUMER_ENABLED) await recoverMarkerDispatchJobs();
     }],
-    ["dispatch canvas files", () => dispatchFairCanvasFiles(MAX_CONCURRENT_JOBS)],
+    ["dispatch canvas files", unlessCanvasPaused(() => dispatchFairCanvasFiles(MAX_CONCURRENT_JOBS))],
   ]);
 }
 
