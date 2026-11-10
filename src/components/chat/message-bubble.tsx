@@ -2,6 +2,7 @@
 
 import { FC, memo, useState } from "react";
 import {
+  CheckIcon,
   ChevronDownIcon,
   ClipboardDocumentIcon,
   SparklesIcon,
@@ -13,6 +14,7 @@ import ChatMarkdown from "./chat-markdown";
 import { WorkLog, collectNoteActivity } from "./tool-call-pill";
 import { partitionMessageParts } from "@/lib/chat/types";
 import useI18n from "@/lib/notes/hooks/use-i18n";
+import { copyText } from "@/lib/clipboard";
 
 const AssistantBody: FC<{
   message: Message;
@@ -161,36 +163,36 @@ const SourcesBlock: FC<{
   );
 };
 
-// The parent places this plain copy icon in a slot that appears on hover.
-// On success, a Sonner toast shows "Copied" for 1.2 seconds. The icon does not change.
-// This makes the action feel dispatched instead of changing the interface.
-// Disable it briefly so a double-click does not show two toasts.
+// the icon flips to a check on tap so the copy feels instant, and flips back
+// with an error toast only if the clipboard refused
 const CopyMessageButton: FC<{ content: string }> = ({ content }) => {
   const { t } = useI18n();
-  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
-    if (busy || !content.trim() || !navigator.clipboard?.writeText) return;
-    const copied = await navigator.clipboard.writeText(content).then(
-      () => true,
-      () => false,
-    );
-    if (copied) toast.success(t("Copied"), { duration: 1200 });
-    else toast.error(t("Couldn't copy"));
-    setBusy(true);
-    window.setTimeout(() => setBusy(false), 1200);
+    if (copied || !content.trim()) return;
+    setCopied(true);
+    if (!(await copyText(content))) {
+      setCopied(false);
+      toast.error(t("Couldn't copy"));
+      return;
+    }
+    window.setTimeout(() => setCopied(false), 1200);
   };
 
   return (
     <button
       type="button"
       onClick={handleCopy}
-      disabled={busy}
-      className="touch-target-44 inline-flex items-center justify-center rounded-radius-sm text-text-tertiary opacity-70 transition-colors hover:opacity-100 hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/40 disabled:cursor-default"
-      aria-label={t("Copy message")}
-      title={t("Copy message")}
+      className={`touch-target-44 inline-flex items-center justify-center rounded-radius-sm transition-colors hover:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/40 ${copied ? "text-success-700 opacity-100 dark:text-success-400" : "text-text-tertiary opacity-70 hover:text-text-secondary"}`}
+      aria-label={copied ? t("Copied") : t("Copy message")}
+      title={copied ? t("Copied") : t("Copy message")}
     >
-      <ClipboardDocumentIcon className="w-3 h-3" />
+      {copied ? (
+        <CheckIcon className="w-3 h-3" aria-hidden="true" />
+      ) : (
+        <ClipboardDocumentIcon className="w-3 h-3" aria-hidden="true" />
+      )}
     </button>
   );
 };

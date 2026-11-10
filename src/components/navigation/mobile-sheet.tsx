@@ -38,7 +38,7 @@ export default function MobileSheet({
         >
           <div
             aria-hidden="true"
-            className="mx-auto mt-2 h-1 w-8 shrink-0 rounded-full bg-border sm:hidden"
+            className="mx-auto mt-2 h-1.5 w-10 shrink-0 rounded-full bg-border-strong sm:hidden"
           />
           <div className="flex min-h-16 shrink-0 items-center gap-3 border-b border-border-subtle px-4">
             <DialogTitle className="min-w-0 flex-1 truncate text-lg font-semibold">

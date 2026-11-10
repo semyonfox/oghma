@@ -2,7 +2,8 @@
 
 import { type ChangeEvent, useState, useEffect } from "react";
 import { toast } from "sonner";
-import { ClipboardDocumentIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
+import { CheckIcon, ClipboardDocumentIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
+import { copyText } from "@/lib/clipboard";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import {
   cn,
@@ -26,6 +27,7 @@ export default function DataExportSection() {
   const [calendarToken, setCalendarToken] = useState<string | null>(null);
   const [calendarLoading, setCalendarLoading] = useState(true);
   const [calendarRegenerating, setCalendarRegenerating] = useState(false);
+  const [calendarCopied, setCalendarCopied] = useState(false);
 
   const [importStatus, setImportStatus] = useState<ExportStatus | null>(null);
   const [importProgress, setImportProgress] = useState<Progress | null>(null);
@@ -69,10 +71,15 @@ export default function DataExportSection() {
 
   function handleCopyCalendarUrl() {
     const url = `${window.location.origin}/api/calendar/ical/${calendarToken}`;
-    navigator.clipboard
-      .writeText(url)
-      .then(() => toast.success(t("Copied to clipboard")))
-      .catch(() => toast.error(t("Failed to copy URL")));
+    setCalendarCopied(true);
+    void copyText(url).then((ok) => {
+      if (ok) {
+        window.setTimeout(() => setCalendarCopied(false), 1500);
+        return;
+      }
+      setCalendarCopied(false);
+      toast.error(t("Failed to copy URL"));
+    });
   }
 
   async function handleVaultImport(e: ChangeEvent<HTMLInputElement>) {
@@ -628,8 +635,12 @@ export default function DataExportSection() {
                       className={secondaryBtnClass}
                       title={t("Copy URL")}
                     >
-                      <ClipboardDocumentIcon className="h-4 w-4 text-text-tertiary" aria-hidden="true" />
-                      {t("Copy URL")}
+                      {calendarCopied ? (
+                        <CheckIcon className="h-4 w-4 text-success-700 dark:text-success-400" aria-hidden="true" />
+                      ) : (
+                        <ClipboardDocumentIcon className="h-4 w-4 text-text-tertiary" aria-hidden="true" />
+                      )}
+                      {calendarCopied ? t("Copied") : t("Copy URL")}
                     </button>
                     <button
                       type="button"

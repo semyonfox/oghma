@@ -5,11 +5,11 @@ import useCalendarStore from "@/lib/notes/state/calendar";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { buildMonthCells } from "@/components/calendar/month-view-utils";
 import {
-  addDaysToDateKey,
   formatDateKey,
   parseLocalDateKey,
 } from "@/lib/notes/utils/calendar-date";
 import DayAgenda from "@/components/calendar/day-agenda";
+import DayStrip from "@/components/calendar/day-strip";
 import { ClipboardDocumentListIcon } from "@heroicons/react/20/solid";
 
 interface MobileCalendarProps {
@@ -60,14 +60,11 @@ export default function MobileCalendar({
     selectedDate,
     today: new Date(),
   });
-  const weekDates = Array.from({ length: 7 }, (_, index) =>
-    addDaysToDateKey(selectedDate, index - 3),
-  );
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto overscroll-contain">
       <div className="sticky top-0 z-10 shrink-0 border-b border-border-subtle bg-surface px-3 pt-2">
-        <div className="relative flex items-center justify-center pb-2 pt-1">
+        <div className="flex items-center justify-between gap-2 pb-1">
           <div
             role="group"
             aria-label={t("Calendar")}
@@ -95,38 +92,22 @@ export default function MobileCalendar({
             <button
               type="button"
               onClick={onOpenTasks}
-              className="absolute right-0 flex min-h-11 items-center justify-center gap-1.5 rounded-radius-md px-2 text-xs font-medium text-text-secondary transition-colors hover:bg-subtle"
+              className="-mr-1 flex min-h-11 items-center justify-center gap-1.5 rounded-radius-md px-2 text-sm font-medium text-text-secondary transition-colors hover:bg-subtle"
             >
               <ClipboardDocumentListIcon className="h-5 w-5" aria-hidden="true" />
               {t("Tasks")}
             </button>
           )}
         </div>
-        <div className="grid grid-cols-7 gap-1 pb-2" aria-label={t("Select date")}>
-          {weekDates.map((dateKey) => {
-            const date = parseLocalDateKey(dateKey);
-            if (!date) return null;
-            const selected = dateKey === selectedDate;
-            return (
-              <button
-                key={dateKey}
-                type="button"
-                onClick={() => setSelectedDate(dateKey)}
-                aria-pressed={selected}
-                aria-label={fullDateFormatter.format(date)}
-                className={`flex min-h-12 min-w-0 flex-col items-center justify-center rounded-radius-md text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
-                  selected
-                    ? "bg-text text-background"
-                    : dateKey === today
-                      ? "bg-accent font-semibold text-on-action"
-                      : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
-                }`}
-              >
-                <span className="text-[10px] uppercase">{weekdayFormatter.format(date)}</span>
-                <span className="mt-0.5 text-sm font-semibold">{date.getDate()}</span>
-              </button>
-            );
-          })}
+        <div className="-mx-3 pb-1">
+          <DayStrip
+            selectedDate={selectedDate}
+            today={today}
+            onSelect={setSelectedDate}
+            weekdayFormatter={weekdayFormatter}
+            fullDateFormatter={fullDateFormatter}
+            label={t("Select date")}
+          />
         </div>
 
         {monthOpen && (
