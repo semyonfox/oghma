@@ -107,7 +107,9 @@ test.describe("chat responsive smoke", () => {
       await drawer.evaluate(async (element) => {
         await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished));
       });
-      await expect.poll(async () => (await historyTitle.boundingBox())?.x ?? -1).toBeGreaterThan(10);
+      // the sheet rises from below, so wait until it has actually arrived
+      const viewportHeight = page.viewportSize()?.height ?? 800;
+      await expect.poll(async () => (await historyTitle.boundingBox())?.y ?? Infinity).toBeLessThan(viewportHeight / 2);
       const drawerBox = await historyTitle.boundingBox();
       if (!drawerBox) throw new Error("History drawer title has no bounds");
       // on phones the history drawer is a bottom sheet, so it closes downwards
