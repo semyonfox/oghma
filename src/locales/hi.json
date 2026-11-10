@@ -1162,5 +1162,18 @@
   "Syllabus": "पाठ्यक्रम",
   "To review": "समीक्षा के लिए",
   "changed": "बदला गया",
-  "Search everything": "सब कुछ खोजें"
+  "Search everything": "सब कुछ खोजें",
+  "Order": "क्रम",
+  "Course order": "पाठ्यक्रम क्रम",
+  "Collapse {title}": "{title} संक्षिप्त करें",
+  "Expand {title}": "{title} विस्तृत करें",
+  "Empty folder": "खाली फ़ोल्डर",
+  "Topics could not be loaded.": "विषय लोड नहीं हो सके।",
+  "Finished courses": "पूरे हुए पाठ्यक्रम",
+  "New note here": "यहाँ नया नोट",
+  "New folder here": "यहाँ नया फ़ोल्डर",
+  "In {folder}": "{folder} में",
+  "now": "अभी",
+  "{count}m": "{count} मि",
+  "{count}h": "{count} घं"
 }

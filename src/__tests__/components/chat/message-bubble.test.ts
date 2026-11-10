@@ -175,7 +175,9 @@ describe("message bubble copy actions", () => {
     const copyButton = container.querySelector(
       "button[aria-label='Copy message']",
     ) as HTMLButtonElement;
-    copyButton.click();
+    act(() => copyButton.click());
+    // the check shows on the tap itself, before the clipboard write settles
+    expect(copyButton.getAttribute("aria-label")).toBe("Copied");
     await vi.waitFor(() =>
       expect(writeText).toHaveBeenCalledWith("Final answer"),
     );

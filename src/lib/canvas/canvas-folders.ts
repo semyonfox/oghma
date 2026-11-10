@@ -15,6 +15,8 @@ interface CanvasFolderIdentity {
   canvasModuleId?: string | number | null;
   canvasAssignmentId?: string | number | null;
   canvasAcademicYear?: string | null;
+  /** where canvas lists this module in its course, for course order */
+  canvasModulePosition?: number | null;
 }
 
 interface CanvasFolderRow {
@@ -27,6 +29,14 @@ function isUniqueViolation(error: unknown): boolean {
 }
 
 export const ASSIGNMENTS_PARENT_MODULE_ID = -1;
+
+/** a module's place in its course, or null when canvas didn't give one that fits the column */
+export function canvasModulePosition(module: { position?: unknown }): number | null {
+  const { position } = module;
+  return typeof position === "number" && Number.isSafeInteger(position) && position >= 0 && position <= 2_147_483_647
+    ? position
+    : null;
+}
 
 /** A trashed Canvas hierarchy is a lifecycle fence, not a duplicate target. */
 export class CanvasFolderTrashedError extends Error {
@@ -106,6 +116,24 @@ async function reuseExisting(
   return noteId;
 }
 
+// existing folders pick their position up on the next sync. a missing position
+// keeps the stored one, and an unchanged one writes nothing
+async function syncModulePosition(
+  db: postgres.TransactionSql,
+  noteId: string,
+  userId: string,
+  position: number | null | undefined,
+): Promise<void> {
+  if (position == null) return;
+  await db`
+    UPDATE app.notes
+    SET canvas_module_position = ${position}::int
+    WHERE note_id = ${noteId}::uuid
+      AND user_id = ${userId}::uuid
+      AND canvas_module_position IS DISTINCT FROM ${position}::int
+  `;
+}
+
 export async function findOrCreateFolder(
   userId: string,
   title: string,
@@ -129,6 +157,7 @@ export async function findOrCreateFolder(
           if (existing[0].deleted_at) {
             throw new CanvasFolderTrashedError(existing[0].note_id);
           }
+          await syncModulePosition(tx, existing[0].note_id, userId, canvas.canvasModulePosition);
           return reuseExisting(tx, existing[0].note_id, userId, parentId);
         }
       }
@@ -138,12 +167,12 @@ export async function findOrCreateFolder(
         INSERT INTO app.notes (
           note_id, user_id, title, content, is_folder,
           canvas_course_id, canvas_module_id, canvas_assignment_id, canvas_academic_year,
-          created_at, updated_at
+          canvas_module_position, created_at, updated_at
         ) VALUES (
           ${noteId}::uuid, ${userId}::uuid, ${title}, '', true,
           ${canvasCourseId ?? null}, ${canvas.canvasModuleId ?? null},
           ${canvas.canvasAssignmentId ?? null}, ${canvasAcademicYear ?? null},
-          NOW(), NOW()
+          ${canvas.canvasModulePosition ?? null}::int, NOW(), NOW()
         )
       `;
       await reuseExisting(tx, noteId, userId, parentId);
@@ -163,6 +192,7 @@ export async function findOrCreateFolder(
           if (winner[0].deleted_at) {
             throw new CanvasFolderTrashedError(winner[0].note_id);
           }
+          await syncModulePosition(tx, winner[0].note_id, userId, canvas.canvasModulePosition);
           return reuseExisting(tx, winner[0].note_id, userId, parentId);
         }
         throw error;

@@ -1162,5 +1162,18 @@
   "Syllabus": "المنهج",
   "To review": "للمراجعة",
   "changed": "تغيّر",
-  "Search everything": "البحث في كل شيء"
+  "Search everything": "البحث في كل شيء",
+  "Order": "الترتيب",
+  "Course order": "ترتيب المقرر",
+  "Collapse {title}": "طي {title}",
+  "Expand {title}": "توسيع {title}",
+  "Empty folder": "مجلد فارغ",
+  "Topics could not be loaded.": "تعذر تحميل المواضيع.",
+  "Finished courses": "المقررات المنتهية",
+  "New note here": "ملاحظة جديدة هنا",
+  "New folder here": "مجلد جديد هنا",
+  "In {folder}": "في {folder}",
+  "now": "الآن",
+  "{count}m": "{count} د",
+  "{count}h": "{count} س"
 }

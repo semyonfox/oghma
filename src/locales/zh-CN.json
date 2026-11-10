@@ -1162,5 +1162,18 @@
   "Syllabus": "教学大纲",
   "To review": "待审阅",
   "changed": "已更改",
-  "Search everything": "搜索全部"
+  "Search everything": "搜索全部",
+  "Order": "顺序",
+  "Course order": "课程顺序",
+  "Collapse {title}": "折叠 {title}",
+  "Expand {title}": "展开 {title}",
+  "Empty folder": "空文件夹",
+  "Topics could not be loaded.": "无法加载主题。",
+  "Finished courses": "已结束的课程",
+  "New note here": "在此新建笔记",
+  "New folder here": "在此新建文件夹",
+  "In {folder}": "位于 {folder}",
+  "now": "刚刚",
+  "{count}m": "{count} 分钟",
+  "{count}h": "{count} 小时"
 }

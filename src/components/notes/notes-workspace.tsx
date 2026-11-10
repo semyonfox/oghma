@@ -181,7 +181,7 @@ export default function NotesWorkspace({
               title={inspectorTitle}
               side="right"
               className="xl:hidden"
-              panelClassName="w-[94vw] max-w-md"
+              panelClassName="sm:w-[94vw] sm:max-w-md"
             >
               <NoteInspectorPanel presentation="drawer" />
             </MobileDrawer>

@@ -1162,5 +1162,18 @@
   "Syllabus": "Программа курса",
   "To review": "На проверку",
   "changed": "изменено",
-  "Search everything": "Искать везде"
+  "Search everything": "Искать везде",
+  "Order": "Порядок",
+  "Course order": "Порядок курса",
+  "Collapse {title}": "Свернуть {title}",
+  "Expand {title}": "Развернуть {title}",
+  "Empty folder": "Пустая папка",
+  "Topics could not be loaded.": "Не удалось загрузить темы.",
+  "Finished courses": "Завершённые курсы",
+  "New note here": "Новая заметка здесь",
+  "New folder here": "Новая папка здесь",
+  "In {folder}": "В {folder}",
+  "now": "сейчас",
+  "{count}m": "{count} мин",
+  "{count}h": "{count} ч"
 }

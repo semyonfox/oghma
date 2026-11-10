@@ -1162,5 +1162,18 @@
   "Syllabus": "Kursplan",
   "To review": "Att granska",
   "changed": "ändrad",
-  "Search everything": "Sök i allt"
+  "Search everything": "Sök i allt",
+  "Order": "Ordning",
+  "Course order": "Kursordning",
+  "Collapse {title}": "Fäll ihop {title}",
+  "Expand {title}": "Fäll ut {title}",
+  "Empty folder": "Tom mapp",
+  "Topics could not be loaded.": "Det gick inte att läsa in ämnen.",
+  "Finished courses": "Avslutade kurser",
+  "New note here": "Ny anteckning här",
+  "New folder here": "Ny mapp här",
+  "In {folder}": "I {folder}",
+  "now": "nu",
+  "{count}m": "{count} min",
+  "{count}h": "{count} h"
 }

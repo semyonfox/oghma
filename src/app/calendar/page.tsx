@@ -339,7 +339,7 @@ export default function CalendarPage() {
           side="right"
           keepMounted
           className="lg:hidden"
-          panelClassName="w-[94vw] max-w-md"
+          panelClassName="sm:w-[94vw] sm:max-w-md"
         >
           <AssignmentTracker surface="full" />
         </MobileDrawer>

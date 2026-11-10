@@ -124,8 +124,8 @@ export default function MobileBottomNavigation({
     pathname?.startsWith("/settings") || pathname?.startsWith("/study-map") || pathname === "/notes/trash";
   const selectedStyle = "bg-subtle-hover text-accent-hover";
   const restingStyle = "text-text-tertiary hover:bg-subtle hover:text-text";
-  const rowClass =
-    "flex min-h-12 w-full items-center gap-3 rounded-radius-xl px-3 py-3 text-left text-base text-text-secondary hover:bg-subtle hover:text-text disabled:opacity-50 aria-[current=page]:bg-selected aria-[current=page]:shadow-raised aria-[current=page]:font-medium aria-[current=page]:text-text";
+  const tileClass =
+    "flex min-h-[88px] flex-col items-center justify-center gap-2 rounded-radius-xl bg-subtle px-2 py-3 text-center text-sm font-medium leading-tight text-text-secondary hover:bg-subtle-hover hover:text-text active:opacity-70 disabled:opacity-50 aria-[current=page]:bg-selected aria-[current=page]:text-text aria-[current=page]:shadow-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50";
   return (
     <>
       <div
@@ -196,65 +196,75 @@ export default function MobileBottomNavigation({
         onClose={() => setMoreOpen(false)}
         title={t("More")}
       >
-        <button
-          type="button"
-          className={rowClass}
-          onClick={() => {
-            setMoreOpen(false);
-            useGlobalSearchStore.getState().open();
-          }}
-        >
-          <MagnifyingGlassIcon className="h-5 w-5" aria-hidden="true" />
-          {t("Search OghmaNotes")}
-        </button>
-        <Link
-          className={rowClass}
-          href="/settings"
-          onClick={() => setMoreOpen(false)}
-          aria-current={pathname?.startsWith("/settings") ? "page" : undefined}
-        >
-          <Cog6ToothIcon className="h-5 w-5" aria-hidden="true" />
-          {t("Settings")}
-        </Link>
-        <button
-          type="button"
-          className={rowClass}
-          disabled={phase !== "idle"}
-          onClick={() => {
-            setMoreOpen(false);
-            void usePomodoroStore.getState().start({});
-          }}
-        >
-          <ClockIcon className="h-5 w-5" aria-hidden="true" />
-          {t(phase === "idle" ? "Focus" : "Focus session in progress")}
-        </button>
-        {nativeBridge && supportsNativeOffline() && (
+        <div className="grid grid-cols-3 gap-2">
           <button
             type="button"
-            className={rowClass}
+            className={tileClass}
+            aria-label={t("Search OghmaNotes")}
             onClick={() => {
               setMoreOpen(false);
-              postNativeOfflineOpen();
+              useGlobalSearchStore.getState().open();
             }}
           >
-            <ArrowDownTrayIcon className="h-5 w-5" aria-hidden="true" />
-            {t("Offline notes")}
+            <MagnifyingGlassIcon className="h-6 w-6" aria-hidden="true" />
+            {t("Search")}
           </button>
-        )}
-        <Link
-          className={rowClass}
-          href="/notes/trash"
-          onClick={() => setMoreOpen(false)}
-          aria-current={pathname === "/notes/trash" ? "page" : undefined}
-        >
-          <TrashIcon className="h-5 w-5" aria-hidden="true" />
-          {t("Trash")}
-        </Link>
-        <CanvasImportIndicator />
-        <Link className={rowClass} href="/study-map" onClick={() => setMoreOpen(false)} aria-current={pathname?.startsWith("/study-map") ? "page" : undefined}>
-          <Square3Stack3DIcon className="h-5 w-5" aria-hidden="true" />
-          {t("Study map")}
-        </Link>
+          <button
+            type="button"
+            className={tileClass}
+            disabled={phase !== "idle"}
+            onClick={() => {
+              setMoreOpen(false);
+              void usePomodoroStore.getState().start({});
+            }}
+          >
+            <ClockIcon className="h-6 w-6" aria-hidden="true" />
+            {t(phase === "idle" ? "Focus" : "Focus session in progress")}
+          </button>
+          <Link
+            className={tileClass}
+            href="/study-map"
+            onClick={() => setMoreOpen(false)}
+            aria-current={pathname?.startsWith("/study-map") ? "page" : undefined}
+          >
+            <Square3Stack3DIcon className="h-6 w-6" aria-hidden="true" />
+            {t("Study map")}
+          </Link>
+          {nativeBridge && supportsNativeOffline() && (
+            <button
+              type="button"
+              className={tileClass}
+              onClick={() => {
+                setMoreOpen(false);
+                postNativeOfflineOpen();
+              }}
+            >
+              <ArrowDownTrayIcon className="h-6 w-6" aria-hidden="true" />
+              {t("Offline notes")}
+            </button>
+          )}
+          <Link
+            className={tileClass}
+            href="/notes/trash"
+            onClick={() => setMoreOpen(false)}
+            aria-current={pathname === "/notes/trash" ? "page" : undefined}
+          >
+            <TrashIcon className="h-6 w-6" aria-hidden="true" />
+            {t("Trash")}
+          </Link>
+          <Link
+            className={tileClass}
+            href="/settings"
+            onClick={() => setMoreOpen(false)}
+            aria-current={pathname?.startsWith("/settings") ? "page" : undefined}
+          >
+            <Cog6ToothIcon className="h-6 w-6" aria-hidden="true" />
+            {t("Settings")}
+          </Link>
+        </div>
+        <div className="mt-2 empty:hidden">
+          <CanvasImportIndicator variant="drawer" hideWhenIdle />
+        </div>
       </MobileSheet>
     </>
   );

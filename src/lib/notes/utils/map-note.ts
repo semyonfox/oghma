@@ -9,6 +9,7 @@ export interface DatabaseNoteRow {
   pinned: number;
   created_at: Date | string | null;
   updated_at: Date | string | null;
+  edited_at?: Date | string | null;
 }
 
 export interface MappedNote {
@@ -24,6 +25,7 @@ export interface MappedNote {
   editorsize: null;
   createdAt?: string;
   updatedAt?: string;
+  editedAt?: string;
 }
 
 /** Maps a database note row from snake_case to the API's note shape. */
@@ -41,5 +43,7 @@ export function mapNoteFromDB(dbRow: DatabaseNoteRow): MappedNote {
     editorsize: null,
     createdAt: dbRow.created_at ? new Date(dbRow.created_at).toISOString() : undefined,
     updatedAt: dbRow.updated_at ? new Date(dbRow.updated_at).toISOString() : undefined,
+    // only rows that selected it carry it, so a merge into the tree never blanks a known value
+    ...(dbRow.edited_at ? { editedAt: new Date(dbRow.edited_at).toISOString() } : {}),
   };
 }

@@ -10,6 +10,7 @@ import {
   PlusIcon,
 } from "@heroicons/react/24/outline";
 import { renderMermaidElement } from "../mermaid";
+import { copyText } from "@/lib/clipboard";
 
 const VIEWPORT_PADDING = 16;
 const MIN_VIEWPORT_HEIGHT = 96;
@@ -271,13 +272,11 @@ export default function MermaidInlineViewer({
             type="button"
             className="oghma-mermaid-inline-copy"
             onClick={() => {
-              void navigator.clipboard
-                .writeText(source)
-                .then(() => {
-                  setCopied(true);
-                  window.setTimeout(() => setCopied(false), 1600);
-                })
-                .catch(() => {});
+              setCopied(true);
+              void copyText(source).then((ok) => {
+                if (ok) window.setTimeout(() => setCopied(false), 1600);
+                else setCopied(false);
+              });
             }}
             aria-label={copied ? "Mermaid source copied" : "Copy Mermaid source"}
             title={copied ? "Copied" : "Copy Mermaid source"}

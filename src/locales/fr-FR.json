@@ -1162,5 +1162,18 @@
   "Syllabus": "Programme",
   "To review": "À vérifier",
   "changed": "modifié",
-  "Search everything": "Tout rechercher"
+  "Search everything": "Tout rechercher",
+  "Order": "Ordre",
+  "Course order": "Ordre du cours",
+  "Collapse {title}": "Réduire {title}",
+  "Expand {title}": "Développer {title}",
+  "Empty folder": "Dossier vide",
+  "Topics could not be loaded.": "Impossible de charger les thèmes.",
+  "Finished courses": "Cours terminés",
+  "New note here": "Nouvelle note ici",
+  "New folder here": "Nouveau dossier ici",
+  "In {folder}": "Dans {folder}",
+  "now": "maintenant",
+  "{count}m": "{count} min",
+  "{count}h": "{count} h"
 }

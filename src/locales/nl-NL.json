@@ -1162,5 +1162,18 @@
   "Syllabus": "Syllabus",
   "To review": "Te controleren",
   "changed": "gewijzigd",
-  "Search everything": "Alles doorzoeken"
+  "Search everything": "Alles doorzoeken",
+  "Order": "Volgorde",
+  "Course order": "Cursusvolgorde",
+  "Collapse {title}": "{title} samenvouwen",
+  "Expand {title}": "{title} uitvouwen",
+  "Empty folder": "Lege map",
+  "Topics could not be loaded.": "Onderwerpen konden niet worden geladen.",
+  "Finished courses": "Afgeronde cursussen",
+  "New note here": "Nieuwe notitie hier",
+  "New folder here": "Nieuwe map hier",
+  "In {folder}": "In {folder}",
+  "now": "nu",
+  "{count}m": "{count} min",
+  "{count}h": "{count} u"
 }

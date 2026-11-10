@@ -450,7 +450,7 @@ export default function SettingsPage() {
           >
             <ArrowLeftIcon className="h-5 w-5" />
           </button>
-          <h1 className="font-serif text-2xl font-semibold tracking-tight text-text">
+          <h1 className="text-xl font-semibold tracking-tight text-text sm:font-serif sm:text-2xl">
             {t("Settings")}
           </h1>
         </div>

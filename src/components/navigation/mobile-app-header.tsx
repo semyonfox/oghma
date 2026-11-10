@@ -23,18 +23,19 @@ export default function MobileAppHeader({
   return (
     <header
       className={clsx(
-        "flex min-h-[60px] shrink-0 flex-wrap items-center gap-2 border-b border-border-subtle bg-surface px-4 py-1.5 lg:hidden",
+        "flex min-h-14 shrink-0 items-center gap-2 border-b border-border-subtle bg-surface px-4 py-1.5 lg:hidden",
+        // the android app already pads below the status bar natively
         !nativeApp && "pt-[max(0.375rem,env(safe-area-inset-top))]",
         className,
       )}
     >
       {leading}
       <div className="min-w-[8ch] flex-1">
-        <h1 className="truncate text-[17px] font-semibold text-text">
+        <h1 className="truncate text-xl font-semibold leading-tight tracking-tight text-text">
           {title}
         </h1>
         {subtitle && (
-          <p className="truncate text-xs text-text-secondary">{subtitle}</p>
+          <p className="truncate text-xs leading-snug text-text-tertiary">{subtitle}</p>
         )}
       </div>
       {actions && (

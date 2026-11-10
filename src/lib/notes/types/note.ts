@@ -46,6 +46,12 @@ export interface NoteModel {
   date?: string;
   createdAt?: string; // ISO 8601 timestamp
   updatedAt?: string; // ISO 8601 timestamp
+  /** last time the user changed the title or content, or for a folder anything inside it */
+  editedAt?: string;
+  /** canvas module order, only on canvas module folders */
+  modulePosition?: number;
+  /** a top-level folder a study map sorts into topics */
+  hasStudyMap?: boolean;
   isFolder?: boolean; // true if this note is a folder/directory
   s3Key?: string; // S3 storage path for attached files/PDFs
   mimeType?: string; // Persisted attachment MIME type; independent of editable title
