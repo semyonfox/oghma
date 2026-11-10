@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { generateText } from "ai";
 import {
   buildReasoningOptions,
   createLlmProvider,
@@ -198,5 +199,32 @@ describe("ai-config", () => {
       LLM_API_KEY: "sk-test",
     });
     expect(p).not.toBeNull();
+  });
+
+  describe("zero data retention", () => {
+    afterEach(() => vi.unstubAllGlobals());
+
+    async function requestBody(env: Record<string, string>) {
+      let body: unknown;
+      vi.stubGlobal("fetch", vi.fn(async (_url: unknown, init?: RequestInit) => {
+        body = JSON.parse(String(init?.body));
+        throw new Error("stop");
+      }));
+      const provider = createLlmProvider(env);
+      await generateText({ model: provider!("some/model"), prompt: "hi", maxRetries: 0 }).catch(() => {});
+      return body as Record<string, unknown>;
+    }
+
+    it("asks openrouter for zero retention on every request", async () => {
+      const body = await requestBody({ LLM_API_KEY: "sk-test" });
+      expect(body.provider).toEqual({ zdr: true, data_collection: "deny" });
+      const explicit = await requestBody({ LLM_API_KEY: "sk-test", LLM_API_URL: "https://openrouter.ai/api/v1" });
+      expect(explicit.provider).toEqual({ zdr: true, data_collection: "deny" });
+    });
+
+    it("leaves the field off for other hosts", async () => {
+      const body = await requestBody({ LLM_API_KEY: "sk-test", LLM_API_URL: "https://llm.example.com/v1" });
+      expect(body).not.toHaveProperty("provider");
+    });
   });
 });

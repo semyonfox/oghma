@@ -67,6 +67,7 @@ import {
 } from "./import-worker";
 import { dispatchFairCanvasFiles } from "./import-scheduler";
 import { runImportedFileCacheRetention } from "./import-cache-retention";
+import { purgeStaleStudyCaches } from "../study-map/cache";
 import { dispatchCanvasJob, type CanvasJob } from "./job-dispatch";
 
 const MINUTE_MS = 60_000;
@@ -190,6 +191,7 @@ async function runDailyMaintenance(): Promise<void> {
     ["prune chat payloads", pruneChatPayloads],
     ["marketing retention", cleanupMarketingData],
     ["imported file cache retention", () => runImportedFileCacheRetention()],
+    ["study cache retention", purgeStaleStudyCaches],
     // purging expired Trash roots can create external-cleanup tasks, so
     // process those second and let one daily pass finish both
     ["purge expired trash", purgeExpiredTrash],
