@@ -1,6 +1,6 @@
 # Android alpha
 
-> Status: 0.1.6 released 2026-10-15; 0.1.5 was never released
+> Status: 0.1.7 released 2026-11-10; 0.1.5 was never released
 >
 > Last reviewed: 2026-10-15
 
@@ -146,6 +146,20 @@ update channel are outside this preparation.
 - [React Native WebView reference](https://github.com/react-native-webview/react-native-webview/blob/master/docs/Reference.md)
 - [Expo browser authentication](https://docs.expo.dev/versions/latest/sdk/webbrowser/)
 - [Local native builds](https://docs.expo.dev/guides/local-app-development/)
+
+## 0.1.7 design refresh
+
+Status: released 2026-11-10 as GitHub prerelease `android-alpha-v0.1.7`, versionCode 8.
+It carries the native changes merged since 0.1.6: the Atlas design pass and the
+removal of the dead native screens. The phone layout changes that ship with it
+(bottom-sheet drawers, the notes outline, the day strip) are website changes and
+reach 0.1.6 installs through the WebView too.
+
+Verification on 2026-11-10: mobile type checking and contract tests passed in
+the build script. The signed APK has package `ie.oghmanotes.alpha`, versionCode 8
+and versionName 0.1.7. Its v2 signing certificate matches 0.1.6, its permissions
+are unchanged from 0.1.6, and it passes 16 KB ZIP alignment. Installation over
+0.1.6 has not been checked on a physical phone.
 
 ## 0.1.6 authentication patch
 
