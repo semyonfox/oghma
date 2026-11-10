@@ -50,6 +50,7 @@ import {
   type StudyJobKind,
   type StudyTopic,
 } from "./types";
+import { canvasContentEnabled } from "@/lib/canvas/content-policy";
 
 type Transaction = postgres.TransactionSql;
 
@@ -597,6 +598,8 @@ async function outlineFor(
       ? fetchModuleDescriptor(code)
       : null,
     (async () => {
+      // the syllabus and home page are the lecturer's own writing
+      if (!canvasContentEnabled()) return null;
       const credentials = await loadCanvasCredentials(userId).catch(() => null);
       if (!credentials) return null;
       return new CanvasClient(credentials.domain, credentials.token)

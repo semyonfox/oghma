@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 const canvas = vi.hoisted(() => ({
@@ -65,6 +65,9 @@ type SqlWithBegin = {
 };
 
 describe("POST /api/canvas/sync", () => {
+  beforeEach(() => vi.stubEnv("CANVAS_CONTENT_IMPORT", "on"));
+  afterEach(() => vi.unstubAllEnvs());
+
   beforeEach(() => {
     vi.clearAllMocks();
     delete (sql as unknown as SqlWithBegin).begin;
@@ -255,5 +258,15 @@ describe("POST /api/canvas/sync", () => {
     expect(insert).toContainEqual(expect.stringMatching(/^[0-9a-f]{64}$/));
     expect(cancelActiveCanvasImportJobs).not.toHaveBeenCalled();
     expect(enqueueCanvasDiscoverJob).toHaveBeenCalledWith(jobId, "user-123");
+  });
+});
+
+describe("POST /api/canvas/sync while content import is paused", () => {
+  it("declines quietly so background syncs don't error", async () => {
+    const response = await POST(
+      new NextRequest("http://localhost/api/canvas/sync?automatic=true", { method: "POST" }),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ queued: false, reason: "Canvas file import is paused" });
   });
 });

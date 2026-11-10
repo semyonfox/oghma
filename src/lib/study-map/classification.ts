@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { generateText } from "ai";
 import { z } from "zod";
-import { createLlmProvider, getLlmModel } from "@/lib/ai-config";
+import { createLlmProvider, getLlmModel, OPENROUTER_PRIVACY } from "@/lib/ai-config";
 import { isStudyMock, jevApiKey, studyClassifier } from "./config";
 import { splitSourcePassages } from "./evidence";
 import {
@@ -216,6 +216,7 @@ function requestFor(source: SourceDocument, tasks: Task[]) {
       topics.set(task.target.topic.id, task.target.topic);
   return {
     model: JEV_MODEL,
+    provider: OPENROUTER_PRIVACY,
     state: {
       title: source.title,
       passages: [...passages.values()].map(({ id, text }) => ({ id, text })),

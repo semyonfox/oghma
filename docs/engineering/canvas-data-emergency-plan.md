@@ -1,8 +1,8 @@
 # Canvas Data Emergency Plan
 
-> **Status:** Contingency design; not implemented and not an executable runbook
+> **Status:** Contingency design. Only the ingestion pause below is implemented (2026-11-10). The retention modes are not
 >
-> **Last reviewed:** 2026-10-16 (current data boundary rechecked after the domain audit fixes landed)
+> **Last reviewed:** 2026-11-10 (ingestion pause added)
 >
 > **Source of truth for:** The response options if OghmaNotes must reduce or
 > stop retaining Canvas-originated content
@@ -15,6 +15,30 @@ that the current storage model is unlawful or uneconomic.
 No retention switch currently exists. Do not respond to an incident by
 manually deleting object prefixes or shared-cache rows. Implement and verify
 the selected mode first, then run a reference-aware cleanup.
+
+## Ingestion Pause
+
+Implemented 2026-11-10 as `CANVAS_CONTENT_IMPORT`, read in one place
+([content-policy.ts](../../src/lib/canvas/content-policy.ts)). Lecturers own
+their course material, and OghmaNotes has no lecturer or institutional consent
+to copy it or send it to AI providers. Until it does, the switch stays off and
+only `on` enables it.
+
+While it is off:
+
+- course import, sync, retry and assignment-material import refuse new work
+  (`/api/canvas/import`, `/sync`, `/retry`, `/api/assignments/[id]/materials`).
+  Automatic syncs decline quietly
+- chat gets no Canvas tools and the internal Canvas MCP route refuses requests
+- study-map course outlines use only the public module descriptor and
+  imported module names, never the Canvas syllabus or home page
+- assignment sync stores titles, dates and status but no brief. Existing
+  briefs are left as they are
+- Settings explains the pause and keeps the archive download, which streams
+  to the student without being stored
+
+It stops new ingestion only. Everything already imported stays under Mode 0
+until someone decides otherwise. That decision covers backups too.
 
 ## Current Data Boundary
 

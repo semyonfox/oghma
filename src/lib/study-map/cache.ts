@@ -61,3 +61,22 @@ export const generationCache: StudyGenerationCache = {
     }
   },
 };
+
+// entries hold quotes from course material and aren't tied to any one note, so
+// they can't follow a file's deletion. a fixed age bounds how long excerpts
+// outlive the students who imported them. a later import just pays again
+export const STUDY_CACHE_RETENTION_DAYS = 30;
+
+export async function purgeStaleStudyCaches(): Promise<number> {
+  const decisions = await sql`
+    DELETE FROM app.study_decision_cache
+    WHERE created_at < NOW() - (${STUDY_CACHE_RETENTION_DAYS} * INTERVAL '1 day')
+    RETURNING 1
+  `;
+  const generations = await sql`
+    DELETE FROM app.study_generation_cache
+    WHERE created_at < NOW() - (${STUDY_CACHE_RETENTION_DAYS} * INTERVAL '1 day')
+    RETURNING 1
+  `;
+  return decisions.length + generations.length;
+}
