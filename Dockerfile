@@ -7,10 +7,14 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends python3 make g++ \
     && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json* ./
-RUN npm pkg delete scripts.prepare && npm ci
-COPY . .
-# Fetch the pinned Android release before Next.js indexes public files.
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
+    npm pkg delete scripts.prepare && npm ci
+# fetch the pinned Android release before the source copy, so ordinary source
+# changes reuse the verified download instead of fetching it again
+COPY scripts/fetch-mobile-apk.mjs ./scripts/
+COPY public/downloads/android-alpha.json ./public/downloads/
 RUN node scripts/fetch-mobile-apk.mjs
+COPY . .
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 # Stub DATABASE_URL for build time (actual URL provided at runtime via env vars)
@@ -25,11 +29,18 @@ ENV NEXT_PUBLIC_SENTRY_RELEASE=$SENTRY_RELEASE
 ENV NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE=$SENTRY_TRACES_SAMPLE_RATE
 ENV SENTRY_RELEASE=$SENTRY_RELEASE
 # the upload token exists only for this build step, never in an image layer
-RUN --mount=type=secret,id=sentry_auth_token,env=SENTRY_AUTH_TOKEN npm run build
+# .next/cache holds the Turbopack build cache between image builds. it is a
+# mount, so it never lands in an image layer
+RUN --mount=type=secret,id=sentry_auth_token,env=SENTRY_AUTH_TOKEN \
+    --mount=type=cache,target=/app/.next/cache,id=oghma-next-cache,sharing=locked \
+    npm run build
 
 # Stage 2: Runner
 FROM node:24-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d AS runner
 WORKDIR /app
+# the browser reads its sentry environment from the host and the server from
+# runtime env, so the deploy pipeline may promote this image from dev to prod
+LABEL oghma.runtime-env="1"
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
