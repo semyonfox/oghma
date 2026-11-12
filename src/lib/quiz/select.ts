@@ -4,7 +4,7 @@ import sql from "@/database/pgsql";
 import logger from "@/lib/logger";
 import type { quizSessionCreateSchema } from "@/lib/validations/schemas";
 import type { CardState } from "./types";
-import { SESSION_DEFAULTS } from "./types";
+import { QUIZ_GENERATION_MAX_FAILURES, SESSION_DEFAULTS } from "./types";
 import { searchChunkVectors } from "@/lib/qdrant";
 
 export type QuizSessionFilter = z.infer<typeof quizSessionCreateSchema>;
@@ -296,6 +296,7 @@ export async function getSessionCandidates(
       WHERE c.user_id = ${userId}::uuid
         AND c.id = ANY(${chunkIds}::uuid[])
         AND n.deleted_at IS NULL
+        AND c.quiz_generation_failures < ${QUIZ_GENERATION_MAX_FAILURES}
         AND (ucs.is_active IS NULL OR ucs.is_active = true)
     `,
   ]);
