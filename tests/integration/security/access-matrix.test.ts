@@ -365,7 +365,7 @@ it("cannot move an owned note into another user's folder", async () => {
   expect(row.parent_id).toBeNull();
 });
 
-it("quiz retries schedule only missing cards once per in-flight user", async () => {
+it("quiz retries schedule one bounded top-up per pending batch", async () => {
   mocks.auth.mockResolvedValue({ user_id: owner });
   for (let index = 0; index < 10; index++) {
     await fixture`INSERT INTO app.chunks (id, document_id, user_id, text)
@@ -377,7 +377,8 @@ it("quiz retries schedule only missing cards once per in-flight user", async () 
   expect(mocks.after).toHaveBeenCalledOnce();
   await mocks.after.mock.calls[0][0]();
   expect(mocks.generate).toHaveBeenCalledWith(owner, expect.any(Array));
-  expect(mocks.generate.mock.calls[0][1]).toHaveLength(2);
+  // one card exists for a three-question session, so the five-card top-up applies
+  expect(mocks.generate.mock.calls[0][1]).toHaveLength(5);
   expect(mocks.limited).toHaveBeenCalledWith("quiz-session", owner);
 });
 

@@ -25,8 +25,11 @@ import {
 
 // generation limits — all generation is background-only (never blocks the response)
 const AI_GENERATION_PER_MODULE = 5;  // max questions generated per module per trigger
-const inFlightUsers = new Set<string>();
 const AI_GENERATION_BATCH_SIZE = 25; // upper bound for total background pass
+// a full session still adds a few cards, so new notes keep gaining coverage
+const AI_GENERATION_TOP_UP = 5;
+// one pending batch per user and filter, so retries can't each pick new random chunks
+const inFlightBatches = new Set<string>();
 
 interface ChunkModuleRow {
   id: string;
@@ -88,21 +91,25 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   const maxQuestions = filter.maxQuestions || SESSION_DEFAULTS.maxQuestions;
   const cardIds = sessionCardIds(selectCards(candidates, maxQuestions), maxQuestions);
-  const needed = Math.min(AI_GENERATION_BATCH_SIZE, maxQuestions - cardIds.length);
-  if (needed > 0 && uncoveredChunkIds.length > 0 && !inFlightUsers.has(userId)) {
-    inFlightUsers.add(userId);
+  const needed = Math.min(
+    AI_GENERATION_BATCH_SIZE,
+    Math.max(AI_GENERATION_TOP_UP, maxQuestions - cardIds.length),
+  );
+  const batchKey = `${userId}:${JSON.stringify(filter)}`;
+  if (uncoveredChunkIds.length > 0 && !inFlightBatches.has(batchKey)) {
+    inFlightBatches.add(batchKey);
     try {
       const bgChunkIds = await pickChunksToGenerate(userId, uncoveredChunkIds, needed);
       if (bgChunkIds.length > 0) {
         after(async () => {
           try { await generateBatch(userId, bgChunkIds); }
-          finally { inFlightUsers.delete(userId); }
+          finally { inFlightBatches.delete(batchKey); }
         });
       } else {
-        inFlightUsers.delete(userId);
+        inFlightBatches.delete(batchKey);
       }
     } catch (error) {
-      inFlightUsers.delete(userId);
+      inFlightBatches.delete(batchKey);
       throw error;
     }
   }

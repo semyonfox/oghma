@@ -42,10 +42,22 @@ it("schedules only missing cards and ignores retries while its batch is pending"
   expect(mocks.generate).toHaveBeenCalledWith(expect.any(String), Array.from({ length: 7 }, (_, i) => `chunk-${i}`));
   expect(mocks.limited).toHaveBeenCalledWith("quiz-session", expect.any(String));
 });
-it("schedules nothing when enough cards already exist", async () => {
+it("still tops up a small batch when the session is already full", async () => {
   mocks.cards.mockReturnValue(Array.from({ length: 10 }, (_, i) => `card-${i}`));
   await start();
-  expect(mocks.after).not.toHaveBeenCalled();
+  expect(mocks.after).toHaveBeenCalledOnce();
+  await mocks.after.mock.calls[0][0]();
+  expect(mocks.generate.mock.calls[0][1]).toHaveLength(5);
+});
+
+it("does not let one filter's pending batch block another filter", async () => {
+  const startFilter = (filterType: string, filterValue?: string[]) => POST(new NextRequest("http://localhost/api/quiz/sessions", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ filterType, ...(filterValue ? { filterValue } : {}), maxQuestions: 10 }),
+  }));
+  await startFilter("all");
+  await startFilter("note", [crypto.randomUUID()]);
+  expect(mocks.after).toHaveBeenCalledTimes(2);
 });
 it("stops before generation when the per-user rate limit rejects a start", async () => {
   mocks.limited.mockResolvedValue(new Response(null, { status: 429 }));
