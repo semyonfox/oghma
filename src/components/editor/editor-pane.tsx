@@ -25,6 +25,7 @@ import useSaveIndicatorStore, {
   saveIndicatorKey,
 } from "@/lib/notes/state/save-indicator";
 import useI18n from "@/lib/notes/hooks/use-i18n";
+import useKeyboardOpen from "@/lib/hooks/use-keyboard-open";
 import useNoteTreeStore from "@/lib/notes/state/tree";
 import { splitModuleCode } from "@/lib/notes/module-code";
 import {
@@ -93,6 +94,7 @@ const EditorPane: FC<EditorPaneProps> = ({
     : "/notes";
   const router = useRouter();
   const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
+  const keyboardOpen = useKeyboardOpen();
   const sourceFile = useSourceFile(
     file?.fileType === "note" ? file.fileId : undefined,
   );
@@ -426,12 +428,12 @@ const EditorPane: FC<EditorPaneProps> = ({
       </div>
 
       {/* phone action bar from the Atlas mockup */}
-      <div className="flex shrink-0 gap-2 border-t border-border-subtle bg-sidebar px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 lg:hidden">
+      <div className={`${keyboardOpen ? "hidden" : "flex"} shrink-0 items-center justify-end gap-2 border-t border-border-subtle bg-sidebar px-4 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 lg:hidden`}>
         {sourceFile && (
           <button
             type="button"
             onClick={() => router.push(`/notes/${sourceFile.fileId}`)}
-            className="flex min-h-12 min-w-0 flex-1 flex-col justify-center rounded-radius-lg border border-border bg-surface px-3 text-left"
+            className="flex min-h-11 min-w-0 flex-1 flex-col justify-center rounded-radius-lg border border-border bg-surface px-3 text-left"
           >
             <span className="text-[11px] font-semibold text-accent">
               {sourceFile.fileType === "pdf" ? t("Original PDF") : t("Original file")}
@@ -443,7 +445,7 @@ const EditorPane: FC<EditorPaneProps> = ({
           type="button"
           data-inspector-toggle
           onClick={() => openRightPanelTab("ai")}
-          className="flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-radius-lg bg-action px-3 text-sm font-medium text-on-action hover:bg-action-hover"
+          className="touch-target-44 flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-action px-4 text-[13px] font-medium text-on-action hover:bg-action-hover"
         >
           <SparklesIcon className="h-4 w-4" aria-hidden="true" />
           {t("Ask about this note")}

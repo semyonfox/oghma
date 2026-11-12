@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 
 /** Only claims an outward, single-finger drag that no child scroller needs. */
 export default function useSwipeDismiss({
@@ -16,13 +16,26 @@ export default function useSwipeDismiss({
 }) {
   const [panel, setPanel] = useState<HTMLElement | null>(null);
   const [offset, setOffset] = useState(0);
+  // a dismissed panel stays where the finger let go and fades from there.
+  // resetting the drag on release made it jump back open before closing, and
+  // an inline slide-out gets cut short when headless ui starts its leave
+  // transition with transition: none
+  const [leaving, setLeaving] = useState(false);
   // Parent updates, including streamed replies, must not reset an active drag.
   const closeRef = useRef(onClose);
   useEffect(() => { closeRef.current = onClose; }, [onClose]);
 
-  useEffect(() => {
+  // a reopened panel starts at rest before it paints
+  useLayoutEffect(() => {
+    if (!open) return;
     setOffset(0);
+    setLeaving(false);
+  }, [open]);
+
+  useEffect(() => {
     if (!panel || !open) return;
+    // new listeners lose any drag in progress
+    setOffset(0);
     const horizontal = direction !== "down";
     const sign = direction === "left" ? -1 : 1;
     let gesture: { id: number; x: number; y: number; target: HTMLElement; claimed: boolean } | null = null;
@@ -31,6 +44,7 @@ export default function useSwipeDismiss({
       gesture = null;
       distance = 0;
       setOffset(0);
+      setLeaving(false);
     };
     const start = (event: TouchEvent) => {
       reset();
@@ -84,9 +98,12 @@ export default function useSwipeDismiss({
       const dismiss = gesture.claimed && distance >= 64;
       // Avoid a synthetic click on an action underneath the departing panel.
       if (gesture.claimed && event.cancelable) event.preventDefault();
-      if (dismiss) window.getSelection()?.removeAllRanges();
-      reset();
-      if (dismiss) closeRef.current();
+      if (!dismiss) { reset(); return; }
+      window.getSelection()?.removeAllRanges();
+      gesture = null;
+      distance = 0;
+      setLeaving(true);
+      closeRef.current();
     };
     panel.addEventListener("touchstart", start, { passive: true });
     // React's delegated touch handlers are passive in Android WebView.
@@ -102,9 +119,11 @@ export default function useSwipeDismiss({
     };
   }, [panel, open, direction, breakpoint]);
 
-  const style: CSSProperties | undefined = offset ? {
+  // a parent that refuses the close (say mid-save) gets its panel back at rest
+  const style: CSSProperties | undefined = offset && !(leaving && open) ? {
     transform: direction === "down" ? `translateY(${offset}px)` : `translateX(${offset}px)`,
-    transitionDuration: "0ms",
+    // only a live drag skips the transition, a closing panel still fades
+    ...(open && !leaving ? { transitionDuration: "0ms" } : {}),
   } : undefined;
   return { ref: setPanel, style };
 }

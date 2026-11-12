@@ -17,6 +17,7 @@ import {
   Square3Stack3DIcon,
 } from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
+import useKeyboardOpen from "@/lib/hooks/use-keyboard-open";
 import useGlobalSearchStore from "@/lib/global-search/state";
 import usePomodoroStore from "@/lib/notes/state/pomodoro";
 import {
@@ -47,8 +48,7 @@ export default function MobileBottomNavigation({
   const [expanded, setExpanded] = useState(true);
   const dockRef = useRef<HTMLDivElement>(null);
   const [moreOpen, setMoreOpen] = useState(false);
-  const [keyboardOpen, setKeyboardOpen] = useState(false);
-  const restingHeight = useRef(0);
+  const keyboardOpen = useKeyboardOpen();
   useEffect(() => {
     setMoreOpen(false);
     setExpanded(true);
@@ -98,28 +98,6 @@ export default function MobileBottomNavigation({
       if (frame !== undefined) window.cancelAnimationFrame(frame);
     };
   }, [pathname]);
-  useEffect(() => {
-    restingHeight.current = window.innerHeight;
-    const update = () => {
-      const target = document.activeElement;
-      const editing =
-        target instanceof HTMLElement &&
-        (target.matches("input,textarea") || target.isContentEditable);
-      const height = window.visualViewport?.height ?? window.innerHeight;
-      if (!editing) restingHeight.current = window.innerHeight;
-      setKeyboardOpen(editing && restingHeight.current - height > 120);
-    };
-    document.addEventListener("focusin", update);
-    document.addEventListener("focusout", update);
-    window.visualViewport?.addEventListener("resize", update);
-    window.addEventListener("resize", update);
-    return () => {
-      document.removeEventListener("focusin", update);
-      document.removeEventListener("focusout", update);
-      window.visualViewport?.removeEventListener("resize", update);
-      window.removeEventListener("resize", update);
-    };
-  }, []);
   const moreActive =
     pathname?.startsWith("/settings") || pathname?.startsWith("/study-map") || pathname === "/notes/trash";
   const selectedStyle = "bg-subtle-hover text-accent-hover";
