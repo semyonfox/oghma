@@ -74,6 +74,16 @@ async function runReindex(
   return "stale";
 }
 
+// for import paths that index a note themselves. the content guard keeps the
+// request when the body changed after that path read it
+export async function clearReindexRequest(noteId: string, userId: string, indexedContent: string): Promise<void> {
+  await sql`
+    UPDATE app.notes SET reindex_requested_at = NULL
+    WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
+      AND reindex_requested_at IS NOT NULL AND content = ${indexedContent}
+  `;
+}
+
 // the row marker survives a failed queue publish and is cleared only by a matching job
 export async function recoverNoteReindexes(): Promise<void> {
   const notes = await sql<{ note_id: string; user_id: string }[]>`

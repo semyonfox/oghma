@@ -1,4 +1,3 @@
-import { recoverNoteReindexes } from "@/lib/rag/note-reindex";
 /**
  * Canvas Worker Entry Point
  *
@@ -34,7 +33,7 @@ import {
   recoverStaleChatGenerations,
 } from "../chat/generation-store";
 import { processVaultImport } from "../vault/import-worker";
-import { reindexNote } from "../rag/note-reindex";
+import { recoverNoteReindexes, reindexNote } from "../rag/note-reindex";
 import { cleanupVaultArtifacts } from "../vault/artifacts";
 import { processVaultExport } from "../vault/export-worker";
 import { cleanupMarketingData } from "../marketing/retention";

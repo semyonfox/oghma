@@ -12,6 +12,7 @@ import sql from "../../database/pgsql";
 import { v4 as uuidv4 } from "uuid";
 import { chunkText } from "../rag/chunking.ts";
 import { replaceNoteEmbeddings } from "../rag/indexing.ts";
+import { clearReindexRequest } from "../rag/note-reindex.ts";
 import { stripMarkdown } from "../rag/strip-markdown.ts";
 import { getStorageProvider } from "../storage/init.ts";
 import type { StoreProvider } from "../storage/base";
@@ -286,6 +287,7 @@ export async function processRagPipeline(
         AND deleted_at IS NULL
     `;
     await replaceNoteEmbeddings(noteId, userId, chunks);
+    await clearReindexRequest(noteId, userId, rawText);
     logger.info("vault import text note indexed");
     return;
   }
@@ -334,6 +336,8 @@ export async function processRagPipeline(
       AND deleted_at IS NULL
   `;
   await replaceNoteEmbeddings(mdNoteId, userId, chunks);
+  // these chunks carry marker page numbers, so the generic reindex must not replace them
+  await clearReindexRequest(mdNoteId, userId, finalMarkdown);
   logger.info("vault import markdown note indexed");
 }
 
