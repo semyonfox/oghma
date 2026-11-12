@@ -94,36 +94,47 @@ See the [chat runbook](../operations/chat.md) and
 
 ## CI scope
 
+CI is light on `dev` and full on release PRs into `main`. Updated 2026-11-12.
+
+| Event          | Test | Build | Smoke E2E |
+| -------------- | ---- | ----- | --------- |
+| PR into `dev`  | yes  | yes   | no        |
+| push to `dev`  | yes  | no    | no        |
+| PR into `main` | yes  | yes   | yes       |
+| push to `main` | yes  | yes   | no        |
+
 The [test workflow](../../.github/workflows/test.yml) runs `npm run test:ci`,
 which executes the root and Canvas MCP Vitest suites. The build workflow runs
-ESLint, `npm run typecheck`, the i18n audit, and a Next.js build for pull requests to `dev` and
-`main`, plus pushes to those branches. The path-filtered mobile workflow
-installs the mobile lockfile and runs its type check and Node contract tests.
-The path-filtered Marker workflow installs only pinned Pydantic and Pillow
-dependencies, syntax-checks the active entrypoints, then runs the
-credential-free adapter and RunPod handler tests.
+ESLint, `npm run typecheck`, the i18n audit and a Next.js build. Dev pushes
+skip it because the Jenkins image build compiles the same tree before deploy.
+The path-filtered mobile workflow installs the mobile lockfile and runs its
+type check and Node contract tests. The path-filtered Marker workflow installs
+only pinned Pydantic and Pillow dependencies, syntax-checks the active
+entrypoints, then runs the credential-free adapter and RunPod handler tests.
+Both run on PRs only.
 
-For PRs and pushes to `dev`, `scripts/select-ci-checks.mjs` skips web tests,
-the i18n audit and the Next.js build when changes only affect
-Markdown documentation, the native app or the separate Marker Python service.
-Mobile changes retain root ESLint coverage. Shared files, web code and unknown
-paths run every web check. Unavailable Git comparisons also run every check;
-renames include both the old and new paths. Pushes to `main` and manual runs
-retain the full scope of their workflows.
+`scripts/select-ci-checks.mjs` skips web tests, the i18n audit and the Next.js
+build when changes only affect Markdown documentation, the native app or the
+separate Marker Python service. Mobile changes retain root ESLint coverage.
+Shared files, web code and unknown paths run every web check. Unavailable Git
+comparisons also run every check, and renames include both the old and new
+paths. Pushes to `main` and manual runs retain the full scope of their
+workflows. Run the selector's Git fixture tests locally with
+`node --test scripts/select-ci-checks.test.mjs`. Superseded PR runs cancel
+automatically.
 
-Build and Test keep their existing named jobs, with a short selection step
-before installing dependencies. E2E uses a small selection job so unrelated
-PRs can skip starting its databases, browser and worker. Dev pushes retain
-smoke E2E because Jenkins requires a successful `PR Smoke E2E` check on the
-exact deployment commit; Jenkins rejects a skipped check. Run the selector's
-Git fixture tests locally with `node --test scripts/select-ci-checks.test.mjs`.
-Superseded PR runs cancel automatically.
+Jenkins `oghma-dev` waits for `test` on the exact deployment commit and
+`oghma-prod` waits for `build`. The `test` job always reports success or
+failure, even when the selector skips its steps, because Jenkins rejects a
+skipped check.
 
-PR CI also runs integration contracts and the Playwright smoke suite through
-the [E2E workflow](../../.github/workflows/e2e.yml), using disposable services
-and a real background worker. It runs for pull requests to `dev` or `main` and
-for pushes to `dev`. The nightly/manual `full` workflow runs that isolated
-smoke/integration job alongside the extended scenarios under `tests/e2e/full`.
+The [E2E workflow](../../.github/workflows/e2e.yml) runs integration contracts
+and the Playwright smoke suite with disposable services and a real background
+worker on PRs into `main`. A small selection job lets unrelated PRs skip
+starting its databases, browser and worker. The nightly/manual `full` workflow
+runs that isolated smoke/integration job alongside the extended scenarios
+under `tests/e2e/full`. Run the smoke suite locally before merging risky work
+into `dev`, since dev no longer runs it.
 
 Keep tests focused on observable contracts: response/status behavior, durable
 state, ownership, provider-boundary requests, or race/failure handling. Avoid

@@ -20,25 +20,6 @@ on:
       - "scripts/package-marker-plus-plus.sh"
       - "package.json"
       - ".github/workflows/marker-tests.yml"
-  push:
-    branches: [dev]
-    paths:
-      - "oghma_marker/**"
-      - "scripts/tests/test_openai_compatible_vision.py"
-      - "infra/runpod-marker/Dockerfile"
-      - "infra/runpod-marker/handler.py"
-      - "infra/runpod-marker/prefetch_models.py"
-      - "infra/runpod-marker/server.py"
-      - "infra/runpod-marker/test_handler.py"
-      - "infra/runpod-marker/run.sh"
-      - "infra/runpod-marker/requirements.txt"
-      - "infra/runpod-marker/constraints-marker-full.txt"
-      - "infra/runpod-marker/constraints-markerpp.txt"
-      - "infra/runpod-marker/constraints-vllm.txt"
-      - "infra/runpod-marker/requirements-test.txt"
-      - "scripts/package-marker-plus-plus.sh"
-      - "package.json"
-      - ".github/workflows/marker-tests.yml"
   workflow_dispatch:
 
 concurrency:
