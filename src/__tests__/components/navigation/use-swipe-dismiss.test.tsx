@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import useSwipeDismiss from "@/components/navigation/use-swipe-dismiss";
 
@@ -130,7 +131,38 @@ describe("mobile panel gestures", () => {
     expect(close).toHaveBeenCalledOnce();
   });
 
-  it("stays inert while closed and drops a drag when the panel closes", () => {
+  it.each([
+    ["down", 0, 90, "translateY(90px)"],
+    ["left", -90, 0, "translateX(-90px)"],
+    ["right", 90, 0, "translateX(90px)"],
+  ] as const)("holds a panel dismissed %s where it was let go while it closes", (direction, x, y, held) => {
+    function Toggle() {
+      const [open, setOpen] = useState(true);
+      return <>
+        <button onClick={() => setOpen(true)}>Reopen</button>
+        <Panel direction={direction} open={open} onClose={() => setOpen(false)} />
+      </>;
+    }
+    render(<Toggle />);
+    const panel = screen.getByTestId("panel");
+    swipe(screen.getByText("Panel title"), x, y);
+    // snapping back to rest here is the flicker this guards against, and the
+    // leave transition still has to run for the fade
+    expect(panel.style.transform).toBe(held);
+    expect(panel.style.transitionDuration).toBe("");
+    fireEvent.click(screen.getByText("Reopen"));
+    expect(panel.style.transform).toBe("");
+  });
+
+  it("returns the panel to rest when the parent keeps it open", () => {
+    const close = vi.fn();
+    render(<Panel onClose={close} />);
+    swipe(screen.getByText("Panel title"), 0, 90);
+    expect(close).toHaveBeenCalledOnce();
+    expect(screen.getByTestId("panel").style.transform).toBe("");
+  });
+
+  it("stays inert while closed and holds a drag the parent closes under it", () => {
     const close = vi.fn();
     const view = render(<Panel open={false} onClose={close} />);
     const title = screen.getByText("Panel title");
@@ -141,9 +173,11 @@ describe("mobile panel gestures", () => {
     touch(title, "touchMove", 100, 190);
     expect(screen.getByTestId("panel").style.transform).toBe("translateY(90px)");
     view.rerender(<Panel open={false} onClose={close} />);
-    expect(screen.getByTestId("panel").style.transform).toBe("");
+    expect(screen.getByTestId("panel").style.transform).toBe("translateY(90px)");
     touch(title, "touchEnd", 100, 190);
     expect(close).not.toHaveBeenCalled();
+    view.rerender(<Panel onClose={close} />);
+    expect(screen.getByTestId("panel").style.transform).toBe("");
   });
 
   it("swallows the tap after a claimed swipe but not a plain tap", () => {
