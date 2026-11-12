@@ -27,6 +27,50 @@ export function resolveAppOrigin(input: {
 
 export { canvasToolInstruction };
 
+// a Canvas page, file listing or discussion can be far bigger than anything
+// chat should pay to read back on every later step. same ceiling as readNote
+export const CANVAS_TOOL_RESULT_MAX_CHARS = 20_000;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+// trims the text parts of an MCP tool result to one shared budget and says so,
+// so the model knows to ask for less instead of guessing at what was cut
+export function capCanvasToolResult(result: unknown): unknown {
+  if (!isRecord(result) || !Array.isArray(result.content)) return result;
+  let budget = CANVAS_TOOL_RESULT_MAX_CHARS;
+  let cut = 0;
+  const content = result.content.map((part: unknown) => {
+    if (!isRecord(part) || part.type !== "text" || typeof part.text !== "string") return part;
+    const kept = part.text.slice(0, Math.max(budget, 0));
+    cut += part.text.length - kept.length;
+    budget -= kept.length;
+    return { ...part, text: kept };
+  });
+  if (cut === 0) return result;
+  return {
+    ...result,
+    content: [
+      ...content,
+      { type: "text", text: `[truncated: ${cut} more characters. Ask for a narrower result, such as one page or a smaller page size.]` },
+    ],
+  };
+}
+
+function capToolResults(tools: ToolSet): ToolSet {
+  return Object.fromEntries(
+    Object.entries(tools).map(([name, definition]) => {
+      const execute = definition.execute;
+      if (!execute) return [name, definition];
+      return [name, {
+        ...definition,
+        execute: async (...args: Parameters<typeof execute>) => capCanvasToolResult(await execute(...args)),
+      }];
+    }),
+  );
+}
+
 export async function createCanvasMcpTools(args: {
   userId: string;
   appOrigin: string | null;
@@ -56,5 +100,5 @@ export async function createCanvasMcpTools(args: {
     schemas: canvasMcpToolSchemas,
   });
 
-  return { client, tools };
+  return { client, tools: capToolResults(tools) };
 }
