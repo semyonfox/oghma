@@ -1,3 +1,4 @@
+import logger from "@/lib/logger";
 import { confirmChatTools } from "./actions";
 import { tool } from "ai";
 import type { ToolSet, Tool } from "ai";
@@ -9,10 +10,7 @@ import { generateUUID } from "@/lib/utils/uuid";
 import { moveNoteInTree } from "@/lib/notes/storage/pg-tree";
 import { insertNoteWithTree } from "@/lib/notes/storage/create-note";
 import { getStorageProvider } from "@/lib/storage/init";
-import { chunkText } from "@/lib/rag/chunking";
-import { replaceNoteEmbeddings } from "@/lib/rag/indexing";
-import { processExtractedText } from "@/lib/canvas/text-processing";
-import { cacheInvalidate, cacheKeys } from "@/lib/cache";
+import { enqueueNoteReindexJob } from "@/lib/queue";
 import { resolveAppOrigin } from "@/lib/chat/canvas-mcp-client";
 import { getOptionalCanvasTooling } from "@/lib/chat/canvas-tooling";
 import { searchChatChunks } from "@/lib/chat/chunk-search";
@@ -280,7 +278,6 @@ export function createChatTools(
 
       const newNoteId = generateUUID();
       const storagePath = `notes/${newNoteId}/${fileName}`;
-      const extractedText = processExtractedText(markdown);
 
       const storage = getStorageProvider();
       await storage.putObject(storagePath, markdownBuffer, {
@@ -312,25 +309,17 @@ export function createChatTools(
               ${markdownBuffer.length}
             )
           `;
-          await tx`
-            UPDATE app.notes
-            SET extracted_text = ${extractedText}, updated_at = NOW()
-            WHERE note_id = ${newNoteId}::uuid AND user_id = ${userId}::uuid
-          `;
         });
       } catch (error) {
         await storage.deleteObject(storagePath).catch(() => {});
         throw error;
       }
 
-      await replaceNoteEmbeddings(newNoteId, userId, chunkText(markdown));
-
-      await cacheInvalidate(
-        cacheKeys.treeChildren(userId, parentID || null),
-        cacheKeys.treeFull(userId),
-        cacheKeys.notesList(userId, 0, undefined),
-        cacheKeys.note(userId, newNoteId),
-      );
+      try {
+        await enqueueNoteReindexJob(newNoteId, userId);
+      } catch (error) {
+        logger.error("note reindex enqueue failed", { noteId: newNoteId, error });
+      }
 
       await recordSessionCreatedNote(
         sessionId,
@@ -474,20 +463,7 @@ export function createChatTools(
       if (!folder) throw new Error("Target folder not found");
       if (!folder.is_folder) throw new Error("Target must be a folder");
 
-      // get old parent for cache invalidation
-      const [treeItem] = await sql`
-        SELECT parent_id FROM app.tree_items
-        WHERE note_id = ${moveNoteId}::uuid AND user_id = ${userId}::uuid
-      `;
-      const oldParentId = treeItem?.parent_id || null;
-
       await moveNoteInTree(userId, moveNoteId, targetFolderId);
-
-      await cacheInvalidate(
-        cacheKeys.treeChildren(userId, oldParentId),
-        cacheKeys.treeChildren(userId, targetFolderId),
-        cacheKeys.treeFull(userId),
-      );
 
       return {
         noteId: moveNoteId,
@@ -517,14 +493,8 @@ export function createChatTools(
       await sql`
         UPDATE app.notes
         SET title = ${newTitle.trim()}, updated_at = NOW()
-        WHERE note_id = ${renameNoteId}::uuid AND user_id = ${userId}::uuid
+        WHERE note_id = ${renameNoteId}::uuid AND user_id = ${userId}::uuid AND deleted_at IS NULL
       `;
-
-      await cacheInvalidate(
-        cacheKeys.treeFull(userId),
-        cacheKeys.note(userId, renameNoteId),
-        cacheKeys.notesList(userId, 0, undefined),
-      );
 
       return { noteId: renameNoteId, oldTitle, newTitle: newTitle.trim() };
     },
