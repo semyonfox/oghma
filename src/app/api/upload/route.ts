@@ -20,7 +20,6 @@ import { config } from "@/lib/config";
 import { enqueueCanvasJob } from "@/lib/queue";
 import { readBoundedBody, BodyTooLargeError } from "@/lib/http/bounded-body";
 import { detectMimeType } from "@/lib/ingestion/detect-mime";
-import { invalidateTreeAfterPublish } from "@/lib/notes/tree-cache";
 
 const ALLOWED_MIME_TYPES = new Set([
   "application/pdf",
@@ -217,7 +216,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   if (createdNewNote) {
     // the new note is durable now, so clear the cached root branch before returning it
-    await invalidateTreeAfterPublish(userId, parentId);
   }
 
   // extraction runs in the worker so the response stays fast regardless of

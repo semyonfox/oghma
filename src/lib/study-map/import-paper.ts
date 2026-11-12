@@ -8,7 +8,6 @@ import {
   insertNoteWithTree,
   InvalidNoteParentError,
 } from "@/lib/notes/storage/create-note";
-import { invalidateTreeAfterPublish } from "@/lib/notes/tree-cache";
 import { enqueueNoteReindexJob } from "@/lib/queue";
 import { getStorageProvider } from "@/lib/storage/init";
 import { generateUUID } from "@/lib/utils/uuid";
@@ -319,15 +318,6 @@ export async function importExamPaper(
     };
   }
 
-  // the pair is durable now; later failures must not touch the stored object
-  try {
-    await invalidateTreeAfterPublish(userId, outcome.rootNoteId);
-  } catch (error) {
-    logger.warn("tree cache invalidation failed after exam paper import", {
-      noteId: ids.pdf,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
   return {
     noteId: ids.pdf,
     textNoteId: ids.text,

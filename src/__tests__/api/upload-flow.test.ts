@@ -100,10 +100,6 @@ describe("POST /api/upload", () => {
       sqlMock,
       expect.objectContaining({ title: "lecture.pdf", parentId: folderId }),
     );
-    expect(invalidateTreeAfterPublish).toHaveBeenCalledWith(
-      "00000000-0000-0000-0000-0000000000aa",
-      folderId,
-    );
   });
 
   it("refuses to place a file beside a note that is gone and removes the object", async () => {
@@ -139,7 +135,6 @@ describe("POST /api/upload", () => {
       sqlMock,
       expect.objectContaining({ title: "Léacht 3 Nótaí.pdf", s3Key: body.path }),
     );
-    expect(invalidateTreeAfterPublish).toHaveBeenCalledWith("00000000-0000-0000-0000-0000000000aa", null);
     // the companion .md is titled from this and paired with the source by title
     expect(enqueueCanvasJob).toHaveBeenCalledWith(
       "extract",

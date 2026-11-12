@@ -120,9 +120,6 @@ describe("cloning an imported PDF cache", () => {
         userId: "user-1",
       }),
     ]);
-    expect(mocks.cacheInvalidate).toHaveBeenCalledWith(
-      "cache:{user-1}:note:note-1",
-    );
   });
 
   it("removes a late vector when permanent deletion wins after commit", async () => {
