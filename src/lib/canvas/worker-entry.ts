@@ -1,3 +1,4 @@
+import { recoverNoteReindexes } from "@/lib/rag/note-reindex";
 /**
  * Canvas Worker Entry Point
  *
@@ -175,6 +176,7 @@ async function repairQueues(): Promise<void> {
   await runSteps([
     ["republish queued canvas jobs", unlessCanvasPaused(republishQueuedCanvasJobs)],
     ["recover chat generations", recoverChatGenerations],
+    ["recover note reindexes", recoverNoteReindexes],
     // only ever picks canvas rows
     ["recover extraction retries", unlessCanvasPaused(() => recoverPendingExtractionRetries())],
     ["recover canvas extracts", unlessCanvasPaused(() => recoverPendingCanvasExtracts())],

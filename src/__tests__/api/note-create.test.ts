@@ -1,3 +1,4 @@
+vi.mock("@/lib/queue", () => ({ enqueueNoteReindexJob: vi.fn().mockResolvedValue(undefined) }));
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import type { CreateNoteWithTreeInput } from "@/lib/notes/storage/create-note";

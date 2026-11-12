@@ -9,6 +9,7 @@ import {
 } from "@/lib/notes/utils/map-note";
 import sql from "@/database/pgsql";
 import logger from "@/lib/logger";
+import { enqueueNoteReindexJob } from "@/lib/queue";
 import { noteCreateSchema, validateBody } from "@/lib/validations/schemas";
 import { replaceNoteLinks } from "@/lib/notes/storage/note-links";
 import {
@@ -135,6 +136,13 @@ export const POST = withErrorHandler(async (request) => {
     throw error;
   }
 
+  if (body.content && !isFolder) {
+    try {
+      await enqueueNoteReindexJob(note.noteId, user.user_id);
+    } catch (error) {
+      logger.error("note reindex enqueue failed", { noteId: note.noteId, error });
+    }
+  }
   if (body.content) {
     try {
       await replaceNoteLinks(user.user_id, note.noteId, body.content);

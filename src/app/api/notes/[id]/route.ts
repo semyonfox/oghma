@@ -173,6 +173,9 @@ export const PUT = withErrorHandler(async (request: NextRequest, { params }: Not
           content = COALESCE(${body.content ?? null}::text, content),
           pinned = COALESCE(${body.pinned ?? null}::int, pinned),
           edited_at = CASE WHEN ${edited}::boolean THEN NOW() ELSE edited_at END,
+          reindex_requested_at = CASE
+            WHEN ${body.content !== undefined && body.content !== previous.content}::boolean
+            THEN NOW() ELSE reindex_requested_at END,
           updated_at = NOW()
       WHERE note_id = ${noteId}::uuid
         AND user_id = ${user.user_id}::uuid
