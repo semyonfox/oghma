@@ -1,10 +1,9 @@
 name: E2E
 
 on:
+  # smoke runs on release PRs into main. dev only gets the fast unit gate
   pull_request:
-    branches: [main, dev]
-  push:
-    branches: [dev]
+    branches: [main]
   schedule:
     - cron: "17 2 * * *"
   workflow_dispatch:
@@ -310,8 +309,9 @@ jobs:
         run: |
           node -e "const fs=require('node:fs');const pkg=JSON.parse(fs.readFileSync('package.json','utf8'));const script=process.env.E2E_SCRIPT;if(!pkg.scripts?.[script]){console.error('Missing npm script: '+script);process.exit(1);}"
 
+      # every Playwright project runs on Chromium, so the other engines are wasted downloads
       - name: Install Playwright browsers
-        run: npm exec -- playwright install --with-deps
+        run: npm exec -- playwright install --with-deps chromium
 
       - name: Start S3-compatible storage
         run: |

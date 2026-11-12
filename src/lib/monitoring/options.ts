@@ -21,6 +21,15 @@ export function monitoringOptions(
   } satisfies Partial<ClientOptions>;
 }
 
+// prod reuses the image dev built, so the browser reads its environment from the
+// host rather than the value baked in at build time
+export function browserEnvironment(hostname: string): string | undefined {
+  if (hostname === "dev.oghmanotes.ie") return "dev";
+  if (hostname === "oghmanotes.ie" || hostname === "www.oghmanotes.ie")
+    return "prod";
+  return undefined;
+}
+
 export function traceSampleRate(value: string | undefined): number {
   if (value?.trim()) {
     const rate = Number(value);

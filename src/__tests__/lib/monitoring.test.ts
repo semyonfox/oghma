@@ -7,7 +7,7 @@ import {
   sanitizeError,
   sanitizeSpan,
 } from "@/lib/monitoring/privacy";
-import { traceSampleRate } from "@/lib/monitoring/options";
+import { browserEnvironment, traceSampleRate } from "@/lib/monitoring/options";
 
 describe("monitoring privacy", () => {
   it("keeps route structure without note IDs, share tokens, queries or fragments", () => {
@@ -150,4 +150,11 @@ describe("monitoring privacy", () => {
       expect(traceSampleRate(value)).toBe(0.1);
     },
   );
+
+  it("names the deployment from the host so one image serves dev and prod", () => {
+    expect(browserEnvironment("dev.oghmanotes.ie")).toBe("dev");
+    expect(browserEnvironment("oghmanotes.ie")).toBe("prod");
+    expect(browserEnvironment("www.oghmanotes.ie")).toBe("prod");
+    expect(browserEnvironment("localhost")).toBeUndefined();
+  });
 });
