@@ -20,8 +20,8 @@ import { ApiError, withErrorHandler } from "@/lib/api-error";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
 import { loginSchema, validateBody } from "@/lib/validations/schemas";
 
-async function lockedResponse(email: string): Promise<NextResponse> {
-  const minutes = await getLockoutMinutesRemaining(email);
+async function lockedResponse(email: string, client: string): Promise<NextResponse> {
+  const minutes = await getLockoutMinutesRemaining(email, client);
   if (minutes <= 0) {
     return createErrorResponse(
       "Too many login attempts. Please try again later.",
@@ -53,7 +53,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   let result: PasswordLoginResult;
   try {
-    result = await authenticatePassword(email, password);
+    result = await authenticatePassword(email, password, getClientIp(request));
   } catch (error) {
     if (isAuthLockoutStoreUnavailableError(error))
       throw new ApiError(
@@ -65,7 +65,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   switch (result.status) {
     case "rate_limited":
-      return lockedResponse(email);
+      return lockedResponse(email, getClientIp(request));
     case "invalid":
       return createErrorResponse("Invalid email or password", 401);
     case "deactivated":

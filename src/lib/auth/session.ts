@@ -31,12 +31,23 @@ function requireJWTSecret(): string {
   return secret;
 }
 
+// a session token names what it is, so a token minted for anything else with
+// the same secret is never read as a session
+const SESSION_AUDIENCE = "oghma-session";
+const SESSION_ISSUER = "oghmanotes";
+// tokens signed before aud and iss existed live at most 30 days (remember me).
+// they are accepted until this date so the deploy signs nobody out. delete this
+// branch once it has passed
+const UNSCOPED_SESSION_TOKENS_UNTIL = Date.UTC(2027, 0, 31);
+
 export function generateJWTToken(
   payload: JWTPayload,
   expiresIn: string = "1d",
 ): string {
   return jwt.sign(payload, requireJWTSecret(), {
     expiresIn,
+    audience: SESSION_AUDIENCE,
+    issuer: SESSION_ISSUER,
   } as jwt.SignOptions);
 }
 
@@ -44,7 +55,11 @@ export function verifyJWTToken(token: string): JWTPayload | null {
   const secret = requireJWTSecret();
   try {
     const decoded = jwt.verify(token, secret, { algorithms: ["HS256"] });
-    return typeof decoded === "string" ? null : (decoded as JWTPayload);
+    if (typeof decoded === "string") return null;
+    if (decoded.aud === undefined && decoded.iss === undefined) {
+      return Date.now() < UNSCOPED_SESSION_TOKENS_UNTIL ? decoded : null;
+    }
+    return decoded.aud === SESSION_AUDIENCE && decoded.iss === SESSION_ISSUER ? decoded : null;
   } catch (_error) {
     return null;
   }

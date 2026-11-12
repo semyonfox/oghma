@@ -123,6 +123,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         title: gettingStartedNoteTitle(locale),
         content: renderGettingStartedNote(locale),
         isFolder: false,
+        requestReindex: false,
       });
 
       if (agentClaim) {

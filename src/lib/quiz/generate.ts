@@ -1,4 +1,4 @@
-import { BLOOM_NAMES, BLOOM_DESCRIPTIONS } from "./types";
+import { BLOOM_NAMES, BLOOM_DESCRIPTIONS, QUIZ_GENERATION_MAX_FAILURES } from "./types";
 import type {
   BloomLevel,
   QuestionType,
@@ -10,9 +10,7 @@ import { generateUUID } from "@/lib/utils/uuid";
 import {
   buildReasoningOptions,
   createLlmProvider,
-  getLlmMaxTokens,
   getLlmModel,
-  getLlmReasoningEffort,
   getLlmThinkingMode,
 } from "@/lib/ai-config";
 import { generateText } from "ai";
@@ -22,6 +20,11 @@ import sql from "@/database/pgsql";
 import logger from "@/lib/logger";
 
 const MAX_CHUNK_CHARS = 4000;
+// the reply is one small JSON object, so nearly all of a call's output tokens
+// are reasoning. quiz calls get their own ceiling and effort instead of chat's
+// 8k at high, and every call logs its usage so the cap can be tuned on evidence
+const QUIZ_MAX_OUTPUT_TOKENS = 4_096;
+const QUIZ_REASONING_EFFORT = "medium";
 
 type TrueFalseTarget = "true" | "false";
 
@@ -223,27 +226,51 @@ export function parseGeneratedQuestion(
     : null;
 }
 
-async function callLLM(prompt: string): Promise<string> {
+interface LlmReply {
+  text: string;
+  // the reply hit the token ceiling, which says nothing about the chunk
+  truncated: boolean;
+}
+
+async function callLLM(prompt: string, chunkId: string): Promise<LlmReply> {
   const provider = createLlmProvider();
   if (!provider) throw new Error("LLM not configured");
 
   const thinkingMode = getLlmThinkingMode();
-  const reasoning = buildReasoningOptions(
-    thinkingMode,
-    getLlmReasoningEffort(),
-  );
+  const reasoning = buildReasoningOptions(thinkingMode, QUIZ_REASONING_EFFORT);
 
   // the provider's fetch already enforces LLM_TIMEOUT_MS per attempt
-  const { text } = await generateText({
+  const { text, usage, finishReason } = await generateText({
     model: provider(getLlmModel()),
     prompt,
-    maxOutputTokens: getLlmMaxTokens(),
+    maxOutputTokens: QUIZ_MAX_OUTPUT_TOKENS,
     ...(thinkingMode !== "off" && { temperature: 1 }),
     maxRetries: 3,
     providerOptions: { openrouter: { reasoning } },
   });
+  logger.info("quiz generation usage", {
+    chunkId,
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    reasoningTokens: usage.outputTokenDetails.reasoningTokens,
+    finishReason,
+  });
 
-  return text;
+  return { text, truncated: finishReason === "length" };
+}
+
+// two strikes for a skip, one for a garbled reply
+async function recordGenerationFailure(userId: string, chunkId: string, strikes: number): Promise<void> {
+  await sql`
+    UPDATE app.chunks
+    SET quiz_generation_failures = LEAST(quiz_generation_failures + ${strikes}, ${QUIZ_GENERATION_MAX_FAILURES})
+    WHERE id = ${chunkId}::uuid AND user_id = ${userId}::uuid
+  `.catch((err: unknown) => {
+    logger.warn("quiz generation: failed to record a failure", {
+      chunkId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  });
 }
 
 function toQuizQuestion(
@@ -391,7 +418,7 @@ export async function generateQuestion(
       ? `${cleanedChunkText.slice(0, MAX_CHUNK_CHARS)}\n\n[truncated for question generation]`
       : cleanedChunkText;
 
-  let raw = "";
+  let reply: LlmReply;
   try {
     const prompt = buildGenerationPrompt(
       limitedChunkText,
@@ -401,7 +428,7 @@ export async function generateQuestion(
       await recentCourseQuestions(userId, input.courseId),
       questionType === "true_false" ? pickTrueFalseTarget() : undefined,
     );
-    raw = await callLLM(prompt);
+    reply = await callLLM(prompt, chunkId);
   } catch (err) {
     logger.error("quiz generation LLM call failed", {
       chunkId,
@@ -410,17 +437,24 @@ export async function generateQuestion(
     return null;
   }
 
-  if (isSkipSignal(raw)) {
-    logger.info("quiz generation: skipping non-educational chunk", { chunkId });
+  if (reply.truncated) {
+    logger.warn("quiz generation: reply hit the token ceiling", { chunkId });
     return null;
   }
 
-  const parsed = parseGeneratedQuestion(raw, questionType);
+  if (isSkipSignal(reply.text)) {
+    logger.info("quiz generation: skipping non-educational chunk", { chunkId });
+    await recordGenerationFailure(userId, chunkId, QUIZ_GENERATION_MAX_FAILURES);
+    return null;
+  }
+
+  const parsed = parseGeneratedQuestion(reply.text, questionType);
   if (!parsed) {
     logger.warn("quiz generation: failed to parse LLM response", {
       chunkId,
-      raw: raw.slice(0, 500),
+      raw: reply.text.slice(0, 500),
     });
+    await recordGenerationFailure(userId, chunkId, 1);
     return null;
   }
 

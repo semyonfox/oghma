@@ -33,7 +33,7 @@ import {
   recoverStaleChatGenerations,
 } from "../chat/generation-store";
 import { processVaultImport } from "../vault/import-worker";
-import { reindexNote } from "../rag/note-reindex";
+import { recoverNoteReindexes, reindexNote } from "../rag/note-reindex";
 import { cleanupVaultArtifacts } from "../vault/artifacts";
 import { processVaultExport } from "../vault/export-worker";
 import { cleanupMarketingData } from "../marketing/retention";
@@ -175,6 +175,7 @@ async function repairQueues(): Promise<void> {
   await runSteps([
     ["republish queued canvas jobs", unlessCanvasPaused(republishQueuedCanvasJobs)],
     ["recover chat generations", recoverChatGenerations],
+    ["recover note reindexes", recoverNoteReindexes],
     // only ever picks canvas rows
     ["recover extraction retries", unlessCanvasPaused(() => recoverPendingExtractionRetries())],
     ["recover canvas extracts", unlessCanvasPaused(() => recoverPendingCanvasExtracts())],

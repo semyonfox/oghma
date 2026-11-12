@@ -65,6 +65,27 @@ function treeStore() {
 }
 
 describe("note save/fetch coordination", () => {
+  it("broadcasts the exact saved body before mutateNote resolves, including empty text", async () => {
+    const events: unknown[] = [];
+    const target = new EventTarget();
+    vi.stubGlobal("window", target);
+    let settled = false;
+    target.addEventListener("note-content-sync", (event) => {
+      expect(settled).toBe(false);
+      if (event instanceof CustomEvent) events.push(event.detail);
+    });
+    memory.set(NOTE_ID, note({ content: "old" }));
+    const stamp = "2026-11-12T12:00:00Z";
+    const api = noteApi({ mutate: vi.fn().mockResolvedValue(note({ content: "", updatedAt: stamp })) });
+    useNoteStore.getState().setDependencies(api, treeStore(), vi.fn());
+    try {
+      await useNoteStore.getState().mutateNote(NOTE_ID, { content: "" });
+      settled = true;
+      expect(events).toEqual([{ fileId: NOTE_ID, content: "", updatedAt: stamp }]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
   beforeEach(() => {
     memory.clear();
     vi.clearAllMocks();
@@ -75,6 +96,23 @@ describe("note save/fetch coordination", () => {
       generation: 0,
       sessionReady: true,
     });
+  });
+
+  it("still returns a committed save's stamp when a forced fetch moved the write version", async () => {
+    memory.set(NOTE_ID, note({ content: "before", updatedAt: "2026-11-12T12:00:00.000Z" }));
+    let resolveMutate!: (result: NoteModel) => void;
+    const api = noteApi({
+      find: vi.fn().mockResolvedValue(note({ content: "before", updatedAt: "2026-11-12T12:00:00.000Z" })),
+      mutate: vi.fn(() => new Promise<NoteModel>((resolve) => { resolveMutate = resolve; })),
+    });
+    useNoteStore.getState().setDependencies(api, treeStore(), vi.fn());
+
+    const saving = useNoteStore.getState().mutateNote(NOTE_ID, { content: "after" });
+    await vi.waitFor(() => expect(api.mutate).toHaveBeenCalled());
+    await useNoteStore.getState().fetchNote(NOTE_ID, { forceFresh: true });
+    resolveMutate(note({ content: "after", updatedAt: "2026-11-12T12:00:05.000Z" }));
+
+    await expect(saving).resolves.toMatchObject({ updatedAt: "2026-11-12T12:00:05.000Z" });
   });
 
   it("does not let a GET started before save overwrite the saved cache", async () => {

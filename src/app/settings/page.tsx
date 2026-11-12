@@ -352,7 +352,7 @@ export default function SettingsPage() {
     if (el) el.scrollIntoView({ behavior: "smooth" });
   };
 
-  const handleSignOut = async () => {
+  const handleSignOut = async (everywhere = false) => {
     const mutationOwner = userId;
     const mutationGeneration = useNoteTreeStore.getState().generation;
     let continuationOwner = mutationOwner;
@@ -360,7 +360,10 @@ export default function SettingsPage() {
     setIsSigningOut(true);
     postNativeOfflineAccount(null);
     const run = async () => {
-      const response = await fetch("/api/auth/logout", { method: "POST" });
+      const response = await fetch("/api/auth/logout", {
+        method: "POST",
+        ...(everywhere ? { headers: { "content-type": "application/json" }, body: JSON.stringify({ everywhere: true }) } : {}),
+      });
       if (!response.ok) throw new Error(`logout failed: ${response.status}`);
       if (!isCurrentWorkspace(mutationOwner, mutationGeneration)) {
         if (mutationOwner) {
@@ -477,11 +480,16 @@ export default function SettingsPage() {
           <li className="whitespace-nowrap">
             <button
               className="min-h-11 rounded-full px-4 text-error-700 hover:bg-error-500/10 dark:text-error-400 disabled:opacity-50"
-              onClick={handleSignOut}
+              onClick={() => void handleSignOut()}
               disabled={isSigningOut}
             >
               {isSigningOut ? t("Signing out...") : t("Sign out")}
             </button>
+            <button
+              className="min-h-11 rounded-full px-4 text-error-700 dark:text-error-400 disabled:opacity-50"
+              onClick={() => void handleSignOut(true)}
+              disabled={isSigningOut}
+            >{t("Sign out everywhere")}</button>
           </li>
         </ul>
       </nav>
@@ -517,13 +525,18 @@ export default function SettingsPage() {
             </ul>
             <div className="mt-6 border-t border-border-subtle pt-4">
               <button
-                onClick={handleSignOut}
+                onClick={() => void handleSignOut()}
                 disabled={isSigningOut}
                 className="flex w-full items-center gap-x-3 rounded-radius-md px-3 py-2 text-sm font-medium text-error-700 hover:bg-error-500/10 transition-colors disabled:opacity-50 dark:text-error-400"
               >
                 <ArrowRightStartOnRectangleIcon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
                 {isSigningOut ? t("Signing out...") : t("Sign out")}
               </button>
+              <button
+                onClick={() => void handleSignOut(true)}
+                disabled={isSigningOut}
+                className="min-h-11 px-3 py-2 text-sm text-error-700 dark:text-error-400 disabled:opacity-50"
+              >{t("Sign out everywhere")}</button>
             </div>
           </nav>
         </aside>

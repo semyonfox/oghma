@@ -43,14 +43,6 @@ export async function cacheInvalidate(...keys: string[]): Promise<void> {
 
 // key builders — centralised so invalidation always matches reads
 export const cacheKeys = {
-  treeChildren: (userId: string, parentId: string | null) =>
-    `cache:{${userId}}:tree:children:${parentId || 'root'}`,
-  treeFull: (userId: string) =>
-    `cache:{${userId}}:tree:full`,
-  note: (userId: string, noteId: string) =>
-    `cache:{${userId}}:note:${noteId}`,
-  notesList: (userId: string, skip: number, limit: number | undefined) =>
-    `cache:{${userId}}:notes:list:${skip}:${limit ?? 'all'}`,
   settings: (userId: string) =>
     `cache:{${userId}}:settings`,
 };

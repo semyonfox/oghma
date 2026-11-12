@@ -1,3 +1,4 @@
+import { canvasContentEnabled } from "@/lib/canvas/content-policy";
 import { Locale } from "@/locales";
 
 export const APP_GUIDE_TOPIC_IDS = [
@@ -36,18 +37,18 @@ export const APP_GUIDE_TOPICS: readonly AppGuideTopic[] = [
   {
     id: "getting-started",
     title: "Getting started",
-    summary: "Connect Canvas, bring in a course, and start working with its material.",
+    summary: canvasContentEnabled() ? "Connect Canvas, bring in a course, and start working with its material." : "Connect Canvas for deadlines and start writing your own notes.",
     routes: ["/settings#canvas", "/notes", "/chat"],
     keywords: ["start", "begin", "new user", "tour", "first", "setup", "onboarding"],
     steps: [
       "Open Settings → Canvas and find your school, or enter the Canvas address you use to sign in.",
       "Create an access token in Canvas under Account → Settings → Approved Integrations. Set an expiration date and time, then paste the token into OghmaNotes' API Token field.",
-      "Connect Canvas, choose your courses, and start the import. The course list scrolls, and Select all is available.",
-      "Open an imported PDF and its extracted note when ready, then add your own notes or ask Chat about the material.",
+      ...(canvasContentEnabled() ? ["Connect Canvas, choose your courses, and start the import. The course list scrolls, and Select all is available."] : ["Connect Canvas to sync deadlines. Course content import is paused."]),
+      ...(canvasContentEnabled() ? ["Open an imported PDF and its extracted note when ready, then add your own notes or ask Chat about the material."] : ["Write your own notes or upload study material."]),
       "To group files by topic, open the View menu above your files and pick Tags. Topics appear once a study map has sorted the course.",
     ],
-    tips: ["Try one current course first. You can add more courses later."],
-    limitations: ["The import continues in the background. PDF text may take longer to appear in notes, search, and chat."],
+    tips: canvasContentEnabled() ? ["Try one current course first. You can add more courses later."] : [],
+    limitations: canvasContentEnabled() ? ["The import continues in the background. PDF text may take longer to appear in notes, search, and chat."] : ["Canvas content import is paused. Deadlines still sync."],
   },
   {
     id: "notes-and-folders",
@@ -67,16 +68,16 @@ export const APP_GUIDE_TOPICS: readonly AppGuideTopic[] = [
   {
     id: "canvas",
     title: "Canvas connection and import",
-    summary: "Connect Canvas from Settings, choose courses, and import supported course material.",
+    summary: canvasContentEnabled() ? "Connect Canvas from Settings, choose courses, and import supported course material." : "Connect Canvas from Settings to sync deadlines. Content import is paused.",
     routes: ["/settings#canvas"],
     keywords: ["canvas", "import", "sync", "course", "module", "assignment", "token", "lecture slides", "lms"],
     steps: [
       "Open Settings → Canvas.",
       "Enter your Canvas URL and API token using the on-screen token instructions.",
-      "Choose the courses you want OghmaNotes to import and start the import.",
-      "Keep the imported material organised by course, then ask chat questions grounded in those notes.",
+      ...(canvasContentEnabled() ? ["Choose the courses you want OghmaNotes to import and start the import."] : ["Deadlines still sync while course content import is paused."]),
+      ...(canvasContentEnabled() ? ["Keep the imported material organised by course, then ask chat questions grounded in those notes."] : []),
     ],
-    tips: ["Canvas access for AI Chat is controlled separately in AI Settings and uses server-side tools when enabled."],
+    tips: canvasContentEnabled() ? ["Canvas access for AI Chat is controlled separately in AI Settings and uses server-side tools when enabled."] : [],
     limitations: [
       "Never paste a Canvas API token into chat; enter it only in the Canvas connection form.",
       "Canvas permissions and course restrictions still apply, and some files may require OCR or may fail extraction.",
@@ -276,6 +277,9 @@ export function gettingStartedNoteTitle(locale: Locale): string {
 }
 
 export function renderGettingStartedNote(locale: Locale = Locale.EN): string {
+  if (locale === Locale.de_DE && !canvasContentEnabled()) {
+    return "# Erste Schritte\n\nVerbinden Sie Canvas unter [Einstellungen → Canvas](/settings#canvas), um Fristen zu synchronisieren. Der Import von Kursinhalten ist pausiert. Schreiben Sie eigene Notizen oder laden Sie Lernmaterial hoch.";
+  }
   if (locale === Locale.de_DE) {
     return `# Erste Schritte
 

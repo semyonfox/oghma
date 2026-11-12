@@ -7,7 +7,6 @@ import { withCanvasPublication } from "./execution";
 import type postgres from "postgres";
 import sql from "../../database/pgsql";
 import { v4 as uuidv4 } from "uuid";
-import { invalidateTreeAfterPublish } from "@/lib/notes/tree-cache";
 export { cleanCourseName,  } from "./content-formatting";
 
 interface CanvasFolderIdentity {
@@ -178,7 +177,6 @@ export async function findOrCreateFolder(
       await reuseExisting(tx, noteId, userId, parentId);
       return noteId;
     });
-    await invalidateTreeAfterPublish(userId, parentId);
     return folderId;
   } catch (error) {
     if (error instanceof CanvasFolderTrashedError || error instanceof CanvasFolderMissingError) throw error;
@@ -197,7 +195,6 @@ export async function findOrCreateFolder(
         }
         throw error;
       });
-      await invalidateTreeAfterPublish(userId, parentId);
       return folderId;
     }
     // Falling back to the parent used to misplace a module's files, or drop a

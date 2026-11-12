@@ -21,11 +21,10 @@ export async function POST(request: NextRequest) {
   const result = validateBody(agentRegistrationSchema, data);
   if (!result.success) return result.response;
 
+  // an existing account gets the same claim as a new address, so this public
+  // route can't be used to test which emails are registered. completion only
+  // accepts an account created after the claim, so the claim simply expires
   const email = result.data.login_hint.toLowerCase();
-  const [existingUser] = await sql`SELECT user_id FROM app.login WHERE LOWER(email) = ${email} LIMIT 1`;
-  if (existingUser) {
-    return createErrorResponse("This email already has an OghmaNotes account", 409);
-  }
 
   // an expired claim nobody finished still holds the open-email unique index,
   // which would otherwise turn every later attempt for this address into a 500

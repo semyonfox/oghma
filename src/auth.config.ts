@@ -99,6 +99,7 @@ if (process.env.ENABLE_CREDENTIALS_AUTH !== "false") {
             const result = await authenticatePassword(
               parsed.data.email,
               parsed.data.password,
+              getClientIp(request),
             );
             if (result.status !== "ok") return null;
             const { user } = result;

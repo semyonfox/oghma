@@ -2,8 +2,19 @@
 
 import { useEffect, useState } from "react";
 import { z } from "zod";
+import useNoteTreeStore from "@/lib/notes/state/tree";
+import { publishWorkspaceInvalidation } from "@/lib/notes/workspace-invalidation";
 
 const CALENDAR_TOOLS = new Set(["addTimeBlock", "completeTimeBlock"]);
+const NOTE_TOOLS = new Set(["makeMDNote", "renameNote", "moveNote"]);
+
+// the server runs approved note actions, so no tab has seen the change yet.
+// other tabs reload from the broadcast, and this one reloads its own tree
+function announceTreeChange(): void {
+  const tree = useNoteTreeStore.getState();
+  if (tree.ownerUserId) publishWorkspaceInvalidation(tree.ownerUserId, "tree");
+  if (tree.initLoaded) void tree.refreshTree();
+}
 
 const actionSchema = z.object({
   id: z.string().uuid(),
@@ -62,6 +73,9 @@ export default function ActionConfirmation({ actionId }: { actionId: string }) {
         CALENDAR_TOOLS.has(currentAction.tool_name)
       ) {
         window.dispatchEvent(new CustomEvent("oghma:time-block-changed"));
+      }
+      if (value.status === "completed" && NOTE_TOOLS.has(currentAction.tool_name)) {
+        announceTreeChange();
       }
       setAction((current) =>
         current?.id === actionId

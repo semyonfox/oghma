@@ -66,7 +66,7 @@ Other stores in `state/` (assignments, calendar, courses, pomodoro, quiz,
 
 - [`note-create.test.ts`](../../__tests__/api/note-create.test.ts) covers the
   creation API contract. [`notes.test.ts`](../../__tests__/api/notes.test.ts)
-  covers list, read, update (including the rename/autosave race), and Trash
+  covers mocked list, read, update, and Trash
   requests.
 - [`create-note.test.ts`](../../__tests__/lib/notes/create-note.test.ts) covers
   the shared create helper. Lifecycle and tree tests sit beside it.

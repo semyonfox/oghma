@@ -152,7 +152,7 @@ export default function SyntaxGuideContent({ t }: { t: Translate }) {
 
       <h2 className={sectionClass}>{t("File Tree Status Colors")}</h2>
       <p>{t("Like git status in your IDE")}:</p>
-      <ul className={listClass}><li><strong>{t("Amber (M)")}</strong> - {t("Modified locally, not yet saved to cloud")}</li><li><strong>{t("Green (U)")}</strong> - {t("Newly created, not yet synced")}</li><li><strong>{t("Default")}</strong> - {t("Synced with S3 storage")}.</li></ul>
+      <ul className={listClass}><li><strong>{t("Amber (M)")}</strong> - {t("Modified locally, not yet saved to cloud")}</li><li><strong>{t("Green (U)")}</strong> - {t("Newly created, not yet synced")}</li><li><strong>{t("Default")}</strong> - {t("Saved to your account")}.</li></ul>
     </article>
   );
 }

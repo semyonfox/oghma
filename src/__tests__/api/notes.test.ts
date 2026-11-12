@@ -31,11 +31,6 @@ vi.mock("@/lib/auth/session", () => ({
   createAuthSession: vi.fn(),
 }));
 
-vi.mock("@/lib/notes/storage/pg-tree", () => ({
-  addNoteToTree: vi.fn().mockResolvedValue(undefined),
-  removeNoteFromTree: vi.fn().mockResolvedValue(undefined),
-}));
-
 // a stale Redis copy must never reach the editor; the route reads PostgreSQL
 
 vi.mock("@/lib/notes/storage/note-lifecycle", () => ({
@@ -255,7 +250,7 @@ describe("PUT /api/notes/[id]", () => {
     const [updateText, ...updateValues] = sql.mock.calls[1];
     expect(updateText.join(" ")).toMatch(/content = COALESCE\(\s*::text, content\)/);
     expect(updateValues).not.toContain(NOTE_ROW.content);
-    expect(updateValues).toEqual(["Renamed", null, null, true, "note-uuid-1", MOCK_USER.user_id]);
+    expect(updateValues).toEqual(["Renamed", null, null, true, false, "note-uuid-1", MOCK_USER.user_id]);
   });
 
   it("saves a note larger than the default JSON body limit", async () => {

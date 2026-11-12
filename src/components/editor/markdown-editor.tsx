@@ -36,11 +36,13 @@ const DRAFT_DEBOUNCE_MS = 1000;
 const AUTOSAVE_DEBOUNCE_MS = 3000;
 
 // the IndexedDB cache is loaded lazily and a miss falls through to the API
-async function readCachedContent(noteId: string): Promise<string | null> {
+async function readCachedContent(noteId: string): Promise<{ content: string; updatedAt?: string } | null> {
   try {
     const { noteCacheInstance } = await import("@/lib/notes/cache");
-    const cached = await noteCacheInstance.getItem<{ content?: string }>(noteId);
-    return cached?.content ?? null;
+    const cached = await noteCacheInstance.getItem<{ content?: string; updatedAt?: string }>(noteId);
+    return typeof cached?.content === "string"
+      ? { content: cached.content, updatedAt: cached.updatedAt }
+      : null;
   } catch {
     return null;
   }
@@ -95,18 +97,24 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
   const currentFileId = useRef(file.fileId);
   const { t } = useI18n();
   const isDirtyRef = useRef(false);
-  // updatedAt from the last server response — sent with every save so the
-  // server can refuse to overwrite a version this editor never saw
-  const serverUpdatedAt = useRef<string | undefined>(undefined);
+  // the version of the body local edits started from
+  const baseUpdatedAt = useRef<string | undefined>(undefined);
   // set after a 409: autosave pauses until the user saves on purpose
   const conflictRef = useRef(false);
+  const [conflicted, setConflicted] = useState(false);
+  const baseContent = useRef("");
+  const savingContent = useRef<string | null>(null);
+  const enterConflict = () => {
+    conflictRef.current = true;
+    setConflicted(true);
+  };
   // debounce timer for draft writes
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editRevision = useRef(0);
   const saveInFlight = useRef(false);
   const saveQueued = useRef(false);
-  const saveLatest = useRef<() => void>(() => {});
+  const saveLatest = useRef<(keepMine?: boolean) => void>(() => {});
   const editorMaxWidth = getEditorMaxWidth(editorSize);
 
   // keep refs in sync so event listeners always read current values
@@ -142,7 +150,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
         clearTimeout(draftTimer.current);
         draftTimer.current = null;
       }
-      writeDraft(currentFileId.current, localContentRef.current, draftOwner).catch(
+      writeDraft(currentFileId.current, localContentRef.current, draftOwner, baseUpdatedAt.current).catch(
         () => {},
       );
       return true;
@@ -174,8 +182,10 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
     isDirtyRef.current = false;
     editRevision.current = 0;
     saveQueued.current = false;
-    serverUpdatedAt.current = undefined;
+    baseUpdatedAt.current = undefined;
     conflictRef.current = false;
+    setConflicted(false);
+    baseContent.current = "";
 
     let cancelled = false;
     const stale = currentFileId.current;
@@ -203,6 +213,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
         isDirtyRef.current = true;
         setLoaded(true);
         setIsDirty(true);
+        baseUpdatedAt.current = draft.baseUpdatedAt;
         restoredDraft = draft;
         showingLocalCopy = true;
       }
@@ -215,8 +226,10 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
           cachedContent != null &&
           currentFileId.current === stale
         ) {
-          setLocalContent(cachedContent);
-          localContentRef.current = cachedContent;
+          setLocalContent(cachedContent.content);
+          localContentRef.current = cachedContent.content;
+          baseContent.current = cachedContent.content;
+          baseUpdatedAt.current = cachedContent.updatedAt;
           setLoaded(true);
           showingLocalCopy = true;
         }
@@ -255,42 +268,32 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
         return;
       }
       if (!cancelled && result && currentFileId.current === stale) {
-        serverUpdatedAt.current = result.updatedAt;
-
-        // If a draft was restored, do not overwrite the user's unsaved work.
-        // Check whether the server version is newer.
-        if (restoredDraft) {
-          const draft = restoredDraft;
-          if (cancelled || currentFileId.current !== stale) return;
-          const matchesServer = draft.content === (result.content ?? "");
-          if (matchesServer && editRevision.current === 0) {
-            isDirtyRef.current = false;
-            setIsDirty(false);
-            markSynced(file.fileId);
-            await clearDraft(file.fileId, draft, draftOwner).catch(() => {});
-          }
-          const serverMs = result.updatedAt
-            ? new Date(result.updatedAt).getTime()
-            : 0;
-          const draftMs = draft.draftAt;
-          if (!matchesServer && serverMs > draftMs) {
-            // The server has a newer version than the draft. Warn once, but do not block.
-            toast.warning(
-              t(
-                "This note was saved elsewhere. Your draft is older — save to overwrite, or discard.",
-              ),
-              { id: `draft-conflict:${file.fileId}`, duration: 6000 },
-            );
-          } else if (!matchesServer) {
-            notifyRecovery();
-          }
-        } else if (editRevision.current === 0) {
-          // The request may have started from the instant IDB-cache view.
-          // Never let that older response replace content after this editor
-          // has accepted even one local edit (including an already-saved one).
-          setLocalContent(result.content ?? "");
-          localContentRef.current = result.content ?? "";
+        const content = result.content ?? "";
+        if (!restoredDraft && editRevision.current === 0) {
+          baseContent.current = content;
+          baseUpdatedAt.current = result.updatedAt;
+          conflictRef.current = false;
+          setConflicted(false);
+          setLocalContent(content);
+          localContentRef.current = content;
           setLoaded(true);
+        } else if (content === localContentRef.current) {
+          baseContent.current = content;
+          baseUpdatedAt.current = result.updatedAt;
+          conflictRef.current = false;
+          setConflicted(false);
+          isDirtyRef.current = false;
+          setIsDirty(false);
+          markSynced(file.fileId);
+          if (restoredDraft) await clearDraft(file.fileId, restoredDraft, draftOwner).catch(() => {});
+        } else if (
+          restoredDraft ? restoredDraft.baseUpdatedAt !== result.updatedAt : content !== baseContent.current
+        ) {
+          enterConflict();
+        } else {
+          baseContent.current = content;
+          baseUpdatedAt.current = result.updatedAt;
+          if (restoredDraft) notifyRecovery();
         }
       }
     })();
@@ -306,7 +309,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
         autosaveTimer.current = null;
       }
       if (isDirtyRef.current) {
-        writeDraft(currentFileId.current, localContentRef.current, draftOwner).catch(
+        writeDraft(currentFileId.current, localContentRef.current, draftOwner, baseUpdatedAt.current).catch(
           () => {},
         );
       }
@@ -317,16 +320,25 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
   // fetchNote in pane B would push new state into pane A and cause a flash.
   // now fetchNote's return value (in the effect above) is the sole content source.
 
-  // the note store announces every successful save of this file (content
-  // saves from another pane, renames from the sidebar). Always adopt the new
-  // stamp; adopt the body only when there is nothing unsaved here.
+  // mutateNote broadcasts synchronously, before its promise resolves
   useEffect(() => {
     const handler = (e: Event) => {
-      const { fileId, content, updatedAt } = (e as CustomEvent).detail;
-      if (fileId !== file.fileId) return;
-      if (typeof updatedAt === "string") serverUpdatedAt.current = updatedAt;
-      if (typeof content === "string" && !isDirtyRef.current) {
+      const detail: unknown = (e as CustomEvent<unknown>).detail;
+      if (!detail || typeof detail !== "object" || !("fileId" in detail) || detail.fileId !== file.fileId) return;
+      const content = "content" in detail && typeof detail.content === "string" ? detail.content : undefined;
+      const updatedAt = "updatedAt" in detail && typeof detail.updatedAt === "string" ? detail.updatedAt : undefined;
+      if (content === savingContent.current || content === baseContent.current) {
+        if (content !== undefined) baseContent.current = content;
+        baseUpdatedAt.current = updatedAt;
+      } else if (content !== undefined && (!isDirtyRef.current || content === localContentRef.current)) {
+        baseContent.current = content;
+        baseUpdatedAt.current = updatedAt;
+        localContentRef.current = content;
         setLocalContent(content);
+        conflictRef.current = false;
+        setConflicted(false);
+      } else if (content !== undefined && content !== localContentRef.current) {
+        enterConflict();
       }
     };
     window.addEventListener("note-content-sync", handler);
@@ -347,7 +359,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
     if (!file.fileId) return;
     if (draftTimer.current) clearTimeout(draftTimer.current);
     draftTimer.current = setTimeout(() => {
-      writeDraft(file.fileId, content, draftOwner).catch(() => {});
+      writeDraft(file.fileId, content, draftOwner, baseUpdatedAt.current).catch(() => {});
     }, DRAFT_DEBOUNCE_MS);
   };
 
@@ -360,8 +372,9 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
   };
 
   const persistNote = async (contentToSave: string, revisionToSave: number) => {
-    const savedDraft = await writeDraft(file.fileId, contentToSave, draftOwner).catch(() => undefined);
-    const expectedUpdatedAt = serverUpdatedAt.current;
+    const savedDraft = await writeDraft(file.fileId, contentToSave, draftOwner, baseUpdatedAt.current).catch(() => undefined);
+    const expectedUpdatedAt = baseUpdatedAt.current;
+    savingContent.current = contentToSave;
     const outcome = await mutateNote(file.fileId, {
       content: contentToSave,
       ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}),
@@ -370,6 +383,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
       (error: unknown) => ({ error }),
     );
 
+    savingContent.current = null;
     if ("error" in outcome) {
       const { error } = outcome;
       if (error instanceof NoteConflictError) {
@@ -377,11 +391,10 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
         if (currentFileId.current !== file.fileId) return;
         // keep the local text dirty and recoverable; the next deliberate save
         // carries the fresh stamp and wins
-        if (error.updatedAt) serverUpdatedAt.current = error.updatedAt;
-        conflictRef.current = true;
+        enterConflict();
         toast.warning(
           t(
-            "This note was saved elsewhere. Your draft is older — save to overwrite, or discard.",
+            "This note was saved elsewhere. Save to keep yours, or load theirs.",
           ),
           { id: `draft-conflict:${file.fileId}`, duration: 6000 },
         );
@@ -395,7 +408,11 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
 
     const { saved } = outcome;
     if (currentFileId.current !== file.fileId) return;
-    if (saved?.updatedAt) serverUpdatedAt.current = saved.updatedAt;
+    // a broadcast from a later save may already have moved the base on
+    if (saved?.updatedAt && (!baseUpdatedAt.current || Date.parse(saved.updatedAt) >= Date.parse(baseUpdatedAt.current))) {
+      baseContent.current = contentToSave;
+      baseUpdatedAt.current = saved.updatedAt;
+    }
     const savedCurrentRevision =
       revisionToSave === editRevision.current &&
       contentToSave === localContentRef.current;
@@ -411,20 +428,31 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
     }
   };
 
-  // save via API. Every caller except the autosave timer is a deliberate user
-  // action, which is what lifts a conflict and overwrites the other version.
-  const handleSave = async () => {
+  // only Save and Ctrl+S may lift a conflict
+  const handleSave = async (keepMine = false) => {
     if (!isDirtyRef.current || !file.fileId) return;
+    if (!baseUpdatedAt.current) enterConflict();
+    if (conflictRef.current && !keepMine) return;
     if (saveInFlight.current) {
       saveQueued.current = true;
       return;
     }
 
+    // claimed before the fetch so a second keep-mine press can't send its own PUT
+    saveInFlight.current = true;
+    if (conflictRef.current) {
+      const theirs = await fetchNote(file.fileId).catch(() => undefined);
+      if (!theirs || currentFileId.current !== file.fileId) {
+        saveInFlight.current = false;
+        return;
+      }
+      baseUpdatedAt.current = theirs.updatedAt;
+      conflictRef.current = false;
+      setConflicted(false);
+    }
     const contentToSave = localContentRef.current;
     const revisionToSave = editRevision.current;
-    saveInFlight.current = true;
     saveQueued.current = false;
-    conflictRef.current = false;
     if (draftTimer.current) {
       clearTimeout(draftTimer.current);
       draftTimer.current = null;
@@ -447,12 +475,12 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
   };
 
   useEffect(() => {
-    saveLatest.current = () => void handleSave();
+    saveLatest.current = (keepMine = false) => void handleSave(keepMine);
   });
 
   // Ctrl+S handler. CodeMirror also handles it while focused; this catches
   // toolbar/outer-shell focus so the editor still behaves like one mode.
-  const saveFromShortcut = useEffectEvent(() => void handleSave());
+  const saveFromShortcut = useEffectEvent(() => void handleSave(true));
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!e.defaultPrevented && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s" && useLayoutStore.getState().activePane === pane) {
@@ -488,7 +516,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
   useEffect(() => {
     setIndicator(saveIndicatorKey(file.fileId, draftOwner), {
       state: saveState,
-      save: () => saveLatest.current(),
+      save: () => saveLatest.current(true),
       ready: loaded,
     });
   }, [draftOwner, file.fileId, loaded, saveState, setIndicator]);
@@ -500,6 +528,27 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
 
   return (
     <div className="relative h-full flex flex-col bg-app-page" onBlur={handleEditorBlur}>
+      {conflicted && (
+        <div className="flex items-center gap-3 p-3 text-app-text">
+          <span>{t("This note was saved elsewhere. Save to keep yours, or load theirs.")}</span>
+          <button type="button" data-save-action onClick={async () => {
+            const theirs = await fetchNote(file.fileId);
+            if (!theirs) return;
+            if (draftTimer.current) clearTimeout(draftTimer.current);
+            if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+            await clearDraft(file.fileId, undefined, draftOwner);
+            baseContent.current = theirs.content ?? "";
+            baseUpdatedAt.current = theirs.updatedAt;
+            localContentRef.current = baseContent.current;
+            setLocalContent(baseContent.current);
+            isDirtyRef.current = false;
+            setIsDirty(false);
+            conflictRef.current = false;
+            setConflicted(false);
+            markSynced(file.fileId);
+          }}>{t("Load theirs")}</button>
+        </div>
+      )}
       {/* Content Area */}
       <div
         className="flex-1 overflow-hidden bg-app-page"
@@ -525,7 +574,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
                   scheduleAutosave();
                 }
               }}
-              onSave={handleSave}
+              onSave={() => void handleSave(true)}
               placeholder={t("Start writing...")}
               currentNoteId={file.fileId}
               onOpenNote={openLinkedNote}

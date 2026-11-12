@@ -1,3 +1,4 @@
+import { checkRateLimit } from "@/lib/rate-limiter";
 import { NextResponse } from "next/server";
 import { requireAuth, requireValidId, withErrorHandler } from "@/lib/api-error";
 import { enqueueStudyJobs } from "@/lib/study-map/jobs";
@@ -7,6 +8,8 @@ import { readStudyBody, type StudyMapRouteContext } from "@/lib/study-map/api";
 export const POST = withErrorHandler(
   async (request, { params }: StudyMapRouteContext) => {
     const user = await requireAuth();
+    const limited = await checkRateLimit("study-map-jobs", user.user_id);
+    if (limited) return limited;
     const queued = await enqueueStudyJobs(
       user.user_id,
       requireValidId((await params).id),
