@@ -1,7 +1,6 @@
-// clears the custom JWT and Auth.js cookies; the JWTs themselves stay valid
-// until expiry, so revoking every device needs a session_version bump instead
 import { NextResponse, type NextRequest } from "next/server";
-import { withErrorHandler } from "@/lib/api-error";
+import sql from "@/database/pgsql";
+import { parseJsonObject, requireAuth, withErrorHandler } from "@/lib/api-error";
 import { clearSessionCookies } from "@/lib/auth/session";
 
 const AUTH_JS_FLOW_COOKIES = [
@@ -11,10 +10,17 @@ const AUTH_JS_FLOW_COOKIES = [
   "__Secure-authjs.callback-url",
 ];
 
-export const POST = withErrorHandler(async (request: NextRequest) =>
-  clearSessionCookies(
+export const POST = withErrorHandler(async (request: NextRequest) => {
+  const body = request.body !== null && request.headers.get("content-type")?.includes("application/json")
+    ? await parseJsonObject(request) : {};
+  if (body.everywhere === true) {
+    const user = await requireAuth();
+    await sql`UPDATE app.login SET session_version = session_version + 1
+      WHERE user_id = ${user.user_id}::uuid`;
+  }
+  return clearSessionCookies(
     NextResponse.json({ success: true, message: "Logged out successfully" }),
     request,
     AUTH_JS_FLOW_COOKIES,
-  ),
-);
+  );
+});

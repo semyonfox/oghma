@@ -336,6 +336,20 @@ describe("SettingsPage", () => {
     expect(canvasButton?.getAttribute("aria-current")).toBe("location");
   });
 
+  it("sends everywhere only from the sign out everywhere button", async () => {
+    const { container } = await renderSettingsPage();
+    const button = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "Sign out everywhere",
+    );
+    expect(button).toBeDefined();
+    await act(async () => button?.click());
+    expect(fetch).toHaveBeenCalledWith("/api/auth/logout", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ everywhere: true }),
+    });
+  });
+
   it("publishes a server-confirmed logout when local cleanup fails", async () => {
     mocks.resetWorkspaceClientState.mockImplementationOnce(async (userId) => {
       mocks.treeState.ownerUserId = userId;
