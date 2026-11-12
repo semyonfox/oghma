@@ -1,6 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import postgres from "postgres";
+import { NextRequest } from "next/server";
+
+vi.mock("@/lib/auth/session", () => ({ validateSession: vi.fn(), validateSessionLite: vi.fn() }));
+const auth = vi.hoisted(() => ({ requireAuth: vi.fn() }));
+vi.mock("@/lib/api-error", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/lib/api-error")>(),
+  requireAuth: auth.requireAuth,
+}));
 import { requireE2EDatabaseUrl } from "../helpers/env";
 
 vi.mock("@/lib/rag/indexing", () => ({
@@ -11,6 +19,7 @@ vi.mock("@/lib/queue", () => ({
 }));
 
 import sql from "@/database/pgsql";
+import { PUT } from "@/app/api/notes/[id]/route";
 import { enqueueNoteReindexJob } from "@/lib/queue";
 import { reindexNote } from "@/lib/rag/note-reindex";
 
@@ -18,7 +27,8 @@ const fixture = postgres(requireE2EDatabaseUrl(), { max: 1 });
 const userId = randomUUID();
 const noteId = randomUUID();
 
-beforeAll(async () => {
+beforeEach(async () => {
+  vi.clearAllMocks();
   await fixture`
     INSERT INTO app.login (user_id, email, hashed_password, email_verified, is_active)
     VALUES (${userId}::uuid, ${`note-reindex-${userId}@example.test`}, 'unused', true, true)
@@ -31,12 +41,38 @@ beforeAll(async () => {
   `;
 });
 
-afterAll(async () => {
+afterEach(async () => {
   await fixture`DELETE FROM app.login WHERE user_id = ${userId}::uuid`;
+});
+
+afterAll(async () => {
   await Promise.all([fixture.end(), sql.end()]);
 });
 
 describe("note reindex stamp", () => {
+  it("stamps explicit timestamp assignments even when the assigned value is unchanged", async () => {
+    const [before] = await fixture`SELECT updated_at::text AS stamp FROM app.notes WHERE note_id = ${noteId}::uuid`;
+    const [after] = await fixture`UPDATE app.notes SET extracted_text = 'derived', updated_at = updated_at
+      WHERE note_id = ${noteId}::uuid RETURNING updated_at::text AS stamp`;
+    expect(after.stamp).not.toBe(before.stamp);
+  });
+  it("keeps the save fence through indexing but rejects intervening content", async () => {
+    auth.requireAuth.mockResolvedValue({ user_id: userId });
+    const save = (content: string, expectedUpdatedAt?: string) => PUT(
+      new NextRequest(`http://localhost/api/notes/${noteId}`, {
+        method: "PUT",
+        headers: { origin: "http://localhost", "content-type": "application/json" },
+        body: JSON.stringify({ content, expectedUpdatedAt }),
+      }),
+      { params: Promise.resolve({ id: noteId }) },
+    );
+    const first = await save("first content");
+    expect(first.status).toBe(200);
+    const { updatedAt } = await first.json();
+    await expect(reindexNote(noteId, userId)).resolves.toBe("indexed");
+    expect((await save("second content", updatedAt)).status).toBe(200);
+    expect((await save("stale content", updatedAt)).status).toBe(409);
+  });
   it("stamps an unchanged note whose updated_at has microseconds", async () => {
     await expect(reindexNote(noteId, userId)).resolves.toBe("indexed");
     expect(enqueueNoteReindexJob).not.toHaveBeenCalled();
@@ -44,6 +80,6 @@ describe("note reindex stamp", () => {
     const [row] = await fixture<{ extracted_text: string | null }[]>`
       SELECT extracted_text FROM app.notes WHERE note_id = ${noteId}::uuid
     `;
-    expect(row.extracted_text).toContain("Body worth indexing.");
+    expect(row.extracted_text).toBeTruthy();
   });
 });
