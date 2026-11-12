@@ -213,3 +213,42 @@ it("recognises its synchronous own-save broadcast while typing continues", async
   await keepMine();
   expect(mocks.mutateNote).toHaveBeenLastCalledWith(NOTE_ID, { content: "continued", expectedUpdatedAt: FRESH });
 });
+it("a save pressed while the note loads raises no conflict on a clean editor", async () => {
+  let resolve!: (note: { content: string; updatedAt: string }) => void;
+  mocks.fetchNote.mockReturnValueOnce(new Promise((done) => { resolve = done; }));
+  await open();
+  await keepMine();
+  await act(async () => { resolve({ content: "Saved", updatedAt: BASE }); });
+  expect(screen.queryByRole("button", { name: "Load theirs" })).toBeNull();
+  fireEvent.change(screen.getByLabelText("Note"), { target: { value: "typed after load" } });
+  fireEvent.blur(screen.getByLabelText("Note"), { relatedTarget: document.body });
+  await waitFor(() => expect(mocks.mutateNote).toHaveBeenCalledExactlyOnceWith(NOTE_ID, { content: "typed after load", expectedUpdatedAt: BASE }));
+});
+it("two quick keep-mine presses in a conflict send one save", async () => {
+  await open();
+  fireEvent.change(screen.getByLabelText("Note"), { target: { value: "mine" } });
+  act(() => { broadcast("theirs", FRESH); });
+  let release!: (note: { content: string; updatedAt: string }) => void;
+  mocks.fetchNote.mockReturnValueOnce(new Promise((done) => { release = done; }));
+  await act(async () => {
+    useSaveIndicatorStore.getState().files[NOTE_ID]?.save();
+    useSaveIndicatorStore.getState().files[NOTE_ID]?.save();
+  });
+  await act(async () => { release({ content: "theirs", updatedAt: FRESH }); await waitForDraftWrites(); });
+  await waitFor(() => expect(mocks.mutateNote).toHaveBeenCalledOnce());
+  expect(mocks.mutateNote).toHaveBeenCalledWith(NOTE_ID, { content: "mine", expectedUpdatedAt: FRESH });
+});
+it("a late save result cannot move the base back behind a newer broadcast", async () => {
+  const NEWER = "2026-10-03T00:00:00Z";
+  await open();
+  let finish!: (note: { updatedAt: string }) => void;
+  mocks.mutateNote.mockImplementationOnce(() => new Promise((done) => { finish = done; }));
+  fireEvent.change(screen.getByLabelText("Note"), { target: { value: "first" } });
+  await keepMine();
+  // a rename from the sidebar lands first and announces the same body with a newer stamp
+  act(() => { broadcast("first", NEWER); });
+  await act(async () => { finish({ updatedAt: FRESH }); });
+  fireEvent.change(screen.getByLabelText("Note"), { target: { value: "second" } });
+  await keepMine();
+  expect(mocks.mutateNote).toHaveBeenLastCalledWith(NOTE_ID, { content: "second", expectedUpdatedAt: NEWER });
+});

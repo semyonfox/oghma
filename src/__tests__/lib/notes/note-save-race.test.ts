@@ -98,6 +98,23 @@ describe("note save/fetch coordination", () => {
     });
   });
 
+  it("still returns a committed save's stamp when a forced fetch moved the write version", async () => {
+    memory.set(NOTE_ID, note({ content: "before", updatedAt: "2026-11-12T12:00:00.000Z" }));
+    let resolveMutate!: (result: NoteModel) => void;
+    const api = noteApi({
+      find: vi.fn().mockResolvedValue(note({ content: "before", updatedAt: "2026-11-12T12:00:00.000Z" })),
+      mutate: vi.fn(() => new Promise<NoteModel>((resolve) => { resolveMutate = resolve; })),
+    });
+    useNoteStore.getState().setDependencies(api, treeStore(), vi.fn());
+
+    const saving = useNoteStore.getState().mutateNote(NOTE_ID, { content: "after" });
+    await vi.waitFor(() => expect(api.mutate).toHaveBeenCalled());
+    await useNoteStore.getState().fetchNote(NOTE_ID, { forceFresh: true });
+    resolveMutate(note({ content: "after", updatedAt: "2026-11-12T12:00:05.000Z" }));
+
+    await expect(saving).resolves.toMatchObject({ updatedAt: "2026-11-12T12:00:05.000Z" });
+  });
+
   it("does not let a GET started before save overwrite the saved cache", async () => {
     const id = NOTE_ID;
     memory.set(id, note({ content: "cached" }));

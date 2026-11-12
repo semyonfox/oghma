@@ -272,12 +272,16 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
         if (!restoredDraft && editRevision.current === 0) {
           baseContent.current = content;
           baseUpdatedAt.current = result.updatedAt;
+          conflictRef.current = false;
+          setConflicted(false);
           setLocalContent(content);
           localContentRef.current = content;
           setLoaded(true);
         } else if (content === localContentRef.current) {
           baseContent.current = content;
           baseUpdatedAt.current = result.updatedAt;
+          conflictRef.current = false;
+          setConflicted(false);
           isDirtyRef.current = false;
           setIsDirty(false);
           markSynced(file.fileId);
@@ -331,6 +335,8 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
         baseUpdatedAt.current = updatedAt;
         localContentRef.current = content;
         setLocalContent(content);
+        conflictRef.current = false;
+        setConflicted(false);
       } else if (content !== undefined && content !== localContentRef.current) {
         enterConflict();
       }
@@ -402,8 +408,11 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
 
     const { saved } = outcome;
     if (currentFileId.current !== file.fileId) return;
-    baseContent.current = contentToSave;
-    if (saved?.updatedAt) baseUpdatedAt.current = saved.updatedAt;
+    // a broadcast from a later save may already have moved the base on
+    if (saved?.updatedAt && (!baseUpdatedAt.current || Date.parse(saved.updatedAt) >= Date.parse(baseUpdatedAt.current))) {
+      baseContent.current = contentToSave;
+      baseUpdatedAt.current = saved.updatedAt;
+    }
     const savedCurrentRevision =
       revisionToSave === editRevision.current &&
       contentToSave === localContentRef.current;
@@ -421,24 +430,28 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
 
   // only Save and Ctrl+S may lift a conflict
   const handleSave = async (keepMine = false) => {
+    if (!isDirtyRef.current || !file.fileId) return;
     if (!baseUpdatedAt.current) enterConflict();
     if (conflictRef.current && !keepMine) return;
-    if (!isDirtyRef.current || !file.fileId) return;
     if (saveInFlight.current) {
       saveQueued.current = true;
       return;
     }
 
+    // claimed before the fetch so a second keep-mine press can't send its own PUT
+    saveInFlight.current = true;
     if (conflictRef.current) {
       const theirs = await fetchNote(file.fileId).catch(() => undefined);
-      if (!theirs || currentFileId.current !== file.fileId) return;
+      if (!theirs || currentFileId.current !== file.fileId) {
+        saveInFlight.current = false;
+        return;
+      }
       baseUpdatedAt.current = theirs.updatedAt;
       conflictRef.current = false;
       setConflicted(false);
     }
     const contentToSave = localContentRef.current;
     const revisionToSave = editRevision.current;
-    saveInFlight.current = true;
     saveQueued.current = false;
     if (draftTimer.current) {
       clearTimeout(draftTimer.current);
