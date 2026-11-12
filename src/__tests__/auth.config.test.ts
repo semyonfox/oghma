@@ -152,13 +152,13 @@ describe("Auth.js credentials authorize", () => {
 
   it("counts a failed password against the shared lockout store", async () => {
     await expect(authorizeCredentials(account.email, "wrong")).resolves.toBeNull();
-    expect(mocks.reserveLoginAttempt).toHaveBeenCalledWith(account.email);
+    expect(mocks.reserveLoginAttempt).toHaveBeenCalledWith(account.email, "203.0.113.7");
     expect(mocks.clearFailedAttempts).not.toHaveBeenCalled();
   });
 
   it("counts an unknown account against the shared lockout store", async () => {
     await expect(authorizeCredentials("missing@example.com", password)).resolves.toBeNull();
-    expect(mocks.reserveLoginAttempt).toHaveBeenCalledWith("missing@example.com");
+    expect(mocks.reserveLoginAttempt).toHaveBeenCalledWith("missing@example.com", "203.0.113.7");
     expect(mocks.clearFailedAttempts).not.toHaveBeenCalled();
   });
 
@@ -181,7 +181,7 @@ describe("Auth.js credentials authorize", () => {
 
   it("clears failed attempts after valid credentials", async () => {
     await authorizeCredentials(account.email, password);
-    expect(mocks.clearFailedAttempts).toHaveBeenCalledWith(account.email);
+    expect(mocks.clearFailedAttempts).toHaveBeenCalledWith(account.email, "203.0.113.7");
   });
 });
 

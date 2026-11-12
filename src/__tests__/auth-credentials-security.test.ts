@@ -82,7 +82,7 @@ describe("Auth.js default credentials boundary", () => {
         request,
       ),
     ).resolves.toMatchObject({ id: user.user_id, session_version: 0 });
-    expect(reserveLoginAttempt).toHaveBeenCalledWith("owner@example.test");
-    expect(clearFailedAttempts).toHaveBeenCalledWith("owner@example.test");
+    expect(reserveLoginAttempt).toHaveBeenCalledWith("owner@example.test", "127.0.0.1");
+    expect(clearFailedAttempts).toHaveBeenCalledWith("owner@example.test", "127.0.0.1");
   });
 });

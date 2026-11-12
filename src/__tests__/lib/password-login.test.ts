@@ -20,6 +20,7 @@ const { default: realBcrypt } =
   await vi.importActual<typeof import("bcryptjs")>("bcryptjs");
 
 const PASSWORD = "Correct-horse-1";
+const CLIENT = "203.0.113.10";
 const account = {
   user_id: "00000000-0000-4000-8000-000000000001",
   email: "Owner@Example.test",
@@ -41,7 +42,7 @@ beforeEach(() => {
 describe("authenticatePassword", () => {
   it("runs a full bcrypt comparison for an unknown address", async () => {
     mocks.sql.mockResolvedValue([]);
-    await expect(authenticatePassword("missing@example.test", PASSWORD)).resolves.toEqual({
+    await expect(authenticatePassword("missing@example.test", PASSWORD, CLIENT)).resolves.toEqual({
       status: "invalid",
     });
     expect(mocks.compare).toHaveBeenCalledTimes(1);
@@ -51,10 +52,10 @@ describe("authenticatePassword", () => {
 
   it("does not reveal a deactivated account without its password", async () => {
     mocks.sql.mockResolvedValue([{ ...account, is_active: false, deleted_at: new Date() }]);
-    await expect(authenticatePassword(account.email, "wrong")).resolves.toEqual({
+    await expect(authenticatePassword(account.email, "wrong", CLIENT)).resolves.toEqual({
       status: "invalid",
     });
-    await expect(authenticatePassword(account.email, PASSWORD)).resolves.toEqual({
+    await expect(authenticatePassword(account.email, PASSWORD, CLIENT)).resolves.toEqual({
       status: "deactivated",
     });
     expect(mocks.clearFailedAttempts).not.toHaveBeenCalled();
@@ -62,7 +63,7 @@ describe("authenticatePassword", () => {
 
   it("reports an unverified account only after the password matches", async () => {
     mocks.sql.mockResolvedValue([{ ...account, email_verified: false }]);
-    await expect(authenticatePassword(account.email, PASSWORD)).resolves.toEqual({
+    await expect(authenticatePassword(account.email, PASSWORD, CLIENT)).resolves.toEqual({
       status: "unverified",
       email: account.email,
     });
@@ -71,7 +72,7 @@ describe("authenticatePassword", () => {
 
   it("stops a locked address before the query and bcrypt", async () => {
     mocks.reserveLoginAttempt.mockResolvedValue(false);
-    await expect(authenticatePassword(account.email, PASSWORD)).resolves.toEqual({
+    await expect(authenticatePassword(account.email, PASSWORD, CLIENT)).resolves.toEqual({
       status: "rate_limited",
     });
     expect(mocks.sql).not.toHaveBeenCalled();
@@ -79,7 +80,7 @@ describe("authenticatePassword", () => {
   });
 
   it("normalizes the address once for the lookup and the lockout budget", async () => {
-    await expect(authenticatePassword("  OWNER@example.TEST ", PASSWORD)).resolves.toEqual({
+    await expect(authenticatePassword("  OWNER@example.TEST ", PASSWORD, CLIENT)).resolves.toEqual({
       status: "ok",
       user: {
         user_id: account.user_id,
@@ -87,8 +88,8 @@ describe("authenticatePassword", () => {
         session_version: 3,
       },
     });
-    expect(mocks.reserveLoginAttempt).toHaveBeenCalledWith("owner@example.test");
+    expect(mocks.reserveLoginAttempt).toHaveBeenCalledWith("owner@example.test", CLIENT);
     expect(mocks.sql.mock.calls[0]).toContain("owner@example.test");
-    expect(mocks.clearFailedAttempts).toHaveBeenCalledWith("owner@example.test");
+    expect(mocks.clearFailedAttempts).toHaveBeenCalledWith("owner@example.test", CLIENT);
   });
 });
