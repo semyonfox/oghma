@@ -1,6 +1,6 @@
 # Review and security fix plan, November 2026
 
-> **Status:** Target (plan). Written 2026-11-12 from a review of `049cc6b2` (origin/dev). Move it to `docs/history/` once the work lands.
+> **Status:** Target (plan), implemented on branch `fix/review-2026-11` and not yet merged. Written 2026-11-12 from a review of `049cc6b2` (origin/dev). Move it to `docs/history/` once the work lands.
 >
 > **Source of truth for:** what the November 2026 review found, what the fix branch takes, and what it leaves for later
 
@@ -181,7 +181,24 @@ Actors: **owner** (O), **other signed-in user** (X), **anonymous** (A). **Before
 
 Rows marked "existing" already have a test that exercises the real check. The test file links to it rather than duplicating it.
 
+## Cross-review outcome
+
+The implemented branch was cross-reviewed against this plan. Everything it found was fixed on the branch:
+
+- **A committed save could keep an old stamp.** When a forced fetch or a rename moved the store's write version during a save, `mutateNote` dropped the result, so the next autosave conflicted. It now returns the saved note, and the editor adopts a stamp only if it isn't older than its base.
+- **Reindex recovery retried a failing note on every 30 s pass.** It now re-stamps what it re-enqueues, so retries are spaced to one per 2-minute window and newer requests aren't starved. The marker has a partial index.
+- **Notes that index themselves no longer request a reindex.** Every `insertNoteWithTree` with content had started requesting one. That would have re-embedded vault imports, and for vault PDFs replaced the Marker chunks that carry page numbers. It would also have put the starter note into retrieval and quizzes. Inserts now take `requestReindex: false` for vault notes and starter notes.
+- **Two editor edge cases.** Pressing Save before the note loaded raised a conflict on a clean editor, and two quick "keep mine" presses sent two saves. Both are fixed.
+- **Quiz top-up.** A full session still schedules a top-up of 5 cards while chunks are uncovered. The pending-batch guard is keyed by user and filter, so one filter's batch can't starve another.
+- **Leftover tests.** Tests still mocked the deleted `tree-cache` module, and `exam-paper-import.test.ts` still asserted the call that was removed.
+
+The security cross-review found no new exposure in the changed code. Two residuals predate this work:
+- The internal Canvas MCP token lives for 15 minutes and isn't tied to `session_version`. It's minted server-side and never held by users.
+- The new rate limits fall back to a per-process window while Redis is down, as `chat` already does.
+
 ## Rollout checks
 
-- Before merging A1, run a read-only query on each environment to confirm the trigger exists: `SELECT tgname, tgenabled FROM pg_trigger WHERE tgrelid = 'app.notes'::regclass AND NOT tgisinternal;`. Migration `085` already depends on the trigger existing.
+- **Migration 086 and function ownership.** It replaces `app.update_notes_updated_at()`, so the migration role must own that function if it already exists. Run this read-only query as the migration role on dev and prod before merging: `SELECT n.nspname, pg_get_userbyid(p.proowner), current_user FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE p.proname = 'update_notes_updated_at';`. If ownership is wrong, the migration fails inside its transaction and Jenkins stops before deploying. On 2026-11-12, 086 applied cleanly through `scripts/prebuild-migrate.ts` on a pre-branch schema, with the old function in either `app` or `public`.
+- **The trigger exists.** Before merging A1, run a read-only query on each environment to confirm it: `SELECT tgname, tgenabled FROM pg_trigger WHERE tgrelid = 'app.notes'::regclass AND NOT tgisinternal;`. Migration `085` already depends on the trigger existing.
+- **Old drafts open in conflict once.** A draft saved before deploy has no `baseUpdatedAt`, so if it differs from the server it opens in conflict one time, and the user picks Save or "Load theirs".
 - After deploying, open a note, type for more than 30 s with pauses, and confirm that no "saved elsewhere" toast appears.
