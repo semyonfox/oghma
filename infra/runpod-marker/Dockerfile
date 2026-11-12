@@ -7,11 +7,6 @@ FROM python:3.12.11-slim-bookworm@sha256:519591d6871b7bc437060736b9f7456b8731f14
 
 ARG MARKER_GPU_FAMILY=nonblackwell
 ARG MARKER_CUDA_VARIANT=cu129
-ARG MARKER_PLUS_PLUS_COMMIT=d31ecd2223588c8a2d014ece9d04fb99b0e45d57
-
-LABEL org.opencontainers.image.source="https://github.com/semyonfox/marker-plus-plus" \
-  org.opencontainers.image.revision="${MARKER_PLUS_PLUS_COMMIT}" \
-  org.opencontainers.image.description="OghmaNotes RunPod Serverless Marker++ worker with baked model assets"
 
 ENTRYPOINT []
 
@@ -50,8 +45,7 @@ RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     --constraint /app/constraints-markerpp.txt \
     -r /app/requirements.txt
 
-COPY marker-plus-plus.tar.gz marker-plus-plus.tar.gz.sha256 /tmp/
-COPY marker-plus-plus.manifest.json /app/marker-plus-plus.manifest.json
+# torch sits in its own layer so a new Marker++ archive does not download it again
 RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
   if [ "$MARKER_CUDA_VARIANT" = "cu13" ]; then \
     python3 -m pip install \
@@ -62,7 +56,11 @@ RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
       --extra-index-url https://download.pytorch.org/whl/cu129 \
       'torch==2.11.0+cu129' \
       'torchvision==0.26.0+cu129'; \
-  fi && \
+  fi
+
+COPY marker-plus-plus.tar.gz marker-plus-plus.tar.gz.sha256 /tmp/
+COPY marker-plus-plus.manifest.json /app/marker-plus-plus.manifest.json
+RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
   cd /tmp && \
   sha256sum -c marker-plus-plus.tar.gz.sha256 && \
   if [ "$MARKER_CUDA_VARIANT" = "cu13" ]; then \
@@ -147,5 +145,12 @@ COPY server.py /app/server.py
 COPY handler.py /app/handler.py
 COPY run.sh /app/run.sh
 RUN chmod +x /app/run.sh
+
+# the commit arg and label stay last. a build arg misses the cache at the first
+# RUN after it is declared, so declaring it at the top rebuilt every layer per commit
+ARG MARKER_PLUS_PLUS_COMMIT=d31ecd2223588c8a2d014ece9d04fb99b0e45d57
+LABEL org.opencontainers.image.source="https://github.com/semyonfox/marker-plus-plus" \
+  org.opencontainers.image.revision="${MARKER_PLUS_PLUS_COMMIT}" \
+  org.opencontainers.image.description="OghmaNotes RunPod Serverless Marker++ worker with baked model assets"
 
 CMD ["/app/run.sh"]
