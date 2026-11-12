@@ -43,9 +43,6 @@ vi.mock("@/lib/config", () => ({
 vi.mock("@/lib/notes/storage/create-note", () => ({
   insertNoteWithTree: vi.fn(),
 }));
-vi.mock("@/lib/notes/tree-cache", () => ({
-  invalidateTreeAfterPublish: vi.fn(),
-}));
 vi.mock("@/lib/storage/init", () => ({ getStorageProvider: () => storage }));
 
 import { POST } from "@/app/api/upload/route";

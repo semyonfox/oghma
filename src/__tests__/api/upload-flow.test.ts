@@ -8,7 +8,6 @@ const {
   storage,
   insertNoteWithTree,
   enqueueCanvasJob,
-  invalidateTreeAfterPublish,
 } =
   vi.hoisted(() => {
     const queries: string[] = [];
@@ -28,7 +27,6 @@ const {
       storage: { putObject: vi.fn(), deleteObject: vi.fn() },
       insertNoteWithTree: vi.fn(),
       enqueueCanvasJob: vi.fn(),
-      invalidateTreeAfterPublish: vi.fn(),
     };
   });
 
@@ -53,7 +51,6 @@ vi.mock("@/lib/notes/storage/create-note", () => ({
   insertNoteWithTree,
   InvalidNoteParentError: class InvalidNoteParentError extends Error {},
 }));
-vi.mock("@/lib/notes/tree-cache", () => ({ invalidateTreeAfterPublish }));
 vi.mock("@/lib/storage/init", () => ({ getStorageProvider: () => storage }));
 
 import { POST } from "@/app/api/upload/route";
@@ -157,7 +154,6 @@ describe("POST /api/upload", () => {
     expect(order).toEqual(["put", "note"]);
     expect(storage.deleteObject).toHaveBeenCalledOnce();
     expect(enqueueCanvasJob).not.toHaveBeenCalled();
-    expect(invalidateTreeAfterPublish).not.toHaveBeenCalled();
   });
 
   it("records the extraction job in the same transaction as the attachment", async () => {

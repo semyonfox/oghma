@@ -40,10 +40,6 @@ const mocks = vi.hoisted(() => {
       stored.delete(key);
     }),
     enqueue: vi.fn(async (_noteId: string, _userId: string) => undefined),
-    invalidate: vi.fn(
-      async (_userId: string, _parentId: string | null | undefined) =>
-        undefined,
-    ),
   };
 });
 vi.mock("@/lib/storage/init", () => ({
@@ -51,9 +47,6 @@ vi.mock("@/lib/storage/init", () => ({
     putObject: mocks.putObject,
     deleteObject: mocks.deleteObject,
   }),
-}));
-vi.mock("@/lib/notes/tree-cache", () => ({
-  invalidateTreeAfterPublish: mocks.invalidate,
 }));
 vi.mock("@/lib/queue", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/queue")>()),
@@ -304,7 +297,6 @@ describe("exam paper import", () => {
       ]),
     });
 
-    expect(mocks.invalidate).toHaveBeenCalledExactlyOnceWith(userId, rootId);
     expect(mocks.enqueue).toHaveBeenCalledExactlyOnceWith(
       result.textNoteId,
       userId,
@@ -341,7 +333,6 @@ describe("exam paper import", () => {
     ]);
     expect(mocks.putObject).toHaveBeenCalledOnce();
     expect(mocks.enqueue).toHaveBeenCalledTimes(3);
-    expect(mocks.invalidate).toHaveBeenCalledOnce();
   });
 
   it("publishes one pair from concurrent imports and removes only the losing upload", async () => {

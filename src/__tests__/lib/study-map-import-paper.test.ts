@@ -74,8 +74,7 @@ const mocks = vi.hoisted(() => {
     deleteObject: vi.fn(async (_key: string) => undefined),
   };
   const enqueue = vi.fn(async (_noteId: string, _userId: string) => undefined);
-  const invalidate = vi.fn(async () => undefined);
-  return { state, query, begin, insert, storage, enqueue, invalidate };
+  return { state, query, begin, insert, storage, enqueue };
 });
 vi.mock("@/database/pgsql", () => ({
   default: Object.assign(mocks.query, { begin: mocks.begin }),
@@ -84,9 +83,6 @@ vi.mock("@/lib/logger", () => ({ default: { warn: vi.fn() } }));
 vi.mock("@/lib/notes/storage/create-note", () => ({
   insertNoteWithTree: mocks.insert,
   InvalidNoteParentError: class extends Error {},
-}));
-vi.mock("@/lib/notes/tree-cache", () => ({
-  invalidateTreeAfterPublish: mocks.invalidate,
 }));
 vi.mock("@/lib/queue", () => ({ enqueueNoteReindexJob: mocks.enqueue }));
 vi.mock("@/lib/storage/init", () => ({
