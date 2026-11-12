@@ -12,6 +12,7 @@ import {
   selectCards,
   sessionCardIds,
 } from "@/lib/quiz/select";
+import { checkRateLimit } from "@/lib/rate-limiter";
 import { generateBatch } from "@/lib/quiz/generate-background";
 import { loadSessionQuestion } from "@/lib/quiz/session-question";
 import { SESSION_DEFAULTS } from "@/lib/quiz/types";
@@ -24,6 +25,7 @@ import {
 
 // generation limits — all generation is background-only (never blocks the response)
 const AI_GENERATION_PER_MODULE = 5;  // max questions generated per module per trigger
+const inFlightUsers = new Set<string>();
 const AI_GENERATION_BATCH_SIZE = 25; // upper bound for total background pass
 
 interface ChunkModuleRow {
@@ -35,6 +37,7 @@ interface ChunkModuleRow {
 async function pickChunksToGenerate(
   userId: string,
   uncoveredChunkIds: string[],
+  limit: number,
 ): Promise<string[]> {
   const rows = await sql<ChunkModuleRow[]>`
     SELECT c.id, COALESCE(n.canvas_module_id, -1)::text AS module_id
@@ -52,13 +55,15 @@ async function pickChunksToGenerate(
     if (used >= AI_GENERATION_PER_MODULE) continue;
     picked.push(row.id);
     moduleCounts.set(row.module_id, used + 1);
-    if (picked.length >= AI_GENERATION_BATCH_SIZE) break;
+    if (picked.length >= limit) break;
   }
   return picked;
 }
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
   const user = await requireAuth();
+  const limited = await checkRateLimit("quiz-session", user.user_id);
+  if (limited) return limited;
 
   const zodResult = validateBody(
     quizSessionCreateSchema,
@@ -81,16 +86,26 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const candidates = await getSessionCandidates(userId, chunkIds);
   const { uncoveredChunkIds } = candidates;
 
-  // schedule background generation for uncovered chunks — never blocks the response
-  if (uncoveredChunkIds.length > 0) {
-    const bgChunkIds = await pickChunksToGenerate(userId, uncoveredChunkIds);
-    if (bgChunkIds.length > 0) {
-      after(() => generateBatch(userId, bgChunkIds));
-    }
-  }
-
   const maxQuestions = filter.maxQuestions || SESSION_DEFAULTS.maxQuestions;
   const cardIds = sessionCardIds(selectCards(candidates, maxQuestions), maxQuestions);
+  const needed = Math.min(AI_GENERATION_BATCH_SIZE, maxQuestions - cardIds.length);
+  if (needed > 0 && uncoveredChunkIds.length > 0 && !inFlightUsers.has(userId)) {
+    inFlightUsers.add(userId);
+    try {
+      const bgChunkIds = await pickChunksToGenerate(userId, uncoveredChunkIds, needed);
+      if (bgChunkIds.length > 0) {
+        after(async () => {
+          try { await generateBatch(userId, bgChunkIds); }
+          finally { inFlightUsers.delete(userId); }
+        });
+      } else {
+        inFlightUsers.delete(userId);
+      }
+    } catch (error) {
+      inFlightUsers.delete(userId);
+      throw error;
+    }
+  }
 
   if (cardIds.length === 0) {
     // no cards yet — generation was kicked off above, so tell the client to retry

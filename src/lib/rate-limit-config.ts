@@ -19,6 +19,10 @@ export interface RateLimitRule {
 }
 
 export const RATE_LIMITS = {
+  // allows the initial start and five client retries per minute
+  'quiz-session': { limit: 30, windowSeconds: 60, keyType: 'userId' },
+  'study-map-jobs': { limit: 10, windowSeconds: 60, keyType: 'userId' },
+
   // tier 1 — expensive external API calls
   'chat':           { limit: 120, windowSeconds: 3600,  keyType: 'userId' },
   // presence heartbeats fire every ~10s per open tab plus visibility events

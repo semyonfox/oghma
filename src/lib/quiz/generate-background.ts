@@ -56,10 +56,8 @@ async function getUncoveredChunkIds(
   return rowIds(rows);
 }
 
-// session starts retry while generation runs, and each start schedules a
-// batch for the same uncovered chunks. tracking in-flight chunks per process
-// keeps those retries from paying for the same LLM call several times; the
-// unique index still settles races between the app and the worker
+// deduplicates identical chunks in this process, while the session route also
+// guards each user's batch so retries cannot schedule different random chunks
 const inFlightChunks = new Set<string>();
 
 function claimChunks(userId: string, chunkIds: string[]): string[] {
