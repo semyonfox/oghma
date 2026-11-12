@@ -89,16 +89,34 @@ These items ship on one branch, `fix/review-2026-11`, cut from this branch.
 
 ## Deferred, with reasons
 
+On 2026-11-12 six of the eight first-pass deferrals were pulled into the branch. They're listed under [Taken after review](#taken-after-review). Two remain on the long finger:
+
 | Item | Seen by | Why it waits |
 |---|---|---|
 | Note version history | F | It's a product feature. The fence fixes close the known overwrite paths without it. |
-| Record quiz skip and parse failures per chunk, and give quiz generation its own output cap and reasoning level | F | Needs a schema change and measurements of real output lengths. Lowering the cap without that risks truncated questions. C1 removes most of the spend. |
-| `/agent/identity` 409 reveals that an account exists | D | It's a public agent-registration contract (see [Agent compatibility](agent-compatibility.md)). Changing the response shape needs a contract decision. It's rate-limited at 3 per hour per IP. |
-| Per-email login lockout can lock out a known user | D | This is a trade-off against password guessing, and it needs a design (verify before counting, or per-IP-per-email buckets). With a handful of users, nobody has been targeted. |
-| Session JWT has no `aud` or `iss` | D | Hardening only. Nothing else signs with `JWT_SECRET` today, and adding a required audience would sign everyone out unless there's a transition window. |
-| Canvas chat tools have no result size cap | F | Those tools are off while `CANVAS_CONTENT_IMPORT` is off. Fix this before turning it back on. |
-| Chat `renameNote` and `moveNote` don't publish a workspace invalidation | F | Other tabs see the change on the next refresh. It's cosmetic. |
 | The embedding fallback model isn't enforced to match the primary | F | The env template keeps them the same. Add a startup check when a second model is actually configured. |
+
+### Taken after review
+
+- **Quiz failure memory and output ceiling.**
+  - Migration `087` adds `app.chunks.quiz_generation_failures`.
+  - A model skip counts two strikes and an unparseable reply counts one.
+  - Two strikes take the chunk out of the uncovered pool. Re-chunking a note resets it, because chunk rows are replaced.
+  - Truncated replies and provider errors don't count.
+  - Quiz calls have their own `maxOutputTokens` of 4,096 and `medium` reasoning, instead of the chat defaults of 8,192 at `high`. Every call logs input, output and reasoning tokens with its finish reason, so the ceiling can be tuned from evidence. If question quality drops, raise `QUIZ_REASONING_EFFORT` in `src/lib/quiz/generate.ts`.
+- **Login lockout.**
+  - The five-strike, 30-minute lock is now scoped to the email and client IP, so someone guessing from one address can't lock the owner out everywhere.
+  - A per-email backstop of 20 attempts per window still bounds a guesser spread across many addresses.
+  - The client IP comes from `X-Forwarded-For`, which the homelab nginx sets from `CF-Connecting-IP`.
+- **`/agent/identity`.**
+  - An existing account now gets the same 201 claim as a new address. Completion only accepts an account created after the claim, so the claim simply expires.
+  - The public OpenAPI document no longer lists an existing-account 409 there. It also no longer lists the register 409, which the register route never returned.
+- **Session JWT `aud` and `iss`.**
+  - New session tokens carry `aud: oghma-session` and `iss: oghmanotes`, and a token for another audience is rejected.
+  - Tokens from before this change carry neither, and they're accepted until 2027-01-31 so the deploy signs nobody out.
+  - After that date, delete the transition branch in `verifyJWTToken`. If the branch deploys after 2026-12-31, anyone still holding an old token is asked to sign in again.
+- **Canvas chat tool results.** These are capped at 20,000 characters, the same ceiling as `readNote`. The cut is reported to the model so it asks for less. The schema payload that rides on every step wasn't measured or changed.
+- **Chat note actions.** Approving `makeMDNote`, `renameNote` or `moveNote` now publishes a tree invalidation to other tabs and refreshes this tab's tree.
 
 ## Dropped or corrected
 
