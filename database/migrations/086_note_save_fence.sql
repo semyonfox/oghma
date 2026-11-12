@@ -2,7 +2,14 @@ SET LOCAL lock_timeout = '3s';
 
 ALTER TABLE app.notes ADD COLUMN IF NOT EXISTS reindex_requested_at TIMESTAMPTZ;
 
--- derived search state does not change the editor's content version
+-- the recovery pass looks for these every 30s
+CREATE INDEX IF NOT EXISTS notes_reindex_requested_idx
+  ON app.notes (reindex_requested_at) WHERE reindex_requested_at IS NOT NULL;
+
+-- derived search state does not change the editor's content version.
+-- stored generated columns read as null in NEW inside a BEFORE trigger, so if
+-- one is ever added to app.notes it has to join the excluded keys below or
+-- every update will look like a change and stamp again
 CREATE OR REPLACE FUNCTION app.update_notes_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN

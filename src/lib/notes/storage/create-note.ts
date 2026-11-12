@@ -15,6 +15,9 @@ export interface CreateNoteWithTreeInput {
   canvasAcademicYear?: string | null;
   clonedFrom?: string | null;
   importedFileCacheId?: string | null;
+  // false for notes their creator indexes itself or that should stay out of
+  // retrieval and quizzes, such as the starter note
+  requestReindex?: boolean;
 }
 
 export interface CreatedNote {
@@ -111,7 +114,7 @@ export async function insertNoteWithTree(
       ${input.importedFileCacheId ?? null}::uuid,
       NOW(),
       NOW(),
-      CASE WHEN ${!input.isFolder && input.content.trim().length > 0}::boolean THEN NOW() ELSE NULL END
+      CASE WHEN ${input.requestReindex !== false && !input.isFolder && input.content.trim().length > 0}::boolean THEN NOW() ELSE NULL END
     )
     RETURNING
       note_id,

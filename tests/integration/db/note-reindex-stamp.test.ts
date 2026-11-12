@@ -22,7 +22,7 @@ import sql from "@/database/pgsql";
 import { PUT } from "@/app/api/notes/[id]/route";
 import { enqueueNoteReindexJob } from "@/lib/queue";
 import { replaceNoteEmbeddings } from "@/lib/rag/indexing";
-import { clearReindexRequest, reindexNote, recoverNoteReindexes } from "@/lib/rag/note-reindex";
+import { reindexNote, recoverNoteReindexes } from "@/lib/rag/note-reindex";
 
 const fixture = postgres(requireE2EDatabaseUrl(), { max: 1 });
 const userId = randomUUID();
@@ -51,15 +51,15 @@ afterAll(async () => {
 });
 
 describe("note reindex stamp", () => {
-  it("lets an import that indexed a body clear its own request without moving the fence", async () => {
-    const [before] = await fixture`UPDATE app.notes SET reindex_requested_at = NOW()
-      WHERE note_id = ${noteId}::uuid RETURNING content, updated_at::text AS stamp`;
-    await clearReindexRequest(noteId, userId, "an older body");
-    const [kept] = await fixture`SELECT reindex_requested_at FROM app.notes WHERE note_id = ${noteId}::uuid`;
-    expect(kept.reindex_requested_at).not.toBeNull();
-    await clearReindexRequest(noteId, userId, before.content);
+  it("spaces recovery retries of a note that keeps failing to one per window", async () => {
+    const [before] = await fixture`UPDATE app.notes SET reindex_requested_at = NOW() - INTERVAL '3 minutes'
+      WHERE note_id = ${noteId}::uuid RETURNING updated_at::text AS stamp`;
+    await recoverNoteReindexes();
+    await recoverNoteReindexes();
+    const calls = vi.mocked(enqueueNoteReindexJob).mock.calls.filter(([id]) => id === noteId);
+    expect(calls).toHaveLength(1);
     const [after] = await fixture`SELECT reindex_requested_at, updated_at::text AS stamp FROM app.notes WHERE note_id = ${noteId}::uuid`;
-    expect(after.reindex_requested_at).toBeNull();
+    expect(after.reindex_requested_at).not.toBeNull();
     expect(after.stamp).toBe(before.stamp);
   });
   it("stamps explicit timestamp assignments even when the assigned value is unchanged", async () => {
