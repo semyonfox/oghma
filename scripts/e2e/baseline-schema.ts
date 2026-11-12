@@ -267,7 +267,7 @@ CREATE TABLE app.quiz_cards (
 -- ============================================================================
 -- TRIGGERS: auto-update updated_at
 -- ============================================================================
-CREATE OR REPLACE FUNCTION update_notes_updated_at()
+CREATE OR REPLACE FUNCTION app.update_notes_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
   IF TG_NARGS = 0 AND TG_TABLE_SCHEMA = 'app' AND TG_TABLE_NAME = 'notes'
@@ -288,17 +288,17 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE TRIGGER update_notes_explicit_updated_at_trigger
 BEFORE UPDATE OF updated_at ON app.notes
 FOR EACH ROW
-EXECUTE FUNCTION update_notes_updated_at('explicit');
+EXECUTE FUNCTION app.update_notes_updated_at('explicit');
 
 CREATE TRIGGER update_notes_updated_at_trigger
 BEFORE UPDATE ON app.notes
 FOR EACH ROW
-EXECUTE FUNCTION update_notes_updated_at();
+EXECUTE FUNCTION app.update_notes_updated_at();
 
 CREATE TRIGGER update_tree_items_updated_at_trigger
 BEFORE UPDATE ON app.tree_items
 FOR EACH ROW
-EXECUTE FUNCTION update_notes_updated_at();
+EXECUTE FUNCTION app.update_notes_updated_at();
 
 -- ============================================================================
 -- COMMENTS
