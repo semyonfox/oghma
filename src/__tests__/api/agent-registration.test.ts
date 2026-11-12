@@ -142,8 +142,20 @@ describe("auth.md new-user registration", () => {
     expect(response.status).toBe(409);
   });
 
-  it("refuses an existing account instead of creating a claim", async () => {
+  it("answers an existing account exactly like a new address", async () => {
     vi.mocked(sql).mockResolvedValue([{ user_id: "user-1" }]);
+    vi.mocked(createAgentRegistrationClaim).mockResolvedValue({
+      claim: {
+        id: "claim-2",
+        email: "student@example.com",
+        status: "pending",
+        expires_at: new Date("2026-07-14T12:15:00.000Z"),
+        created_user_id: null,
+        created_at: new Date("2026-07-14T12:00:00.000Z"),
+      },
+      claimToken: CLAIM_TOKEN,
+      userCode: "123456",
+    });
 
     const response = await startRegistration(
       request("https://oghmanotes.ie/agent/identity", {
@@ -152,8 +164,13 @@ describe("auth.md new-user registration", () => {
       }),
     );
 
-    expect(response.status).toBe(409);
-    expect(createAgentRegistrationClaim).not.toHaveBeenCalled();
+    expect(response.status).toBe(201);
+    const body: Record<string, unknown> = await response.json();
+    expect(Object.keys(body).sort()).toEqual(
+      ["claim", "claim_token", "claim_token_expires", "registration_id", "registration_type"],
+    );
+    // the route never asks whether the address is registered
+    expect(vi.mocked(sql).mock.calls.map(([parts]) => (parts as TemplateStringsArray).join("?")).some((query) => query.includes("FROM app.login"))).toBe(false);
   });
 
   it("reports verified completion but never issues an API credential", async () => {
