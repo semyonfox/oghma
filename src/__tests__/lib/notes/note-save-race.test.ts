@@ -65,6 +65,27 @@ function treeStore() {
 }
 
 describe("note save/fetch coordination", () => {
+  it("broadcasts the exact saved body before mutateNote resolves, including empty text", async () => {
+    const events: unknown[] = [];
+    const target = new EventTarget();
+    vi.stubGlobal("window", target);
+    let settled = false;
+    target.addEventListener("note-content-sync", (event) => {
+      expect(settled).toBe(false);
+      if (event instanceof CustomEvent) events.push(event.detail);
+    });
+    memory.set(NOTE_ID, note({ content: "old" }));
+    const stamp = "2026-11-12T12:00:00Z";
+    const api = noteApi({ mutate: vi.fn().mockResolvedValue(note({ content: "", updatedAt: stamp })) });
+    useNoteStore.getState().setDependencies(api, treeStore(), vi.fn());
+    try {
+      await useNoteStore.getState().mutateNote(NOTE_ID, { content: "" });
+      settled = true;
+      expect(events).toEqual([{ fileId: NOTE_ID, content: "", updatedAt: stamp }]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
   beforeEach(() => {
     memory.clear();
     vi.clearAllMocks();

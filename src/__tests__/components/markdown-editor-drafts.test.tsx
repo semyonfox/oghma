@@ -216,6 +216,7 @@ describe("markdown editor recovery ownership", () => {
     await waitFor(() => expect(indicator()?.state).toBe("dirty"));
     expect(mocks.mutateNote).toHaveBeenCalledTimes(1);
 
+    mocks.fetchNote.mockResolvedValue({ content: "theirs", updatedAt: "2026-02-02T00:00:00Z" });
     await savePane("A");
     await waitFor(() =>
       expect(mocks.mutateNote).toHaveBeenLastCalledWith(file.fileId, {

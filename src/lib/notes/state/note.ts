@@ -279,7 +279,7 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
     if (typeof window !== "undefined") {
       window.dispatchEvent(
         new CustomEvent("note-content-sync", {
-          detail: { fileId: id, updatedAt: savedNote.updatedAt, content: payload.content },
+          detail: { fileId: id, updatedAt: savedNote.updatedAt, content: result.content ?? payload.content ?? note.content },
         }),
       );
     }
