@@ -23,9 +23,9 @@ const tree: TreeModel = {
     root: { id: "root", children: ["ct213", "ct101", "loose.png"] },
     ct213: { id: "ct213", children: ["slides", "old.md", "new.md", "photo.png"], data: data("ct213", { isFolder: true, course: course("current") }) },
     ct101: { id: "ct101", children: ["notes.md"], data: data("ct101", { isFolder: true, course: course("past") }) },
-    slides: { id: "slides", children: [], data: data("slides", { isFolder: true, pid: "ct213", updatedAt: "2026-01-01T00:00:00Z" }) },
-    "old.md": { id: "old.md", children: [], data: data("old.md", { pid: "ct213", updatedAt: "2026-02-01T00:00:00Z" }) },
-    "new.md": { id: "new.md", children: [], data: data("new.md", { pid: "ct213", updatedAt: "2026-10-01T00:00:00Z" }) },
+    slides: { id: "slides", children: [], data: data("slides", { isFolder: true, pid: "ct213", editedAt: "2026-01-01T00:00:00Z" }) },
+    "old.md": { id: "old.md", children: [], data: data("old.md", { pid: "ct213", editedAt: "2026-02-01T00:00:00Z", updatedAt: "2026-11-01T00:00:00Z" }) },
+    "new.md": { id: "new.md", children: [], data: data("new.md", { pid: "ct213", editedAt: "2026-10-01T00:00:00Z" }) },
     "photo.png": { id: "photo.png", children: [], data: data("photo.png", { pid: "ct213", s3Key: "k/photo.png" }) },
     "notes.md": { id: "notes.md", children: [], data: data("notes.md", { pid: "ct101" }) },
     "loose.png": { id: "loose.png", children: [], data: data("loose.png", { s3Key: "k/loose.png" }) },
@@ -57,7 +57,8 @@ describe("applyTreeView", () => {
     expect(view.tree.items.root.children).toEqual(["ct213"]);
   });
 
-  it("sorts by most recently edited", () => {
+  // old.md was reindexed after new.md was written, which isn't an edit
+  it("sorts by most recently edited, not by the last background update", () => {
     const view = applyTreeView(tree, { ...DEFAULT_TREE_VIEW, sort: "recent" }, { revealFinished: false, activeId: null });
     expect(view.tree.items.ct213.children).toEqual(["new.md", "old.md", "slides", "photo.png"]);
   });

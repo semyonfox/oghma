@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   APP_GUIDE_TOPIC_IDS,
   APP_GUIDE_TOPICS,
@@ -105,4 +105,21 @@ describe("app guide", () => {
       expect("readNote" in tools).toBe(retrievalEnabled);
     },
   );
+});
+
+it("shows content import steps only while the Canvas content switch is on", async () => {
+  try {
+    vi.stubEnv("CANVAS_CONTENT_IMPORT", "off");
+    vi.resetModules();
+    const disabled = await import("@/lib/chat/app-guide");
+    expect(disabled.getAppGuide({ topic: "canvas" }).guide).toContain("Deadlines still sync");
+    expect(disabled.getAppGuide({ topic: "canvas" }).guide).not.toContain("start the import");
+    vi.stubEnv("CANVAS_CONTENT_IMPORT", "on");
+    vi.resetModules();
+    const enabled = await import("@/lib/chat/app-guide");
+    expect(enabled.getAppGuide({ topic: "canvas" }).guide).toContain("start the import");
+  } finally {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  }
 });

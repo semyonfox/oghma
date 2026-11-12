@@ -35,6 +35,9 @@ export interface TreeItemSummary {
   pinned?: number;
   bundle?: DocumentBundle;
   updatedAt?: string;
+  editedAt?: string;
+  modulePosition?: number;
+  hasStudyMap?: boolean;
   topics?: TopicMark[];
   course?: CourseState;
 }

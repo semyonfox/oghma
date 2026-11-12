@@ -119,7 +119,7 @@ export default function StudyBlockDialog({
   };
 
   const inputClassName =
-    "min-h-11 w-full rounded-radius-md border border-border-subtle bg-surface px-2.5 py-2 text-base text-text-secondary focus:border-primary-500/50 focus:outline-none focus:ring-1 focus:ring-primary-500/50 lg:text-sm";
+    "min-h-11 w-full rounded-radius-md border border-border-subtle bg-surface px-2.5 py-2 text-base text-text-secondary focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/50 lg:text-sm";
 
   return (
     <Dialog open={open} onClose={onClose} className="relative z-[70]">
@@ -217,7 +217,7 @@ export default function StudyBlockDialog({
             {error && (
               <p
                 role="alert"
-                className="rounded-radius-md border border-error-500/30 bg-error-500/10 px-3 py-2 text-xs text-error-300"
+                className="rounded-radius-md border border-error-500/30 bg-error-500/10 px-3 py-2 text-xs text-error-700 dark:text-error-300"
               >
                 {error}
               </p>
@@ -226,7 +226,7 @@ export default function StudyBlockDialog({
             <button
               type="submit"
               disabled={saving}
-              className="min-h-11 w-full rounded-radius-md bg-primary-600 px-4 text-sm font-medium text-text-on-primary hover:bg-primary-700 disabled:opacity-50"
+              className="min-h-11 w-full rounded-radius-md bg-action px-4 text-sm font-medium text-on-action hover:bg-action-hover disabled:opacity-50"
             >
               {saving ? t("Creating...") : t("Add study block")}
             </button>

@@ -9,11 +9,16 @@ import { CanvasClient } from "@/lib/canvas/client";
 import sql from "@/database/pgsql";
 import { encrypt } from "@/lib/crypto";
 import { checkRateLimit } from "@/lib/rate-limiter";
-import { loadCanvasCredentials } from "@/lib/canvas/credentials";
+import {
+  clearCanvasTokenInvalid,
+  loadCanvasCredentials,
+  markCanvasTokenInvalid,
+} from "@/lib/canvas/credentials";
 import { discoverCanvasCourses } from "@/lib/canvas/sync-courses";
 import { recordCanvasCourseStatuses } from "@/lib/canvas/course-status";
 import { canvasHostFromInput } from "@/lib/canvas/institution-search";
 import logger from "@/lib/logger";
+import { canvasContentEnabled } from "@/lib/canvas/content-policy";
 
 const CANVAS_TOKEN_MAX_LENGTH = 4096;
 
@@ -60,6 +65,7 @@ export const GET = withErrorHandler(async () => {
       (previousCourseRows ?? []).map((row) => String(row.canvas_course_id)),
     );
     if (discovery.error) {
+      if (discovery.unauthorized) await markCanvasTokenInvalid(user.user_id);
       return noStoreJson({
         connected: false,
         domain: credentials.domain,
@@ -70,6 +76,7 @@ export const GET = withErrorHandler(async () => {
     }
     courses = discovery.data;
     courseDiscoveryDegraded = Boolean(discovery.degraded);
+    await clearCanvasTokenInvalid(user.user_id);
     await recordCanvasCourseStatuses(user.user_id, courses);
   } catch (error) {
     if (error instanceof ApiError) throw error;
@@ -84,6 +91,7 @@ export const GET = withErrorHandler(async () => {
     // settings-page refresh must not fan out one Canvas request per course.
     courses,
     courseDiscoveryDegraded,
+    contentImport: canvasContentEnabled(),
     // This is the durable source of truth for the restricted course badge.
     // Keep IDs as decimal strings: Canvas IDs can exceed JavaScript's safe
     // integer range.
@@ -158,7 +166,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const encryptedToken = encrypt(normalizedToken, user.user_id);
   await sql`
           UPDATE app.login
-          SET canvas_token = ${encryptedToken}, canvas_domain = ${normalizedDomain}
+          SET canvas_token = ${encryptedToken}, canvas_domain = ${normalizedDomain},
+              canvas_token_invalid_at = NULL
           WHERE user_id = ${user.user_id}
       `;
   await recordCanvasCourseStatuses(user.user_id, normalizedCourses);
@@ -167,5 +176,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     success: true,
     courses: normalizedCourses,
     courseDiscoveryDegraded,
+    contentImport: canvasContentEnabled(),
   });
 });

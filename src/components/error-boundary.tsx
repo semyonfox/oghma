@@ -45,7 +45,7 @@ function ErrorBoundaryFallback({ onRetry }: { onRetry: () => void }) {
   const { t } = useI18n();
   return (
     <div className="flex flex-col items-center justify-center p-8 text-text-secondary">
-      <h2 className="text-lg font-semibold mb-2">
+      <h2 className="font-serif text-xl font-semibold tracking-tight text-text mb-2">
         {t("Something went wrong")}
       </h2>
       <p className="text-sm text-text-tertiary mb-4">
@@ -53,7 +53,7 @@ function ErrorBoundaryFallback({ onRetry }: { onRetry: () => void }) {
       </p>
       <button
         onClick={onRetry}
-        className="px-4 py-2 text-sm bg-primary-600 text-text-on-primary rounded-radius-md hover:bg-primary-700 transition-colors"
+        className="px-4 py-2 text-sm bg-action text-on-action rounded-radius-md hover:bg-action-hover transition-colors"
       >
         {t("Try again")}
       </button>

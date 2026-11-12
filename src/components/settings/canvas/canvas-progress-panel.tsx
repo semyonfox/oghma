@@ -8,6 +8,11 @@ import {
   formatTime,
   relativeTime,
 } from "./canvas-helpers";
+import {
+  errorTextClass,
+  successTextClass,
+  warningTextClass,
+} from "../settings-utils";
 import { toFriendlyCanvasLogMessage } from "@/lib/friendly-errors";
 
 type Progress = { percent: number; completed: number; total: number; restrictedCourses?: number };
@@ -56,18 +61,18 @@ export default function CanvasProgressPanel({
         importSummary.failed > 0,
     );
   const terminalBarColor = terminalStatus === "cancelled" ? "bg-text-tertiary" : importSummary?.failed
-    ? "bg-red-500"
+    ? "bg-error-500"
     : importSummary?.forbidden
-      ? "bg-orange-500"
-      : "bg-green-500";
+      ? "bg-warning-500"
+      : "bg-success-500";
 
   const LogRow = ({ log }: { log: Log }) => (
     <div
       className={`flex items-start gap-2 px-4 py-1 border-b border-border-subtle last:border-0 ${
         log.status === "forbidden"
-          ? "bg-orange-500/5"
+          ? "bg-warning-500/5"
           : log.status === "error"
-            ? "bg-red-500/5"
+            ? "bg-error-500/5"
             : ""
       }`}
     >
@@ -75,7 +80,7 @@ export default function CanvasProgressPanel({
       <div className="flex-1 min-w-0 text-text-tertiary">
         <span className="block truncate" title={log.filename ?? ""}>{log.filename}</span>
         {log.errorMessage ? (
-          <span className="block text-red-400/80 font-sans" title={log.errorMessage}>
+          <span className={`block font-sans ${errorTextClass}`} title={log.errorMessage}>
             {toFriendlyCanvasLogMessage(log.errorMessage, log.courseSection)}
           </span>
         ) : log.status === "pending_marker" && (
@@ -104,12 +109,12 @@ export default function CanvasProgressPanel({
   );
 
   return (
-    <div className="glass-card rounded-radius-md overflow-hidden">
+    <div className="overflow-hidden rounded-radius-lg border border-border bg-surface">
       {/* header row */}
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
         <div className="flex items-center gap-2">
           {isImporting && (
-            <span aria-hidden="true" className="inline-block size-3.5 shrink-0 rounded-full border-2 border-primary-400/30 border-t-primary-400 motion-safe:animate-spin" />
+            <span aria-hidden="true" className="inline-block size-3.5 shrink-0 rounded-full border-2 border-accent/30 border-t-accent motion-safe:animate-spin" />
           )}
           <span className="text-sm font-medium text-text-secondary">
             {isImporting
@@ -133,19 +138,19 @@ export default function CanvasProgressPanel({
           {importSummary && !isImporting && (
             <div className="flex items-center gap-2 text-xs tabular-nums">
               {importSummary.imported > 0 && (
-                <span className="text-green-400">
+                <span className={successTextClass}>
                   {t("{count} imported", { count: importSummary.imported })}
                 </span>
               )}
               {importSummary.forbidden > 0 && (
-                <span className="text-orange-400">
+                <span className={warningTextClass}>
                   {t("{count} restricted", {
                     count: importSummary.forbidden,
                   })}
                 </span>
               )}
               {importSummary.failed > 0 && (
-                <span className="text-red-400">
+                <span className={errorTextClass}>
                   {t("{count} failed", { count: importSummary.failed })}
                 </span>
               )}
@@ -164,7 +169,7 @@ export default function CanvasProgressPanel({
       )}
 
       {isImporting && failedLogs.length > 0 && !isDiscovering && (
-        <p className="px-4 pb-3 text-xs text-orange-400" role="status">
+        <p className={`px-4 pb-3 text-xs ${warningTextClass}`} role="status">
           {t("One failed or restricted file does not stop the other files.")}
         </p>
       )}
@@ -176,7 +181,7 @@ export default function CanvasProgressPanel({
       )}
 
       {Boolean(skippedFolders.length) && (
-        <p className="px-4 py-3 text-xs text-orange-400" role="status">
+        <p className={`px-4 py-3 text-xs ${warningTextClass}`} role="status">
           {t("Some Canvas folders were skipped because they are in Trash. Restore them to include them in a future import.")}
           {" "}{skippedFolders.join(", ")}
         </p>
@@ -201,14 +206,14 @@ export default function CanvasProgressPanel({
       {!isDiscovering && (
         <div className="h-1.5 w-full bg-subtle overflow-hidden">
           <div
-            className={`h-full transition-all duration-500 ${isImporting ? "bg-primary-500" : terminalBarColor}`}
+            className={`h-full transition-all duration-500 ${isImporting ? "bg-accent" : terminalBarColor}`}
             style={{ width: `${progress.percent ?? 0}%` }}
           />
         </div>
       )}
 
       {isImporting && markerColdStarting && (
-        <div className="px-4 py-2 text-xs text-amber-300 bg-amber-500/10 border-t border-amber-500/20">
+        <div className="border-t border-warning-200 bg-warning-50 px-4 py-2 text-xs text-warning-800 dark:border-warning-500/20 dark:bg-warning-500/10 dark:text-warning-300">
           {t(
             "Canvas import is warming up the document processor. The first files can take a few minutes.",
           )}
@@ -220,7 +225,7 @@ export default function CanvasProgressPanel({
         <div className="border-t border-border-subtle divide-y divide-border-subtle/50">
           {/* in-progress files */}
           {activeLogs.length > 0 && (
-            <div className="font-mono text-xs bg-black/20">
+            <div className="font-mono text-xs bg-subtle">
               {activeLogs.map((log, i) => (
                 <LogRow key={i} log={log} />
               ))}
@@ -235,7 +240,7 @@ export default function CanvasProgressPanel({
                 onClick={() => setLogsFailedOpen((o) => !o)}
                 className="w-full flex items-center justify-between px-4 py-2 hover:bg-subtle transition-colors"
               >
-                <span className="text-xs font-medium text-red-400/80">
+                <span className={`text-xs font-medium ${errorTextClass}`}>
                   {t("Failed / Restricted")} ({failedLogs.length})
                 </span>
                 <ChevronDownIcon
@@ -244,7 +249,7 @@ export default function CanvasProgressPanel({
                 />
               </button>
               {logsFailedOpen && (
-                <div className="max-h-40 overflow-y-auto font-mono text-xs bg-black/20">
+                <div className="max-h-40 overflow-y-auto font-mono text-xs bg-subtle">
                   {failedLogs.map((log, i) => (
                     <LogRow key={i} log={log} />
                   ))}
@@ -261,7 +266,7 @@ export default function CanvasProgressPanel({
                 onClick={() => setLogsSuccessOpen((o) => !o)}
                 className="w-full flex items-center justify-between px-4 py-2 hover:bg-subtle transition-colors"
               >
-                <span className="text-xs font-medium text-green-400/80">
+                <span className={`text-xs font-medium ${successTextClass}`}>
                   {t("Imported")} ({successLogs.length})
                 </span>
                 <ChevronDownIcon
@@ -270,7 +275,7 @@ export default function CanvasProgressPanel({
                 />
               </button>
               {logsSuccessOpen && (
-                <div className="max-h-40 overflow-y-auto font-mono text-xs bg-black/20">
+                <div className="max-h-40 overflow-y-auto font-mono text-xs bg-subtle">
                   {successLogs.map((log, i) => (
                     <LogRow key={i} log={log} />
                   ))}

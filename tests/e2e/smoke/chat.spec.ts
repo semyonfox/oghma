@@ -65,7 +65,7 @@ test.describe("chat responsive smoke", () => {
     await expect(page.locator("form")).not.toHaveAttribute("style", /translateY/);
   });
 
-  test("mobile sheets and history drawers dismiss with outward swipes", async ({
+  test("mobile sheets and history drawers dismiss with a downward swipe", async ({
     loggedInPage: page,
     isMobile,
   }) => {
@@ -107,10 +107,22 @@ test.describe("chat responsive smoke", () => {
       await drawer.evaluate(async (element) => {
         await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished));
       });
-      await expect.poll(async () => (await historyTitle.boundingBox())?.x ?? -1).toBeGreaterThan(10);
+      // the sheet rises from below. a touch aimed mid-rise lands on a history
+      // row once the sheet finishes, and rows are buttons the swipe ignores,
+      // so wait until it has arrived and stopped moving
+      const viewportHeight = page.viewportSize()?.height ?? 800;
+      let lastY = Number.NaN;
+      await expect.poll(async () => {
+        const y = (await historyTitle.boundingBox())?.y ?? Infinity;
+        const settled = y === lastY && y < viewportHeight / 2;
+        lastY = y;
+        return settled;
+      }).toBe(true);
       const drawerBox = await historyTitle.boundingBox();
       if (!drawerBox) throw new Error("History drawer title has no bounds");
-      await swipe(drawerBox.x + 150, drawerBox.y + 10, -100, 0);
+      // on phones the history drawer is a bottom sheet, so it closes downwards
+      // and never starts a sideways swipe near the back-gesture edge
+      await swipe(drawerBox.x + 40, drawerBox.y + 10, 0, 100);
       await expect(drawer).not.toBeVisible();
     } finally {
       await cdp.detach();

@@ -113,7 +113,7 @@ export default function MonthView({ onSelectDate }: MonthViewProps) {
               className={`
                 relative group bg-surface px-2 py-1.5 text-left transition-colors hover:bg-surface-elevated
                 ${!day.isCurrentMonth ? "opacity-40" : ""}
-                ${day.isSelected ? "ring-1 ring-inset ring-primary-500/50" : ""}
+                ${day.isSelected ? "ring-1 ring-inset ring-accent/50" : ""}
               `}
             >
               <button
@@ -131,7 +131,7 @@ export default function MonthView({ onSelectDate }: MonthViewProps) {
                   dateTime={day.date}
                   className={`
                     absolute left-2 top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full text-xs
-                    ${day.isToday ? "bg-primary-600 font-semibold text-text-on-primary" : ""}
+                    ${day.isToday ? "bg-accent font-semibold text-on-action" : ""}
                     ${day.isSelected && !day.isToday ? "bg-subtle font-semibold text-text-secondary" : ""}
                     ${!day.isToday && !day.isSelected ? "text-text-secondary" : ""}
                   `}
@@ -154,14 +154,11 @@ export default function MonthView({ onSelectDate }: MonthViewProps) {
                   return (
                   <div
                     key={a.id}
-                    className="group/a pointer-events-none relative flex min-h-7 items-center gap-1 rounded-radius-sm bg-surface-elevated py-0.5 pl-2 pr-1 text-xs leading-snug"
+                    className={`group/a pointer-events-none relative flex min-h-7 items-center gap-1 rounded-radius-sm border py-0.5 pl-1.5 pr-1 text-xs leading-snug ${a.status === "done" ? "border-success-500/30 bg-success-500/10" : "border-border bg-surface"}`}
                   >
                     <span
                       aria-hidden="true"
-                      className="absolute bottom-1 left-0 top-1 w-0.5 rounded-full"
-                      style={{
-                        backgroundColor: a.courseColor ?? "var(--color-primary-500)",
-                      }}
+                      className={`h-1.5 w-1.5 shrink-0 rounded-full ${a.status === "done" ? "bg-success-500" : "bg-accent"}`}
                     />
                     <button
                       type="button"
@@ -174,7 +171,7 @@ export default function MonthView({ onSelectDate }: MonthViewProps) {
                           e.currentTarget,
                         );
                       }}
-                      className="pointer-events-auto relative flex h-6 w-6 shrink-0 items-center justify-center rounded-radius-sm hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/60"
+                      className="pointer-events-auto relative flex h-6 w-6 shrink-0 items-center justify-center rounded-radius-sm hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
                       aria-label={
                         a.status === "done"
                           ? t("Mark as upcoming")
@@ -182,15 +179,15 @@ export default function MonthView({ onSelectDate }: MonthViewProps) {
                       }
                     >
                       {a.status === "done" ? (
-                        <CheckCircleIcon className="h-3 w-3 text-primary-500" />
+                        <CheckCircleIcon className="h-3 w-3 text-success-500" />
                       ) : (
-                        <CheckCircleOutline className="h-3 w-3 text-text-tertiary hover:text-primary-500 transition-colors" />
+                        <CheckCircleOutline className="h-3 w-3 text-text-tertiary hover:text-accent transition-colors" />
                       )}
                     </button>
                     {assignment && (
                       <AssignmentDetailsTrigger
                         assignment={assignment}
-                        className={`pointer-events-auto min-h-6 min-w-0 flex-1 cursor-pointer truncate rounded-radius-sm px-1 text-left text-text-secondary underline decoration-border-subtle underline-offset-4 transition-colors hover:bg-subtle hover:decoration-current focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/60 ${a.status === "done" ? "line-through opacity-60" : ""}`}
+                        className={`pointer-events-auto min-h-6 min-w-0 flex-1 cursor-pointer truncate rounded-radius-sm px-1 text-left text-text-secondary underline decoration-border-subtle underline-offset-4 transition-colors hover:bg-subtle hover:decoration-current focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 ${a.status === "done" ? "line-through opacity-60" : ""}`}
                       />
                     )}
                   </div>
@@ -201,14 +198,11 @@ export default function MonthView({ onSelectDate }: MonthViewProps) {
                   .map((tb) => (
                     <div
                       key={tb.id}
-                      className="group/tb pointer-events-none relative flex min-h-7 items-center gap-1 rounded-radius-sm bg-surface-elevated py-0.5 pl-2 pr-1 text-xs leading-snug"
+                      className={`group/tb pointer-events-none relative flex min-h-7 items-center gap-1 rounded-radius-sm border py-0.5 pl-1.5 pr-1 text-xs leading-snug ${tb.completed ? "border-success-500/30 bg-success-500/10" : "border-border bg-surface"}`}
                     >
                       <span
                         aria-hidden="true"
-                        className="absolute bottom-1 left-0 top-1 w-0.5 rounded-full"
-                        style={{
-                          backgroundColor: tb.courseColor ?? "var(--color-primary-500)",
-                        }}
+                        className={`h-1.5 w-1.5 shrink-0 rounded-full ${tb.completed ? "bg-success-500" : "bg-accent"}`}
                       />
                       <button
                         type="button"
@@ -221,7 +215,7 @@ export default function MonthView({ onSelectDate }: MonthViewProps) {
                             e.currentTarget,
                           );
                         }}
-                        className="pointer-events-auto relative flex h-6 w-6 shrink-0 items-center justify-center rounded-radius-sm hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/60"
+                        className="pointer-events-auto relative flex h-6 w-6 shrink-0 items-center justify-center rounded-radius-sm hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
                         aria-label={
                           tb.completed
                             ? t("Mark incomplete")
@@ -229,9 +223,9 @@ export default function MonthView({ onSelectDate }: MonthViewProps) {
                         }
                       >
                         {tb.completed ? (
-                          <CheckCircleIcon className="h-3 w-3 text-primary-500" />
+                          <CheckCircleIcon className="h-3 w-3 text-success-500" />
                         ) : (
-                          <CheckCircleOutline className="h-3 w-3 text-text-tertiary hover:text-primary-500 transition-colors" />
+                          <CheckCircleOutline className="h-3 w-3 text-text-tertiary hover:text-accent transition-colors" />
                         )}
                       </button>
                       <span className={`truncate pr-4 ${tb.completed ? "text-text-tertiary line-through opacity-60" : "text-text-secondary"}`}>

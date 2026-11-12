@@ -88,19 +88,18 @@ export default function PricingPage() {
     <div className="min-h-screen bg-landing text-text">
       <Header />
       <main>
-        <section className="relative isolate overflow-hidden px-6 pb-20 pt-36 sm:pb-28 sm:pt-44 lg:px-8">
-          <div className="absolute inset-x-0 top-0 -z-10 h-96 bg-linear-to-b from-primary-500/10 to-transparent" />
+        <section className="relative px-6 pb-20 pt-36 sm:pb-28 sm:pt-44 lg:px-8">
           <FadeIn>
             <div className="mx-auto max-w-3xl text-center">
-              <p className="text-sm font-semibold text-primary-400">Student pricing</p>
+              <p className="font-mono text-xs font-medium uppercase tracking-[0.14em] text-text-tertiary">Student pricing</p>
               <h1 className="mt-4 font-serif text-5xl font-semibold tracking-tight text-balance sm:text-6xl">
                 Pricing built around the academic term.
               </h1>
               <p className="mx-auto mt-6 max-w-2xl text-lg/8 text-text-secondary">
                 Try a real Canvas import free. If having your course already organised is useful, choose a semester or academic-year plan when paid access launches.
               </p>
-              <div className="mt-8 inline-flex items-center gap-2 rounded-full border border-primary-500/20 bg-primary-500/10 px-4 py-2 text-sm text-text-secondary">
-                <span className="size-2 rounded-full bg-secondary-400" />
+              <div className="mt-8 inline-flex items-center gap-2 rounded-full border border-border bg-surface px-4 py-2 text-sm text-text-secondary">
+                <span className="size-2 rounded-full bg-accent" aria-hidden="true" />
                 Closed beta now · paid checkout is not enabled
               </div>
             </div>
@@ -111,27 +110,29 @@ export default function PricingPage() {
           <div className="grid gap-6 lg:grid-cols-3 lg:items-stretch">
             {plans.map((plan, index) => (
               <FadeIn key={plan.name} delay={index * 0.08}>
-                <article className={`relative flex h-full flex-col rounded-radius-2xl p-7 ${plan.featured ? "bg-primary-600 text-white shadow-2xl shadow-primary-950/20" : "border border-border-subtle bg-surface"}`}>
-                  {plan.featured ? (
-                    <p className="absolute -top-3 left-7 rounded-full bg-secondary-400 px-3 py-1 text-xs font-bold uppercase tracking-wide text-slate-950">
-                      Built for term time
-                    </p>
-                  ) : null}
-                  <h2 className="font-serif text-2xl font-semibold">{plan.name}</h2>
-                  <div className="mt-6 flex items-end gap-2">
-                    <span className="text-4xl font-semibold tracking-tight">{plan.price}</span>
+                <article className={`relative flex h-full flex-col rounded-radius-2xl border bg-surface p-7 ${plan.featured ? "border-accent ring-1 ring-accent" : "border-border"}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <h2 className="font-serif text-2xl font-semibold tracking-tight">{plan.name}</h2>
+                    {plan.featured ? (
+                      <p className="mt-1 shrink-0 rounded-full bg-accent-soft px-2.5 py-0.5 text-xs font-medium text-accent-soft-text">
+                        Recommended
+                      </p>
+                    ) : null}
                   </div>
-                  <p className={`mt-2 text-sm ${plan.featured ? "text-primary-100" : "text-text-tertiary"}`}>{plan.note}</p>
-                  <p className={`mt-6 text-sm/6 ${plan.featured ? "text-primary-50" : "text-text-secondary"}`}>{plan.description}</p>
+                  <div className="mt-6 flex items-end gap-2">
+                    <span className="font-serif text-4xl font-semibold tracking-tight">{plan.price}</span>
+                  </div>
+                  <p className="mt-2 font-mono text-xs text-text-tertiary">{plan.note}</p>
+                  <p className="mt-6 text-sm/6 text-text-secondary">{plan.description}</p>
                   <ul className="mt-7 flex-1 space-y-3">
                     {plan.features.map((feature) => (
-                      <li key={feature} className="flex gap-3 text-sm/6">
-                        <CheckIcon className={`mt-0.5 size-5 flex-none ${plan.featured ? "text-secondary-300" : "text-primary-400"}`} aria-hidden="true" />
+                      <li key={feature} className="flex gap-3 text-sm/6 text-text">
+                        <CheckIcon className="mt-0.5 size-5 flex-none text-accent" aria-hidden="true" />
                         <span>{feature}</span>
                       </li>
                     ))}
                   </ul>
-                  <a href={plan.href} className={`mt-8 inline-flex items-center justify-center gap-2 rounded-radius-md px-4 py-3 text-sm font-semibold transition-colors ${plan.featured ? "bg-white text-primary-700 hover:bg-primary-50" : "bg-primary-600 text-text-on-primary hover:bg-primary-700"}`}>
+                  <a href={plan.href} className={`mt-8 inline-flex items-center justify-center gap-2 rounded-radius-md px-4 py-3 text-sm font-semibold transition-colors ${plan.featured ? "bg-action text-on-action hover:bg-action-hover" : "border border-border bg-surface text-text hover:bg-subtle"}`}>
                     {plan.cta}<ArrowRightIcon className="size-4" aria-hidden="true" />
                   </a>
                 </article>
@@ -143,11 +144,11 @@ export default function PricingPage() {
           </p>
         </section>
 
-        <section className="border-y border-border-subtle bg-surface/50 py-24">
+        <section className="border-y border-border bg-surface py-24">
           <div className="mx-auto max-w-7xl px-6 lg:px-8">
             <FadeIn>
               <div className="max-w-3xl">
-                <p className="text-sm font-semibold text-primary-400">Why pay when other AI tools are free?</p>
+                <p className="font-mono text-xs font-medium uppercase tracking-[0.14em] text-text-tertiary">Why pay when other AI tools are free?</p>
                 <h2 className="mt-3 font-serif text-4xl font-semibold tracking-tight sm:text-5xl">Because the setup is the product.</h2>
                 <p className="mt-6 text-lg/8 text-text-secondary">
                   NotebookLM, ChatGPT, Anki, and planners are useful. OghmaNotes is different because it starts from the Canvas course you are actually taking, then keeps the study tools beside that context. You are paying to remove repeated setup, not for a claim that every other tool is worse.
@@ -157,8 +158,8 @@ export default function PricingPage() {
             <div className="mt-14 grid gap-6 md:grid-cols-3">
               {trustPoints.map((point, index) => (
                 <FadeIn key={point.title} delay={index * 0.08}>
-                  <div className="h-full rounded-radius-xl border border-border-subtle bg-background p-6">
-                    <point.icon className="size-7 text-primary-400" aria-hidden="true" />
+                  <div className="h-full rounded-radius-xl border border-border bg-background p-6">
+                    <point.icon className="size-6 text-accent" aria-hidden="true" />
                     <h3 className="mt-5 font-serif text-xl font-semibold">{point.title}</h3>
                     <p className="mt-3 text-sm/6 text-text-secondary">{point.text}</p>
                   </div>
@@ -170,10 +171,10 @@ export default function PricingPage() {
 
         <section className="px-6 py-24 sm:py-32 lg:px-8">
           <FadeIn>
-            <div className="mx-auto max-w-3xl rounded-radius-2xl border border-border-subtle bg-surface p-8 text-center sm:p-12">
+            <div className="mx-auto max-w-3xl rounded-radius-2xl border border-border bg-surface p-8 text-center sm:p-12">
               <h2 className="font-serif text-3xl font-semibold sm:text-4xl">See your own course appear first.</h2>
               <p className="mx-auto mt-5 max-w-xl text-base/7 text-text-secondary">Join the closed beta, try the limited first import, and tell us what is worth paying for before pricing is locked.</p>
-              <a href="/contact#contact-form" className="mt-8 inline-flex items-center gap-2 rounded-radius-md bg-primary-600 px-5 py-3 text-sm font-semibold text-text-on-primary hover:bg-primary-700">
+              <a href="/contact#contact-form" className="mt-8 inline-flex items-center gap-2 rounded-radius-md bg-action px-5 py-3 text-sm font-semibold text-on-action transition-colors hover:bg-action-hover">
                 Join the beta free<ArrowRightIcon className="size-4" aria-hidden="true" />
               </a>
             </div>

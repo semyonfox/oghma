@@ -21,7 +21,8 @@ export function acknowledgeDraftRecovery(noteId: string): boolean {
 
 export interface NoteDraft {
   content: string;
-  draftAt: number; // epoch ms — compare against note.updatedAt to decide winner
+  baseUpdatedAt?: string;
+  draftAt: number; // epoch ms for recovery metadata
   version?: string;
 }
 
@@ -39,10 +40,10 @@ function queueDraftChange(noteId: string, change: () => Promise<unknown>): Promi
   return operation;
 }
 
-export async function writeDraft(noteId: string, content: string, owner: "A" | "B" = "A"): Promise<NoteDraft | undefined> {
+export async function writeDraft(noteId: string, content: string, owner: "A" | "B" = "A", baseUpdatedAt?: string): Promise<NoteDraft | undefined> {
   if (!writable) return;
   knownDrafts.add(noteId);
-  const draft = { content, draftAt: Date.now(), version: crypto.randomUUID() };
+  const draft = { content, baseUpdatedAt, draftAt: Date.now(), version: crypto.randomUUID() };
   await queueDraftChange(noteId, () => uiCache.setItem<NoteDraft>(key(noteId, owner), draft));
   return draft;
 }

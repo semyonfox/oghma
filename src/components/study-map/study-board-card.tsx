@@ -348,7 +348,7 @@ export const StudyFlowCard = memo(function StudyFlowCard({
     : cardLabel(item);
   const reviewDot = review && (
     <span
-      className="h-1.5 w-1.5 shrink-0 rounded-full bg-ai-500"
+      className="h-1.5 w-1.5 shrink-0 rounded-full bg-warning-500"
       title="Topics to review"
       aria-label="Topics to review"
     />
@@ -366,7 +366,7 @@ export const StudyFlowCard = memo(function StudyFlowCard({
         className="study-card-page relative h-full w-full overflow-hidden rounded-radius-xl font-sans"
         style={{ width: CARD_WIDTH }}
       >
-        <div className="flex h-full items-start justify-center overflow-hidden bg-white">
+        <div className="flex h-full items-start justify-center overflow-hidden bg-neutral-50">
           {visible ? (
             <FilePreview
               key={`${item.material.noteId}:${item.material.currentHash}`}
@@ -374,7 +374,7 @@ export const StudyFlowCard = memo(function StudyFlowCard({
               kind={preview}
             />
           ) : (
-            <span className="pt-6 text-xs text-slate-500">Preview</span>
+            <span className="pt-6 text-xs text-neutral-500">Preview</span>
           )}
         </div>
         <div className="study-glass study-glass-caption absolute inset-x-1.5 bottom-1.5 rounded-radius-lg px-2.5 py-1.5 text-text">
@@ -398,7 +398,7 @@ export const StudyFlowCard = memo(function StudyFlowCard({
       style={{ width: CARD_WIDTH }}
     >
       <p
-        className={`flex min-w-0 items-center gap-1.5 text-[11px] ${assignment ? "text-ai-700 dark:text-ai-300" : "text-text-tertiary"}`}
+        className={`flex min-w-0 items-center gap-1.5 text-[11px] ${assignment ? "text-accent" : "text-text-tertiary"}`}
       >
         <span className="truncate">{meta}</span>
         {pinned && <span className="sr-only">, pinned</span>}

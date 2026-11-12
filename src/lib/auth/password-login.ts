@@ -42,9 +42,10 @@ export function normalizeEmail(email: string): string {
 export async function authenticatePassword(
   email: string,
   password: string,
+  client: string,
 ): Promise<PasswordLoginResult> {
   const normalized = normalizeEmail(email);
-  if (!(await reserveLoginAttempt(normalized))) return { status: "rate_limited" };
+  if (!(await reserveLoginAttempt(normalized, client))) return { status: "rate_limited" };
 
   const [user] = await sql<PasswordLoginRow[]>`
     SELECT user_id, email, hashed_password, email_verified, is_active, deleted_at, session_version
@@ -60,7 +61,7 @@ export async function authenticatePassword(
   if (!user.is_active || user.deleted_at) return { status: "deactivated" };
   if (user.email_verified !== true) return { status: "unverified", email: user.email };
 
-  await clearFailedAttempts(normalized);
+  await clearFailedAttempts(normalized, client);
   return {
     status: "ok",
     user: {

@@ -78,7 +78,7 @@ export default function AIPage() {
           This page is HTML for browsers. Agents can request Markdown from the
           same URL with <code>Accept: text/markdown</code>, or use{" "}
           <Link
-            className="text-primary-300 hover:text-primary-200"
+            className="text-accent hover:text-accent-hover"
             href="/ai?format=md"
           >
             /ai?format=md
@@ -97,7 +97,7 @@ export default function AIPage() {
             data-marketing-page="ai"
             data-marketing-location="primary_cta"
             data-marketing-cta="request_beta_access"
-            className="rounded-lg border border-primary-500/40 bg-primary-600 px-5 py-4 text-sm font-semibold text-text-on-primary hover:bg-primary-700"
+            className="rounded-radius-lg bg-action px-5 py-4 text-sm font-semibold text-on-action hover:bg-action-hover"
           >
             Join the beta
           </Link>
@@ -107,7 +107,7 @@ export default function AIPage() {
             data-marketing-page="ai"
             data-marketing-location="campus_pilot"
             data-marketing-cta="request_beta_access"
-            className="rounded-lg border border-border-subtle bg-surface px-5 py-4 text-sm font-semibold text-text hover:border-border"
+            className="rounded-radius-lg border border-border bg-surface px-5 py-4 text-sm font-semibold text-text hover:bg-subtle"
           >
             Ask about beta access or campus pilots
           </Link>
@@ -119,7 +119,7 @@ export default function AIPage() {
           {AGENT_RESOURCE_PATHS.map((path) => (
             <li key={path}>
               <Link
-                className="text-primary-300 hover:text-primary-200"
+                className="text-accent hover:text-accent-hover"
                 href={path}
               >
                 {path}
@@ -179,14 +179,14 @@ export default function AIPage() {
         <p>
           Use{" "}
           <Link
-            className="text-primary-300 hover:text-primary-200"
+            className="text-accent hover:text-accent-hover"
             href="/contact"
           >
             the contact page
           </Link>{" "}
           or email{" "}
           <a
-            className="text-primary-300 hover:text-primary-200"
+            className="text-accent hover:text-accent-hover"
             href="mailto:contact@oghmanotes.ie"
           >
             contact@oghmanotes.ie

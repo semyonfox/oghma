@@ -4,12 +4,17 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-@theme {
+/*
+ * Atlas design system — see docs/engineering/design-system.md.
+ * Dark values live in @theme (the default); html.light overrides them.
+ * `static` keeps every token emitted, including ones only read through var().
+ */
+@theme static {
   /* === TYPOGRAPHY === */
-  --font-sans: var(--font-source-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-serif: var(--font-source-serif), ui-serif, Georgia, serif;
-  --font-display: "Strichpunkt Sans Variable", var(--font-source-serif), ui-serif, Georgia, serif;
-  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-literata), ui-serif, Georgia, serif;
+  --font-display: var(--font-literata), ui-serif, Georgia, serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 
   /* Distinct captions, controls, and reading text. Mobile inputs stay at 16px. */
   --text-xs: 0.75rem;
@@ -35,221 +40,269 @@
   --text-7xl: 4.5rem;
   --text-7xl--line-height: 4.75rem;
 
-  /* === RADII === */
-  --radius-radius-sm: 4px;
-  --radius-radius-md: 6px;
-  --radius-radius-lg: 8px;
-  --radius-radius-xl: 12px;
-  --radius-radius-2xl: 16px;
+  /* === RADII === Atlas uses soft, consistent corners; pills use rounded-full. */
+  --radius-radius-sm: 6px;
+  --radius-radius-md: 8px;
+  --radius-radius-lg: 10px;
+  --radius-radius-xl: 14px;
+  --radius-radius-2xl: 20px;
 
-  /* === SEMANTIC SURFACES & TEXT === */
-  --color-background: #0f172a;
-  --color-surface: #1e293b;
-  --color-surface-elevated: #334155;
-  --color-border: rgba(255, 255, 255, 0.1);
-  --color-border-subtle: rgba(255, 255, 255, 0.05);
+  /* === SURFACES & TEXT (dark) === neutral charcoal, no tint */
+  --color-background: #111214;
+  --color-surface: #16171a;
+  --color-surface-elevated: #1c1d21;
+  --color-sidebar: #0e0f11;
+  --color-border: #2a2c31;
+  --color-border-subtle: #222328;
+  --color-border-strong: #3a3d43;
 
-  /* Text colors with proper contrast */
-  --color-text: #f1f5f9;
-  --color-text-secondary: #cbd5e1;
-  --color-text-tertiary: #94a3b8;
+  --color-text: #ececee;
+  --color-text-secondary: #c9cacf;
+  --color-text-tertiary: #a3a5ac;
   --color-text-on-primary: #ffffff;
 
-  /* === AI: Amber for AI Features === */
-  --color-ai-50: #fffbeb;
-  --color-ai-100: #fef3c7;
-  --color-ai-200: #fde68a;
-  --color-ai-300: #fcd34d;
-  --color-ai-400: #fbbf24;
-  --color-ai-500: #f59e0b;
-  --color-ai-600: #d97706;
-  --color-ai-700: #b45309;
-  --color-ai-800: #92400e;
-  --color-ai-900: #78350f;
+  /* === ACTION & ACCENT === Cobalt marks what you can act on or have selected.
+     Dark mode keeps primary buttons ink so the accent stays sparse. */
+  --color-action: #ececee;
+  --color-action-hover: #ffffff;
+  --color-on-action: #111214;
+  --color-accent: #8eaef6;
+  --color-accent-hover: #b9ccf9;
+  --color-accent-soft: #24262b;
+  --color-accent-soft-text: #c9cacf;
+  --color-selected: #24262b;
 
-  /* === PRIMARY: Indigo (Aether accent) === */
-  --color-primary-50: #eef2ff;
-  --color-primary-100: #e0e7ff;
-  --color-primary-200: #c7d2fe;
-  --color-primary-300: #a5b4fc;
-  --color-primary-400: #818cf8;
-  --color-primary-500: #6366f1;
-  --color-primary-600: #4f46e5;
-  --color-primary-700: #4338ca;
-  --color-primary-800: #3730a3;
-  --color-primary-900: #312e81;
+  /* === PRIMARY: Cobalt === 500/600 carry white text at ≥5.5:1 */
+  --color-primary-50: #f2f5fe;
+  --color-primary-100: #e9effc;
+  --color-primary-200: #d3def8;
+  --color-primary-300: #b9ccf9;
+  --color-primary-400: #8eaef6;
+  --color-primary-500: #2f5fd3;
+  --color-primary-600: #2453c6;
+  --color-primary-700: #1c409c;
+  --color-primary-800: #163380;
+  --color-primary-900: #12296a;
+  --color-primary-950: #0b1a45;
 
-  /* === SECONDARY: Teal for Progress & Learning === */
-  --color-secondary-50: #f0fdfa;
-  --color-secondary-100: #ccfbf1;
-  --color-secondary-200: #99f6e4;
-  --color-secondary-300: #5eead4;
-  --color-secondary-400: #2dd4bf;
-  --color-secondary-500: #14b8a6;
-  --color-secondary-600: #0d9488;
-  --color-secondary-700: #0f766e;
-  --color-secondary-800: #115e59;
-  --color-secondary-900: #134e4a;
+  /* === AI === AI is part of the product, not a separate colour: it uses the accent. */
+  --color-ai-50: #f2f5fe;
+  --color-ai-100: #e9effc;
+  --color-ai-200: #d3def8;
+  --color-ai-300: #b9ccf9;
+  --color-ai-400: #8eaef6;
+  --color-ai-500: #2f5fd3;
+  --color-ai-600: #2453c6;
+  --color-ai-700: #1c409c;
+  --color-ai-800: #163380;
+  --color-ai-900: #12296a;
 
-  /* === SUCCESS: Green for Completion === */
-  --color-success-50: #f0fdf4;
-  --color-success-100: #dcfce7;
-  --color-success-200: #bbf7d0;
-  --color-success-300: #86efac;
-  --color-success-400: #4ade80;
-  --color-success-500: #22c55e;
-  --color-success-600: #16a34a;
-  --color-success-700: #15803d;
-  --color-success-800: #166534;
-  --color-success-900: #14532d;
+  /* === SUCCESS: logo green === only ever means correct, done, healthy or mastered */
+  --color-success-50: #f0f7ee;
+  --color-success-100: #e6f0e4;
+  --color-success-200: #cde3c8;
+  --color-success-300: #a9d1a1;
+  --color-success-400: #8dbf84;
+  --color-success-500: #3f8a37;
+  --color-success-600: #2f7f28;
+  --color-success-700: #276f21;
+  --color-success-800: #1f5a1a;
+  --color-success-900: #174513;
 
-  /* === ERROR: Red for Warnings & Destructive Actions === */
+  /* === SECONDARY === progress toward mastery shares the success green */
+  --color-secondary-50: #f0f7ee;
+  --color-secondary-100: #e6f0e4;
+  --color-secondary-200: #cde3c8;
+  --color-secondary-300: #a9d1a1;
+  --color-secondary-400: #8dbf84;
+  --color-secondary-500: #3f8a37;
+  --color-secondary-600: #2f7f28;
+  --color-secondary-700: #276f21;
+  --color-secondary-800: #1f5a1a;
+  --color-secondary-900: #174513;
+
+  /* === WARNING: amber === attention that is not an error */
+  --color-warning-50: #fffbeb;
+  --color-warning-100: #fef3c7;
+  --color-warning-200: #fde68a;
+  --color-warning-300: #fcd34d;
+  --color-warning-400: #e8b65a;
+  --color-warning-500: #d4952a;
+  --color-warning-600: #b45309;
+  --color-warning-700: #92400e;
+  --color-warning-800: #78350f;
+  --color-warning-900: #451a03;
+
+  /* === ERROR: red === */
   --color-error-50: #fef2f2;
   --color-error-100: #fee2e2;
   --color-error-200: #fecaca;
-  --color-error-300: #fca5a5;
-  --color-error-400: #f87171;
-  --color-error-500: #ef4444;
-  --color-error-600: #dc2626;
-  --color-error-700: #b91c1c;
-  --color-error-800: #991b1b;
-  --color-error-900: #7f1d1d;
+  --color-error-300: #f6a59b;
+  --color-error-400: #f08a7e;
+  --color-error-500: #e5484d;
+  --color-error-600: #d03b3b;
+  --color-error-700: #b42318;
+  --color-error-800: #8a1c14;
+  --color-error-900: #5c140f;
 
-  /* === NEUTRAL: Grayscale === */
-  --color-neutral-50: #fafafa;
-  --color-neutral-100: #f5f5f5;
-  --color-neutral-200: #e5e5e5;
-  --color-neutral-300: #d4d4d4;
-  --color-neutral-400: #a3a3a3;
-  --color-neutral-500: #737373;
-  --color-neutral-600: #525252;
-  --color-neutral-700: #404040;
-  --color-neutral-800: #262626;
-  --color-neutral-900: #171717;
+  /* === NEUTRAL: Atlas greys (no tint) === */
+  --color-neutral-50: #fbfbfc;
+  --color-neutral-100: #f3f4f6;
+  --color-neutral-200: #e3e5e8;
+  --color-neutral-300: #cdd1d8;
+  --color-neutral-400: #9a9fa8;
+  --color-neutral-500: #6b707a;
+  --color-neutral-600: #575c66;
+  --color-neutral-700: #40444d;
+  --color-neutral-800: #2d3139;
+  --color-neutral-900: #15171c;
 
   /* === INTERACTIVE ELEMENTS === */
-  --color-input: rgba(255, 255, 255, 0.05);
-  --color-subtle: rgba(255, 255, 255, 0.1);
-  --color-subtle-hover: rgba(255, 255, 255, 0.15);
+  --color-input: #18191c;
+  --color-subtle: rgb(255 255 255 / 0.05);
+  --color-subtle-hover: rgb(255 255 255 / 0.08);
+
+  /* === ELEVATION === Atlas separates with hairlines; shadows stay faint. */
+  /* Tailwind inlines shadow tokens into utilities at build time, so the
+     utilities point at runtime vars that html.light can override. */
+  --shadow-raised: var(--atlas-shadow-raised);
+  --shadow-float: var(--atlas-shadow-float);
 }
 
 :root {
-  /* Markdown/editor semantic palette: one source of truth for write + preview. */
+  --atlas-shadow-raised: 0 0 0 1px #2a2c31;
+  --atlas-shadow-float: 0 0 0 1px #2a2c31, 0 10px 15px -3px rgb(0 0 0 / 0.45), 0 4px 6px -4px rgb(0 0 0 / 0.35);
+  /* Markdown/editor semantic palette: one source of truth for write + preview.
+     Atlas reads like a book: ink headings, accent only on links and markers. */
   --md-bg: var(--color-background);
   --md-surface: var(--color-surface);
-  --md-surface-subtle: rgb(255 255 255 / 0.04);
-  --md-code-bg: rgb(15 23 42 / 0.72);
-  --md-code-header-bg: rgb(15 23 42 / 0.92);
-  --md-code-border: var(--color-border-subtle);
-  --md-text: var(--color-text);
+  --md-surface-subtle: rgb(255 255 255 / 0.035);
+  --md-code-bg: #1a1b1f;
+  --md-code-header-bg: #1e1f24;
+  --md-code-border: var(--color-border);
+  --md-text: var(--color-text-secondary);
   --md-text-muted: var(--color-text-secondary);
   --md-text-faint: var(--color-text-tertiary);
-  --md-heading-1: #c4b5fd;
-  --md-heading-2: #93c5fd;
-  --md-heading-3: #5eead4;
-  --md-heading-marker: rgb(129 140 248 / 0.68);
-  --md-link: var(--color-primary-400);
-  --md-link-hover: var(--color-primary-300);
-  --md-accent: var(--color-primary-400);
-  --md-accent-soft: rgb(99 102 241 / 0.18);
-  --md-strong: #f8fafc;
-  --md-emphasis: #fde68a;
-  --md-strike: #94a3b8;
-  --md-list-marker: #a5b4fc;
-  --md-quote-text: #cbd5e1;
-  --md-quote-border: rgb(99 102 241 / 0.72);
-  --md-quote-bg: rgb(99 102 241 / 0.07);
-  --md-inline-code-text: #fbbf24;
-  --md-inline-code-bg: rgb(15 23 42 / 0.62);
-  --md-inline-code-border: rgb(255 255 255 / 0.08);
-  --md-selection: rgb(99 102 241 / 0.28);
-  --md-active-line: rgb(255 255 255 / 0.035);
-  --md-syntax-base: #dbe4f0;
-  --md-syntax-comment: #94a3b8;
-  --md-syntax-keyword: #a5b4fc;
-  --md-syntax-string: #86efac;
-  --md-syntax-number: #fbbf24;
-  --md-syntax-function: #93c5fd;
-  --md-syntax-type: #5eead4;
-  --md-syntax-variable: #cbd5e1;
-  --md-syntax-invalid: #f87171;
+  --md-heading-1: var(--color-text);
+  --md-heading-2: var(--color-text);
+  --md-heading-3: var(--color-text);
+  --md-heading-marker: rgb(142 174 246 / 0.55);
+  --md-link: var(--color-accent);
+  --md-link-hover: var(--color-accent-hover);
+  --md-accent: var(--color-accent);
+  --md-accent-soft: rgb(142 174 246 / 0.14);
+  --md-strong: var(--color-text);
+  --md-emphasis: var(--color-text);
+  --md-strike: var(--color-text-tertiary);
+  --md-list-marker: var(--color-text-tertiary);
+  --md-quote-text: var(--color-text-secondary);
+  --md-quote-border: transparent;
+  --md-quote-bg: var(--color-surface-elevated);
+  --md-inline-code-text: var(--color-text);
+  --md-inline-code-bg: #24262b;
+  --md-inline-code-border: transparent;
+  --md-selection: rgb(142 174 246 / 0.28);
+  --md-active-line: rgb(255 255 255 / 0.03);
+  --md-syntax-base: #dcdde1;
+  --md-syntax-comment: #8e9098;
+  --md-syntax-keyword: #8eaef6;
+  --md-syntax-string: #8dbf84;
+  --md-syntax-number: #e8b65a;
+  --md-syntax-function: #b9ccf9;
+  --md-syntax-type: #c9cacf;
+  --md-syntax-variable: #dcdde1;
+  --md-syntax-invalid: #f08a7e;
 }
 
-/* topic colours for the study map and tree marks. 400 shades read on dark.
-   kept out of @theme because tailwind drops theme variables no class uses,
-   and these are only read through var() */
+/* topic colours for the study map and tree marks. Light enough to read on
+   charcoal; html.light swaps in deeper shades. Only read through var(). */
 :root {
-  --color-topic-0: #818cf8;
-  --color-topic-1: #fbbf24;
-  --color-topic-2: #2dd4bf;
-  --color-topic-3: #fb7185;
-  --color-topic-4: #38bdf8;
-  --color-topic-5: #fb923c;
-  --color-topic-6: #a3e635;
-  --color-topic-7: #e879f9;
+  --color-topic-0: #8eaef6;
+  --color-topic-1: #e8b65a;
+  --color-topic-2: #8dbf84;
+  --color-topic-3: #f08a7e;
+  --color-topic-4: #7cc4e4;
+  --color-topic-5: #f0a46b;
+  --color-topic-6: #b7cb8c;
+  --color-topic-7: #d3a6f0;
 }
 
 /* light mode overrides */
 html.light {
-  /* 400 shades wash out on white, so light uses the 600 shades */
-  --color-topic-0: #4f46e5;
-  --color-topic-1: #d97706;
-  --color-topic-2: #0d9488;
-  --color-topic-3: #e11d48;
-  --color-topic-4: #0284c7;
-  --color-topic-5: #ea580c;
-  --color-topic-6: #65a30d;
-  --color-topic-7: #c026d3;
-  --color-background: #f8fafc;
+  --color-topic-0: #2453c6;
+  --color-topic-1: #b45309;
+  --color-topic-2: #276f21;
+  --color-topic-3: #b42318;
+  --color-topic-4: #0e6d99;
+  --color-topic-5: #c2410c;
+  --color-topic-6: #556b2f;
+  --color-topic-7: #8a3fb8;
+
+  --color-background: #fbfbfc;
   --color-surface: #ffffff;
-  --color-surface-elevated: #f1f5f9;
-  --color-border: rgba(0, 0, 0, 0.12);
-  --color-border-subtle: rgba(0, 0, 0, 0.06);
-  --color-text: #0f172a;
+  --color-surface-elevated: #f3f4f6;
+  --color-sidebar: #f3f4f6;
+  --color-border: #e3e5e8;
+  --color-border-subtle: #e9ebee;
+  --color-border-strong: #cdd1d8;
+  --color-text: #15171c;
   /* Strong enough for reading outdoors, not just a dark-mode desk setup. */
-  --color-text-secondary: #334155;
-  --color-text-tertiary: #475569;
+  --color-text-secondary: #40444d;
+  --color-text-tertiary: #575c66;
   --color-input: #ffffff;
-  --color-subtle: rgba(0, 0, 0, 0.04);
-  --color-subtle-hover: rgba(0, 0, 0, 0.08);
+  --color-subtle: rgb(21 23 28 / 0.04);
+  --color-subtle-hover: rgb(21 23 28 / 0.07);
+
+  --color-action: #2453c6;
+  --color-action-hover: #1c409c;
+  --color-on-action: #ffffff;
+  --color-accent: #2453c6;
+  --color-accent-hover: #1c409c;
+  --color-accent-soft: #e9effc;
+  --color-accent-soft-text: #1c409c;
+  --color-selected: #ffffff;
+
+  --atlas-shadow-raised: 0 0 0 1px #e3e5e8, 0 1px 2px rgb(16 24 40 / 0.06);
+  --atlas-shadow-float: 0 0 0 1px #e3e5e8, 0 10px 15px -3px rgb(16 24 40 / 0.1), 0 4px 6px -4px rgb(16 24 40 / 0.08);
+
   --md-bg: var(--color-background);
   --md-surface: var(--color-surface);
-  --md-surface-subtle: rgb(0 0 0 / 0.035);
-  --md-code-bg: var(--color-surface-elevated);
-  --md-code-header-bg: color-mix(in srgb, var(--color-surface-elevated) 76%, var(--color-surface));
-  --md-code-border: var(--color-border-subtle);
-  --md-text: var(--color-text);
+  --md-surface-subtle: rgb(21 23 28 / 0.03);
+  --md-code-bg: #f4f5f7;
+  --md-code-header-bg: #eceef1;
+  --md-code-border: var(--color-border);
+  --md-text: #2d3139;
   --md-text-muted: var(--color-text-secondary);
   --md-text-faint: var(--color-text-tertiary);
-  --md-heading-1: #4338ca;
-  --md-heading-2: #1d4ed8;
-  --md-heading-3: #0f766e;
-  --md-heading-marker: rgb(79 70 229 / 0.56);
-  --md-link: var(--color-primary-600);
-  --md-link-hover: var(--color-primary-700);
-  --md-accent: var(--color-primary-600);
-  --md-accent-soft: rgb(79 70 229 / 0.12);
-  --md-strong: #020617;
-  --md-emphasis: #92400e;
-  --md-strike: #64748b;
-  --md-list-marker: #4f46e5;
-  --md-quote-text: #334155;
-  --md-quote-border: rgb(79 70 229 / 0.5);
-  --md-quote-bg: rgb(79 70 229 / 0.055);
-  --md-inline-code-text: #9a3412;
-  --md-inline-code-bg: rgb(241 245 249 / 0.95);
-  --md-inline-code-border: rgb(15 23 42 / 0.1);
-  --md-selection: rgb(99 102 241 / 0.22);
-  --md-active-line: rgb(15 23 42 / 0.035);
-  --md-syntax-base: #1e293b;
-  --md-syntax-comment: #64748b;
-  --md-syntax-keyword: #4f46e5;
-  --md-syntax-string: #15803d;
+  --md-heading-1: var(--color-text);
+  --md-heading-2: var(--color-text);
+  --md-heading-3: var(--color-text);
+  --md-heading-marker: rgb(36 83 198 / 0.5);
+  --md-link: var(--color-accent);
+  --md-link-hover: var(--color-accent-hover);
+  --md-accent: var(--color-accent);
+  --md-accent-soft: rgb(36 83 198 / 0.1);
+  --md-strong: var(--color-text);
+  --md-emphasis: var(--color-text);
+  --md-strike: var(--color-text-tertiary);
+  --md-list-marker: var(--color-text-tertiary);
+  --md-quote-text: var(--color-text-secondary);
+  --md-quote-border: transparent;
+  --md-quote-bg: #f4f5f7;
+  --md-inline-code-text: var(--color-text);
+  --md-inline-code-bg: #f0f1f4;
+  --md-inline-code-border: transparent;
+  --md-selection: rgb(36 83 198 / 0.18);
+  --md-active-line: rgb(21 23 28 / 0.03);
+  --md-syntax-base: #2d3139;
+  --md-syntax-comment: #6b707a;
+  --md-syntax-keyword: #2453c6;
+  --md-syntax-string: #276f21;
   --md-syntax-number: #b45309;
-  --md-syntax-function: #2563eb;
-  --md-syntax-type: #0f766e;
-  --md-syntax-variable: #334155;
-  --md-syntax-invalid: #dc2626;
+  --md-syntax-function: #1c409c;
+  --md-syntax-type: #40444d;
+  --md-syntax-variable: #2d3139;
+  --md-syntax-invalid: #b42318;
 }
 
 html.light .obsidian-scrollbar {
@@ -273,7 +326,7 @@ body {
 
 @layer base {
   :where(a, button, input, textarea, select, [tabindex]):focus-visible {
-    outline: 2px solid var(--color-primary-400);
+    outline: 2px solid var(--color-accent);
     outline-offset: 2px;
   }
 
@@ -348,9 +401,9 @@ select option:disabled {
     font-family: var(--font-display);
     font-size: clamp(3rem, 2.55rem + 2.25vw, 4.5rem);
     font-optical-sizing: auto;
-    font-weight: 650;
-    letter-spacing: -0.045em;
-    line-height: 0.96;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    line-height: 1.04;
     text-wrap: balance;
   }
 
@@ -358,9 +411,9 @@ select option:disabled {
     font-family: var(--font-display);
     font-size: clamp(2.25rem, 1.8rem + 2.25vw, 3.75rem);
     font-optical-sizing: auto;
-    font-weight: 650;
-    letter-spacing: -0.035em;
-    line-height: 1.02;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.08;
     text-wrap: balance;
   }
 
@@ -368,9 +421,9 @@ select option:disabled {
     font-family: var(--font-display);
     font-size: clamp(1.875rem, 1.54rem + 1.68vw, 3rem);
     font-optical-sizing: auto;
-    font-weight: 650;
-    letter-spacing: -0.025em;
-    line-height: 1.08;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.12;
     text-wrap: balance;
   }
 
@@ -386,8 +439,8 @@ select option:disabled {
     font-family: var(--font-display);
     font-size: 1.25rem;
     font-optical-sizing: auto;
-    font-weight: 650;
-    letter-spacing: -0.018em;
+    font-weight: 600;
+    letter-spacing: -0.015em;
     line-height: 1.25;
   }
 
@@ -398,7 +451,7 @@ select option:disabled {
 
 @layer components {
   .ui-icon-button {
-    @apply flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 disabled:cursor-not-allowed disabled:opacity-40 lg:h-8 lg:w-8;
+    @apply flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-40 lg:h-8 lg:w-8;
   }
 
   /* Editor Styles */
@@ -408,7 +461,7 @@ select option:disabled {
   }
 
   .editor-input:focus {
-    @apply bg-surface-elevated ring-2 ring-primary-500;
+    @apply bg-surface-elevated ring-2 ring-accent;
   }
 
   .editor-placeholder {
@@ -421,7 +474,7 @@ select option:disabled {
 
   /* Lexical Editor Theme */
   .editor-theme-light {
-    @apply bg-white text-neutral-900;
+    @apply bg-surface text-text;
   }
 
   .editor-theme-dark {
@@ -438,17 +491,17 @@ select option:disabled {
   }
 
   .lexical-editor h1 {
-    @apply text-4xl font-bold my-4 mt-6;
+    @apply font-serif tracking-tight text-4xl font-bold my-4 mt-6;
     line-height: 1.1;
   }
 
   .lexical-editor h2 {
-    @apply text-3xl font-bold my-3 mt-5;
+    @apply font-serif tracking-tight text-3xl font-semibold my-3 mt-5;
     line-height: 1.1;
   }
 
   .lexical-editor h3 {
-    @apply text-2xl font-bold my-2 mt-4;
+    @apply font-serif tracking-tight text-2xl font-semibold my-2 mt-4;
     line-height: 1.15;
   }
 
@@ -462,11 +515,12 @@ select option:disabled {
   }
 
   .lexical-editor a {
-    @apply text-primary-400 underline hover:text-primary-300 cursor-pointer;
+    @apply text-accent underline underline-offset-2 hover:text-accent-hover cursor-pointer;
   }
 
   .lexical-editor blockquote {
-    @apply border-l-4 border-primary-500 pl-4 italic my-2 text-text-tertiary;
+    @apply my-2 rounded-radius-md px-4 py-2 text-text-secondary;
+    background: var(--md-quote-bg);
   }
 
   .lexical-editor code {
@@ -474,7 +528,7 @@ select option:disabled {
   }
 
   .lexical-editor pre {
-    @apply bg-background text-text p-4 rounded-lg overflow-x-auto;
+    @apply bg-background text-text font-mono p-4 rounded-radius-lg border border-border overflow-x-auto;
   }
 
   /* Lexical theme classes - used by Lexical for semantic markup */
@@ -483,17 +537,17 @@ select option:disabled {
   }
 
   .editor-heading-h1 {
-    @apply text-4xl font-bold my-4 mt-6;
+    @apply font-serif tracking-tight text-4xl font-bold my-4 mt-6;
     line-height: 1.1;
   }
 
   .editor-heading-h2 {
-    @apply text-3xl font-bold my-3 mt-5;
+    @apply font-serif tracking-tight text-3xl font-semibold my-3 mt-5;
     line-height: 1.1;
   }
 
   .editor-heading-h3 {
-    @apply text-2xl font-bold my-2 mt-4;
+    @apply font-serif tracking-tight text-2xl font-semibold my-2 mt-4;
     line-height: 1.15;
   }
 
@@ -510,7 +564,7 @@ select option:disabled {
   }
 
   .editor-link {
-    @apply text-primary-400 underline hover:text-primary-300 cursor-pointer;
+    @apply text-accent underline underline-offset-2 hover:text-accent-hover cursor-pointer;
   }
 
   .editor-code {
@@ -518,7 +572,8 @@ select option:disabled {
   }
 
   .editor-quote {
-    @apply border-l-4 border-primary-500 pl-4 italic my-2 text-text-tertiary;
+    @apply my-2 rounded-radius-md px-4 py-2 text-text-secondary;
+    background: var(--md-quote-bg);
   }
 
   /* Card hover effect */
@@ -538,7 +593,7 @@ select option:disabled {
   --md-heading-2-size: clamp(1.55rem, 1.34rem + 0.78vw, 2rem);
   --md-heading-3-size: clamp(1.25rem, 1.13rem + 0.45vw, 1.5rem);
   font-size: 1rem;
-  line-height: 1.625;
+  line-height: 1.65;
   color: var(--md-text);
   overflow-wrap: anywhere;
 }
@@ -579,8 +634,8 @@ select option:disabled {
   font-family: var(--font-serif);
   font-optical-sizing: auto;
   line-height: 1.2;
-  letter-spacing: -0.018em;
-  font-weight: 650;
+  letter-spacing: -0.02em;
+  font-weight: 600;
 }
 
 .md-rendered h1 {
@@ -626,9 +681,20 @@ select option:disabled {
   letter-spacing: -0.012em;
 }
 
-.md-rendered[data-markdown-variant="note"] h1,
-.md-rendered[data-markdown-variant="note"] h2,
-.md-rendered[data-markdown-variant="note"] h3,
+/* quiz text takes its size and face from the question, option or explanation around it */
+.md-rendered[data-markdown-variant="quiz"] {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.md-rendered[data-markdown-variant="note"] {
+  font-family: var(--font-serif);
+  font-optical-sizing: auto;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+}
+
 .md-rendered[data-markdown-variant="note"] h4,
 .md-rendered[data-markdown-variant="note"] h5,
 .md-rendered[data-markdown-variant="note"] h6 {
@@ -638,8 +704,10 @@ select option:disabled {
 .markdown-preview a,
 .md-rendered a {
   color: var(--md-link);
-  text-decoration-color: color-mix(in srgb, var(--md-link) 58%, transparent);
-  text-underline-offset: 0.18em;
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in srgb, var(--md-link) 45%, transparent);
+  text-underline-offset: 0.2em;
 }
 
 .markdown-preview a:hover,
@@ -702,11 +770,15 @@ select option:disabled {
 
 .md-rendered blockquote {
   margin: var(--md-flow-space) 0;
-  border-left: 3px solid var(--md-quote-border);
+  border: 0;
   background: var(--md-quote-bg);
   color: var(--md-quote-text);
-  border-radius: 0 var(--radius-radius-md) var(--radius-radius-md) 0;
-  padding: 0.7rem 1rem;
+  border-radius: var(--radius-radius-lg);
+  padding: 0.75rem 1rem;
+}
+
+.md-rendered blockquote > :last-child {
+  margin-bottom: 0;
 }
 
 .md-rendered :not(pre) > code {
@@ -790,6 +862,27 @@ select option:disabled {
   border-radius: var(--radius-radius-lg);
 }
 
+/* footnotes: a quiet hairline-separated block in the reading font size */
+.md-rendered sup a,
+.md-rendered a[data-footnote-ref] {
+  font-family: var(--font-mono);
+  font-size: 0.75em;
+  text-decoration: none;
+}
+
+.md-rendered section[data-footnotes],
+.md-rendered .footnotes {
+  margin-top: calc(var(--md-flow-space) * 2);
+  border-top: 1px solid var(--md-code-border);
+  padding-top: var(--md-flow-space);
+  color: var(--md-text-faint);
+  font-size: 0.875rem;
+}
+
+.md-rendered a[data-footnote-backref] {
+  text-decoration: none;
+}
+
 /* react-complex-tree - obsidian-style overrides */
 :root {
   --rct-color-tree-bg: transparent;
@@ -797,13 +890,13 @@ select option:disabled {
   --rct-color-focustree-item-selected-bg: transparent;
   --rct-color-focustree-item-selected-text: inherit;
   --rct-color-focustree-item-focused-border: transparent;
-  --rct-color-focustree-item-draggingover-bg: rgba(59, 130, 246, 0.08);
+  --rct-color-focustree-item-draggingover-bg: var(--md-accent-soft);
   --rct-color-focustree-item-draggingover-color: inherit;
   --rct-color-nonfocustree-item-selected-bg: transparent;
   --rct-color-nonfocustree-item-selected-text: inherit;
   --rct-color-nonfocustree-item-focused-border: transparent;
-  --rct-color-search-highlight-bg: rgba(59, 130, 246, 0.3);
-  --rct-color-drag-between-line-bg: rgb(59, 130, 246);
+  --rct-color-search-highlight-bg: var(--md-accent-soft);
+  --rct-color-drag-between-line-bg: var(--color-accent);
   --rct-color-arrow: transparent; /* we render our own arrows */
   --rct-color-renaming-input-submitbutton-bg: transparent;
   --rct-color-renaming-input-submitbutton-bg-hover: transparent;
@@ -852,9 +945,8 @@ select option:disabled {
 /* drag-between line indicator */
 .rct-tree-drag-between-line {
   height: 2px !important;
-  background: rgb(59, 130, 246) !important;
+  background: var(--color-accent) !important;
   border-radius: 1px;
-  opacity: 0.7;
 }
 
 /* obsidian-style scrollbar */
@@ -881,88 +973,55 @@ select option:disabled {
 }
 
 .bg-landing {
-  background: radial-gradient(
-    ellipse at top,
-    rgb(99 102 241 / 0.1),
-    var(--color-background) 55%
-  );
+  background: var(--color-background);
 }
 
-html.light .bg-landing {
-  background: radial-gradient(
-    ellipse at top,
-    rgb(99 102 241 / 0.06),
-    var(--color-background) 55%
-  );
-}
-
-/* subtle indigo warmth for app working pages */
+/* app working pages sit on the plain Atlas ground */
 .bg-app-page {
   background: var(--color-background);
-  background-image: radial-gradient(
-    ellipse at top,
-    rgb(99 102 241 / 0.04),
-    transparent 60%
-  );
 }
 
-html.light .bg-app-page {
-  background-image: radial-gradient(
-    ellipse at top,
-    rgb(99 102 241 / 0.03),
-    transparent 60%
-  );
-}
-
-/* glass surfaces — dark theme (default) */
+/* Atlas surfaces. Names kept for compatibility: panels are solid sidebars,
+   cards are hairline-bordered surfaces, and selection is a raised pill —
+   never a coloured edge. */
 .glass-panel {
-  background: rgb(255 255 255 / 0.03);
-  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.06);
+  background: var(--color-sidebar);
+  box-shadow: 1px 0 0 var(--color-border);
 }
 
 .glass-card {
-  background: rgb(255 255 255 / 0.05);
-  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.1);
+  background: var(--color-surface);
+  box-shadow: 0 0 0 1px var(--color-border);
 }
 
 .glass-card-interactive {
-  background: rgb(255 255 255 / 0.05);
-  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.1);
+  background: var(--color-surface);
+  box-shadow: 0 0 0 1px var(--color-border);
   transition:
     background 150ms,
     box-shadow 150ms;
 }
 
 .glass-card-interactive:hover {
-  background: rgb(255 255 255 / 0.07);
-  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.2);
+  background: var(--color-surface);
+  box-shadow: 0 0 0 1px var(--color-border-strong);
 }
 
 .glass-card-active {
-  background: rgb(59 130 246 / 0.1);
-  box-shadow: 0 0 0 1px rgb(59 130 246 / 0.25);
+  background: var(--color-selected);
+  box-shadow: 0 0 0 1.5px var(--color-accent);
 }
 
-/* glass surfaces — light theme */
-html.light .glass-panel {
-  background: rgb(0 0 0 / 0.02);
-  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.06);
+/* raised pill: the Atlas active/selected state for nav and list items */
+.atlas-raised {
+  background: var(--color-selected);
+  box-shadow: var(--shadow-raised);
 }
 
 html.light .glass-card,
-html.light .glass-card-interactive {
-  background: rgb(0 0 0 / 0.03);
-  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.08);
-}
-
-html.light .glass-card-interactive:hover {
-  background: rgb(0 0 0 / 0.05);
-  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.12);
-}
-
+html.light .glass-card-interactive,
 html.light .glass-card-active {
-  background: rgb(59 130 246 / 0.08);
-  box-shadow: 0 0 0 1px rgb(59 130 246 / 0.2);
+  background: var(--color-surface);
 }
 
 /* One code-block surface for notes, chat, and quizzes. */
@@ -999,14 +1058,15 @@ html.light .glass-card-active {
   height: 0.375rem;
   flex: none;
   border-radius: 999px;
-  background: var(--md-accent);
+  background: var(--md-text-faint);
 }
 
 .md-rendered .oghma-codeblock-language {
   color: var(--md-text-faint);
-  font-size: 0.66rem;
-  font-weight: 650;
-  letter-spacing: 0.16em;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
@@ -1047,7 +1107,7 @@ html.light .glass-card-active {
 .md-rendered .oghma-codeblock pre > code {
   display: block;
   min-width: max-content;
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
 }
 
 .md-rendered[data-markdown-variant="chat"] .oghma-codeblock-header {
@@ -1124,6 +1184,16 @@ html.light .glass-card-active {
   --mobile-dock-space: calc(5rem + var(--safe-bottom));
 }
 
+/* the focus timer strip is fixed to the bottom, so app shells and the dock
+   give up its height instead of sliding under it */
+:root:has([data-focus-bar]) {
+  --focus-bar-space: calc(2.125rem + var(--safe-bottom));
+}
+
+@utility h-app {
+  height: calc(100dvh - var(--focus-bar-space, 0px));
+}
+
 :root:has([data-native-dock]) .desktop-navigation-rail {
   display: none;
 }
@@ -1161,7 +1231,7 @@ html.light .glass-card-active {
   overflow-y: hidden;
   border: 1px solid var(--md-inline-code-border);
   border-radius: var(--radius-radius-lg);
-  background: color-mix(in srgb, var(--md-inline-code-bg) 62%, transparent);
+  background: var(--md-surface-subtle);
   padding: 0.85rem 1rem;
 }
 .md-rendered .katex {
@@ -1180,31 +1250,51 @@ html.light .glass-card-active {
   }
 }
 
-/* Crepe structure with OghmaNotes' existing dark/light design tokens. */
+/* Crepe mapped onto Atlas tokens. Every value is a token, so html.light
+   swaps the whole editor theme without a second block. */
 .oghma-milkdown-editor .milkdown {
   min-height: 100%;
-  --crepe-color-background: var(--color-background);
+  --crepe-color-background: var(--md-bg);
   --crepe-color-on-background: var(--color-text);
   --crepe-color-surface: var(--color-surface);
   --crepe-color-surface-low: var(--color-surface-elevated);
   --crepe-color-on-surface: var(--color-text);
   --crepe-color-on-surface-variant: var(--color-text-secondary);
   --crepe-color-outline: var(--color-text-tertiary);
-  --crepe-color-primary: var(--md-accent);
-  --crepe-color-secondary: color-mix(in srgb, var(--md-accent) 18%, var(--color-surface));
-  --crepe-color-on-secondary: var(--color-text);
+  --crepe-color-primary: var(--color-accent);
+  --crepe-color-secondary: var(--color-accent-soft);
+  --crepe-color-on-secondary: var(--color-accent-soft-text);
   --crepe-color-inverse: var(--color-text);
   --crepe-color-on-inverse: var(--color-background);
   --crepe-color-inline-code: var(--md-inline-code-text);
-  --crepe-color-error: var(--color-error-400);
-  --crepe-color-hover: color-mix(in srgb, var(--md-accent) 10%, var(--color-surface));
+  --crepe-color-error: var(--md-syntax-invalid);
+  --crepe-color-hover: var(--color-subtle-hover);
   --crepe-color-selected: var(--md-selection);
   --crepe-color-inline-area: var(--md-inline-code-bg);
-  --crepe-font-title: var(--font-sans);
+  --crepe-font-title: var(--font-serif);
   --crepe-font-default: var(--font-sans);
-  --crepe-font-code: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  --crepe-shadow-1: 0 1px 3px rgb(0 0 0 / 0.22);
-  --crepe-shadow-2: 0 8px 24px rgb(0 0 0 / 0.3);
+  --crepe-font-code: var(--font-mono);
+  --crepe-shadow-1: var(--shadow-float);
+  --crepe-shadow-2: var(--shadow-float);
+}
+
+/* Crepe menus read as floating hairline popovers. */
+.oghma-milkdown-editor .milkdown :is(
+    .milkdown-toolbar,
+    .milkdown-slash-menu,
+    .milkdown-link-preview > .link-preview,
+    .milkdown-link-edit > .link-edit,
+    .milkdown-code-block .list-wrapper
+  ) {
+  border: 0;
+  border-radius: var(--radius-radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-float);
+}
+
+.oghma-milkdown-editor .milkdown .milkdown-toolbar .toolbar-item.active svg {
+  color: var(--color-accent);
+  fill: var(--color-accent);
 }
 
 .oghma-milkdown-editor .milkdown-top-bar {
@@ -1249,12 +1339,15 @@ html.light .glass-card-active {
   margin: 0.35rem;
 }
 
+/* note text reads in Literata like the mockups; menus and toolbars keep Geist via --crepe-font-default */
 .oghma-milkdown-editor .milkdown .ProseMirror {
   min-height: 100%;
   max-width: var(--editor-write-max-width);
   margin-inline: auto;
-  font-size: 1rem;
-  line-height: 1.625;
+  font-family: var(--font-serif);
+  font-optical-sizing: auto;
+  font-size: 1.0625rem;
+  line-height: 1.7;
 }
 
 .oghma-milkdown-editor .milkdown .ProseMirror h1,
@@ -1269,12 +1362,21 @@ html.light .glass-card-active {
   text-wrap: balance;
 }
 
+/* write view matches reading view: editorial headings in Literata */
+.oghma-milkdown-editor .milkdown .ProseMirror h1,
+.oghma-milkdown-editor .milkdown .ProseMirror h2,
+.oghma-milkdown-editor .milkdown .ProseMirror h3 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
 .oghma-milkdown-editor .milkdown .ProseMirror h1 {
   color: var(--color-text);
   font-size: var(--md-heading-1-size, 2.75rem);
+  font-weight: 700;
   line-height: 1.06;
 }
-
 
 .oghma-milkdown-editor .milkdown .ProseMirror h2 {
   color: var(--color-text);
@@ -1321,25 +1423,47 @@ html.light .glass-card-active {
 
 .oghma-milkdown-editor .milkdown .ProseMirror a {
   color: var(--md-link);
-  text-decoration-color: color-mix(in srgb, var(--md-link) 55%, transparent);
+  text-decoration-color: color-mix(in srgb, var(--md-link) 45%, transparent);
+  text-underline-offset: 0.2em;
 }
 
+.oghma-milkdown-editor .milkdown .ProseMirror :not(pre) > code {
+  font-family: var(--font-mono);
+}
+
+/* quotes are a tinted rounded surface, never a side bar */
 .oghma-milkdown-editor .milkdown .ProseMirror blockquote {
-  border-color: var(--md-quote-border);
-  border-radius: 0 var(--radius-radius-md) var(--radius-radius-md) 0;
-  background: color-mix(in srgb, var(--md-quote-border) 7%, transparent);
+  box-sizing: border-box;
+  margin-block: 0.75rem;
+  border: 0;
+  border-radius: var(--radius-radius-lg);
+  background: var(--md-quote-bg);
+  padding: 0.75rem 1rem;
   color: var(--md-quote-text);
+}
+
+.oghma-milkdown-editor .milkdown .ProseMirror blockquote::before {
+  display: none;
 }
 
 .md-rendered blockquote blockquote,
 .oghma-milkdown-editor .milkdown .ProseMirror blockquote blockquote {
   margin-block: 0.75rem 0.25rem;
-  background: color-mix(in srgb, var(--md-quote-border) 10%, transparent);
+  background: var(--md-surface-subtle);
+  box-shadow: inset 0 0 0 1px var(--md-code-border);
 }
 
 .md-rendered blockquote blockquote blockquote,
 .oghma-milkdown-editor .milkdown .ProseMirror blockquote blockquote blockquote {
-  background: color-mix(in srgb, var(--md-quote-border) 14%, transparent);
+  background: var(--md-quote-bg);
+}
+
+/* <mark> and search hits: an accent-soft tint, not highlighter yellow */
+.md-rendered mark {
+  border-radius: 0.2em;
+  background: color-mix(in srgb, var(--color-accent) 22%, transparent);
+  color: inherit;
+  padding: 0 0.12em;
 }
 
 .oghma-milkdown-editor .milkdown .ProseMirror strong {
@@ -1349,7 +1473,7 @@ html.light .glass-card-active {
 .oghma-milkdown-editor .oghma-html-token-hidden { display: none; }
 .oghma-milkdown-editor .oghma-html-mark {
   border-radius: 0.2em;
-  background: color-mix(in srgb, #facc15 35%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 22%, transparent);
   padding: 0 0.12em;
 }
 .oghma-milkdown-editor .oghma-html-kbd {
@@ -1439,9 +1563,9 @@ html.light .glass-card-active {
     .preview-toggle-button[aria-label="Edit diagram source"]
   )
   .preview-toggle-button {
-  border-color: color-mix(in srgb, var(--color-primary-500) 55%, transparent);
-  background: var(--color-primary-500-alpha, rgb(59 130 246 / 10%));
-  color: var(--md-text);
+  border-color: transparent;
+  background: var(--color-accent-soft);
+  color: var(--color-accent-soft-text);
 }
 
 .oghma-milkdown-editor .milkdown-code-block .preview-panel .preview {
@@ -1461,7 +1585,7 @@ html.light .glass-card-active {
 }
 
 .oghma-milkdown-editor .milkdown-code-block button:focus-visible {
-  outline: 2px solid var(--color-primary-400);
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
 
@@ -1508,15 +1632,15 @@ html.light .glass-card-active {
 
 .oghma-mermaid-expand-button:hover,
 .oghma-mermaid-viewer-button:hover:not(:disabled) {
-  border-color: var(--color-primary-500);
-  background: var(--color-primary-500-alpha, rgb(59 130 246 / 10%));
+  border-color: var(--color-border-strong);
+  background: var(--color-subtle-hover);
   color: var(--md-text);
 }
 
 .oghma-mermaid-expand-button:focus-visible,
 .oghma-mermaid-viewer-button:focus-visible,
 .oghma-mermaid-viewer-viewport:focus-visible {
-  outline: 2px solid var(--color-primary-400);
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
 
@@ -1560,13 +1684,13 @@ html.light .glass-card-active {
 
 .oghma-mermaid-diagram svg text,
 .oghma-mermaid-diagram svg tspan {
-  color: #fff !important;
-  fill: #fff !important;
+  color: var(--color-text) !important;
+  fill: var(--color-text) !important;
 }
 
 .oghma-mermaid-diagram svg foreignObject,
 .oghma-mermaid-diagram svg foreignObject * {
-  color: #fff !important;
+  color: var(--color-text) !important;
 }
 
 .oghma-mermaid-inline {
@@ -1588,11 +1712,11 @@ html.light .glass-card-active {
 
 .oghma-mermaid-inline-language {
   overflow: hidden;
-  border-radius: 4px;
+  border-radius: var(--radius-radius-sm);
   padding: 2px 8px;
   background: var(--crepe-color-surface-low);
   color: var(--crepe-color-on-surface-variant);
-  font-family: var(--crepe-font-default);
+  font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 600;
   line-height: 16px;
@@ -1620,8 +1744,8 @@ html.light .glass-card-active {
   flex: none;
   place-items: center;
   border: 0;
-  border-radius: 4px;
-  background: var(--crepe-color-secondary);
+  border-radius: var(--radius-radius-sm);
+  background: var(--color-subtle);
   color: var(--crepe-color-on-surface-variant);
   cursor: pointer;
   transition:
@@ -1646,7 +1770,7 @@ html.light .glass-card-active {
 
 .oghma-mermaid-inline-toolbar button:focus-visible,
 .oghma-mermaid-inline-viewport:focus-visible {
-  outline: 2px solid var(--color-primary-400);
+  outline: 2px solid var(--color-accent);
   outline-offset: -2px;
 }
 
@@ -1663,7 +1787,7 @@ html.light .glass-card-active {
 .oghma-mermaid-inline-toolbar .oghma-mermaid-inline-percent {
   width: 3rem;
   color: var(--crepe-color-on-surface);
-  font-family: var(--crepe-font-default);
+  font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -1773,46 +1897,37 @@ html.light .glass-card-active {
   margin: 0;
 }
 
-/* study map glass. quiet on purpose: edge light and a soft tint, no glow */
+/* study map surfaces. Atlas-quiet: a near-solid surface, a hairline edge and
+   a faint shadow. No edge light, no glow, no gradient. */
 :root {
-  --study-glass: rgb(255 255 255 / 0.065);
-  --study-glass-edge: rgb(255 255 255 / 0.13);
-  --study-glass-hi: rgb(255 255 255 / 0.2);
-  --study-glass-shadow: rgb(0 0 0 / 0.4);
-  --study-glass-caption: rgb(16 20 30 / 0.78);
+  --study-glass: color-mix(in srgb, var(--color-surface) 94%, transparent);
+  --study-glass-edge: var(--color-border);
+  --study-glass-hi: transparent;
+  --study-glass-shadow: rgb(0 0 0 / 0.28);
+  --study-glass-caption: color-mix(in srgb, var(--color-surface) 92%, transparent);
 }
 html.light {
-  --study-glass: rgb(255 255 255 / 0.72);
-  --study-glass-edge: rgb(255 255 255 / 0.85);
-  --study-glass-hi: rgb(255 255 255 / 1);
-  --study-glass-shadow: rgb(30 41 59 / 0.14);
-  --study-glass-caption: rgb(255 255 255 / 0.82);
+  --study-glass-shadow: rgb(16 24 40 / 0.08);
 }
 .study-glass {
-  background: linear-gradient(
-    145deg,
-    var(--study-glass),
-    color-mix(in srgb, var(--study-glass) 55%, transparent)
-  );
+  background: var(--study-glass);
   border: 1px solid var(--study-glass-edge);
-  box-shadow:
-    inset 0 1px 0 var(--study-glass-hi),
-    0 6px 20px var(--study-glass-shadow);
+  box-shadow: 0 1px 2px var(--study-glass-shadow);
 }
 .study-glass-on {
-  border-color: color-mix(in srgb, var(--color-primary-500) 60%, transparent);
+  border-color: var(--color-accent);
 }
 /* only overlays pay for a real backdrop blur: the map itself pans under them every frame */
 .study-glass-blur {
-  background-color: color-mix(in srgb, var(--color-surface) 62%, transparent);
-  backdrop-filter: blur(20px) saturate(120%);
+  background-color: color-mix(in srgb, var(--color-surface) 92%, transparent);
+  backdrop-filter: blur(12px);
 }
 .study-glass-caption {
   background: var(--study-glass-caption);
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(8px);
 }
 .study-card-page {
-  box-shadow: 0 6px 20px var(--study-glass-shadow);
+  box-shadow: 0 4px 12px var(--study-glass-shadow);
 }
 html:not(.light) .study-card-page > div:first-child {
   filter: brightness(0.93);
@@ -1832,9 +1947,7 @@ html:not(.light) .study-card-page > div:first-child {
 .study-fan-card {
   border: 3px solid var(--study-glass-edge);
   border-radius: 48px;
-  box-shadow:
-    inset 0 3px 0 var(--study-glass-hi),
-    0 18px 56px var(--study-glass-shadow);
+  box-shadow: 0 12px 36px var(--study-glass-shadow);
 }
 .study-deck-face {
   position: absolute;
@@ -1844,25 +1957,16 @@ html:not(.light) .study-card-page > div:first-child {
   overflow: hidden;
   padding: 36px 40px;
   color: var(--color-text);
+  /* a flat topic tint over the surface; unfolding thins the deck toward the
+     translucent surface of a cluster */
   background:
-    radial-gradient(
-      120% 90% at 0 0,
-      color-mix(
-        in srgb,
-        var(--deck-colour) calc(17% * var(--deck-fill, 1)),
-        transparent
-      ),
-      transparent 62%
-    ),
     linear-gradient(
-      145deg,
-      var(--study-glass),
-      color-mix(in srgb, var(--study-glass) 55%, transparent)
+      color-mix(in srgb, var(--deck-colour) calc(7% * var(--deck-fill, 1)), transparent),
+      color-mix(in srgb, var(--deck-colour) calc(7% * var(--deck-fill, 1)), transparent)
     ),
-    /* unfolding thins the deck into the see-through glass of a cluster */
     color-mix(
       in srgb,
-      var(--color-surface) calc(100% * var(--deck-fill, 1)),
+      var(--color-surface) calc(55% + 45% * var(--deck-fill, 1)),
       transparent
     );
 }
@@ -1904,7 +2008,7 @@ html:not(.light) .study-card-page > div:first-child {
 }
 .study-deck-under {
   position: absolute;
-  background: color-mix(in srgb, var(--deck-colour) 10%, var(--color-surface));
+  background: color-mix(in srgb, var(--deck-colour) 6%, var(--color-surface));
 }
 .study-deck-under-1 {
   inset: 14px -12px -14px 12px;
@@ -1925,13 +2029,7 @@ html:not(.light) .study-card-page > div:first-child {
   overflow: hidden;
   padding: 30px 32px;
   color: var(--color-text);
-  background:
-    linear-gradient(
-      145deg,
-      var(--study-glass),
-      color-mix(in srgb, var(--study-glass) 55%, transparent)
-    ),
-    var(--color-surface);
+  background: var(--color-surface);
   transform: translate(var(--tx), var(--ty))
     rotate(calc(var(--rot, 0deg) + var(--dr))) scale(var(--s));
   transform-origin: 50% 85%;
@@ -1943,11 +2041,8 @@ html:not(.light) .study-card-page > div:first-child {
     filter 220ms ease-out;
 }
 .study-fan-card-hot {
-  box-shadow:
-    inset 0 3px 0 var(--study-glass-hi),
-    0 60px 110px var(--study-glass-shadow),
-    0 0 0 3px color-mix(in srgb, var(--fan-colour) 55%, transparent),
-    0 28px 110px color-mix(in srgb, var(--fan-colour) 35%, transparent);
+  border-color: var(--color-border-strong);
+  box-shadow: 0 40px 80px var(--study-glass-shadow);
 }
 .study-fan-card-dim {
   opacity: 0.55;
@@ -1979,7 +2074,7 @@ html:not(.light) .study-card-page > div:first-child {
   color: color-mix(in srgb, var(--color-text) 80%, transparent);
 }
 .study-fan-card-selected {
-  outline: 8px solid var(--color-primary-500);
+  outline: 8px solid var(--color-accent);
   outline-offset: 4px;
 }
 .study-fan-more {

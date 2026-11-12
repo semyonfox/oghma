@@ -71,6 +71,27 @@ describe("generateJWTToken", () => {
 });
 
 describe("verifyJWTToken", () => {
+  it("rejects a token signed with the session secret for another audience", async () => {
+    const { default: jwt } = await import("jsonwebtoken");
+    const foreign = jwt.sign({ user_id: "abc", session_version: 0 }, process.env.JWT_SECRET!, { audience: "something-else", issuer: "oghmanotes" });
+    expect(verifyJWTToken(foreign)).toBeNull();
+    expect(verifyJWTToken(generateJWTToken({ user_id: "abc", session_version: 0 }))).toMatchObject({ aud: "oghma-session", iss: "oghmanotes" });
+  });
+
+  it("accepts a token from before aud and iss only until the transition ends", async () => {
+    const { default: jwt } = await import("jsonwebtoken");
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-11-20T00:00:00Z"));
+      const legacy = jwt.sign({ user_id: "abc", session_version: 0 }, process.env.JWT_SECRET!, { expiresIn: "120d" });
+      expect(verifyJWTToken(legacy)).toMatchObject({ user_id: "abc" });
+      vi.setSystemTime(new Date("2027-02-01T00:00:00Z"));
+      expect(verifyJWTToken(legacy)).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("returns payload for a valid token", () => {
     const payload = { user_id: "user-123", email: "test@example.com" };
     const token = generateJWTToken(payload);

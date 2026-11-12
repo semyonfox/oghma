@@ -18,6 +18,8 @@ export const tagsViewFileSchema = z.object({
   suggested: z.boolean(),
   /** what the study map says the document is, null when no map holds it */
   kind: documentKindSchema.nullable(),
+  /** the user's last edit to it, or to its extracted note for a PDF */
+  editedAt: z.string().nullable(),
 });
 export type TagsViewFile = z.infer<typeof tagsViewFileSchema>;
 

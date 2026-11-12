@@ -195,6 +195,19 @@ export function getRagChunkSize(
   return readBoundedInt(env.RAG_CHUNK_SIZE, DEFAULT_RAG_CHUNK_SIZE, 50, 4_000);
 }
 
+// only zero-retention endpoints that don't collect prompts. openrouter rejects
+// the request when no provider for the model qualifies
+export const OPENROUTER_PRIVACY = { zdr: true, data_collection: "deny" } as const;
+
+function isOpenRouterUrl(baseURL: string | undefined): boolean {
+  if (!baseURL) return true;
+  try {
+    return new URL(baseURL).hostname === "openrouter.ai";
+  } catch {
+    return false;
+  }
+}
+
 export function createLlmProvider(env: LlmEnvironment = process.env) {
   const apiKey = (env.LLM_API_KEY ?? "").trim();
   if (!apiKey) return null;
@@ -205,6 +218,12 @@ export function createLlmProvider(env: LlmEnvironment = process.env) {
   return createOpenRouter({
     apiKey,
     ...(baseURL && { baseURL }),
+    // zero data retention is an account setting on openrouter too, but asking on
+    // every request means a new key or model can't quietly drop it. other
+    // openai-compatible hosts reject the unknown field, so it is openrouter only
+    ...(isOpenRouterUrl(baseURL) && {
+      extraBody: { provider: OPENROUTER_PRIVACY },
+    }),
     fetch: (input, init) => {
       const timeoutSignal = AbortSignal.timeout(timeoutMs);
       const signal = init?.signal

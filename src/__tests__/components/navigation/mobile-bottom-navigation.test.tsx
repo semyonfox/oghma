@@ -147,7 +147,7 @@ describe("MobileBottomNavigation", () => {
     );
     const dock = container.querySelector<HTMLElement>("[data-mobile-dock]");
     expect(dock?.className).toContain("fixed");
-    expect(dock?.className).toContain("bottom-0");
+    expect(dock?.className).toContain("bottom-[var(--focus-bar-space,0px)]");
     expect(screen.getByRole("navigation").className).toContain("bottom-[calc(12px+var(--safe-bottom))]");
   });
 

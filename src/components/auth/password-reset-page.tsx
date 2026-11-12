@@ -11,6 +11,15 @@ import {
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Alert } from "@/components/alert";
+import {
+  authColumnClass,
+  authInputClass,
+  authLabelClass,
+  authLinkClass,
+  authPageClass,
+  authPrimaryButtonClass,
+  authTitleClass,
+} from "./auth-styles";
 import { getPasswordRequirements } from "@/lib/auth/credentials";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
@@ -99,17 +108,17 @@ function ResetPasswordForm({
 
   if (!token) {
     return (
-      <div className="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8 bg-app-page">
-        <div className="sm:mx-auto sm:w-full sm:max-w-md">
+      <div className={authPageClass}>
+        <div className={authColumnClass}>
           <Alert
             variant="error"
             title={t("Invalid Reset Link")}
             description={t("The password reset link is invalid or missing.")}
           />
-          <p className="mt-6 text-center text-sm/6 text-text-tertiary">
+          <p className="mt-6 text-center text-sm/6 text-text-secondary">
             <Link
               href="/login"
-              className="font-semibold text-primary-400 hover:text-primary-300"
+              className={authLinkClass}
             >
               {t("Back to Login")}
             </Link>
@@ -120,27 +129,27 @@ function ResetPasswordForm({
   }
 
   return (
-    <div className="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8 bg-app-page">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center font-serif text-2xl font-semibold tracking-tight text-text">
+    <div className={authPageClass}>
+      <div className={authColumnClass}>
+        <h2 className={authTitleClass}>
           {purpose === "change" ? t("Change password") : t("Reset Password")}
         </h2>
       </div>
 
-      <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-[480px]">
-        <div className="glass-card px-6 py-12 rounded-radius-xl sm:px-12">
-          <form onSubmit={handleSubmit} className="space-y-6">
+      <div className={`mt-8 ${authColumnClass}`}>
+        <div>
+          <form onSubmit={handleSubmit} className="space-y-5">
             {message && <Alert variant="success" description={message} />}
             {error && <Alert variant="error" description={error} />}
 
             <div>
               <label
                 htmlFor="password"
-                className="block text-sm/6 font-medium text-text-secondary"
+                className={authLabelClass}
               >
                 {t("New Password")}
               </label>
-              <div className="mt-2">
+              <div className="mt-1.5">
                 <input
                   id="password"
                   name="password"
@@ -152,7 +161,7 @@ function ResetPasswordForm({
                     setPassword(e.target.value)
                   }
                   placeholder={t("Enter new password")}
-                  className="block w-full rounded-radius-md bg-surface border border-border-subtle px-3 py-1.5 text-sm text-text placeholder:text-text-tertiary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50 focus:outline-none"
+                  className={authInputClass}
                 />
               </div>
             </div>
@@ -160,11 +169,11 @@ function ResetPasswordForm({
             <div>
               <label
                 htmlFor="confirmPassword"
-                className="block text-sm/6 font-medium text-text-secondary"
+                className={authLabelClass}
               >
                 {t("Confirm Password")}
               </label>
-              <div className="mt-2">
+              <div className="mt-1.5">
                 <input
                   id="confirmPassword"
                   name="confirmPassword"
@@ -174,7 +183,7 @@ function ResetPasswordForm({
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder={t("Confirm new password")}
-                  className="block w-full rounded-radius-md bg-surface border border-border-subtle px-3 py-1.5 text-sm text-text placeholder:text-text-tertiary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50 focus:outline-none"
+                  className={authInputClass}
                 />
               </div>
             </div>
@@ -183,7 +192,7 @@ function ResetPasswordForm({
               <button
                 type="submit"
                 disabled={loading}
-                className="flex w-full justify-center rounded-radius-md bg-primary-600 px-3 py-1.5 text-sm/6 font-semibold text-text-on-primary hover:bg-primary-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                className={authPrimaryButtonClass}
               >
                 {loading
                   ? t("Resetting...")
@@ -195,10 +204,10 @@ function ResetPasswordForm({
           </form>
         </div>
 
-        <p className="mt-10 text-center text-sm/6 text-text-tertiary">
+        <p className="mt-8 text-center text-sm/6 text-text-secondary">
           <Link
             href="/login"
-            className="font-semibold text-primary-400 hover:text-primary-300"
+            className={authLinkClass}
           >
             {t("Back to Login")}
           </Link>
@@ -217,7 +226,7 @@ export function PasswordResetPage({
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-full items-center justify-center bg-app-page text-text-tertiary">
+        <div className="flex min-h-dvh items-center justify-center bg-background text-text-tertiary">
           {t("Loading...")}
         </div>
       }

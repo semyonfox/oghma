@@ -39,7 +39,7 @@ export default function CookiesPage() {
       <InfoSection title="Questions">
         <p>
           Contact{" "}
-          <a className="text-primary-300 hover:text-primary-200" href="mailto:contact@oghmanotes.ie">
+          <a className="text-accent hover:text-accent-hover" href="mailto:contact@oghmanotes.ie">
             contact@oghmanotes.ie
           </a>{" "}
           for cookie or privacy questions.

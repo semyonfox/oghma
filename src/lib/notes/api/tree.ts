@@ -45,6 +45,9 @@ const childrenSchema = z.object({
     pinned: z.union([z.literal(0), z.literal(1)]).optional(),
     bundle: z.object({ pdfId: z.string(), noteId: z.string().nullable() }).optional(),
     updatedAt: z.string().optional(),
+    editedAt: z.string().optional(),
+    modulePosition: z.number().int().nonnegative().optional(),
+    hasStudyMap: z.boolean().optional(),
     topics: z.array(topicMarkSchema).optional(),
     course: z.object({
       canvasStatus: z.enum(["current", "past", "pending", "inaccessible"]).nullable(),

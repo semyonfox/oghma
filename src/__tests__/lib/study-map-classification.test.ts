@@ -16,10 +16,13 @@ vi.mock("ai", () => ({ generateText: provider.generateText }));
 vi.mock("@/lib/ai-config", () => ({
   createLlmProvider: provider.createLlmProvider,
   getLlmModel: provider.getLlmModel,
+  OPENROUTER_PRIVACY: { zdr: true, data_collection: "deny" },
 }));
 
 const requestSchema = z.object({
   model: z.string(),
+  // every classifier request must ask for zero retention
+  provider: z.object({ zdr: z.literal(true), data_collection: z.literal("deny") }),
   state: z.object({
     title: z.string(),
     passages: z.array(z.object({ id: z.string(), text: z.string() })),

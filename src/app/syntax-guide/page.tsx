@@ -11,7 +11,7 @@ export default async function SyntaxGuidePage() {
         <div className="mb-6 flex items-center justify-between">
           <Link
             href="/notes"
-            className="text-sm text-primary-400 hover:text-primary-300 transition-colors"
+            className="text-sm text-accent hover:text-accent-hover transition-colors"
           >
             {t("← Back to Notes")}
           </Link>

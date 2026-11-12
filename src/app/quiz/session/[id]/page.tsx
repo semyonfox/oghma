@@ -17,6 +17,7 @@ import type {
 import ProgressBar from "@/components/quiz/progress-bar";
 import QuestionCard from "@/components/quiz/question-card";
 import Feedback from "@/components/quiz/feedback";
+import { CheckIcon } from "@heroicons/react/20/solid";
 
 function SessionComplete({
   progress,
@@ -47,19 +48,22 @@ function SessionComplete({
   const forTomorrow = progress.answered - progress.correct;
 
   return (
-    <div className="h-screen flex items-center justify-center px-6 bg-app-page text-text">
-      <div className="max-w-md w-full text-center">
-        <h1 className="font-serif text-text text-xl font-semibold">
+    <div className="flex h-app items-center justify-center bg-app-page px-4 text-text sm:px-6">
+      <div className="w-full max-w-xl rounded-radius-2xl border border-border bg-surface p-6 text-center shadow-float sm:p-10">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-success-100 text-success-700 dark:bg-success-500/15 dark:text-success-400">
+          <CheckIcon aria-hidden="true" className="h-6 w-6" />
+        </div>
+        <h1 className="mt-4 font-serif text-3xl font-bold tracking-tight text-text">
           {t("quiz.complete.title")}
         </h1>
-        <p className="text-text-secondary text-sm mt-2">
+        <p className="mt-2 text-sm text-text-secondary">
           {t("quiz.complete.score", {
             correct: progress.correct,
             total: progress.answered,
           })}
         </p>
 
-        <div className="grid grid-cols-2 gap-3 mt-6">
+        <div className="mt-8 grid grid-cols-2 gap-3 text-left">
           {[
             { label: t("quiz.complete.time"), value: `${minutes} min` },
             { label: t("quiz.complete.accuracy"), value: `${accuracy}%` },
@@ -69,20 +73,31 @@ function SessionComplete({
               value: String(forTomorrow),
             },
           ].map((stat) => (
-            <div key={stat.label} className="glass-card rounded-radius-lg p-3">
-              <div className="text-text-tertiary text-xs uppercase tracking-wider">
-                {stat.label}
-              </div>
-              <div className="text-text font-medium text-lg mt-1">
+            <div
+              key={stat.label}
+              className="rounded-radius-xl border border-border bg-surface-elevated px-4 py-3"
+            >
+              <div className="text-xs text-text-tertiary">{stat.label}</div>
+              <div className="mt-1 font-serif text-[26px] font-bold tabular-nums text-text">
                 {stat.value}
               </div>
             </div>
           ))}
         </div>
 
+        <div
+          className="mt-6 h-1.5 overflow-hidden rounded-full bg-subtle-hover"
+          role="presentation"
+        >
+          <div
+            className="h-full rounded-full bg-success-700 dark:bg-success-400"
+            style={{ width: `${accuracy}%` }}
+          />
+        </div>
+
         <button
           onClick={onBack}
-          className="mt-8 glass-card-interactive text-text-secondary text-sm px-6 py-2.5 rounded-radius-lg"
+          className="mt-8 min-h-11 rounded-radius-lg bg-action px-6 py-2.5 text-sm font-semibold text-on-action transition-colors hover:bg-action-hover"
         >
           {t("quiz.complete.back")}
         </button>
@@ -187,7 +202,7 @@ function QuestionView({
   return (
     <>
       {fatigueWarning && (
-        <div className="mt-4 glass-card rounded-radius-lg p-3 text-xs text-text-tertiary">
+        <div className="mt-4 rounded-radius-lg border border-warning-500/40 bg-warning-500/10 p-3 text-xs text-text-secondary">
           {t("quiz.session.fatigue_warning")}
         </div>
       )}
@@ -209,15 +224,15 @@ function QuestionView({
               </p>
             )}
             {submitFailed && (
-              <p role="alert" className="text-error-500 text-xs text-center">
+              <p role="alert" className="text-center text-xs text-error-700 dark:text-error-400">
                 {t("quiz.session.answer_failed")}
               </p>
             )}
-            <div className="flex justify-center">
+            <div className="flex justify-end pb-4">
               <button
                 onClick={() => void handleContinue()}
                 disabled={submitting}
-                className="glass-card-interactive text-text-secondary text-sm px-6 py-2.5 rounded-radius-lg disabled:opacity-50"
+                className="min-h-11 rounded-radius-lg bg-action px-6 py-2.5 text-sm font-semibold text-on-action transition-colors hover:bg-action-hover disabled:opacity-50"
               >
                 {t("quiz.session.continue")}
               </button>
@@ -365,7 +380,7 @@ export default function QuizSessionPage() {
 
   if (!isCurrentSession || !currentQuestion) {
     return (
-      <div className="flex items-center justify-center h-screen bg-app-page">
+      <div className="flex h-app items-center justify-center bg-app-page">
         <div className="text-text-tertiary text-sm">
           {t("quiz.session.loading")}
         </div>
@@ -374,7 +389,7 @@ export default function QuizSessionPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col px-6 py-6 max-w-2xl mx-auto bg-app-page text-text">
+    <div className="mx-auto flex h-app max-w-2xl flex-col overflow-y-auto bg-app-page px-4 py-6 text-text sm:px-6">
       <ProgressBar
         current={currentIndex}
         total={cardIds.length}

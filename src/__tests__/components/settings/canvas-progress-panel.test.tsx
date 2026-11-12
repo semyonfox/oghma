@@ -113,7 +113,7 @@ describe("CanvasProgressPanel", () => {
     );
 
     expect(screen.getByText("Import failed")).toBeTruthy();
-    expect(container.querySelector(".bg-red-500")).toBeTruthy();
+    expect(container.querySelector(".bg-error-500")).toBeTruthy();
     expect(
       screen
         .getByText("This file could not be imported.")

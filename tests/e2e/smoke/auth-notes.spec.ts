@@ -32,7 +32,7 @@ test.describe("auth and notes smoke", () => {
       await expect(page.getByRole("main", { name: "Notes", exact: true })).toBeVisible();
       await notesLibrary.locator("li").filter({ hasText: title }).locator("button").first().click();
       await page.getByRole("button", { name: "Note options" }).click();
-      await page.getByRole("button", { name: "Meta" }).click();
+      await page.getByRole("button", { name: "Meta", exact: true }).click();
       await expect(page.getByRole("dialog", { name: "Meta" })).toBeVisible();
       await page.getByRole("dialog", { name: "Meta" })
         .getByRole("tab", { name: "Global Tasks" }).click();

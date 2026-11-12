@@ -12,44 +12,44 @@ import useI18n from "@/lib/notes/hooks/use-i18n";
 
 const alertVariants = {
   warning: {
-    bgColor: "bg-yellow-500/10",
-    outlineColor: "outline-yellow-500/15",
-    iconColor: "text-yellow-700 dark:text-yellow-300",
-    titleColor: "text-yellow-900 dark:text-yellow-100",
-    descColor: "text-yellow-900 dark:text-yellow-100/80",
+    bgColor: "bg-warning-500/10",
+    outlineColor: "outline-warning-500/25",
+    iconColor: "text-warning-700 dark:text-warning-400",
+    titleColor: "text-text",
+    descColor: "text-text-secondary",
     // static class names: tailwind cannot see classes built at runtime
     dismissColor:
-      "hover:bg-yellow-500/10 focus-visible:outline-yellow-500/50",
+      "hover:bg-warning-500/10 focus-visible:outline-warning-500/50",
     icon: ExclamationTriangleIcon,
   },
   error: {
-    bgColor: "bg-red-500/15",
-    outlineColor: "outline-red-500/25",
-    iconColor: "text-red-700 dark:text-red-400",
-    titleColor: "text-red-900 dark:text-red-200",
-    descColor: "text-red-900 dark:text-red-200/80",
+    bgColor: "bg-error-500/10",
+    outlineColor: "outline-error-500/25",
+    iconColor: "text-error-700 dark:text-error-400",
+    titleColor: "text-text",
+    descColor: "text-text-secondary",
     dismissColor:
-      "hover:bg-red-500/10 focus-visible:outline-red-500/50",
+      "hover:bg-error-500/10 focus-visible:outline-error-500/50",
     icon: XCircleIcon,
   },
   success: {
-    bgColor: "bg-green-500/10",
-    outlineColor: "outline-green-500/20",
-    iconColor: "text-green-700 dark:text-green-400",
-    titleColor: "text-green-900 dark:text-green-200",
-    descColor: "text-green-900 dark:text-green-200/85",
+    bgColor: "bg-success-500/10",
+    outlineColor: "outline-success-500/25",
+    iconColor: "text-success-700 dark:text-success-400",
+    titleColor: "text-text",
+    descColor: "text-text-secondary",
     dismissColor:
-      "hover:bg-green-500/10 focus-visible:outline-green-500/50",
+      "hover:bg-success-500/10 focus-visible:outline-success-500/50",
     icon: CheckCircleIcon,
   },
   info: {
-    bgColor: "bg-blue-500/10",
-    outlineColor: "outline-blue-500/20",
-    iconColor: "text-blue-700 dark:text-blue-400",
-    titleColor: "text-blue-900 dark:text-blue-300",
-    descColor: "text-blue-900 dark:text-blue-300/85",
+    bgColor: "bg-surface-elevated",
+    outlineColor: "outline-border",
+    iconColor: "text-accent",
+    titleColor: "text-text",
+    descColor: "text-text-secondary",
     dismissColor:
-      "hover:bg-blue-500/10 focus-visible:outline-blue-500/50",
+      "hover:bg-subtle focus-visible:outline-accent/50",
     icon: InformationCircleIcon,
   },
 };
@@ -92,7 +92,7 @@ export function Alert({
   return (
     <div
       role={role}
-      className={`rounded-md ${styles.bgColor} p-4 outline ${styles.outlineColor} ${className}`}
+      className={`rounded-radius-lg ${styles.bgColor} p-4 outline ${styles.outlineColor} ${className}`}
     >
       <div className="flex">
         <div className="shrink-0">
@@ -129,7 +129,7 @@ export function Alert({
               <button
                 type="button"
                 onClick={handleDismiss}
-                className={`inline-flex rounded-md p-1.5 ${styles.iconColor} ${styles.dismissColor} focus-visible:outline-2 focus-visible:outline-offset-2`}
+                className={`inline-flex rounded-radius-md p-1.5 ${styles.iconColor} ${styles.dismissColor} focus-visible:outline-2 focus-visible:outline-offset-2`}
                 aria-label={t("Dismiss alert")}
               >
                 <span className="sr-only">{t("Dismiss")}</span>

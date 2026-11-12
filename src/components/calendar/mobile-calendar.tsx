@@ -5,11 +5,11 @@ import useCalendarStore from "@/lib/notes/state/calendar";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { buildMonthCells } from "@/components/calendar/month-view-utils";
 import {
-  addDaysToDateKey,
   formatDateKey,
   parseLocalDateKey,
 } from "@/lib/notes/utils/calendar-date";
 import DayAgenda from "@/components/calendar/day-agenda";
+import DayStrip from "@/components/calendar/day-strip";
 import { ClipboardDocumentListIcon } from "@heroicons/react/20/solid";
 
 interface MobileCalendarProps {
@@ -60,64 +60,54 @@ export default function MobileCalendar({
     selectedDate,
     today: new Date(),
   });
-  const weekDates = Array.from({ length: 7 }, (_, index) =>
-    addDaysToDateKey(selectedDate, index - 3),
-  );
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto overscroll-contain">
-      <div className="sticky top-0 z-10 shrink-0 border-b border-border-subtle bg-app-page px-3 pt-2">
+      <div className="sticky top-0 z-10 shrink-0 border-b border-border-subtle bg-surface px-3 pt-2">
         <div className="flex items-center justify-between gap-2 pb-1">
-          <p className="text-xs font-medium text-text-tertiary">
-            {t("Select date")}
-          </p>
-          <div className="flex items-center gap-1">
-            {onOpenTasks && (
-              <button
-                type="button"
-                onClick={onOpenTasks}
-                className="flex min-h-11 items-center justify-center gap-1.5 rounded-radius-md px-3 text-xs font-medium text-text-secondary transition-colors hover:bg-subtle"
-              >
-                <ClipboardDocumentListIcon className="h-5 w-5" aria-hidden="true" />
-                {t("Tasks")}
-              </button>
-            )}
+          <div
+            role="group"
+            aria-label={t("Calendar")}
+            className="flex gap-0.5 rounded-[9px] border border-border bg-subtle p-[3px]"
+          >
             <button
               type="button"
-              onClick={onToggleMonth}
+              onClick={() => { if (!monthOpen) onToggleMonth(); }}
               aria-expanded={monthOpen}
               aria-controls="mobile-calendar-month"
-              className="min-h-11 rounded-radius-md px-3 text-xs font-medium text-primary-700 transition-colors hover:bg-primary-500/10 dark:text-primary-300"
+              className={`h-[30px] rounded-[6px] px-3.5 text-[13px] transition-colors ${monthOpen ? "atlas-raised font-semibold text-text" : "text-text-secondary"}`}
             >
-              {t(monthOpen ? "Week" : "Month")}
+              {t("Month")}
+            </button>
+            <button
+              type="button"
+              onClick={() => { if (monthOpen) onToggleMonth(); }}
+              aria-pressed={!monthOpen}
+              className={`h-[30px] rounded-[6px] px-3.5 text-[13px] transition-colors ${!monthOpen ? "atlas-raised font-semibold text-text" : "text-text-secondary"}`}
+            >
+              {t("Week")}
             </button>
           </div>
+          {onOpenTasks && (
+            <button
+              type="button"
+              onClick={onOpenTasks}
+              className="-mr-1 flex min-h-11 items-center justify-center gap-1.5 rounded-radius-md px-2 text-sm font-medium text-text-secondary transition-colors hover:bg-subtle"
+            >
+              <ClipboardDocumentListIcon className="h-5 w-5" aria-hidden="true" />
+              {t("Tasks")}
+            </button>
+          )}
         </div>
-        <div className="grid grid-cols-7 gap-1 pb-2" aria-label={t("Select date")}>
-          {weekDates.map((dateKey) => {
-            const date = parseLocalDateKey(dateKey);
-            if (!date) return null;
-            const selected = dateKey === selectedDate;
-            return (
-              <button
-                key={dateKey}
-                type="button"
-                onClick={() => setSelectedDate(dateKey)}
-                aria-pressed={selected}
-                aria-label={fullDateFormatter.format(date)}
-                className={`flex min-h-12 min-w-0 flex-col items-center justify-center rounded-radius-md text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 ${
-                  selected
-                    ? "bg-primary-600 text-text-on-primary"
-                    : dateKey === today
-                      ? "bg-primary-500/10 font-semibold text-primary-700 dark:text-primary-300"
-                      : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
-                }`}
-              >
-                <span className="text-[10px] uppercase">{weekdayFormatter.format(date)}</span>
-                <span className="mt-0.5 text-sm font-semibold">{date.getDate()}</span>
-              </button>
-            );
-          })}
+        <div className="-mx-3 pb-1">
+          <DayStrip
+            selectedDate={selectedDate}
+            today={today}
+            onSelect={setSelectedDate}
+            weekdayFormatter={weekdayFormatter}
+            fullDateFormatter={fullDateFormatter}
+            label={t("Select date")}
+          />
         </div>
 
         {monthOpen && (
@@ -142,11 +132,11 @@ export default function MobileCalendar({
                     onClick={() => setSelectedDate(day.date)}
                     aria-pressed={day.isSelected}
                     aria-label={fullDateFormatter.format(date)}
-                    className={`relative flex aspect-square min-h-11 min-w-0 flex-col items-center justify-center text-xs transition-colors focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 ${
+                    className={`relative flex aspect-square min-h-11 min-w-0 flex-col items-center justify-center text-xs transition-colors focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
                       day.isSelected
-                        ? "bg-primary-600 text-text-on-primary"
+                        ? "bg-text text-background"
                         : day.isToday
-                          ? "bg-surface font-semibold text-primary-700 dark:text-primary-300"
+                          ? "bg-accent font-semibold text-on-action"
                           : "bg-surface text-text-secondary hover:bg-surface-elevated"
                     } ${!day.isCurrentMonth ? "opacity-40" : ""}`}
                   >
@@ -157,7 +147,7 @@ export default function MobileCalendar({
                           <span
                             key={index}
                             className={`h-1 w-1 rounded-full ${
-                              day.isSelected ? "bg-text-on-primary" : "bg-primary-400"
+                              day.isSelected ? "bg-background" : day.isToday ? "bg-on-action" : "bg-accent"
                             }`}
                           />
                         ))}

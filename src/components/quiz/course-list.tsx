@@ -1,6 +1,7 @@
 "use client";
 
 import useI18n from "@/lib/notes/hooks/use-i18n";
+import { splitModuleCode } from "@/lib/notes/module-code";
 
 interface Course {
   courseId: string;
@@ -49,65 +50,86 @@ function CourseButton({
   const { t } = useI18n();
   const hasCards = totalCards > 0;
   const nothingDue = hasCards && dueCount === 0;
+  const { code, title } = splitModuleCode(courseName);
 
   return (
-    <div
-      className={`glass-card-interactive rounded-radius-lg p-3 flex items-center gap-3 transition-colors text-left w-full ${disabled || nothingDue ? "opacity-60" : ""}`}
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled || nothingDue}
+      className={`group flex min-h-11 w-full items-center gap-3 border-b border-border-subtle px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-subtle disabled:cursor-not-allowed disabled:hover:bg-transparent sm:gap-4 sm:px-5 ${disabled || nothingDue ? "opacity-60" : ""}`}
     >
-      <button
-        onClick={onClick}
-        disabled={disabled || nothingDue}
-        className="flex-1 min-w-0 text-left"
-      >
-        <div className="text-text text-sm font-medium truncate">
-          {courseName}
-        </div>
-        <div className="flex gap-3 mt-1 text-xs">
+      <span className="hidden w-16 shrink-0 truncate font-mono text-xs text-text-tertiary sm:block">
+        {code ?? ""}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="flex min-w-0 items-center gap-2">
+          <span
+            className={`truncate text-sm ${isArchived ? "text-text-secondary" : "font-medium text-text"}`}
+          >
+            {title}
+          </span>
           {isArchived && (
-            <span className="rounded-full border border-border-subtle px-2 py-0.5 text-xs uppercase tracking-wide text-text-tertiary">
+            <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-xs text-text-tertiary">
               {t("Archived")}
             </span>
           )}
-          {hasCards ? (
-            <>
-              <span className="text-text-tertiary">
-                {nothingDue
-                  ? t("quiz.courses.all_scheduled")
-                  : t("quiz.courses.due_count", { count: dueCount })}
-              </span>
-              <span className="text-text-tertiary">
-                {t("quiz.courses.total_count", { count: totalCards })}
-              </span>
-            </>
-          ) : (
-            <span className="text-text-tertiary italic">
-              {isLoading
-                ? t("quiz.loading")
-                : t("quiz.courses.generate_prompt")}
-            </span>
-          )}
-        </div>
-      </button>
-      <div className="text-right flex-shrink-0 flex items-center gap-2">
-        {isLoading ? (
-          <div className="w-4 h-4 border-2 border-text-tertiary border-t-transparent rounded-full animate-spin" />
-        ) : hasCards ? (
-          <div>
-            <div className="text-text-secondary text-sm font-medium">
-              {mastery}%
-            </div>
-            <div className="w-12 h-1 bg-surface-elevated rounded-full mt-1">
-              <div
-                className="h-full rounded-full bg-text-tertiary"
-                style={{ width: `${mastery}%` }}
-              />
-            </div>
-          </div>
-        ) : (
-          <div className="text-text-tertiary text-xs">→</div>
+        </span>
+        {code && (
+          <span className="mt-0.5 block font-mono text-xs text-text-tertiary sm:hidden">
+            {code}
+          </span>
         )}
-      </div>
-    </div>
+      </span>
+      {hasCards ? (
+        <span className="hidden w-40 shrink-0 items-center gap-2 md:flex">
+          <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-subtle-hover">
+            <span
+              className={`block h-full rounded-full ${isArchived ? "bg-border-strong" : "bg-success-600"}`}
+              style={{ width: `${mastery}%` }}
+            />
+          </span>
+          <span className="w-9 text-right font-mono text-xs text-text-tertiary">
+            {mastery}%
+          </span>
+        </span>
+      ) : (
+        <span className="hidden w-40 shrink-0 md:block" />
+      )}
+      <span className="flex shrink-0 items-center gap-2 text-xs sm:w-44">
+        {isLoading ? (
+          <span className="h-4 w-4 animate-spin rounded-full border-2 border-text-tertiary border-t-transparent" />
+        ) : hasCards ? (
+          <>
+            {nothingDue ? (
+              <span className="text-text-tertiary">
+                {t("quiz.courses.all_scheduled")}
+              </span>
+            ) : (
+              <span className="rounded-full bg-accent-soft px-2 py-0.5 font-medium text-accent-soft-text">
+                {t("quiz.courses.due_count", { count: dueCount })}
+              </span>
+            )}
+            <span className="hidden font-mono text-text-tertiary sm:inline">
+              {t("quiz.courses.total_count", { count: totalCards })}
+            </span>
+          </>
+        ) : (
+          <span className="font-medium text-accent group-hover:text-accent-hover">
+            {t("quiz.courses.generate_prompt")}
+          </span>
+        )}
+      </span>
+      <span
+        aria-hidden="true"
+        className="hidden shrink-0 rounded-radius-md border border-border px-3 py-1 text-xs font-medium text-text transition-colors group-hover:bg-subtle-hover sm:inline"
+      >
+        {t("Review")}
+      </span>
+      <span aria-hidden="true" className="shrink-0 text-text-tertiary sm:hidden">
+        →
+      </span>
+    </button>
   );
 }
 
@@ -139,43 +161,54 @@ export default function CourseList({
   const hasArchived = archivedCourses.length > 0;
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-3">
-        <h2 className="text-text font-semibold text-sm">{t("Courses")}</h2>
-        <div className="flex items-center gap-2">
+    <div className="overflow-hidden rounded-radius-xl border border-border bg-surface">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle px-4 py-3 sm:px-5">
+        <div className="flex items-center gap-4">
+          <h2 className="text-sm font-semibold text-text">{t("Courses")}</h2>
+          {/* show archived toggle */}
+          {hasArchived && (
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={showArchived}
+                onChange={onToggleArchived}
+                className="rounded border-border-strong accent-accent focus:ring-accent/50"
+              />
+              <span className="text-sm text-text-secondary">
+                {t("quiz.courses.show_archived")}
+              </span>
+            </label>
+          )}
+        </div>
+        <div className="flex w-full items-center gap-2 sm:w-auto">
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder={t("quiz.courses.search_placeholder")}
-            className="bg-surface border border-border-subtle rounded-radius-md px-3 py-1.5 text-sm text-text-secondary placeholder:text-text-tertiary focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/50 w-48"
+            className="min-w-0 flex-1 rounded-radius-md border border-border bg-input px-3 py-1.5 text-sm text-text placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/50 sm:w-56 sm:flex-none"
           />
           <button
             type="button"
             onClick={onOpenManager}
-            className="rounded-full border border-border-subtle bg-surface px-3 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:bg-subtle"
+            className="rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-medium text-text transition-colors hover:bg-subtle"
           >
             {t("Manage")}
           </button>
         </div>
       </div>
 
-      {/* show archived toggle */}
-      {hasArchived && (
-        <label className="flex items-center gap-2 mb-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={showArchived}
-            onChange={onToggleArchived}
-            className="rounded border-border-subtle text-primary-500 focus:ring-primary-500/50"
-          />
-          <span className="text-text-secondary text-sm">
-            {t("quiz.courses.show_archived")}
-          </span>
-        </label>
-      )}
-
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col">
+        <div
+          aria-hidden="true"
+          className="hidden items-center gap-4 border-b border-border-subtle px-5 py-2 text-xs text-text-tertiary md:flex"
+        >
+          <span className="w-16 shrink-0">{t("Code")}</span>
+          <span className="flex-1">{t("Course")}</span>
+          <span className="w-40 shrink-0">{t("Mastery")}</span>
+          <span className="w-44 shrink-0">{t("Due · total")}</span>
+          <span className="w-[66px] shrink-0" />
+        </div>
         {/* "All My Notes" synthetic entry — always visible regardless of search */}
         {allNotesStats && (
           <CourseButton
@@ -207,8 +240,8 @@ export default function CourseList({
         {/* Archived courses section */}
         {showArchived && filteredArchived.length > 0 && (
           <>
-            <div className="pt-2 mt-2 border-t border-border-subtle">
-              <span className="text-text-tertiary text-xs uppercase tracking-wider">
+            <div className="border-b border-border-subtle px-4 pb-2 pt-4 sm:px-5">
+              <span className="text-xs uppercase tracking-wider text-text-tertiary">
                 {t("quiz.courses.archived")}
               </span>
             </div>

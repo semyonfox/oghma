@@ -2,8 +2,6 @@
 
 import { useEffect, useState, useRef } from "react";
 import {
-  ChevronRightIcon,
-  ArrowTopRightOnSquareIcon,
   XMarkIcon,
   PlusIcon,
 } from "@heroicons/react/24/outline";
@@ -73,17 +71,16 @@ function NoteSidebarChat({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex flex-shrink-0 items-center justify-between border-b border-border-subtle px-3 py-2">
-        <p className="truncate text-xs text-text-tertiary">
-          {noteTitle || t("Untitled")}
+      <div className="flex flex-shrink-0 items-center justify-between gap-2 px-4 pb-2 pt-3">
+        <p className="truncate text-xs text-text-secondary" title={noteTitle || t("Untitled")}>
+          {t("Asking about this note")}
         </p>
         <a
           href={fullChatHref}
-          className="flex items-center gap-1 text-xs text-text-tertiary transition-colors hover:text-text-secondary"
+          className="flex shrink-0 items-center gap-1 text-xs text-accent underline underline-offset-2 transition-colors hover:text-accent-hover"
           title={t("Open full chat")}
         >
-          {t("Full chat")}
-          <ArrowTopRightOnSquareIcon className="h-3 w-3" />
+          {t("Open AI chat")}
         </a>
       </div>
       <ChatInterface
@@ -171,8 +168,6 @@ export default function NoteInspectorPanel({
     activePane,
     paneA,
     paneB,
-    rightPanelOpen,
-    toggleRightPanel,
     rightPanelTab,
     setRightPanelTab,
   } = useLayoutStore();
@@ -304,37 +299,17 @@ export default function NoteInspectorPanel({
   };
 
   const tabClasses = (tab: RightPanelTab) => `
-    min-h-11 px-2.5 py-1.5 text-xs font-medium transition-colors border-b-2 focus-visible:outline-2 focus-visible:outline-primary-400
+    min-h-11 px-2.5 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus-visible:outline-2 focus-visible:outline-accent
     ${
       activeTab === tab
-        ? "border-primary-500 text-text-secondary"
-        : "border-transparent text-text-tertiary hover:text-text-secondary"
+        ? "border-accent text-text"
+        : "border-transparent text-text-tertiary hover:text-text"
     }
   `;
 
   return (
     <div className="h-full flex flex-col text-text">
-      {presentation === "desktop" && (
-        <div className="flex min-h-11 items-center justify-between gap-2 border-b border-border-subtle px-3">
-          <h3 className="truncate text-sm text-text-secondary">
-            {activeTab === "tasks"
-              ? t("Global Tasks")
-              : activeFile?.title || t("No file")}
-          </h3>
-          {rightPanelOpen && (
-            <button
-              type="button"
-              onClick={toggleRightPanel}
-              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary"
-              aria-label={t("Collapse panel")}
-            >
-              <ChevronRightIcon className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
-      )}
-
-      <div role="tablist" aria-label={t("Meta")} className="flex shrink-0 flex-wrap items-stretch border-b border-border-subtle px-2"
+      <div role="tablist" aria-label={t("Meta")} className="flex min-h-11 shrink-0 flex-wrap items-stretch gap-2 border-b border-border-subtle px-3"
         onKeyDown={(event) => {
           const tabs = ["meta", "ai", "tasks"] as const;
           const index = tabs.indexOf(activeTab);
@@ -436,7 +411,7 @@ export default function NoteInspectorPanel({
                           type="button"
                           onClick={() => void removeTag(tag)}
                           disabled={!canEditTags}
-                          className={`flex shrink-0 items-center justify-center rounded-full transition-opacity hover:text-error-400 ${presentation === "drawer" ? "h-11 w-11" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"}`}
+                          className={`flex shrink-0 items-center justify-center rounded-full transition-opacity hover:text-error-700 dark:hover:text-error-400 ${presentation === "drawer" ? "h-11 w-11" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"}`}
                           title={t("Remove tag")}
                           aria-label={`${t("Remove tag")} #${tag}`}
                         >
@@ -445,7 +420,7 @@ export default function NoteInspectorPanel({
                       </span>
                     ))}
                   </div>
-                  <div className="flex items-center gap-1.5 bg-background border border-border-subtle rounded-radius-md px-2 py-1 focus-within:border-primary-500/50 transition-colors">
+                  <div className="flex items-center gap-1.5 bg-input border border-border rounded-radius-md px-2 py-1 focus-within:border-accent/50 transition-colors">
                     <span className="text-text-tertiary text-xs">#</span>
                     <input
                       ref={tagInputRef}

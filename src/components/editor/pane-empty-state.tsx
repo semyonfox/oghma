@@ -2,7 +2,9 @@
 
 import { FC, useState } from "react";
 import { useRouter } from "next/navigation";
-import { DocumentIcon } from "@heroicons/react/24/outline";
+import { ArrowPathIcon, ArrowUpTrayIcon, DocumentIcon } from "@heroicons/react/24/outline";
+import { OPEN_UPLOAD_EVENT } from "@/lib/notes/upload-events";
+import ProcessingFilesCard from "@/components/canvas/processing-files-card";
 import { toast } from "sonner";
 import useLayoutStore from "@/lib/notes/state/layout";
 import useNoteStore from "@/lib/notes/state/note";
@@ -42,45 +44,48 @@ const FirstNoteOnboarding: FC = () => {
   };
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto p-6">
-      <div className="mx-auto my-auto w-full max-w-lg rounded-radius-lg border border-border-subtle bg-surface/70 p-6">
-        <h2 className="text-lg font-semibold text-text-secondary">
-          {t("Welcome to OghmaNotes")}
+    <div className="flex h-full flex-col overflow-y-auto px-6 py-10">
+      <div className="mx-auto my-auto w-full max-w-[520px]">
+        <span className="grid h-10 w-10 place-items-center rounded-radius-lg border border-border bg-surface text-text-secondary">
+          <DocumentIcon className="h-5 w-5" aria-hidden="true" />
+        </span>
+        <h2 className="mt-6 font-serif text-[34px] font-bold leading-[1.15] tracking-tight text-text">
+          {t("Start with what you already have.")}
         </h2>
-        <p className="mt-2 text-sm text-text-tertiary leading-relaxed">
-          {t(
-            "You are all set. Create your first note now, then import your Canvas files when you are ready.",
-          )}
+        <p className="mt-3 text-[15px] leading-relaxed text-text-secondary">
+          {t("Bring in your lecture slides and OghmaNotes will read them, so you can search, ask and quiz yourself straight away.")}
         </p>
-        <div className="mt-4 space-y-2 text-sm text-text-tertiary">
-          <p>{t("1. Create your first note.")}</p>
-          <p>{t("2. Import Canvas courses from Settings.")}</p>
-          <p>
-            {t("3. Open AI Chat when you want summaries or quick answers.")}
-          </p>
-        </div>
-        <div className="mt-5 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => void handleCreateFirstNote()}
-            disabled={isCreating}
-            className="rounded-md bg-primary-600 px-3 py-2 text-sm font-semibold text-text-on-primary hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isCreating ? t("Creating note...") : t("Create first note")}
-          </button>
+        <div className="mt-6 grid gap-3 sm:grid-cols-2">
           <a
             href="/settings#canvas"
-            className="rounded-radius-md glass-card-interactive px-3 py-2 text-sm font-semibold text-text-secondary"
+            className="flex flex-col gap-1.5 rounded-radius-lg border-2 border-accent bg-surface p-4 transition-colors hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
           >
-            {t("Open Canvas import")}
+            <ArrowPathIcon className="h-5 w-5 text-accent" aria-hidden="true" />
+            <span className="text-[15px] font-semibold text-text">{t("Connect Canvas")}</span>
+            <span className="text-sm text-text-secondary">
+              {t("Connect your Canvas LMS account to import your courses and lecture materials.")}
+            </span>
           </a>
-          <a
-            href="/chat"
-            className="rounded-radius-md glass-card-interactive px-3 py-2 text-sm font-semibold text-text-secondary"
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new Event(OPEN_UPLOAD_EVENT))}
+            className="flex flex-col gap-1.5 rounded-radius-lg border border-border bg-surface p-4 text-left transition-colors hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
           >
-            {t("Open AI chat")}
-          </a>
+            <ArrowUpTrayIcon className="h-5 w-5 text-text-secondary" aria-hidden="true" />
+            <span className="text-[15px] font-semibold text-text">{t("Upload PDFs")}</span>
+            <span className="text-sm text-text-secondary">
+              {t("Or drop files anywhere. Scanned slides are read with OCR.")}
+            </span>
+          </button>
         </div>
+        <button
+          type="button"
+          onClick={() => void handleCreateFirstNote()}
+          disabled={isCreating}
+          className="mt-5 text-sm font-semibold text-accent underline underline-offset-2 hover:text-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isCreating ? t("Creating note...") : t("Or start a blank note")}
+        </button>
       </div>
     </div>
   );
@@ -104,6 +109,7 @@ const PaneEmptyState: FC<{ pane: "A" | "B" }> = ({ pane }) => {
 
   return (
     <div className="h-full flex flex-col items-center justify-center px-6 text-text-tertiary gap-4">
+      {pane === "A" && <ProcessingFilesCard />}
       <div className="rounded-radius-xl border border-border-subtle bg-subtle p-3">
         <DocumentIcon className="w-7 h-7" aria-hidden="true" />
       </div>

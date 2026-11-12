@@ -13,7 +13,7 @@ test.describe("settings and upload smoke", () => {
     await expect(page.getByLabel("Email address")).toHaveValue(
       /student\.e2e@example\.com/,
     );
-    await expect(page.getByRole("button", { name: /Sign out/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Sign out", exact: true })).toBeVisible();
   });
 
   test("small PNG upload stores and streams through the app", async ({

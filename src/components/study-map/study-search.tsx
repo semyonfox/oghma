@@ -76,11 +76,11 @@ type SearchResponse = z.infer<typeof responseSchema>;
 type SearchResult = SearchResponse["results"][number];
 
 const fieldClass =
-  "min-h-11 w-full min-w-0 rounded-radius-md border border-border-subtle bg-surface px-3 py-2 text-base text-text placeholder:text-text-tertiary focus-visible:outline-2 focus-visible:outline-primary-500 sm:text-sm";
+  "min-h-11 w-full min-w-0 rounded-radius-md border border-border-subtle bg-surface px-3 py-2 text-base text-text placeholder:text-text-tertiary focus-visible:outline-2 focus-visible:outline-accent sm:text-sm";
 const buttonClass =
-  "inline-flex min-h-11 items-center justify-center rounded-radius-md px-3 py-2 text-sm font-medium text-text hover:bg-primary-500/5 focus-visible:outline-2 focus-visible:outline-primary-500 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex min-h-11 items-center justify-center rounded-radius-md px-3 py-2 text-sm font-medium text-text hover:bg-subtle focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50";
 const linkClass =
-  "inline-flex min-h-11 items-center text-sm text-primary-700 underline decoration-primary-500/30 underline-offset-4 hover:decoration-primary-500 focus-visible:outline-2 focus-visible:outline-primary-500 dark:text-primary-300";
+  "inline-flex min-h-11 items-center text-sm text-accent underline decoration-accent/30 underline-offset-4 hover:decoration-accent focus-visible:outline-2 focus-visible:outline-accent";
 
 function kindName(kind: DocumentKind): string {
   return kind === "past_paper"
@@ -105,7 +105,7 @@ function ResultCard({
           <h4 className="break-words text-base font-semibold text-text">
             <Link
               href={`/notes/${result.noteId}`}
-              className="underline decoration-transparent underline-offset-4 hover:decoration-primary-500 focus-visible:outline-2 focus-visible:outline-primary-500"
+              className="underline decoration-transparent underline-offset-4 hover:decoration-accent focus-visible:outline-2 focus-visible:outline-accent"
             >
               {result.title || "Untitled note"}
             </Link>
@@ -128,7 +128,7 @@ function ResultCard({
           {result.topics.map((topic) => (
             <li
               key={topic.id}
-              className="rounded-radius-md bg-primary-500/5 px-2.5 py-1.5 text-xs leading-relaxed text-text-secondary"
+              className="rounded-radius-md bg-surface-elevated px-2.5 py-1.5 text-xs leading-relaxed text-text-secondary"
             >
               <span className="font-medium text-text">{topic.name}</span>{" "}
               <span>
@@ -182,7 +182,7 @@ function ResultCard({
       </div>
       {result.references.length > 0 && (
         <details className="border-t border-border-subtle pt-1">
-          <summary className="min-h-11 cursor-pointer py-3 text-xs text-text-secondary focus-visible:outline-2 focus-visible:outline-primary-500">
+          <summary className="min-h-11 cursor-pointer py-3 text-xs text-text-secondary focus-visible:outline-2 focus-visible:outline-accent">
             {result.references.length} related{" "}
             {result.references.length === 1
               ? "note or file"

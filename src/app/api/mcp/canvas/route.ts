@@ -8,6 +8,7 @@ import {
   createUserCanvasClient,
 } from "@/lib/canvas/mcp";
 import { verifyInternalMcpToken } from "@/lib/auth/internal-mcp-token";
+import { canvasContentEnabled } from "@/lib/canvas/content-policy";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,9 @@ export async function POST(request: NextRequest): Promise<Response> {
     userId = verifyInternalMcpToken(token).userId;
   } catch {
     return errorResponse("Invalid internal MCP token", 401);
+  }
+  if (!canvasContentEnabled()) {
+    return errorResponse("Canvas content access is paused", 403);
   }
 
   // stateless: one server and transport per request, closed in finally

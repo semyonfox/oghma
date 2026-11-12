@@ -10,7 +10,7 @@ import type { TreeViewSettings } from "@/lib/notes/tree-view-settings";
 const headingClass =
   "px-2.5 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-text-tertiary";
 const optionClass =
-  "flex min-h-11 w-full items-center gap-2 rounded-radius-md px-2.5 text-left text-sm text-text-secondary hover:bg-subtle hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 md:min-h-8 md:text-[13px]";
+  "flex min-h-11 w-full items-center gap-2 rounded-radius-md px-2.5 text-left text-sm text-text-secondary hover:bg-subtle hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent md:min-h-8 md:text-[13px]";
 
 function Option({
   checked,
@@ -30,7 +30,7 @@ function Option({
       <span className="min-w-0 flex-1 truncate">{children}</span>
       {hint}
       <CheckIcon
-        className={`h-4 w-4 shrink-0 text-primary-600 dark:text-primary-300 ${checked ? "" : "invisible"}`}
+        className={`h-4 w-4 shrink-0 text-accent ${checked ? "" : "invisible"}`}
         aria-hidden="true"
       />
     </button>
@@ -68,11 +68,11 @@ function ViewHint({ anchor, onDismiss }: { anchor: HTMLElement; onDismiss: () =>
     <div
       role="dialog"
       aria-label={t("View")}
-      className="fixed z-[55] rounded-radius-lg border border-primary-500/30 bg-surface p-3 text-sm shadow-lg"
+      className="fixed z-[55] rounded-radius-lg border border-border bg-surface p-3 text-sm shadow-float"
       style={{ top: rect.bottom + 8, left, width }}
     >
       <span
-        className="absolute -top-1.5 h-3 w-3 rotate-45 border-l border-t border-primary-500/30 bg-surface"
+        className="absolute -top-1.5 h-3 w-3 rotate-45 border-l border-t border-border bg-surface"
         style={{ left: rect.left + rect.width / 2 - left - 6 }}
         aria-hidden="true"
       />
@@ -84,7 +84,7 @@ function ViewHint({ anchor, onDismiss }: { anchor: HTMLElement; onDismiss: () =>
         <button
           type="button"
           onClick={onDismiss}
-          className="min-h-11 rounded-radius-md bg-primary-600 px-3 text-sm font-medium text-white hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 md:min-h-8"
+          className="min-h-11 rounded-radius-md bg-action px-3 text-sm font-medium text-on-action hover:bg-action-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent md:min-h-8"
         >
           {t("Got it")}
         </button>
@@ -120,7 +120,7 @@ export function TreeViewMenu({ view, topicsReady, showHint, refreshing, onRefres
           anchor="bottom end"
           role="menu"
           aria-label={t("View")}
-          className="z-[60] w-64 max-w-[calc(100vw-1rem)] rounded-radius-lg border border-border-subtle bg-surface p-1 text-text shadow-lg [--anchor-gap:6px] [--anchor-padding:8px] focus:outline-none"
+          className="z-[60] w-64 max-w-[calc(100vw-1rem)] rounded-radius-lg border border-border bg-surface p-1 text-text shadow-float [--anchor-gap:6px] [--anchor-padding:8px] focus:outline-none"
         >
           <div role="group" aria-label={t("Group by")}>
             <p className={headingClass}>{t("Group by")}</p>
@@ -133,7 +133,7 @@ export function TreeViewMenu({ view, topicsReady, showHint, refreshing, onRefres
               onClick={() => onChange({ group: "tags" })}
               hint={
                 view.group === "folders" && topicsReady > 0 ? (
-                  <span className="shrink-0 text-xs text-primary-700 dark:text-primary-300">
+                  <span className="shrink-0 text-xs text-accent">
                     {t("{count} topics ready", { count: topicsReady })}
                   </span>
                 ) : null

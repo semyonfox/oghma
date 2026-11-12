@@ -2,6 +2,7 @@ import sql from "@/database/pgsql";
 import { generateQuestion } from "./generate";
 import { getCurrentBloomLevel, pickQuestionType } from "./bloom";
 import logger from "@/lib/logger";
+import { QUIZ_GENERATION_MAX_FAILURES } from "./types";
 
 const BATCH_SIZE = 5;
 const PARALLEL = 3;
@@ -46,6 +47,7 @@ async function getUncoveredChunkIds(
     WHERE c.user_id = ${userId}::uuid
       AND c.id = ANY(${chunkIds}::uuid[])
       AND n.deleted_at IS NULL
+      AND c.quiz_generation_failures < ${QUIZ_GENERATION_MAX_FAILURES}
       AND NOT EXISTS (
         SELECT 1 FROM app.quiz_questions qq
         WHERE qq.chunk_id = c.id AND qq.user_id = ${userId}::uuid
@@ -56,10 +58,8 @@ async function getUncoveredChunkIds(
   return rowIds(rows);
 }
 
-// session starts retry while generation runs, and each start schedules a
-// batch for the same uncovered chunks. tracking in-flight chunks per process
-// keeps those retries from paying for the same LLM call several times; the
-// unique index still settles races between the app and the worker
+// deduplicates identical chunks in this process, while the session route also
+// guards each user's batch so retries cannot schedule different random chunks
 const inFlightChunks = new Set<string>();
 
 function claimChunks(userId: string, chunkIds: string[]): string[] {

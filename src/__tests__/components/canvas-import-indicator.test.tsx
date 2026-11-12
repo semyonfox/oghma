@@ -74,6 +74,6 @@ describe("Canvas import sidebar indicator", () => {
     mocks.status.isImporting = false;
     mocks.status.progress.restrictedCourses = 2;
     render(<CanvasImportIndicator />);
-    expect(screen.getByRole("button", { name: "Completed with issues" }).className).toContain("text-orange-400");
+    expect(screen.getByRole("button", { name: "Completed with issues" }).className).toContain("text-warning-700");
   });
 });

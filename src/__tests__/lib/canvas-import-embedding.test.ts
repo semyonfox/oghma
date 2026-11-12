@@ -188,9 +188,5 @@ describe("processRagPipeline PDF bundles", () => {
       .map((call: unknown[]) => (call[0] as TemplateStringsArray)?.join(""))
       .find((query: string | undefined) => query?.includes("SET content = CASE"));
     expect(publishQuery).toContain("WHEN COALESCE(content, '') = ''");
-    expect(mocks.cacheInvalidate).toHaveBeenCalledWith("note:user-1:text-note");
-    expect(
-      mocks.cacheInvalidate.mock.invocationCallOrder[0],
-    ).toBeLessThan(mocks.replaceNoteEmbeddings.mock.invocationCallOrder[0]);
   });
 });

@@ -30,7 +30,7 @@ export default function Header() {
 
   return (
     <header
-      className={`fixed inset-x-0 top-0 z-50 transition-colors duration-200 ${scrolled ? "bg-background/80 backdrop-blur-lg border-b border-border-subtle" : ""}`}
+      className={`fixed inset-x-0 top-0 z-50 transition-colors duration-200 ${scrolled ? "bg-background/90 backdrop-blur-md border-b border-border" : ""}`}
     >
       <nav
         aria-label={t("Global")}
@@ -40,7 +40,7 @@ export default function Header() {
           <Link href="/" className="-m-1.5 p-1.5 flex items-center gap-2">
             <span className="sr-only">{t("OghmaNotes")}</span>
             <BrandLogo size={32} priority />
-            <span className="font-display text-xl font-semibold tracking-[-0.02em] text-text">
+            <span className="font-serif text-xl font-semibold tracking-[-0.02em] text-text">
               {t("OghmaNotes")}
             </span>
           </Link>
@@ -49,7 +49,7 @@ export default function Header() {
           <button
             type="button"
             onClick={() => setMobileMenuOpen(true)}
-            className="-m-2.5 inline-flex items-center justify-center rounded-md p-2.5 text-text-tertiary"
+            className="-m-2.5 inline-flex items-center justify-center rounded-radius-md p-2.5 text-text-tertiary hover:text-text"
           >
             <span className="sr-only">{t("Open main menu")}</span>
             <Bars3Icon aria-hidden="true" className="size-6" />
@@ -60,14 +60,14 @@ export default function Header() {
             <Link
               key={item.name}
               href={item.href}
-              className="text-[0.8125rem] font-semibold tracking-[0.025em] text-text transition-colors hover:text-primary-300"
+              className="text-sm font-medium text-text-secondary transition-colors hover:text-text"
             >
               {item.name}
             </Link>
           ))}
         </div>
         <div className="hidden lg:flex lg:flex-1 lg:justify-end">
-          <Link href="/login" className="text-[0.8125rem] font-semibold tracking-[0.025em] text-text transition-colors hover:text-primary-300">
+          <Link href="/login" className="inline-flex items-center gap-1.5 rounded-radius-md bg-action px-3.5 py-2 text-sm font-semibold text-on-action transition-colors hover:bg-action-hover">
             {t("Log in")} <span aria-hidden="true">&rarr;</span>
           </Link>
         </div>
@@ -83,14 +83,14 @@ export default function Header() {
             <Link href="/" className="-m-1.5 p-1.5 flex items-center gap-2">
               <span className="sr-only">{t("OghmaNotes")}</span>
               <BrandLogo size={32} />
-              <span className="font-display text-lg font-semibold text-text">
+              <span className="font-serif text-lg font-semibold tracking-[-0.02em] text-text">
                 {t("OghmaNotes")}
               </span>
             </Link>
             <button
               type="button"
               onClick={() => setMobileMenuOpen(false)}
-              className="-m-2.5 rounded-md p-2.5 text-text-tertiary"
+              className="-m-2.5 rounded-radius-md p-2.5 text-text-tertiary hover:text-text"
             >
               <span className="sr-only">{t("Close menu")}</span>
               <XMarkIcon aria-hidden="true" className="size-6" />
@@ -103,7 +103,7 @@ export default function Header() {
                   <Link
                     key={item.name}
                     href={item.href}
-                    className="-mx-3 block rounded-lg px-3 py-2 text-base/7 font-semibold text-text hover:bg-subtle"
+                    className="-mx-3 block rounded-radius-md px-3 py-2 text-base/7 font-medium text-text-secondary hover:bg-subtle hover:text-text"
                   >
                     {item.name}
                   </Link>
@@ -112,7 +112,7 @@ export default function Header() {
               <div className="py-6">
                 <Link
                   href="/login"
-                  className="-mx-3 block rounded-lg px-3 py-2.5 text-base/7 font-semibold text-text hover:bg-subtle"
+                  className="block rounded-radius-md bg-action px-3 py-2.5 text-center text-base/7 font-semibold text-on-action hover:bg-action-hover"
                 >
                   {t("Log in")}
                 </Link>

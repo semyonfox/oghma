@@ -76,48 +76,7 @@ export default async function About() {
 
       <main className="isolate">
         {/* Hero section */}
-        <div className="relative isolate -z-10">
-          <svg
-            aria-hidden="true"
-            className="absolute inset-x-0 top-0 -z-10 h-256 w-full mask-[radial-gradient(32rem_32rem_at_center,white,transparent)] stroke-white/10"
-          >
-            <defs>
-              <pattern
-                x="50%"
-                y={-1}
-                id="1f932ae7-37de-4c0a-a8b0-a6e3b4d44b84"
-                width={200}
-                height={200}
-                patternUnits="userSpaceOnUse"
-              >
-                <path d="M.5 200V.5H200" fill="none" />
-              </pattern>
-            </defs>
-            <svg x="50%" y={-1} className="overflow-visible fill-surface">
-              <path
-                d="M-200 0h201v201h-201Z M600 0h201v201h-201Z M-400 600h201v201h-201Z M200 800h201v201h-201Z"
-                strokeWidth={0}
-              />
-            </svg>
-            <rect
-              fill="url(#1f932ae7-37de-4c0a-a8b0-a6e3b4d44b84)"
-              width="100%"
-              height="100%"
-              strokeWidth={0}
-            />
-          </svg>
-          <div
-            aria-hidden="true"
-            className="absolute top-0 right-0 left-1/2 -z-10 -ml-24 transform-gpu overflow-hidden blur-3xl lg:ml-24 xl:ml-48"
-          >
-            <div
-              style={{
-                clipPath:
-                  "polygon(63.1% 29.5%, 100% 17.1%, 76.6% 3%, 48.4% 0%, 44.6% 4.7%, 54.5% 25.3%, 59.8% 49%, 55.2% 57.8%, 44.4% 57.2%, 27.8% 47.9%, 35.1% 81.5%, 0% 97.7%, 39.2% 100%, 35.2% 81.4%, 97.2% 52.8%, 63.1% 29.5%)",
-              }}
-              className="aspect-801/1036 w-200.25 bg-linear-to-tr from-[#ff80b5] to-[#9089fc] opacity-30"
-            />
-          </div>
+        <div className="relative">
           <div className="overflow-hidden">
             <div className="mx-auto max-w-7xl px-6 pt-36 pb-32 sm:pt-60 lg:px-8 lg:pt-32">
               <div className="mx-auto max-w-2xl gap-x-14 lg:mx-0 lg:flex lg:max-w-none lg:items-center">
@@ -140,9 +99,9 @@ export default async function About() {
                         width={352}
                         height={528}
                         sizes="176px"
-                        className="aspect-2/3 w-full rounded-xl bg-subtle object-cover shadow-lg"
+                        className="aspect-2/3 w-full rounded-radius-xl bg-subtle object-cover"
                       />
-                      <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-border-subtle ring-inset" />
+                      <div className="pointer-events-none absolute inset-0 rounded-radius-xl ring-1 ring-border ring-inset" />
                     </div>
                   </div>
                   <div className="mr-auto w-44 flex-none space-y-8 sm:mr-0 sm:pt-52 lg:pt-36">
@@ -153,9 +112,9 @@ export default async function About() {
                         width={352}
                         height={528}
                         sizes="176px"
-                        className="aspect-2/3 w-full rounded-xl bg-subtle object-cover shadow-lg"
+                        className="aspect-2/3 w-full rounded-radius-xl bg-subtle object-cover"
                       />
-                      <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-border-subtle ring-inset" />
+                      <div className="pointer-events-none absolute inset-0 rounded-radius-xl ring-1 ring-border ring-inset" />
                     </div>
                     <div className="relative">
                       <Image
@@ -164,9 +123,9 @@ export default async function About() {
                         width={352}
                         height={528}
                         sizes="176px"
-                        className="aspect-2/3 w-full rounded-xl bg-subtle object-cover shadow-lg"
+                        className="aspect-2/3 w-full rounded-radius-xl bg-subtle object-cover"
                       />
-                      <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-border-subtle ring-inset" />
+                      <div className="pointer-events-none absolute inset-0 rounded-radius-xl ring-1 ring-border ring-inset" />
                     </div>
                   </div>
                   <div className="w-44 flex-none space-y-8 pt-32 sm:pt-0">
@@ -177,9 +136,9 @@ export default async function About() {
                         width={352}
                         height={528}
                         sizes="176px"
-                        className="aspect-2/3 w-full rounded-xl bg-subtle object-cover shadow-lg"
+                        className="aspect-2/3 w-full rounded-radius-xl bg-subtle object-cover"
                       />
-                      <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-border-subtle ring-inset" />
+                      <div className="pointer-events-none absolute inset-0 rounded-radius-xl ring-1 ring-border ring-inset" />
                     </div>
                     <div className="relative">
                       <Image
@@ -188,9 +147,9 @@ export default async function About() {
                         width={352}
                         height={528}
                         sizes="176px"
-                        className="aspect-2/3 w-full rounded-xl bg-subtle object-cover shadow-lg"
+                        className="aspect-2/3 w-full rounded-radius-xl bg-subtle object-cover"
                       />
-                      <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-border-subtle ring-inset" />
+                      <div className="pointer-events-none absolute inset-0 rounded-radius-xl ring-1 ring-border ring-inset" />
                     </div>
                   </div>
                 </div>
@@ -202,7 +161,7 @@ export default async function About() {
         {/* Content section */}
         <div className="mx-auto -mt-12 max-w-7xl px-6 sm:mt-0 lg:px-8 xl:-mt-8">
           <div className="mx-auto max-w-2xl lg:mx-0 lg:max-w-none">
-            <h2 className="text-4xl font-semibold tracking-tight text-pretty text-text sm:text-5xl">
+            <h2 className="font-serif text-4xl font-semibold tracking-tight text-pretty text-text sm:text-5xl">
               {t("Our mission")}
             </h2>
             <div className="mt-6 flex flex-col gap-x-8 gap-y-20 lg:flex-row">
@@ -225,10 +184,10 @@ export default async function About() {
                       key={stat.label}
                       className="flex flex-col-reverse gap-y-4"
                     >
-                      <dt className="text-base/7 text-text-tertiary">
+                      <dt className="font-mono text-xs uppercase tracking-[0.14em] text-text-tertiary">
                         {stat.label}
                       </dt>
-                      <dd className="text-5xl font-semibold tracking-tight text-text">
+                      <dd className="font-serif text-5xl font-semibold tracking-tight text-text">
                         {stat.value}
                       </dd>
                     </div>
@@ -247,7 +206,7 @@ export default async function About() {
             width={1400}
             height={560}
             sizes="(max-width: 1280px) 100vw, 1280px"
-            className="aspect-5/2 w-full object-cover outline-1 -outline-offset-1 outline-white/10 xl:rounded-3xl"
+            className="aspect-5/2 w-full object-cover outline-1 -outline-offset-1 outline-border xl:rounded-radius-2xl"
           />
         </div>
 
@@ -263,7 +222,7 @@ export default async function About() {
               )}
             </p>
           </div>
-          <ol className="mt-16 grid grid-cols-1 border-t border-border-subtle sm:grid-cols-2 lg:grid-cols-4">
+          <ol className="mt-16 grid grid-cols-1 border-t border-border sm:grid-cols-2 lg:grid-cols-4">
             {[
               {
                 name: t("Cited course answers"),
@@ -292,9 +251,9 @@ export default async function About() {
             ].map((feature, index) => (
               <li
                 key={feature.name}
-                className="border-b border-border-subtle py-8 sm:px-6 sm:first:pl-0 lg:border-r lg:last:border-r-0 lg:last:pr-0"
+                className="border-b border-border py-8 sm:px-6 sm:first:pl-0 lg:border-r lg:last:border-r-0 lg:last:pr-0"
               >
-                <span className="type-eyebrow text-primary-300">
+                <span className="type-eyebrow font-mono text-accent">
                   {String(index + 1).padStart(2, "0")}
                 </span>
                 <h3 className="type-card-title mt-5 text-text">
@@ -309,48 +268,16 @@ export default async function About() {
         </div>
 
         {/* Logo cloud */}
-        <div className="relative isolate -z-10 mt-32 sm:mt-48">
-          <div className="absolute inset-x-0 top-1/2 -z-10 flex -translate-y-1/2 justify-center overflow-hidden mask-[radial-gradient(50%_45%_at_50%_55%,white,transparent)]">
-            <svg
-              aria-hidden="true"
-              className="h-160 w-7xl flex-none stroke-white/10"
-            >
-              <defs>
-                <pattern
-                  x="50%"
-                  y="50%"
-                  id="e9033f3e-f665-41a6-84ef-756f6778e6fe"
-                  width={200}
-                  height={200}
-                  patternUnits="userSpaceOnUse"
-                  patternTransform="translate(-100 0)"
-                >
-                  <path d="M.5 200V.5H200" fill="none" />
-                </pattern>
-              </defs>
-              <svg x="50%" y="50%" className="overflow-visible fill-surface">
-                <path
-                  d="M-300 0h201v201h-201Z M300 200h201v201h-201Z"
-                  strokeWidth={0}
-                />
-              </svg>
-              <rect
-                fill="url(#e9033f3e-f665-41a6-84ef-756f6778e6fe)"
-                width="100%"
-                height="100%"
-                strokeWidth={0}
-              />
-            </svg>
-          </div>
+        <div className="mt-32 sm:mt-48">
           <div className="mx-auto max-w-7xl px-6 lg:px-8">
-            <h2 className="text-center text-lg/8 font-semibold text-text">
+            <h2 className="text-center font-serif text-xl font-semibold tracking-tight text-text">
               {t("Built for academic excellence")}
             </h2>
             <div className="mx-auto mt-10 grid max-w-4xl grid-cols-2 items-center gap-x-6 gap-y-8 sm:max-w-2xl sm:grid-cols-3 sm:gap-x-8 lg:mx-0 lg:max-w-none lg:grid-cols-5 lg:gap-x-8 lg:gap-y-10">
               {academicImages.map((img) => (
                 <div
                   key={img.name}
-                  className="col-span-1 overflow-hidden rounded-xl"
+                  className="col-span-1 overflow-hidden rounded-radius-xl border border-border"
                 >
                   <Image
                     alt={img.name}
@@ -370,7 +297,7 @@ export default async function About() {
         <div className="py-24 sm:py-32">
           <div className="mx-auto max-w-7xl px-6 text-center lg:px-8">
             <div className="mx-auto max-w-2xl">
-              <h2 className="text-4xl font-semibold tracking-tight text-balance text-text sm:text-5xl">
+              <h2 className="font-serif text-4xl font-semibold tracking-tight text-balance text-text sm:text-5xl">
                 {t("Meet our team")}
               </h2>
               <p className="mt-6 text-lg/8 text-text-tertiary">
@@ -386,7 +313,7 @@ export default async function About() {
               {team.map((person) => (
                 <li
                   key={person.name}
-                  className="rounded-2xl bg-surface px-8 py-10"
+                  className="rounded-radius-2xl border border-border bg-surface px-8 py-10"
                 >
                   <a
                     href={person.linkedin}
@@ -400,13 +327,13 @@ export default async function About() {
                       width={224}
                       height={224}
                       sizes="(min-width: 768px) 224px, 192px"
-                      className="mx-auto size-48 rounded-full outline-1 -outline-offset-1 outline-white/10 md:size-56"
+                      className="mx-auto size-48 rounded-full outline-1 -outline-offset-1 outline-border md:size-56"
                     />
                   </a>
-                  <h3 className="mt-6 text-base/7 font-semibold tracking-tight text-text">
+                  <h3 className="mt-6 font-serif text-lg font-semibold tracking-tight text-text">
                     <a
                       href={person.linkedin}
-                      className="hover:text-text-secondary"
+                      className="hover:text-accent"
                       target="_blank"
                       rel="noopener noreferrer"
                     >
@@ -475,7 +402,7 @@ export default async function About() {
           className="mx-auto mt-32 max-w-7xl px-6 sm:mt-40 lg:px-8"
         >
           <div className="mx-auto max-w-2xl lg:mx-0 lg:max-w-none">
-            <h2 className="text-4xl font-semibold tracking-tight text-balance text-text sm:text-5xl">
+            <h2 className="font-serif text-4xl font-semibold tracking-tight text-balance text-text sm:text-5xl">
               {t("From our blog")}
             </h2>
             <p className="mt-2 text-lg/8 text-text-tertiary">
@@ -488,26 +415,27 @@ export default async function About() {
             {blogPosts.map((post) => (
               <article
                 key={post.slug}
-                className="relative isolate flex flex-col justify-end overflow-hidden rounded-2xl bg-surface px-8 pt-80 pb-8 sm:pt-48 lg:pt-80"
+                className="relative flex flex-col overflow-hidden rounded-radius-2xl border border-border bg-surface transition-colors hover:border-border-strong"
               >
-                <Image
-                  alt={post.title}
-                  src={post.imageUrl}
-                  fill
-                  sizes="(max-width: 1024px) 100vw, 33vw"
-                  className="absolute inset-0 -z-10 object-cover"
-                />
-                <div className="absolute inset-0 -z-10 bg-linear-to-t from-black/80 via-black/40" />
-                <div className="absolute inset-0 -z-10 rounded-2xl inset-ring inset-ring-border-subtle" />
+                <div className="relative aspect-video w-full border-b border-border bg-subtle">
+                  <Image
+                    alt={post.title}
+                    src={post.imageUrl}
+                    fill
+                    sizes="(max-width: 1024px) 100vw, 33vw"
+                    className="object-cover"
+                  />
+                </div>
 
+                <div className="flex flex-1 flex-col justify-end px-6 pt-5 pb-6">
                 <div className="flex flex-wrap items-center gap-y-1 overflow-hidden text-sm/6 text-text-secondary">
-                  <time dateTime={post.datetime} className="mr-8">
+                  <time dateTime={post.datetime} className="mr-8 font-mono text-xs text-text-tertiary">
                     {post.date}
                   </time>
                   <div className="-ml-4 flex items-center gap-x-4">
                     <svg
                       viewBox="0 0 2 2"
-                      className="-ml-0.5 size-0.5 flex-none fill-gray-300/50"
+                      className="-ml-0.5 size-0.5 flex-none fill-text-tertiary"
                     >
                       <circle r={1} cx={1} cy={1} />
                     </svg>
@@ -528,12 +456,13 @@ export default async function About() {
                     </a>
                   </div>
                 </div>
-                <h3 className="mt-3 text-lg/6 font-semibold text-text">
+                <h3 className="mt-3 font-serif text-xl/7 font-semibold tracking-tight text-text">
                   <Link href={`/blog/${post.slug}`}>
                     <span className="absolute inset-0" />
                     {t(post.title)}
                   </Link>
                 </h3>
+                </div>
               </article>
             ))}
           </div>

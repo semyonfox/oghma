@@ -200,7 +200,7 @@ function UpdateSheet({
         </View>
         <ScrollView contentContainerStyle={[styles.content, { flexGrow: 1 }]}>
           <View style={{ gap: 4 }}>
-            <Text style={styles.label}>APP UPDATES</Text>
+            <Text style={styles.label}>App updates</Text>
             <Text style={styles.heading}>OghmaNotes for Android</Text>
             <Text style={styles.muted}>Installed version {controller.installed.version}</Text>
           </View>
@@ -213,17 +213,28 @@ function UpdateSheet({
                   borderRadius: 22,
                   alignItems: "center",
                   justifyContent: "center",
-                  backgroundColor: state.status === "error" ? colors.errorSoft : colors.accentSoft,
+                  backgroundColor:
+                    state.status === "error"
+                      ? colors.errorSoft
+                      : state.status === "current"
+                        ? colors.successSoft
+                        : colors.accentSoft,
                 }}
               >
                 <Ionicons
                   name={statusIcon(state)}
                   size={25}
-                  color={state.status === "error" ? colors.error : colors.accent}
+                  color={
+                    state.status === "error"
+                      ? colors.error
+                      : state.status === "current"
+                        ? colors.success
+                        : colors.accent
+                  }
                 />
               </View>
               <View style={{ flex: 1, gap: 2 }}>
-                <Text style={styles.label}>UPDATE STATUS</Text>
+                <Text style={styles.label}>Update status</Text>
                 <Text
                   accessibilityRole="header"
                   accessibilityLiveRegion="polite"
@@ -234,7 +245,7 @@ function UpdateSheet({
               </View>
             </View>
             {release && (
-              <Text style={styles.muted}>
+              <Text style={styles.mono}>
                 Version {release.version} · {sizeLabel(release.bytes)}
               </Text>
             )}
@@ -265,7 +276,7 @@ function UpdateSheet({
                   style={{
                     height: 10,
                     backgroundColor: colors.surfaceElevated,
-                    borderRadius: 5,
+                    borderRadius: 999,
                     overflow: "hidden",
                   }}
                 >
@@ -273,11 +284,12 @@ function UpdateSheet({
                     style={{
                       width: `${percent}%`,
                       height: 10,
-                      backgroundColor: colors.action,
+                      borderRadius: 999,
+                      backgroundColor: colors.accent,
                     }}
                   />
                 </View>
-                <Text style={styles.muted}>
+                <Text style={styles.mono}>
                   {sizeLabel(state.receivedBytes)} of {sizeLabel(release.bytes)}{" "}
                   · {percent}%
                 </Text>

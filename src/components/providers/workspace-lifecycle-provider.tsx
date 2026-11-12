@@ -206,7 +206,7 @@ export default function WorkspaceLifecycleProvider({
               <p>{t("Something went wrong")}</p>
               <button
                 type="button"
-                className="rounded-radius-md bg-primary-600 px-3 py-2 font-semibold text-text-on-primary hover:bg-primary-700"
+                className="rounded-radius-md bg-action px-3 py-2 font-semibold text-on-action hover:bg-action-hover"
                 onClick={() => void refreshIdentity()}
               >
                 {t("Try again")}

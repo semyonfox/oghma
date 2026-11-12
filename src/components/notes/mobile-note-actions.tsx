@@ -26,9 +26,9 @@ import {
 
 const noop = () => {};
 export const mobileActionClass =
-  "flex min-h-12 w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-base text-text-secondary hover:bg-subtle disabled:opacity-50";
+  "flex min-h-12 w-full items-center gap-3 rounded-radius-xl px-3 py-3 text-left text-base text-text-secondary hover:bg-subtle disabled:opacity-50";
 const primaryClass =
-  "min-h-11 rounded-xl bg-primary-600 px-5 py-2.5 font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50";
+  "min-h-11 rounded-radius-xl bg-action px-5 py-2.5 font-semibold text-on-action hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-50";
 
 export default function MobileNoteActions({
   noteId,
@@ -124,7 +124,7 @@ export default function MobileNoteActions({
           <div className="flex justify-end gap-2">
             <button
               type="button"
-              className="min-h-11 rounded-xl px-4 hover:bg-subtle"
+              className="min-h-11 rounded-radius-xl px-4 hover:bg-subtle"
               disabled={busy}
               onClick={() => setDeleteTarget(null)}
             >
@@ -132,7 +132,7 @@ export default function MobileNoteActions({
             </button>
             <button
               type="button"
-              className="min-h-11 rounded-xl bg-error-600 px-4 font-semibold text-white disabled:opacity-50"
+              className="min-h-11 rounded-radius-xl bg-error-600 px-4 font-semibold text-text-on-primary disabled:opacity-50"
               disabled={busy}
               onClick={() => void run(handleDeleteConfirm)}
             >
@@ -161,13 +161,13 @@ export default function MobileNoteActions({
               onChange={(event) => setName(event.target.value)}
               maxLength={255}
               required
-              className="mt-2 min-h-12 w-full rounded-xl border border-border bg-background px-3 text-base outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
+              className="mt-2 min-h-12 w-full rounded-radius-xl border border-border bg-background px-3 text-base outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
             />
           </label>
           <div className="flex justify-end gap-2">
             <button
               type="button"
-              className="min-h-11 rounded-xl px-4 hover:bg-subtle"
+              className="min-h-11 rounded-radius-xl px-4 hover:bg-subtle"
               onClick={() => setMode("actions")}
               disabled={busy}
             >
@@ -215,7 +215,7 @@ export default function MobileNoteActions({
                     onClick={() => setDestination((path) => [...path, id])}
                   >
                     <FolderIcon
-                      className="h-5 w-5 text-primary-500"
+                      className="h-5 w-5 text-accent"
                       aria-hidden="true"
                     />
                     <span className="min-w-0 flex-1 truncate">
@@ -229,7 +229,7 @@ export default function MobileNoteActions({
           <div className="flex justify-end gap-2 p-2">
             <button
               type="button"
-              className="min-h-11 rounded-xl px-4 hover:bg-subtle"
+              className="min-h-11 rounded-radius-xl px-4 hover:bg-subtle"
               onClick={() => setMode("actions")}
               disabled={busy}
             >

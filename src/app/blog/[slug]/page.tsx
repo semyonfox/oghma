@@ -22,31 +22,19 @@ export default async function BlogPost({ params }: { params: Promise<{ slug: str
   return (
     <>
       <Header />
-      <div className="bg-landing relative isolate px-6 py-28 sm:py-32 lg:px-8">
-        <div
-          aria-hidden="true"
-          className="absolute inset-x-0 -top-40 -z-10 transform-gpu overflow-hidden blur-3xl sm:-top-80"
-        >
-          <div
-            style={{
-              clipPath:
-                "polygon(74.1% 44.1%, 100% 61.6%, 97.5% 26.9%, 85.5% 0.1%, 80.7% 2%, 72.5% 32.5%, 60.2% 62.4%, 52.4% 68.1%, 47.5% 58.3%, 45.2% 34.5%, 27.5% 76.7%, 0.1% 64.9%, 17.9% 100%, 27.6% 76.8%, 76.1% 97.7%, 74.1% 44.1%)",
-            }}
-            className="relative left-[calc(50%-11rem)] aspect-1155/678 w-144.5 -translate-x-1/2 rotate-30 bg-linear-to-tr from-primary-500/25 to-primary-400/10 opacity-20 sm:left-[calc(50%-30rem)] sm:w-288.75"
-          />
-        </div>
+      <div className="bg-landing relative px-6 py-28 sm:py-32 lg:px-8">
         <div className="mx-auto max-w-3xl text-base/7 text-text-secondary">
-          <div className="mb-8 border-b border-border-subtle pb-8">
+          <div className="mb-8 border-b border-border pb-8">
             <Link
               href="/blog"
-              className="text-sm text-primary-400 hover:text-primary-300 mb-4 inline-block"
+              className="text-sm text-accent hover:text-accent-hover mb-4 inline-block"
             >
               {t("blog.backToPostsArrow")}
             </Link>
-            <p className="text-base/7 font-semibold text-primary-400">
+            <p className="font-mono text-xs font-medium uppercase tracking-[0.14em] text-text-tertiary">
               {t("blog.articleLabel")}
             </p>
-            <h1 className="mt-2 text-4xl font-semibold tracking-tight text-pretty text-text sm:text-5xl">
+            <h1 className="mt-3 font-serif text-4xl font-semibold tracking-tight text-pretty text-text sm:text-5xl">
               {t(post.title)}
             </h1>
             <div className="mt-6 flex items-center gap-x-4 text-sm text-text-secondary">
@@ -69,7 +57,7 @@ export default async function BlogPost({ params }: { params: Promise<{ slug: str
                 </div>
               </a>
               <span>•</span>
-              <span>{post.date}</span>
+              <span className="font-mono text-xs text-text-tertiary">{post.date}</span>
             </div>
           </div>
 
@@ -83,7 +71,7 @@ export default async function BlogPost({ params }: { params: Promise<{ slug: str
                 <li key={idx} className="flex gap-x-3">
                   <CheckCircleIcon
                     aria-hidden="true"
-                    className="mt-1 size-5 flex-none text-primary-400"
+                    className="mt-1 size-5 flex-none text-accent"
                   />
                   <span>
                     <strong className="font-semibold text-text">
@@ -95,14 +83,14 @@ export default async function BlogPost({ params }: { params: Promise<{ slug: str
               ))}
             </ul>
 
-            <h2 className="mt-16 text-3xl font-semibold tracking-tight text-pretty text-text">
+            <h2 className="mt-16 font-serif text-3xl font-semibold tracking-tight text-pretty text-text">
               {t(post.section2Title)}
             </h2>
             <p className="mt-6">{t(post.section2Content)}</p>
 
             {post.callout ? (
-              <figure className="mt-10 border-l border-primary-400 pl-9">
-                <blockquote className="font-semibold text-text">
+              <figure className="mt-10 rounded-radius-lg bg-surface-elevated px-6 py-5">
+                <blockquote className="font-serif text-lg font-semibold text-text">
                   <p>{t(post.callout)}</p>
                 </blockquote>
               </figure>
@@ -118,7 +106,7 @@ export default async function BlogPost({ params }: { params: Promise<{ slug: str
               width={800}
               height={450}
               sizes="(max-width: 768px) 100vw, 768px"
-              className="aspect-video rounded-xl bg-surface-elevated object-cover"
+              className="aspect-video rounded-radius-xl border border-border bg-surface-elevated object-cover"
             />
             <figcaption className="mt-4 flex gap-x-2 text-sm/6 text-text-secondary">
               <InformationCircleIcon
@@ -129,15 +117,15 @@ export default async function BlogPost({ params }: { params: Promise<{ slug: str
             </figcaption>
           </figure>
 
-          <div className="mt-16 max-w-2xl text-text-secondary border-t border-border-subtle pt-8">
-            <h2 className="text-3xl font-semibold tracking-tight text-pretty text-text">
+          <div className="mt-16 max-w-2xl text-text-secondary border-t border-border pt-8">
+            <h2 className="font-serif text-3xl font-semibold tracking-tight text-pretty text-text">
               {t("blog.cta.title")}
             </h2>
             <p className="mt-6">{t("blog.cta.description")}</p>
             <div className="mt-8">
               <Link
                 href="/contact#contact-form"
-                className="rounded-radius-md bg-primary-600 px-6 py-2.5 text-sm font-semibold text-text-on-primary hover:bg-primary-700"
+                className="rounded-radius-md bg-action px-6 py-2.5 text-sm font-semibold text-on-action transition-colors hover:bg-action-hover"
               >
                 {t("Join the beta")}
               </Link>

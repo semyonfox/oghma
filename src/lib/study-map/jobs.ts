@@ -29,7 +29,6 @@ import {
 import { CanvasClient } from "@/lib/canvas/client";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
 import { insertNoteWithTree } from "@/lib/notes/storage/create-note";
-import { invalidateTreeAfterPublish } from "@/lib/notes/tree-cache";
 import {
   lockStudyMap,
   lockStudySource,
@@ -50,6 +49,7 @@ import {
   type StudyJobKind,
   type StudyTopic,
 } from "./types";
+import { canvasContentEnabled } from "@/lib/canvas/content-policy";
 
 type Transaction = postgres.TransactionSql;
 
@@ -597,6 +597,8 @@ async function outlineFor(
       ? fetchModuleDescriptor(code)
       : null,
     (async () => {
+      // the syllabus and home page are the lecturer's own writing
+      if (!canvasContentEnabled()) return null;
       const credentials = await loadCanvasCredentials(userId).catch(() => null);
       if (!credentials) return null;
       return new CanvasClient(credentials.domain, credentials.token)
@@ -631,7 +633,6 @@ export async function autoConfigureStudyMap(
 ): Promise<void> {
   await syncStudyMaterials(userId, mapId);
   const outline = await outlineFor(userId, mapId);
-  let createdIn: string | null = null;
   const map = await sql.begin(async (tx) => {
     const map = await lockStudyMap(tx, userId, mapId);
     if (!map.auto_classify || map.syllabus_note_id) return map;
@@ -657,7 +658,6 @@ export async function autoConfigureStudyMap(
             parentId: map.root_note_id,
           })
         ).noteId;
-      if (!existing) createdIn = map.root_note_id;
       // an outline the student removed from the map stays removed
       await tx`
         INSERT INTO app.study_materials (map_id, user_id, note_id)
@@ -680,7 +680,6 @@ export async function autoConfigureStudyMap(
     `;
     return { ...map, syllabus_note_id: syllabusId };
   });
-  if (createdIn) await invalidateTreeAfterPublish(userId, createdIn);
   if (!map.auto_classify) return;
   if (topicSchema.array().parse(map.topics).length > 0) {
     await classifyAutomatically(userId, mapId);

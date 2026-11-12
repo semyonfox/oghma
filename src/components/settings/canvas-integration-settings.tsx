@@ -12,6 +12,15 @@ import {
   CheckCircleIcon,
 } from "./canvas/canvas-helpers";
 import CanvasConnectionForm from "./canvas/canvas-connection-form";
+import {
+  dangerOutlineBtnClass,
+  errorTextClass,
+  ghostBtnClass,
+  saveBtnClass,
+  secondaryBtnClass,
+  successTextClass,
+  warningTextClass,
+} from "./settings-utils";
 import CanvasProgressPanel from "./canvas/canvas-progress-panel";
 import CanvasCourseSelector from "./canvas/canvas-course-selector";
 import useCanvasImport from "./canvas/use-canvas-import";
@@ -87,6 +96,7 @@ export default function CanvasIntegrationSettings() {
   // Post-connection state
   const [isConnected, setIsConnected] = useState(false);
   const [connectedDomain, setConnectedDomain] = useState("");
+  const [contentImport, setContentImport] = useState(false);
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>([]);
   const [courseErrors, setCourseErrors] = useState<Record<string, string>>({});
@@ -158,11 +168,13 @@ export default function CanvasIntegrationSettings() {
         courses?: Course[];
         forbiddenCourseIds?: Array<string | number>;
         courseDiscoveryDegraded?: boolean;
+        contentImport?: boolean;
       };
 
       if (res.ok && data.connected) {
         setIsConnected(true);
         setConnectedDomain(data.domain ?? "");
+        setContentImport(data.contentImport === true);
         setCourses(data.courses ?? []);
         setCourseDiscoveryDegraded(Boolean(data.courseDiscoveryDegraded));
 
@@ -251,6 +263,7 @@ export default function CanvasIntegrationSettings() {
         courses?: Course[];
         error?: string;
         courseDiscoveryDegraded?: boolean;
+        contentImport?: boolean;
       };
 
       if (!res.ok) {
@@ -263,6 +276,7 @@ export default function CanvasIntegrationSettings() {
       setIsConnected(true);
       setConnectionWarning(null);
       setConnectedDomain(domain);
+      setContentImport(data.contentImport === true);
       setCourses(data.courses ?? []);
       setCourseDiscoveryDegraded(Boolean(data.courseDiscoveryDegraded));
 
@@ -449,10 +463,10 @@ export default function CanvasIntegrationSettings() {
   ).length;
 
   return (
-    <div className="grid grid-cols-1 gap-y-8 sm:max-w-xl">
+    <div className="grid grid-cols-1 gap-y-6">
       {/* ── Connection status badge ────────────────────────────────── */}
       {isConnected && (
-        <div className="flex items-center gap-2 text-sm text-green-400">
+        <div className={`flex items-center gap-2 text-sm ${successTextClass}`}>
           <CheckCircleIcon className="size-4 shrink-0" />
           <span>
             {t("Connected to")}{" "}
@@ -489,7 +503,7 @@ export default function CanvasIntegrationSettings() {
           />
 
           {courseDiscoveryDegraded && (
-            <p className="text-xs text-yellow-400">
+            <p className={`text-xs ${warningTextClass}`}>
               {t(
                 "Canvas could not list every historical course. Showing the courses it currently exposes.",
               )}
@@ -498,7 +512,7 @@ export default function CanvasIntegrationSettings() {
 
           {/* Import error */}
           {connectionError && (
-            <div role="alert" className="flex items-center gap-2 text-sm text-red-400">
+            <div role="alert" className={`flex items-center gap-2 text-sm ${errorTextClass}`}>
               <ExclamationCircleIcon className="size-4 shrink-0" />
               {connectionError}
             </div>
@@ -521,8 +535,8 @@ export default function CanvasIntegrationSettings() {
 
           {pendingTrash && (
             <section role="alertdialog" aria-modal="false" aria-labelledby="canvas-trash-title"
-              className="glass-card rounded-radius-md p-4 space-y-3">
-              <h3 id="canvas-trash-title" className="text-sm font-semibold">{t("Restore folders before importing?")}</h3>
+              className="rounded-radius-lg border border-border bg-surface-elevated p-4 space-y-3">
+              <h3 id="canvas-trash-title" className="text-sm font-semibold text-text">{t("Restore folders before importing?")}</h3>
               <p className="text-sm text-text-secondary">
                 {t("These folders are in Trash. Restoring them brings back their contents and keeps your existing notes and edits.")}
               </p>
@@ -532,20 +546,20 @@ export default function CanvasIntegrationSettings() {
               <p className="text-xs text-text-tertiary">{t("Keep in Trash imports the remaining available material. Deleted folders stay deleted.")}</p>
               <div className="flex flex-wrap gap-3">
                 <button type="button" disabled={isRestoring} onClick={() => void handleTrashChoice(true)}
-                  className="rounded-radius-md bg-primary-600 px-3 py-2 text-sm font-semibold text-text-on-primary disabled:opacity-50">
+                  className={saveBtnClass}>
                   {isRestoring ? t("Working...") : t("Restore and import")}
                 </button>
                 <button type="button" disabled={isRestoring} onClick={() => void handleTrashChoice(false)}
-                  className="rounded-radius-md px-3 py-2 text-sm text-text-secondary">{t("Keep in Trash")}</button>
+                  className={ghostBtnClass}>{t("Keep in Trash")}</button>
                 <button type="button" disabled={isRestoring} onClick={() => setPendingTrash(null)}
-                  className="rounded-radius-md px-3 py-2 text-sm text-text-secondary">{t("Cancel")}</button>
+                  className={ghostBtnClass}>{t("Cancel")}</button>
               </div>
             </section>
           )}
           {pendingReplacement && (
             <section role="alertdialog" aria-modal="false" aria-labelledby="canvas-replace-title"
-              className="glass-card rounded-radius-md p-4 space-y-3">
-              <h3 id="canvas-replace-title" className="text-sm font-semibold">{t("Replace current import?")}</h3>
+              className="rounded-radius-lg border border-border bg-surface-elevated p-4 space-y-3">
+              <h3 id="canvas-replace-title" className="text-sm font-semibold text-text">{t("Replace current import?")}</h3>
               <p className="text-sm text-text-secondary">
                 {pendingReplacement.status === "discovering" ? t("Discovering files...") :
                   pendingReplacement.status === "queued" ? t("Queued") : t("Importing...")}
@@ -553,11 +567,11 @@ export default function CanvasIntegrationSettings() {
               <p className="text-sm text-text-secondary">{t("Stops remaining work. Files already imported stay available.")}</p>
               <div className="flex gap-3">
                 <button type="button" disabled={isReplacing} onClick={() => void confirmReplacement()}
-                  className="rounded-radius-md bg-primary-600 px-3 py-2 text-sm font-semibold text-text-on-primary disabled:opacity-50">
+                  className={saveBtnClass}>
                   {t("Replace current import")}
                 </button>
                 <button type="button" disabled={isReplacing} onClick={() => setPendingReplacement(null)}
-                  className="rounded-radius-md px-3 py-2 text-sm text-text-secondary">
+                  className={ghostBtnClass}>
                   {t("Keep current import")}
                 </button>
               </div>
@@ -569,7 +583,7 @@ export default function CanvasIntegrationSettings() {
                 type="button"
                 onClick={handleCancel}
                 aria-describedby="canvas-stop-description"
-                className="shrink-0 rounded-radius-md bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-400 ring-1 ring-red-500/20 hover:bg-red-500/20"
+                className={`shrink-0 ${dangerOutlineBtnClass}`}
               >
                 {t("Stop import")}
               </button>
@@ -578,16 +592,21 @@ export default function CanvasIntegrationSettings() {
               </p>
             </div>
           )}
+          {!contentImport && (
+            <p className="text-sm text-text-secondary">
+              {t("Importing Canvas files into OghmaNotes is paused while we agree it with lecturers. Deadlines still sync to your calendar, and you can upload your own files to Notes.")}
+            </p>
+          )}
           {/* Action buttons */}
           <div className="flex flex-wrap gap-3">
-            <button
+            {contentImport && <button
                 type="button"
                 disabled={selectedCourseCount === 0 || isSyncing}
                 onClick={handleImport}
-                className="rounded-radius-md bg-primary-600 px-3 py-2 text-sm font-semibold text-text-on-primary hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className={saveBtnClass}
               >
                 {`${t("Import selected courses")}${selectedCourseCount > 0 ? ` (${selectedCourseCount})` : ""}`}
-              </button>
+              </button>}
             <button
               type="button"
               disabled={
@@ -598,7 +617,7 @@ export default function CanvasIntegrationSettings() {
                   selectedCourseCount === 0)
               }
               onClick={handleDownloadCanvasFiles}
-              className="rounded-radius-md glass-card-interactive px-3 py-2 text-sm font-semibold text-text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+              className={secondaryBtnClass}
             >
               {isDownloadingCanvasFiles
                 ? t("Preparing archive...")
@@ -608,7 +627,7 @@ export default function CanvasIntegrationSettings() {
                       : ` (${t("all courses")})`
                   }`}
             </button>
-            <button
+            {contentImport && <button
               type="button"
               disabled={
                 isImporting ||
@@ -617,19 +636,19 @@ export default function CanvasIntegrationSettings() {
                 !syncAvailable
               }
               onClick={handleSync}
-              className="rounded-radius-md glass-card-interactive px-3 py-2 text-sm font-semibold text-text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+              className={secondaryBtnClass}
               title={t("Check for new files in previously imported courses")}
             >
               {isSyncing ? t("Checking...") : t("Check for updates")}
-            </button>
-            {!isImporting && retrySourceJobId && <button type="button" onClick={() => void handleRetry()}
-              className="rounded-radius-md glass-card-interactive px-3 py-2 text-sm font-semibold text-text-secondary">
+            </button>}
+            {contentImport && !isImporting && retrySourceJobId && <button type="button" onClick={() => void handleRetry()}
+              className={secondaryBtnClass}>
               {t("Retry failed files")}
             </button>}
             <button
               type="button"
               onClick={handleDisconnect}
-              className="rounded-radius-md bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-400 ring-1 ring-red-500/20 hover:bg-red-500/20"
+              className={dangerOutlineBtnClass}
             >
               {t("Disconnect")}
             </button>

@@ -4,9 +4,11 @@ import sql from "@/database/pgsql";
 import { isValidUUID } from "@/lib/utils/uuid";
 import { canonicalCanvasCourses, CanvasRetryUnavailableError, startCanvasRun } from "@/lib/canvas/import-runs";
 import { dispatchFairCanvasFiles } from "@/lib/canvas/import-scheduler";
+import { assertCanvasContentEnabled } from "@/lib/canvas/content-policy";
 
 export const POST = withErrorHandler(async (request) => {
   const user = await requireAuth();
+  assertCanvasContentEnabled();
   const { sourceJobId, expectedActiveJobId } = await parseJsonObject(request);
   if (!isValidUUID(sourceJobId) ||
       (expectedActiveJobId !== undefined && !isValidUUID(expectedActiveJobId))) {

@@ -17,6 +17,7 @@ import {
   Square3Stack3DIcon,
 } from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
+import useKeyboardOpen from "@/lib/hooks/use-keyboard-open";
 import useGlobalSearchStore from "@/lib/global-search/state";
 import usePomodoroStore from "@/lib/notes/state/pomodoro";
 import {
@@ -47,8 +48,7 @@ export default function MobileBottomNavigation({
   const [expanded, setExpanded] = useState(true);
   const dockRef = useRef<HTMLDivElement>(null);
   const [moreOpen, setMoreOpen] = useState(false);
-  const [keyboardOpen, setKeyboardOpen] = useState(false);
-  const restingHeight = useRef(0);
+  const keyboardOpen = useKeyboardOpen();
   useEffect(() => {
     setMoreOpen(false);
     setExpanded(true);
@@ -98,45 +98,19 @@ export default function MobileBottomNavigation({
       if (frame !== undefined) window.cancelAnimationFrame(frame);
     };
   }, [pathname]);
-  useEffect(() => {
-    restingHeight.current = window.innerHeight;
-    const update = () => {
-      const target = document.activeElement;
-      const editing =
-        target instanceof HTMLElement &&
-        (target.matches("input,textarea") || target.isContentEditable);
-      const height = window.visualViewport?.height ?? window.innerHeight;
-      if (!editing) restingHeight.current = window.innerHeight;
-      setKeyboardOpen(editing && restingHeight.current - height > 120);
-    };
-    document.addEventListener("focusin", update);
-    document.addEventListener("focusout", update);
-    window.visualViewport?.addEventListener("resize", update);
-    window.addEventListener("resize", update);
-    return () => {
-      document.removeEventListener("focusin", update);
-      document.removeEventListener("focusout", update);
-      window.visualViewport?.removeEventListener("resize", update);
-      window.removeEventListener("resize", update);
-    };
-  }, []);
   const moreActive =
     pathname?.startsWith("/settings") || pathname?.startsWith("/study-map") || pathname === "/notes/trash";
-  const selectedStyle = nativeDock
-    ? "bg-surface-elevated/35 text-primary-700 dark:text-primary-300"
-    : "bg-surface-elevated/95 text-primary-700 dark:text-primary-300";
-  const restingStyle = nativeDock
-    ? "text-text-secondary hover:bg-surface-elevated/35 hover:text-text"
-    : "text-text-secondary hover:bg-surface-elevated/95 hover:text-text";
-  const rowClass =
-    "flex min-h-12 w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-base text-text-secondary hover:bg-subtle disabled:opacity-50";
+  const selectedStyle = "bg-subtle-hover text-accent-hover";
+  const restingStyle = "text-text-tertiary hover:bg-subtle hover:text-text";
+  const tileClass =
+    "flex min-h-[88px] flex-col items-center justify-center gap-2 rounded-radius-xl bg-subtle px-2 py-3 text-center text-sm font-medium leading-tight text-text-secondary hover:bg-subtle-hover hover:text-text active:opacity-70 disabled:opacity-50 aria-[current=page]:bg-selected aria-[current=page]:text-text aria-[current=page]:shadow-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50";
   return (
     <>
       <div
         ref={dockRef}
         data-mobile-dock
         data-native-dock={nativeDock ? "" : undefined}
-        className={`${keyboardOpen ? "hidden" : "block"} pointer-events-none fixed inset-x-0 bottom-0 z-30 h-[var(--mobile-dock-space)] ${nativeDock ? "" : "lg:hidden"} ${className}`}
+        className={`${keyboardOpen ? "hidden" : "block"} pointer-events-none fixed inset-x-0 bottom-[var(--focus-bar-space,0px)] z-30 h-[var(--mobile-dock-space)] ${nativeDock ? "" : "lg:hidden"} ${className}`}
       >
         <nav
           aria-label={t("Main navigation")}
@@ -144,7 +118,7 @@ export default function MobileBottomNavigation({
           onFocusCapture={(event) => {
             if (event.target.matches(":focus-visible")) setExpanded(true);
           }}
-          className={`pointer-events-auto absolute bottom-[calc(12px+var(--safe-bottom))] left-1/2 flex -translate-x-1/2 items-stretch overflow-hidden rounded-full ring-1 p-1 shadow-lg transition-[width,height] duration-[280ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${nativeDock ? "bg-surface/70 ring-border-subtle backdrop-blur-[8.75px]" : "bg-surface/90 ring-border-subtle"} ${expanded ? "min-h-16 w-[min(420px,calc(100%_-_28px))]" : "h-[52px] w-[clamp(228px,calc(100%_-_80px),350px)]"}`}
+          className={`pointer-events-auto absolute bottom-[calc(12px+var(--safe-bottom))] left-1/2 flex -translate-x-1/2 items-stretch overflow-hidden rounded-full ring-1 p-1 shadow-float transition-[width,height] duration-[280ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${nativeDock ? "bg-surface/70 ring-border backdrop-blur-[8.75px]" : "bg-surface/90 ring-border"} ${expanded ? "min-h-16 w-[min(420px,calc(100%_-_28px))]" : "h-[52px] w-[clamp(228px,calc(100%_-_80px),350px)]"}`}
         >
           {destinations.map(({ href, label, icon: Icon }) => {
             const active = !moreActive && pathname?.startsWith(href);
@@ -156,7 +130,7 @@ export default function MobileBottomNavigation({
                 aria-label={t(label)}
                 aria-current={active ? "page" : undefined}
                 onClick={() => setExpanded(true)}
-                className={`relative flex min-h-[44px] min-w-[44px] flex-1 flex-col items-center justify-center gap-1 rounded-full text-xs font-semibold transition-[background-color,color] duration-[280ms] motion-reduce:transition-none active:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 ${active ? selectedStyle : restingStyle}`}
+                className={`relative flex min-h-[44px] min-w-[44px] flex-1 flex-col items-center justify-center gap-1 rounded-full text-xs font-semibold transition-[background-color,color] duration-[280ms] motion-reduce:transition-none active:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ${active ? selectedStyle : restingStyle}`}
               >
                 <Icon
                   className="h-[26px] w-[26px] shrink-0"
@@ -180,7 +154,7 @@ export default function MobileBottomNavigation({
             aria-label={t("More")}
             aria-haspopup="dialog"
             aria-expanded={moreOpen}
-            className={`relative flex min-h-[44px] min-w-[44px] flex-1 flex-col items-center justify-center gap-1 rounded-full text-xs font-semibold transition-[background-color,color] duration-[280ms] motion-reduce:transition-none active:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 ${moreActive || moreOpen ? selectedStyle : restingStyle}`}
+            className={`relative flex min-h-[44px] min-w-[44px] flex-1 flex-col items-center justify-center gap-1 rounded-full text-xs font-semibold transition-[background-color,color] duration-[280ms] motion-reduce:transition-none active:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ${moreActive || moreOpen ? selectedStyle : restingStyle}`}
           >
             <EllipsisHorizontalIcon
               className="h-[26px] w-[26px] shrink-0"
@@ -200,65 +174,75 @@ export default function MobileBottomNavigation({
         onClose={() => setMoreOpen(false)}
         title={t("More")}
       >
-        <button
-          type="button"
-          className={rowClass}
-          onClick={() => {
-            setMoreOpen(false);
-            useGlobalSearchStore.getState().open();
-          }}
-        >
-          <MagnifyingGlassIcon className="h-5 w-5" aria-hidden="true" />
-          {t("Search OghmaNotes")}
-        </button>
-        <Link
-          className={rowClass}
-          href="/settings"
-          onClick={() => setMoreOpen(false)}
-          aria-current={pathname?.startsWith("/settings") ? "page" : undefined}
-        >
-          <Cog6ToothIcon className="h-5 w-5" aria-hidden="true" />
-          {t("Settings")}
-        </Link>
-        <button
-          type="button"
-          className={rowClass}
-          disabled={phase !== "idle"}
-          onClick={() => {
-            setMoreOpen(false);
-            void usePomodoroStore.getState().start({});
-          }}
-        >
-          <ClockIcon className="h-5 w-5" aria-hidden="true" />
-          {t(phase === "idle" ? "Focus" : "Focus session in progress")}
-        </button>
-        {nativeBridge && supportsNativeOffline() && (
+        <div className="grid grid-cols-3 gap-2">
           <button
             type="button"
-            className={rowClass}
+            className={tileClass}
+            aria-label={t("Search OghmaNotes")}
             onClick={() => {
               setMoreOpen(false);
-              postNativeOfflineOpen();
+              useGlobalSearchStore.getState().open();
             }}
           >
-            <ArrowDownTrayIcon className="h-5 w-5" aria-hidden="true" />
-            {t("Offline notes")}
+            <MagnifyingGlassIcon className="h-6 w-6" aria-hidden="true" />
+            {t("Search")}
           </button>
-        )}
-        <Link
-          className={rowClass}
-          href="/notes/trash"
-          onClick={() => setMoreOpen(false)}
-          aria-current={pathname === "/notes/trash" ? "page" : undefined}
-        >
-          <TrashIcon className="h-5 w-5" aria-hidden="true" />
-          {t("Trash")}
-        </Link>
-        <CanvasImportIndicator />
-        <Link className={rowClass} href="/study-map" onClick={() => setMoreOpen(false)} aria-current={pathname?.startsWith("/study-map") ? "page" : undefined}>
-          <Square3Stack3DIcon className="h-5 w-5" aria-hidden="true" />
-          {t("Study map")}
-        </Link>
+          <button
+            type="button"
+            className={tileClass}
+            disabled={phase !== "idle"}
+            onClick={() => {
+              setMoreOpen(false);
+              void usePomodoroStore.getState().start({});
+            }}
+          >
+            <ClockIcon className="h-6 w-6" aria-hidden="true" />
+            {t(phase === "idle" ? "Focus" : "Focus session in progress")}
+          </button>
+          <Link
+            className={tileClass}
+            href="/study-map"
+            onClick={() => setMoreOpen(false)}
+            aria-current={pathname?.startsWith("/study-map") ? "page" : undefined}
+          >
+            <Square3Stack3DIcon className="h-6 w-6" aria-hidden="true" />
+            {t("Study map")}
+          </Link>
+          {nativeBridge && supportsNativeOffline() && (
+            <button
+              type="button"
+              className={tileClass}
+              onClick={() => {
+                setMoreOpen(false);
+                postNativeOfflineOpen();
+              }}
+            >
+              <ArrowDownTrayIcon className="h-6 w-6" aria-hidden="true" />
+              {t("Offline notes")}
+            </button>
+          )}
+          <Link
+            className={tileClass}
+            href="/notes/trash"
+            onClick={() => setMoreOpen(false)}
+            aria-current={pathname === "/notes/trash" ? "page" : undefined}
+          >
+            <TrashIcon className="h-6 w-6" aria-hidden="true" />
+            {t("Trash")}
+          </Link>
+          <Link
+            className={tileClass}
+            href="/settings"
+            onClick={() => setMoreOpen(false)}
+            aria-current={pathname?.startsWith("/settings") ? "page" : undefined}
+          >
+            <Cog6ToothIcon className="h-6 w-6" aria-hidden="true" />
+            {t("Settings")}
+          </Link>
+        </div>
+        <div className="mt-2 empty:hidden">
+          <CanvasImportIndicator variant="drawer" hideWhenIdle />
+        </div>
       </MobileSheet>
     </>
   );

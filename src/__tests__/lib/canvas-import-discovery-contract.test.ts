@@ -167,7 +167,7 @@ describe("Trash during nested module discovery", () => {
       return "active-course";
     });
     vi.mocked(fetchResource).mockImplementation(async (_fn, course, _user, _title, resource) => {
-      if (course === "56273" && resource === "modules") return { data: [{ id: 1, name: "Week one" }, { id: 2, name: "Week two" }], forbidden: false } as never;
+      if (course === "56273" && resource === "modules") return { data: [{ id: 1, name: "Week one", position: 1 }, { id: 2, name: "Week two", position: 2 }], forbidden: false } as never;
       if (resource === "module 1 files") return { data: [{ type: "File", content_id: 42 }], forbidden: false } as never;
       if (resource === "module 2 files") return { data: [{ type: "File", content_id: 43 }], forbidden: false } as never;
       if (resource === "module file 43") return { data: { id: 43, display_name: "Keep.pdf", content_type: "application/pdf" }, forbidden: false } as never;
@@ -176,7 +176,7 @@ describe("Trash during nested module discovery", () => {
     });
     await expect(processDiscoverJob("11111111-1111-4111-8111-111111111111")).resolves.toBe(true);
     expect(findOrCreateFolder).toHaveBeenCalledWith(expect.any(String), expect.any(String), null, expect.objectContaining({ canvasCourseId: "56274" }));
-    expect(findOrCreateFolder).toHaveBeenCalledWith(expect.any(String), "Week two", "active-course", expect.objectContaining({ canvasModuleId: "2" }));
+    expect(findOrCreateFolder).toHaveBeenCalledWith(expect.any(String), "Week two", "active-course", expect.objectContaining({ canvasModuleId: "2", canvasModulePosition: 2 }));
     const inserts = vi.mocked(sql).mock.calls.filter(([parts]) => Array.from(parts).join("").includes("INSERT INTO app.canvas_imports"));
     expect(inserts).toHaveLength(2);
     expect(dispatchFairCanvasFiles).toHaveBeenCalled();

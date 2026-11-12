@@ -7,6 +7,7 @@ import { CheckIcon, ClipboardDocumentIcon } from "@heroicons/react/24/outline";
 import dynamic from "next/dynamic";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { highlightCode, type HighlightedCode } from "../shiki-highlighter";
+import { copyText } from "@/lib/clipboard";
 
 const MermaidBlock = dynamic(() => import("./mermaid-block"), { ssr: false });
 
@@ -183,15 +184,13 @@ export default function CodeBlock({
   }, [code, isMermaid, languageInfo.normalized]);
 
   const handleCopy = async () => {
-    if (!code || !navigator.clipboard?.writeText) return;
-
-    try {
-      await navigator.clipboard.writeText(code);
-    } catch {
-      // permission denied or document not focused; leave the button as is
+    if (!code) return;
+    // flip to the check straight away, the clipboard write can lag on phones
+    setCopied(true);
+    if (!(await copyText(code))) {
+      setCopied(false);
       return;
     }
-    setCopied(true);
     window.setTimeout(() => setCopied(false), 1500);
   };
 

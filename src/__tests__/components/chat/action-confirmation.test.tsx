@@ -7,6 +7,11 @@ import {
   waitFor,
   cleanup,
 } from "@testing-library/react";
+const tree = vi.hoisted(() => ({ refreshTree: vi.fn(async () => undefined), ownerUserId: "user-1", initLoaded: true }));
+const invalidation = vi.hoisted(() => ({ publish: vi.fn() }));
+vi.mock("@/lib/notes/state/tree", () => ({ default: { getState: () => tree } }));
+vi.mock("@/lib/notes/workspace-invalidation", () => ({ publishWorkspaceInvalidation: invalidation.publish }));
+
 import ActionConfirmation from "@/components/chat/action-confirmation";
 
 const id = "00000000-0000-4000-8000-000000000001";
@@ -45,6 +50,16 @@ describe("reviewing canonical tool proposals", () => {
         body: '{"decision":"approve"}',
       }),
     );
+  });
+  it("tells other tabs and this one that an approved rename changed the tree", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(Response.json(proposal))
+      .mockResolvedValueOnce(Response.json({ status: "completed" })));
+    render(<ActionConfirmation actionId={id} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Approve action" }));
+    await screen.findByText("Action completed");
+    expect(invalidation.publish).toHaveBeenCalledWith("user-1", "tree");
+    expect(tree.refreshTree).toHaveBeenCalledOnce();
   });
   it("cannot approve a new id while still displaying the old proposal", async () => {
     const fetch = vi

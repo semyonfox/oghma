@@ -40,6 +40,8 @@ vi.mock("@/lib/api-error", () => ({
 }));
 vi.mock("@/lib/canvas/credentials", () => ({
   loadCanvasCredentials: vi.fn(),
+  markCanvasTokenInvalid: vi.fn(),
+  clearCanvasTokenInvalid: vi.fn(),
 }));
 vi.mock("@/lib/canvas/client", () => ({
   CanvasClient: vi.fn(function CanvasClient() {
@@ -53,7 +55,11 @@ vi.mock("@/lib/rate-limiter", () => ({
 
 import sql from "@/database/pgsql";
 import { parseJsonObject, requireAuth } from "@/lib/api-error";
-import { loadCanvasCredentials } from "@/lib/canvas/credentials";
+import {
+  clearCanvasTokenInvalid,
+  loadCanvasCredentials,
+  markCanvasTokenInvalid,
+} from "@/lib/canvas/credentials";
 import { CanvasClient } from "@/lib/canvas/client";
 import { GET, POST } from "@/app/api/canvas/connect/route";
 
@@ -117,6 +123,9 @@ describe("GET /api/canvas/connect", () => {
       domain: "example.instructure.com",
       connectionState: "needs-reconnection",
     });
+    // the workspace banner reads this instead of calling canvas itself
+    expect(markCanvasTokenInvalid).toHaveBeenCalledWith("user-123");
+    expect(clearCanvasTokenInvalid).not.toHaveBeenCalled();
   });
 
   it("does not call a temporary Canvas failure an invalid token", async () => {

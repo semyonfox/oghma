@@ -148,36 +148,6 @@ describe("cacheInvalidate", () => {
 // --- cacheKeys builders ---
 
 describe("cacheKeys", () => {
-  it("treeChildren uses user hash tag and parent id", () => {
-    expect(cacheKeys.treeChildren("u1", "p1")).toBe(
-      "cache:{u1}:tree:children:p1",
-    );
-  });
-
-  it('treeChildren uses "root" for null parent', () => {
-    expect(cacheKeys.treeChildren("u1", null)).toBe(
-      "cache:{u1}:tree:children:root",
-    );
-  });
-
-  it("treeFull uses user hash tag", () => {
-    expect(cacheKeys.treeFull("u1")).toBe("cache:{u1}:tree:full");
-  });
-
-  it("note includes userId and noteId", () => {
-    expect(cacheKeys.note("u1", "n42")).toBe("cache:{u1}:note:n42");
-  });
-
-  it("notesList includes skip and limit", () => {
-    expect(cacheKeys.notesList("u1", 0, 20)).toBe("cache:{u1}:notes:list:0:20");
-  });
-
-  it('notesList uses "all" when limit is undefined', () => {
-    expect(cacheKeys.notesList("u1", 10, undefined)).toBe(
-      "cache:{u1}:notes:list:10:all",
-    );
-  });
-
   it("settings uses userId", () => {
     expect(cacheKeys.settings("u1")).toBe("cache:{u1}:settings");
   });

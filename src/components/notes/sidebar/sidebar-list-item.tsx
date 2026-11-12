@@ -7,6 +7,7 @@ import { useRouter, usePathname } from "next/navigation";
 import IconButton from "@/components/icon-button";
 import useNoteTreeStore from "@/lib/notes/state/tree";
 import useSyncStatusStore from "@/lib/notes/state/sync-status";
+import { splitModuleCode } from "@/lib/notes/module-code";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import useLayoutStore from "@/lib/notes/state/layout";
 import { buildFileSpec } from "@/lib/notes/utils/file-spec";
@@ -60,13 +61,16 @@ const SidebarListItem: FC<{
   };
 
   const emojiMatch = item.title?.match(/\p{Emoji}/u);
+  // course folders read as "CT230  Database Systems I" like the mockups
+  const splitTitle = isFolder && item.title ? splitModuleCode(item.title) : null;
+  const moduleCode = splitTitle?.code ? splitTitle : null;
   const emoji = emojiMatch?.length === 1 ? emojiMatch[0] : undefined;
 
   return (
     <>
       <div
-        className={`flex items-center pr-2 overflow-hidden text-text-tertiary hover:text-text-secondary hover:bg-subtle transition-colors duration-200 rounded-radius-sm px-2 py-1.5 cursor-pointer group ${
-          isActive ? "bg-primary-500/10 text-primary-400" : ""
+        className={`flex items-center pr-2 overflow-hidden transition-colors duration-200 rounded-radius-sm px-2 py-1.5 cursor-pointer group ${
+          isActive ? "atlas-raised text-text font-medium" : "text-text-secondary hover:text-text hover:bg-subtle"
         }`}
         role="treeitem"
         aria-expanded={isFolder ? isExpanded : undefined}
@@ -118,27 +122,34 @@ const SidebarListItem: FC<{
           <span
             className={`flex-1 truncate text-sm ${
               syncStatus === "modified"
-                ? "text-amber-400"
+                ? "text-warning-700 dark:text-warning-400"
                 : syncStatus === "new"
-                  ? "text-green-400"
+                  ? "text-accent"
                   : ""
             }`}
             dir="auto"
           >
-            {(emoji
-              ? item.title.replace(emoji, "").trimStart()
-              : item.title) ||
+            {moduleCode && (
+              <span className="mr-2 inline-block w-[46px] font-mono text-[11px] text-text-tertiary">
+                {moduleCode.code}
+              </span>
+            )}
+            {(moduleCode
+              ? moduleCode.title
+              : emoji
+                ? item.title.replace(emoji, "").trimStart()
+                : item.title) ||
               (initLoaded ? t("Untitled") : <TextSkeleton />)}
             {syncStatus === "modified" && (
               <span
-                className="ml-1 text-amber-400 text-xs"
+                className="ml-1 font-mono text-warning-700 dark:text-warning-400 text-xs"
                 title={t("Modified")}
               >
                 M
               </span>
             )}
             {syncStatus === "new" && (
-              <span className="ml-1 text-green-400 text-xs" title={t("New")}>
+              <span className="ml-1 font-mono text-accent text-xs" title={t("New")}>
                 U
               </span>
             )}

@@ -77,11 +77,15 @@ RUN TORCH_DEVICE=cpu /opt/marker-venv/bin/python /app/prefetch_models.py && \
 COPY marker-plus-plus.tar.gz /tmp/marker-plus-plus.tar.gz
 COPY marker-plus-plus.tar.gz.sha256 /tmp/marker-plus-plus.tar.gz.sha256
 COPY marker-plus-plus.manifest.json /app/marker-plus-plus.manifest.json
+COPY install-marker.py /tmp/install-marker.py
+# install-marker.py applies Marker++'s uv overrides, which pip cannot. the torch
+# check guards against anything shadowing the system cu129 build vLLM uses
 RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     cd /tmp && sha256sum -c marker-plus-plus.tar.gz.sha256 && \
-    /opt/marker-venv/bin/python -m pip install /tmp/marker-plus-plus.tar.gz && \
+    /opt/marker-venv/bin/python /tmp/install-marker.py /tmp/marker-plus-plus.tar.gz && \
+    /opt/marker-venv/bin/python -c 'import torch, PIL, marker, surya; assert torch.__file__.startswith("/usr/local/lib/python3.12/site-packages/"), torch.__file__; print("torch", torch.__version__, "pillow", PIL.__version__)' && \
     /opt/marker-venv/bin/python -c 'from marker.util import download_font; download_font()' && \
-    rm -f /tmp/marker-plus-plus.tar.gz && \
+    rm -f /tmp/marker-plus-plus.tar.gz /tmp/install-marker.py && \
     find /opt/marker-venv -type d -name __pycache__ -prune -exec rm -rf '{}' +
 
 ADD --checksum=sha256:cbfcf961b5cd953c6170d4574710273c85cca89532eaa5159e729b07c2432397 \

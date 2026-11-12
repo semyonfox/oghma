@@ -122,6 +122,8 @@ async function createCompanionNote(
       content,
       isFolder: false,
       parentId,
+      // the import indexes its notes itself, marker pdfs with page numbers
+      requestReindex: false,
     });
   });
   return noteId;
@@ -165,6 +167,7 @@ export async function persistVaultSourceFile({
         isFolder: false,
         parentId,
         s3Key,
+        requestReindex: false,
       });
       await tx`
         INSERT INTO app.attachments (

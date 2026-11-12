@@ -3,7 +3,8 @@
 import { type Dispatch, type SetStateAction } from "react";
 import { toast } from "sonner";
 import useI18n from "@/lib/notes/hooks/use-i18n";
-import { readResponseError, saveBtnClass } from "./settings-utils";
+import { readResponseError, secondaryBtnClass } from "./settings-utils";
+import { SettingsCard } from "./settings-card";
 
 type Props = {
   savingSection: string | null;
@@ -47,33 +48,22 @@ export default function PasswordSection({
   };
 
   return (
-    <div
+    <SettingsCard
       id="password"
-      className="grid grid-cols-1 gap-x-8 gap-y-10 py-12 md:grid-cols-3"
-    >
-      <div>
-        <h2 className="text-base/7 font-semibold text-text">
-          {t("Change password")}
-        </h2>
-        <p className="mt-1 text-sm/6 text-text-tertiary">
-          {t("Update your password associated with your account.")}
-        </p>
-      </div>
-
-      <div className="md:col-span-2 sm:max-w-xl">
-        <div className="flex">
-          <button
-            type="button"
-            onClick={() => void handlePasswordChange()}
-            disabled={savingSection !== null}
-            className={saveBtnClass}
-          >
-            {savingSection === "password"
-              ? t("Sending...")
-              : t("Send Reset Link")}
-          </button>
-        </div>
-      </div>
-    </div>
+      title={t("Change password")}
+      description={t("Update your password associated with your account.")}
+      aside={
+        <button
+          type="button"
+          onClick={() => void handlePasswordChange()}
+          disabled={savingSection !== null}
+          className={secondaryBtnClass}
+        >
+          {savingSection === "password"
+            ? t("Sending...")
+            : t("Send Reset Link")}
+        </button>
+      }
+    />
   );
 }

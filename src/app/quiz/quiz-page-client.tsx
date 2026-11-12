@@ -22,11 +22,17 @@ export default function QuizPageClient({
   }, [setActiveNav]);
 
   return (
-    <div className="flex h-dvh flex-col bg-app-page text-text">
-      <MobileAppHeader title={t("quiz.title")} />
+    <div className="flex h-app flex-col bg-app-page text-text">
+      <MobileAppHeader
+        title={t("quiz.title")}
+        subtitle={t("quiz.cards_due_summary", {
+          dueCount: initialData.dashboard.dueCount,
+          totalCards: initialData.dashboard.totalCards,
+        })}
+      />
       <div className="flex min-h-0 flex-1">
-        <div className="desktop-navigation-rail hidden w-14 shrink-0 border-r border-border-subtle bg-background lg:block">
-          <PrimaryNavigation />
+        <div className="desktop-navigation-rail hidden w-64 shrink-0 border-r border-border lg:block">
+          <PrimaryNavigation variant="sidebar" />
         </div>
         <main className="mobile-dock-clearance min-w-0 flex-1 overflow-y-auto">
           <QuizDashboard

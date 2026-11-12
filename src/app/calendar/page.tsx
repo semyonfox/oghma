@@ -2,14 +2,11 @@
 
 import { useEffect, useRef, useState, useEffectEvent } from "react";
 import {
-  CheckIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  ChevronDownIcon,
   ClipboardDocumentListIcon,
   PlusIcon,
 } from "@heroicons/react/20/solid";
-import { Menu, MenuButton, MenuItem, MenuItems } from "@headlessui/react";
 import {
   Group as PanelGroup,
   Panel,
@@ -145,7 +142,7 @@ export default function CalendarPage() {
   };
 
   return (
-    <div className="flex h-dvh flex-col bg-app-page text-text">
+    <div className="flex h-app flex-col bg-app-page text-text">
       <MobileAppHeader
         title={<span aria-label={monthYear}>{mobileMonthYear}</span>}
         actions={
@@ -161,7 +158,7 @@ export default function CalendarPage() {
             <button
               type="button"
               onClick={goToToday}
-              className="min-h-11 rounded-radius-md px-2 text-xs font-medium text-primary-700 transition-colors hover:bg-primary-500/10 dark:text-primary-300"
+              className="min-h-11 rounded-radius-md px-2 text-xs font-medium text-accent transition-colors hover:bg-accent-soft"
             >
               {t("Today")}
             </button>
@@ -179,8 +176,8 @@ export default function CalendarPage() {
 
       <div className="flex min-h-0 flex-1">
         {isDesktop === true && (
-          <div className="desktop-navigation-rail w-14 shrink-0 border-r border-border-subtle bg-background">
-            <PrimaryNavigation />
+          <div className="desktop-navigation-rail w-64 shrink-0 border-r border-border">
+            <PrimaryNavigation variant="sidebar" />
           </div>
         )}
         <PanelGroup
@@ -196,9 +193,12 @@ export default function CalendarPage() {
               className="flex h-full w-full min-w-0 flex-1 flex-col"
               aria-label={t("Calendar")}
             >
-              <header className="glass-panel relative z-50 hidden h-12 shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-4 lg:flex">
-                <h1 className="min-w-0 flex-1 truncate text-sm font-semibold text-text-secondary lg:text-base">
-                  <time>{weekLabel}</time>
+              <header className="glass-panel relative z-50 hidden h-[72px] shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-6 lg:flex">
+                <h1 className="flex min-w-0 flex-1 items-baseline gap-3 truncate">
+                  <span className="font-serif text-[28px] font-bold tracking-tight text-text">
+                    {t("Calendar")}
+                  </span>
+                  <time className="truncate text-sm text-text-secondary">{weekLabel}</time>
                 </h1>
 
                 <div className="flex shrink-0 items-center gap-2">
@@ -206,7 +206,7 @@ export default function CalendarPage() {
                     <button
                       type="button"
                       onClick={navigateBack}
-                      className="flex h-8 w-8 items-center justify-center text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400/50"
+                      className="flex h-8 w-8 items-center justify-center text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/50"
                       aria-label={t("Previous period")}
                     >
                       <ChevronLeftIcon className="h-4 w-4" />
@@ -214,14 +214,14 @@ export default function CalendarPage() {
                     <button
                       type="button"
                       onClick={goToToday}
-                      className="hidden h-8 px-3 text-xs font-medium text-text-secondary hover:bg-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400/50 lg:block"
+                      className="hidden h-8 px-3 text-xs font-medium text-text-secondary hover:bg-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/50 lg:block"
                     >
                       {t("Today")}
                     </button>
                     <button
                       type="button"
                       onClick={navigateForward}
-                      className="flex h-8 w-8 items-center justify-center text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400/50"
+                      className="flex h-8 w-8 items-center justify-center text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/50"
                       aria-label={t("Next period")}
                     >
                       <ChevronRightIcon className="h-4 w-4" />
@@ -231,45 +231,34 @@ export default function CalendarPage() {
                   <button
                     type="button"
                     onClick={() => setTasksOpen(true)}
-                    className="flex h-8 min-w-8 items-center justify-center gap-1.5 rounded-radius-md px-2 text-xs font-medium text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 lg:hidden"
+                    className="flex h-8 min-w-8 items-center justify-center gap-1.5 rounded-radius-md px-2 text-xs font-medium text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 lg:hidden"
                     aria-label={t("Tasks")}
                   >
                     <ClipboardDocumentListIcon className="h-4 w-4" />
                     <span className="hidden sm:inline">{t("Tasks")}</span>
                   </button>
 
-                  <Menu as="div" className="relative z-[60]">
-                    <MenuButton className="flex h-8 min-w-24 items-center justify-between gap-2 rounded-radius-md px-3 text-xs font-medium text-text-secondary glass-card-interactive outline-none focus:outline-none data-[focus]:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50">
-                      <span>{view === "month" ? t("Month") : t("Week")}</span>
-                      <ChevronDownIcon className="h-4 w-4 text-text-tertiary" />
-                    </MenuButton>
-                    <MenuItems className="absolute right-0 z-[90] mt-1 w-40 overflow-hidden rounded-radius-md border border-border bg-app-page py-1 shadow-2xl ring-1 ring-black/20 focus:outline-none">
-                      <MenuItem>
-                        <button
-                          type="button"
-                          onClick={() => setView("month")}
-                          className="flex h-9 w-full items-center justify-between gap-2 bg-app-page px-3 text-left text-xs text-text-secondary hover:bg-subtle focus:outline-none data-[focus]:bg-subtle"
-                        >
-                          {t("Month view")}
-                          {view === "month" && (
-                            <CheckIcon className="h-4 w-4 shrink-0 text-primary-400" />
-                          )}
-                        </button>
-                      </MenuItem>
-                      <MenuItem>
-                        <button
-                          type="button"
-                          onClick={() => setView("week")}
-                          className="flex h-9 w-full items-center justify-between gap-2 bg-app-page px-3 text-left text-xs text-text-secondary hover:bg-subtle focus:outline-none data-[focus]:bg-subtle"
-                        >
-                          {t("Week view")}
-                          {view === "week" && (
-                            <CheckIcon className="h-4 w-4 shrink-0 text-primary-400" />
-                          )}
-                        </button>
-                      </MenuItem>
-                    </MenuItems>
-                  </Menu>
+                  <div
+                    role="group"
+                    aria-label={t("Calendar")}
+                    className="flex h-8 items-center gap-0.5 rounded-full border border-border bg-surface-elevated p-0.5"
+                  >
+                    {(["month", "week"] as const).map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => setView(option)}
+                        aria-pressed={view === option}
+                        className={`flex h-7 items-center rounded-full px-3 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
+                          view === option
+                            ? "atlas-raised text-text"
+                            : "text-text-tertiary hover:text-text-secondary"
+                        }`}
+                      >
+                        {option === "month" ? t("Month") : t("Week")}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </header>
 
@@ -300,7 +289,7 @@ export default function CalendarPage() {
           {hasTaskSidebar === true && (
             <PanelResizeHandle
               aria-label={t("Resize tasks panel")}
-              className="w-px cursor-col-resize bg-border-subtle transition-colors hover:bg-primary-500/40 active:bg-primary-500/60"
+              className="w-px cursor-col-resize bg-border-subtle transition-colors hover:bg-accent/40 active:bg-accent/60"
             />
           )}
 
@@ -317,8 +306,8 @@ export default function CalendarPage() {
               className="flex min-w-0"
             >
               <aside className="glass-panel flex h-full w-full flex-col">
-                <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-3">
-                  <h2 className="text-sm font-semibold text-text-secondary">
+                <div className="flex h-[72px] shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-4">
+                  <h2 className="text-[17px] font-semibold text-text">
                     {t("Tasks")}
                   </h2>
                   <button
@@ -327,7 +316,7 @@ export default function CalendarPage() {
                       setNewTaskDueAt(undefined);
                       setNewTaskOpen(true);
                     }}
-                    className="inline-flex h-8 items-center gap-1.5 rounded-radius-md bg-primary-600 px-3 text-xs font-medium text-text-on-primary transition-colors hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50"
+                    className="inline-flex h-8 items-center gap-1.5 rounded-radius-md bg-action px-3 text-xs font-medium text-on-action transition-colors hover:bg-action-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
                   >
                     <PlusIcon className="h-4 w-4" aria-hidden="true" />
                     {t("New Task")}
@@ -350,7 +339,7 @@ export default function CalendarPage() {
           side="right"
           keepMounted
           className="lg:hidden"
-          panelClassName="w-[94vw] max-w-md"
+          panelClassName="sm:w-[94vw] sm:max-w-md"
         >
           <AssignmentTracker surface="full" />
         </MobileDrawer>

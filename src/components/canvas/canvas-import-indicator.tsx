@@ -14,9 +14,12 @@ import { useCanvasImportNotification } from "./canvas-import-notifications";
 export default function CanvasImportIndicator({
   variant = "rail",
   onNavigate,
+  hideWhenIdle = false,
 }: {
   variant?: "rail" | "drawer";
   onNavigate?: () => void;
+  // the desktop sidebar only shows import status while there is some, like the mockups
+  hideWhenIdle?: boolean;
 }) {
   const status = useCanvasImportNotification();
   const { t } = useI18n();
@@ -24,6 +27,7 @@ export default function CanvasImportIndicator({
 
   const { progress, isImporting, showToast, onToastClose } = status;
   const visible = isImporting || showToast;
+  if (hideWhenIdle && !visible) return null;
   const hasIssues =
     visible &&
     ((progress?.forbidden ?? 0) > 0 ||
@@ -70,7 +74,7 @@ export default function CanvasImportIndicator({
       <PopoverButton
         aria-label={label}
         title={label}
-        className={`flex min-h-11 items-center rounded-radius-md hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 ${variant === "drawer" ? "w-full gap-3 px-3 text-sm font-medium" : "h-11 w-11 justify-center"} ${hasIssues ? "text-orange-400" : complete ? "text-green-400" : isImporting ? "text-primary-400" : "text-text-tertiary"}`}
+        className={`flex min-h-11 items-center rounded-radius-md hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${variant === "drawer" ? "w-full gap-3 px-3 text-sm font-medium" : "h-11 w-11 justify-center"} ${hasIssues ? "text-warning-700 dark:text-warning-400" : complete ? "text-success-700 dark:text-success-400" : isImporting ? "text-accent" : "text-text-secondary hover:text-text"}`}
       >
         <span className="relative grid h-8 w-8 shrink-0 place-items-center">
           {visible && (
@@ -108,14 +112,14 @@ export default function CanvasImportIndicator({
       </PopoverButton>
       <PopoverPanel
         anchor={variant === "drawer" ? "top start" : "right end"}
-        className="z-[80] w-60 max-w-[calc(100vw-1rem)] rounded-radius-md border border-border-subtle bg-surface px-3 py-2.5 text-xs text-text-secondary shadow-lg [--anchor-gap:8px] [--anchor-padding:8px] focus:outline-none"
+        className="z-[80] w-60 max-w-[calc(100vw-1rem)] rounded-radius-md border border-border bg-surface px-3 py-2.5 text-xs text-text-secondary shadow-float [--anchor-gap:8px] [--anchor-padding:8px] focus:outline-none"
       >
         {({ close }) => (
           <>
             <div className="flex min-w-0 items-center gap-2">
               <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
               <div className="min-w-0 flex-1">
-                <h2 className="truncate font-medium text-text-primary">
+                <h2 className="truncate font-medium text-text">
                   {t("Canvas course import")}
                 </h2>
                 {visible && (
@@ -128,7 +132,7 @@ export default function CanvasImportIndicator({
                 type="button"
                 aria-label={t("Close")}
                 onClick={() => close()}
-                className="grid h-7 w-7 shrink-0 place-items-center rounded-radius-sm hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50"
+                className="grid h-7 w-7 shrink-0 place-items-center rounded-radius-sm hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
               >
                 <XMarkIcon className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
@@ -143,7 +147,7 @@ export default function CanvasImportIndicator({
                 className="mt-2 h-1 overflow-hidden rounded-full bg-subtle"
               >
                 <div
-                  className="h-full bg-primary-400 transition-[width] duration-300 motion-reduce:transition-none"
+                  className="h-full bg-accent transition-[width] duration-300 motion-reduce:transition-none"
                   style={{ width: `${percent}%` }}
                 />
               </div>
@@ -155,7 +159,7 @@ export default function CanvasImportIndicator({
                   close();
                   onNavigate?.();
                 }}
-                className="rounded-radius-sm px-1.5 py-1 font-medium text-primary-400 hover:bg-subtle"
+                className="rounded-radius-sm px-1.5 py-1 font-medium text-accent underline underline-offset-2 hover:text-accent-hover"
               >
                 {t("canvas.import.view_logs")}
               </Link>
@@ -166,7 +170,7 @@ export default function CanvasImportIndicator({
                     onToastClose();
                     close();
                   }}
-                  className="ml-auto rounded-radius-sm px-1.5 py-1 hover:bg-subtle"
+                  className="ml-auto rounded-radius-sm px-1.5 py-1 hover:bg-subtle hover:text-text"
                 >
                   {t("Dismiss")}
                 </button>

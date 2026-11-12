@@ -265,7 +265,11 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
     }
 
     if (get().generation !== generation) return;
-    if ((noteWriteVersions.get(id) ?? 0) !== mutationVersion) return;
+    // a newer write or fetch owns the store copy, but this PUT still committed,
+    // so the caller needs its stamp or its next save is fenced off
+    if ((noteWriteVersions.get(id) ?? 0) !== mutationVersion) {
+      return withDefaultContent({ ...note, ...result });
+    }
 
     noteWriteVersions.set(id, mutationVersion + 1);
 
@@ -279,7 +283,7 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
     if (typeof window !== "undefined") {
       window.dispatchEvent(
         new CustomEvent("note-content-sync", {
-          detail: { fileId: id, updatedAt: savedNote.updatedAt, content: payload.content },
+          detail: { fileId: id, updatedAt: savedNote.updatedAt, content: result.content ?? payload.content ?? note.content },
         }),
       );
     }

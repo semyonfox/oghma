@@ -2,8 +2,10 @@
 
 import { FC, memo, useState } from "react";
 import {
+  CheckIcon,
   ChevronDownIcon,
   ClipboardDocumentIcon,
+  SparklesIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 import type { Message } from "./chat-interface";
@@ -12,6 +14,7 @@ import ChatMarkdown from "./chat-markdown";
 import { WorkLog, collectNoteActivity } from "./tool-call-pill";
 import { partitionMessageParts } from "@/lib/chat/types";
 import useI18n from "@/lib/notes/hooks/use-i18n";
+import { copyText } from "@/lib/clipboard";
 
 const AssistantBody: FC<{
   message: Message;
@@ -49,8 +52,8 @@ const AssistantBody: FC<{
           key={index}
           className={
             compact
-              ? "rounded-radius-md rounded-bl-[4px] border border-border-subtle bg-surface px-2 py-[5px] text-base leading-relaxed text-text-secondary lg:text-sm"
-              : "glass-card rounded-radius-xl rounded-bl-[4px] px-3 py-2.5 text-base leading-relaxed text-text lg:text-sm"
+              ? "px-0.5 text-base leading-relaxed text-text lg:text-sm [--md-text-muted:var(--color-text)] [&_sup_a]:rounded-full [&_sup_a]:bg-accent-soft [&_sup_a]:px-1 [&_sup_a]:py-px [&_sup_a]:font-medium [&_sup_a]:text-accent-soft-text"
+              : "font-serif text-[1.0625rem] leading-[1.75] text-text [--md-text-muted:var(--color-text)] [&_sup_a]:rounded-full [&_sup_a]:bg-accent-soft [&_sup_a]:px-1 [&_sup_a]:py-px [&_sup_a]:font-medium [&_sup_a]:text-accent-soft-text"
           }
         >
           <ChatMarkdown>{part.text}</ChatMarkdown>
@@ -59,7 +62,7 @@ const AssistantBody: FC<{
       {errors.map((part, index) => (
         <div
           key={`error-${index}`}
-          className="my-1 rounded-radius-md border border-red-500/25 bg-red-500/10 px-2.5 py-2 text-xs text-red-700 dark:text-red-200"
+          className="my-1 rounded-radius-md border border-error-500/25 bg-error-500/10 px-2.5 py-2 text-xs text-error-700 dark:text-error-300"
         >
           {part.text}
         </div>
@@ -86,9 +89,9 @@ function relevanceLabel(
   distance: number,
   t: (key: string, params?: Record<string, unknown>) => string,
 ): { label: string; color: string } {
-  if (distance < 0.3) return { label: t("high"), color: "text-green-400" };
-  if (distance < 0.5) return { label: t("medium"), color: "text-yellow-400" };
-  return { label: t("low"), color: "text-text-tertiary" };
+  if (distance < 0.3) return { label: t("high"), color: "font-medium text-text-secondary" };
+  if (distance < 0.5) return { label: t("medium"), color: "text-text-tertiary" };
+  return { label: t("low"), color: "text-text-tertiary opacity-70" };
 }
 
 // collapsible sources block — clean list, full note titles
@@ -112,12 +115,12 @@ const SourcesBlock: FC<{
   const count = sources.length;
 
   return (
-    <div className="border border-border-subtle rounded-radius-lg overflow-hidden">
+    <div className="overflow-hidden rounded-radius-lg border border-border bg-surface">
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
         aria-expanded={expanded}
-        className="flex min-h-11 w-full items-center justify-between bg-surface/50 px-3 py-2 text-left transition-colors hover:bg-subtle/50 lg:min-h-0"
+        className="flex min-h-11 w-full items-center justify-between px-3 py-2 text-left transition-colors hover:bg-subtle lg:min-h-0"
       >
         <span className="text-xs text-text-tertiary">
           <span className="font-medium text-text-secondary">
@@ -140,9 +143,9 @@ const SourcesBlock: FC<{
               <a
                 key={s.id}
                 href={`/notes/${s.id}`}
-                className="flex items-center gap-2.5 px-3 py-2 hover:bg-subtle/50 transition-colors border-b border-border-subtle last:border-b-0"
+                className="flex items-center gap-2.5 border-b border-border-subtle px-3 py-2 transition-colors last:border-b-0 hover:bg-subtle"
               >
-                <span className="w-1.5 h-1.5 rounded-full bg-border-subtle flex-shrink-0" />
+                <span aria-hidden="true" className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-accent" />
                 <span className="flex-1 text-xs text-text-secondary truncate">
                   {s.title || t("Untitled")}
                 </span>
@@ -160,36 +163,36 @@ const SourcesBlock: FC<{
   );
 };
 
-// The parent places this plain copy icon in a slot that appears on hover.
-// On success, a Sonner toast shows "Copied" for 1.2 seconds. The icon does not change.
-// This makes the action feel dispatched instead of changing the interface.
-// Disable it briefly so a double-click does not show two toasts.
+// the icon flips to a check on tap so the copy feels instant, and flips back
+// with an error toast only if the clipboard refused
 const CopyMessageButton: FC<{ content: string }> = ({ content }) => {
   const { t } = useI18n();
-  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
-    if (busy || !content.trim() || !navigator.clipboard?.writeText) return;
-    const copied = await navigator.clipboard.writeText(content).then(
-      () => true,
-      () => false,
-    );
-    if (copied) toast.success(t("Copied"), { duration: 1200 });
-    else toast.error(t("Couldn't copy"));
-    setBusy(true);
-    window.setTimeout(() => setBusy(false), 1200);
+    if (copied || !content.trim()) return;
+    setCopied(true);
+    if (!(await copyText(content))) {
+      setCopied(false);
+      toast.error(t("Couldn't copy"));
+      return;
+    }
+    window.setTimeout(() => setCopied(false), 1200);
   };
 
   return (
     <button
       type="button"
       onClick={handleCopy}
-      disabled={busy}
-      className="touch-target-44 inline-flex items-center justify-center rounded-radius-sm text-text-tertiary opacity-70 transition-colors hover:opacity-100 hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/40 disabled:cursor-default"
-      aria-label={t("Copy message")}
-      title={t("Copy message")}
+      className={`touch-target-44 inline-flex items-center justify-center rounded-radius-sm transition-colors hover:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/40 ${copied ? "text-success-700 opacity-100 dark:text-success-400" : "text-text-tertiary opacity-70 hover:text-text-secondary"}`}
+      aria-label={copied ? t("Copied") : t("Copy message")}
+      title={copied ? t("Copied") : t("Copy message")}
     >
-      <ClipboardDocumentIcon className="w-3 h-3" />
+      {copied ? (
+        <CheckIcon className="w-3 h-3" aria-hidden="true" />
+      ) : (
+        <ClipboardDocumentIcon className="w-3 h-3" aria-hidden="true" />
+      )}
     </button>
   );
 };
@@ -200,13 +203,14 @@ const FullMessageBubbleComponent: FC<{
   sessionId?: string | null;
   isStreaming?: boolean;
 }> = ({ message: m, isStreaming = false }) => {
+  const { t } = useI18n();
   const hasContent = m.content.trim().length > 0;
 
   if (m.role === "user") {
     return (
       <div className="flex justify-end">
         <div className="group/msg min-w-0 max-w-[90%]">
-          <div className="rounded-radius-xl rounded-br-[4px] border border-primary-500/25 bg-primary-500/10 px-3 py-2.5 text-base leading-relaxed text-text lg:text-sm">
+          <div className="rounded-radius-xl px-3.5 py-2 text-base leading-relaxed lg:text-sm bg-text text-background [&_*]:text-inherit! [--md-inline-code-bg:rgb(127_127_127/0.25)] [--md-link:inherit] [--md-link-hover:inherit]">
             <ChatMarkdown>{m.content}</ChatMarkdown>
           </div>
           <div className="mt-0.5 flex items-center justify-end gap-1.5 text-xs text-text-tertiary">
@@ -215,7 +219,7 @@ const FullMessageBubbleComponent: FC<{
                 <CopyMessageButton content={m.content} />
               </span>
             )}
-            <p className="opacity-50" suppressHydrationWarning>
+            <p className="font-mono" suppressHydrationWarning>
               {new Date(m.timestamp).toLocaleTimeString([], {
                 hour: "2-digit",
                 minute: "2-digit",
@@ -228,16 +232,24 @@ const FullMessageBubbleComponent: FC<{
   }
 
   const presentation = presentAssistantMessage(m);
+  const noteActivity = collectNoteActivity(m.parts ?? [], m.searchContext);
   const hasSources = Array.isArray(m.sources) && m.sources.length > 0 &&
-    collectNoteActivity(m.parts ?? [], m.searchContext).length === 0;
+    noteActivity.length === 0;
+  const sourceCount = hasSources ? m.sources!.length : noteActivity.length;
   const hasPartError = m.parts?.some((part) => part.type === "error");
 
   return (
     <div className="group/msg space-y-2.5">
+      {sourceCount > 0 && !isStreaming && (
+        <p className="flex items-center gap-1.5 text-xs text-text-secondary">
+          <SparklesIcon className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
+          {t("Answered from {count} of your sources", { count: sourceCount })}
+        </p>
+      )}
       <AssistantBody message={m} active={isStreaming} />
 
       {m.error && !hasPartError && (
-        <div className="rounded-radius-md border border-red-500/25 bg-red-500/10 px-2.5 py-2 text-xs text-red-700 dark:text-red-200">
+        <div className="rounded-radius-md border border-error-500/25 bg-error-500/10 px-2.5 py-2 text-xs text-error-700 dark:text-error-300">
           {m.error}
         </div>
       )}
@@ -247,7 +259,7 @@ const FullMessageBubbleComponent: FC<{
       )}
 
       <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
-        <p className="opacity-50" suppressHydrationWarning>
+        <p className="font-mono" suppressHydrationWarning>
           {new Date(m.timestamp).toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
@@ -289,13 +301,13 @@ const CompactMessageBubbleComponent: FC<{
         {m.role === "assistant" ? (
           <AssistantBody message={m} active={isStreaming} compact />
         ) : (
-          <div className="rounded-radius-md rounded-br-[4px] border border-primary-500/25 bg-primary-500/10 px-2 py-[5px] text-base leading-relaxed text-text lg:text-sm">
+          <div className="rounded-radius-lg px-2.5 py-[5px] text-base leading-relaxed lg:text-sm bg-text text-background [&_*]:text-inherit! [--md-inline-code-bg:rgb(127_127_127/0.25)] [--md-link:inherit] [--md-link-hover:inherit]">
             <ChatMarkdown>{m.content}</ChatMarkdown>
           </div>
         )}
 
         {m.role === "assistant" && m.error && !hasPartError && (
-          <div className="rounded-radius-md border border-red-500/25 bg-red-500/10 px-2.5 py-2 text-xs text-red-700 dark:text-red-200">
+          <div className="rounded-radius-md border border-error-500/25 bg-error-500/10 px-2.5 py-2 text-xs text-error-700 dark:text-error-300">
             {m.error}
           </div>
         )}

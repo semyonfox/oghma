@@ -415,7 +415,7 @@ export function buildAgentOpenApiJson(
           responses: {
             "201": { description: "Claim URI and user code returned" },
             "400": { description: "Invalid registration request" },
-            "409": { description: "Existing account or pending claim" },
+            "409": { description: "A claim for this email is already pending" },
             "429": { description: "Rate limited" },
           },
         },
@@ -566,7 +566,6 @@ export function buildAgentOpenApiJson(
               },
             },
             "400": { description: "Validation failed" },
-            "409": { description: "User already exists" },
             "429": { description: "Rate limited" },
           },
         },

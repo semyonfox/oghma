@@ -72,7 +72,7 @@ function TopicTooltip({ marks, children }: { marks: readonly TopicMark[]; childr
         createPortal(
           <div
             role="tooltip"
-            className="pointer-events-none fixed z-[10001] flex max-w-72 items-center gap-2 whitespace-nowrap rounded-radius-md border border-border-subtle bg-surface px-2 py-1 text-xs text-text-secondary shadow-lg"
+            className="pointer-events-none fixed z-[10001] flex max-w-72 items-center gap-2 whitespace-nowrap rounded-radius-md border border-border bg-surface px-2 py-1 text-xs text-text-secondary shadow-float"
             style={{
               top: anchor.bottom + 6,
               left: Math.max(8, Math.min(anchor.left, window.innerWidth - 296)),

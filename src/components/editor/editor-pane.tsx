@@ -1,6 +1,7 @@
 "use client";
 
-import { FC, useRef, useState } from "react";
+import { FC, useEffect, useRef, useState } from "react";
+import { z } from "zod";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -9,12 +10,12 @@ import {
   ArrowPathIcon,
   ArrowLeftIcon,
   EllipsisHorizontalIcon,
-  CheckCircleIcon,
   ClipboardDocumentCheckIcon,
   CloudArrowUpIcon,
   DocumentIcon,
   ExclamationTriangleIcon,
   RectangleGroupIcon,
+  ViewColumnsIcon,
   XMarkIcon,
   SparklesIcon,
 } from "@heroicons/react/24/outline";
@@ -24,7 +25,9 @@ import useSaveIndicatorStore, {
   saveIndicatorKey,
 } from "@/lib/notes/state/save-indicator";
 import useI18n from "@/lib/notes/hooks/use-i18n";
+import useKeyboardOpen from "@/lib/hooks/use-keyboard-open";
 import useNoteTreeStore from "@/lib/notes/state/tree";
+import { splitModuleCode } from "@/lib/notes/module-code";
 import {
   FILE_DRAG_MIME,
   parseFileDragPayload,
@@ -39,6 +42,30 @@ const MobileNoteActions = dynamic(
 );
 const mobileActionClass =
   "flex min-h-12 w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-base text-text-secondary hover:bg-subtle";
+const pathSchema = z.object({
+  path: z.array(z.object({ id: z.string(), title: z.string().nullable() })),
+});
+
+// the outermost folder (usually the course) for the header breadcrumb
+function useCourseTitle(fileId: string | undefined): string | undefined {
+  const [state, setState] = useState<{ fileId: string; title: string | undefined }>();
+  useEffect(() => {
+    if (!fileId) return;
+    let cancelled = false;
+    void fetch(`/api/notes/${encodeURIComponent(fileId)}/path`)
+      .then(async (response) => (response.ok ? pathSchema.safeParse(await response.json()) : null))
+      .catch(() => null)
+      .then((parsed) => {
+        if (cancelled) return;
+        setState({ fileId, title: parsed?.success ? parsed.data.path[0]?.title ?? undefined : undefined });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fileId]);
+  return state && state.fileId === fileId ? state.title : undefined;
+}
+
 const FileRenderer = dynamic(() => import("./file-renderer"), { ssr: false });
 
 interface EditorPaneProps {
@@ -67,6 +94,7 @@ const EditorPane: FC<EditorPaneProps> = ({
     : "/notes";
   const router = useRouter();
   const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
+  const keyboardOpen = useKeyboardOpen();
   const sourceFile = useSourceFile(
     file?.fileType === "note" ? file.fileId : undefined,
   );
@@ -175,12 +203,18 @@ const EditorPane: FC<EditorPaneProps> = ({
     placeFileInPane(sourceFile, otherPane);
   };
 
-  const aiChatIsOpen = activePane === pane && rightPanelOpen && rightPanelTab === "ai";
+  const panelIsOpen = rightPanelOpen && (activePane === pane || rightPanelTab === "tasks");
+  const togglePanel = () => {
+    if (panelIsOpen) {
+      setRightPanelOpen(false);
+      return;
+    }
+    setActivePane(pane);
+    setRightPanelOpen(true);
+  };
+  const courseTitle = useCourseTitle(file?.fileId);
+  const courseCode = courseTitle ? splitModuleCode(courseTitle).code : null;
   const metadataIsOpen = activePane === pane && rightPanelOpen && rightPanelTab === "meta";
-  const tasksAreOpen = rightPanelOpen && rightPanelTab === "tasks";
-  const aiChatLabel = aiChatIsOpen
-    ? `${t("Close")} ${t("AI Chat")}`
-    : t("Open AI chat");
 
   // empty state — no file assigned to this pane
   if (!file || !file.fileId) return <PaneEmptyState pane={pane} />;
@@ -209,7 +243,7 @@ const EditorPane: FC<EditorPaneProps> = ({
       {dropTarget && (
         <div
           aria-hidden="true"
-          className={`pointer-events-none absolute inset-y-2 z-30 rounded-radius-md border border-primary-400/70 bg-primary-500/10 shadow-[inset_0_0_0_1px_rgb(96_165_250_/_0.14)] transition-[left,right] duration-100 ${
+          className={`pointer-events-none absolute inset-y-2 z-30 rounded-radius-md border border-accent/60 bg-accent-soft/60 transition-[left,right] duration-100 ${
             !hasSecondaryPane && dropTarget === "A"
               ? "left-2 right-1/2"
               : !hasSecondaryPane && dropTarget === "B"
@@ -226,23 +260,27 @@ const EditorPane: FC<EditorPaneProps> = ({
         >
           <ArrowLeftIcon className="h-5 w-5" aria-hidden="true" />
         </Link>
-        <div className="min-w-0 flex-1 px-1">
-          <h1 className="truncate text-base font-semibold text-text">
+        <div className="flex min-w-0 flex-1 flex-col px-1">
+          <h1 className="truncate text-[17px] font-semibold text-text">
             {liveTitle || file.title || t("Untitled")}
           </h1>
+          {(courseCode || saveIndicator) && (
+            <span className="flex min-w-0 items-center gap-1.5 text-xs text-text-secondary">
+              {courseCode && <span className="font-mono">{courseCode}</span>}
+              {courseCode && saveIndicator && <span aria-hidden="true">·</span>}
+              {saveIndicator && <SaveIndicatorButton indicator={saveIndicator} t={t} />}
+            </span>
+          )}
         </div>
-        {saveIndicator && (
-          <SaveIndicatorButton indicator={saveIndicator} t={t} />
-        )}
         <button
           type="button"
           className="ui-icon-button shrink-0"
           data-inspector-toggle
-          onClick={() => openRightPanelTab("ai")}
-          aria-label={aiChatLabel}
-          aria-expanded={aiChatIsOpen}
+          onClick={() => openRightPanelTab("meta")}
+          aria-label={t("Toggle metadata panel")}
+          aria-expanded={metadataIsOpen}
         >
-          <SparklesIcon className="h-5 w-5" aria-hidden="true" />
+          <ViewColumnsIcon className="h-5 w-5" aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -314,91 +352,61 @@ const EditorPane: FC<EditorPaneProps> = ({
         onDragEnd={splitInteractionsEnabled ? handleDragEnd : undefined}
       >
         <div className="flex min-h-8 w-full min-w-0 items-center gap-1.5 lg:w-auto lg:flex-1">
+          {courseTitle && (
+            <>
+              <span className="max-w-[40%] truncate text-sm text-text-secondary">
+                {splitModuleCode(courseTitle).title}
+              </span>
+              <span aria-hidden="true" className="px-1 text-sm text-text-tertiary">/</span>
+            </>
+          )}
           <span
-            className="truncate text-sm font-medium text-text-secondary"
+            className="truncate text-sm font-medium text-text"
             title={file.title || file.fileId}
           >
             {liveTitle || file.title || file.fileId}
           </span>
-          {saveIndicator ? (
-            <SaveIndicatorButton indicator={saveIndicator} t={t} />
-          ) : null}
+        </div>
+
+        <div className="flex w-full shrink-0 items-center justify-end gap-1.5 lg:w-auto">
           {sourceFile && splitInteractionsEnabled && (
             <button
               type="button"
               onClick={openSourceBeside}
               aria-pressed={sourceIsOpenBeside}
               title={sourceFile.title}
-              className={`ml-1 flex min-h-7 shrink-0 items-center gap-1 rounded-radius-md px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 ${
+              className={`ml-1 flex min-h-7 shrink-0 items-center gap-1 rounded-radius-md px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
                 sourceIsOpenBeside
-                  ? "bg-primary-500/10 text-primary-700 dark:text-primary-300"
-                  : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
+                  ? "atlas-raised text-text"
+                  : "border border-border bg-surface text-text-secondary hover:bg-subtle hover:text-text"
               }`}
             >
-              <DocumentIcon className="h-4 w-4 text-red-400" aria-hidden="true" />
+              <DocumentIcon className="h-4 w-4" aria-hidden="true" />
               <span>
                 {sourceFile.fileType === "pdf" ? t("Original PDF") : t("Original file")}
               </span>
             </button>
           )}
-        </div>
-
-        <div className="flex w-full shrink-0 items-center justify-end gap-1 lg:w-auto lg:gap-0.5">
+          {saveIndicator ? (
+            <SaveIndicatorButton indicator={saveIndicator} t={t} />
+          ) : null}
           {file.fileType === "note" && (
             <SaveOfflineButton noteId={file.fileId} />
           )}
           <button
             type="button"
             data-inspector-toggle
-            onClick={() => openRightPanelTab("meta")}
-            className={`ui-icon-button w-auto gap-1.5 px-2 lg:w-8 lg:px-0 ${
-              metadataIsOpen
-                ? "bg-primary-500/10 text-primary-700 dark:text-primary-300"
-                : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
+            onClick={togglePanel}
+            className={`ui-icon-button ${
+              panelIsOpen
+                ? "atlas-raised text-text"
+                : "text-text-tertiary hover:bg-subtle hover:text-text"
             }`}
-            title={t("Toggle metadata panel")}
-            aria-label={t("Toggle metadata panel")}
-            aria-expanded={metadataIsOpen}
+            title={t("Toggle side panel")}
+            aria-label={t("Toggle side panel")}
+            aria-expanded={panelIsOpen}
           >
-            <RectangleGroupIcon className="h-5 w-5" aria-hidden="true" />
-            <span className="text-xs font-medium lg:hidden">{t("Meta")}</span>
-          </button>
-          <button
-            type="button"
-            data-inspector-toggle
-            onClick={() => openRightPanelTab("ai")}
-            className={`ui-icon-button w-auto gap-1.5 px-2 lg:w-8 lg:px-0 ${
-              aiChatIsOpen
-                ? "bg-primary-500/10 text-primary-700 dark:text-primary-300"
-                : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
-            }`}
-            title={aiChatLabel}
-            aria-label={aiChatLabel}
-            aria-expanded={aiChatIsOpen}
-          >
-            <SparklesIcon className="h-5 w-5" aria-hidden="true" />
-            <span className="text-xs font-medium lg:hidden">
-              {t("AI Chat")}
-            </span>
-          </button>
-          <button
-            type="button"
-            data-inspector-toggle
-            onClick={() => openRightPanelTab("tasks")}
-            className={`ui-icon-button w-auto gap-1.5 px-2 lg:w-8 lg:px-0 ${
-              tasksAreOpen
-                ? "bg-primary-500/10 text-primary-700 dark:text-primary-300"
-                : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
-            }`}
-            title={t("Global Tasks")}
-            aria-label={t("Global Tasks")}
-            aria-expanded={tasksAreOpen}
-          >
-            <ClipboardDocumentCheckIcon
-              className="h-5 w-5"
-              aria-hidden="true"
-            />
-            <span className="text-xs font-medium lg:hidden">{t("Tasks")}</span>
+            <ViewColumnsIcon className="h-5 w-5" aria-hidden="true" />
           </button>
           {pane === "B" && (
             <button
@@ -417,6 +425,31 @@ const EditorPane: FC<EditorPaneProps> = ({
       {/* File Renderer */}
       <div className="min-h-0 flex-1 overflow-auto overscroll-contain bg-background">
         <FileRenderer key={file.fileId} pane={pane} file={file} />
+      </div>
+
+      {/* phone action bar from the Atlas mockup */}
+      <div className={`${keyboardOpen ? "hidden" : "flex"} shrink-0 items-center justify-end gap-2 border-t border-border-subtle bg-sidebar px-4 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 lg:hidden`}>
+        {sourceFile && (
+          <button
+            type="button"
+            onClick={() => router.push(`/notes/${sourceFile.fileId}`)}
+            className="flex min-h-11 min-w-0 flex-1 flex-col justify-center rounded-radius-lg border border-border bg-surface px-3 text-left"
+          >
+            <span className="text-[11px] font-semibold text-accent">
+              {sourceFile.fileType === "pdf" ? t("Original PDF") : t("Original file")}
+            </span>
+            <span className="truncate text-[13px] text-text">{sourceFile.title}</span>
+          </button>
+        )}
+        <button
+          type="button"
+          data-inspector-toggle
+          onClick={() => openRightPanelTab("ai")}
+          className="touch-target-44 flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-action px-4 text-[13px] font-medium text-on-action hover:bg-action-hover"
+        >
+          <SparklesIcon className="h-4 w-4" aria-hidden="true" />
+          {t("Ask about this note")}
+        </button>
       </div>
     </div>
   );
@@ -438,11 +471,12 @@ const SaveIndicatorButton: FC<SaveIndicatorButtonProps> = ({
   if (state === "saved") {
     return (
       <span
-        className="flex h-6 w-6 shrink-0 items-center justify-center text-text-tertiary"
+        className="flex h-6 shrink-0 items-center gap-1.5 px-1 text-xs text-text-tertiary"
         title={t("Saved")}
         aria-label={t("Saved")}
       >
-        <CheckCircleIcon className="h-4 w-4" aria-hidden="true" />
+        <span className="h-1.5 w-1.5 rounded-full bg-success-500" aria-hidden="true" />
+        <span aria-hidden="true">{t("Saved")}</span>
       </span>
     );
   }
@@ -476,7 +510,7 @@ const SaveIndicatorButton: FC<SaveIndicatorButtonProps> = ({
       className={`flex min-h-11 shrink-0 items-center gap-1 rounded-radius-md px-2 text-xs font-medium transition-colors lg:min-h-7 ${
         isError
           ? "text-error-700 dark:text-error-400 hover:bg-error-500/10"
-          : "text-amber-700 dark:text-amber-400 hover:bg-amber-500/10"
+          : "text-warning-700 dark:text-warning-400 hover:bg-warning-500/10"
       }`}
     >
       {isError ? (

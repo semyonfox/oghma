@@ -126,7 +126,7 @@ function CourseVisibilitySection({
   return (
     <section className={sectionCardClass}>
       <div className="border-b border-border-subtle px-4 py-3">
-        <div className="text-xs font-semibold uppercase tracking-[0.24em] text-text-tertiary">
+        <div className="text-xs font-semibold uppercase tracking-wider text-text-tertiary">
           {label}
         </div>
       </div>
@@ -140,7 +140,7 @@ function CourseVisibilitySection({
               className="flex items-center justify-between gap-3 px-4 py-3"
             >
               <div className="min-w-0">
-                <div className="truncate text-sm font-medium text-text-secondary">
+                <div className="truncate text-sm font-medium text-text">
                   {item.courseName}
                 </div>
                 {item.contextText && (
@@ -180,8 +180,8 @@ function CourseVisibilityManager({
 
   const archivableNoDue = grouped.active.filter((item) => item.hasDueItems === false);
   const sectionCardClass = inline
-    ? "rounded-radius-lg border border-border-subtle bg-surface/60"
-    : "rounded-radius-lg border border-border-subtle bg-surface/70";
+    ? "rounded-radius-xl border border-border bg-surface"
+    : "rounded-radius-xl border border-border bg-surface";
 
   const handleToggle = async (item: CourseVisibilityItem, nextActive: boolean) => {
     setBusyCourseId(item.courseId);
@@ -227,7 +227,7 @@ function CourseVisibilityManager({
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder={t("Search courses")}
-          className="w-full rounded-radius-md border border-border-subtle bg-surface px-9 py-2 text-sm text-text-secondary placeholder:text-text-tertiary focus:border-primary-500/50 focus:outline-none focus:ring-1 focus:ring-primary-500/50"
+          className="w-full rounded-radius-md border border-border bg-input px-9 py-2 text-base text-text placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/50 sm:text-sm"
         />
       </div>
 
@@ -238,7 +238,7 @@ function CourseVisibilityManager({
               type="button"
               onClick={() => handleBulk("archive", onArchiveAllNoDue, archivableNoDue)}
               disabled={bulkBusy !== false}
-              className="rounded-full border border-border-subtle bg-surface px-3 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:bg-subtle disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-medium text-text transition-colors hover:bg-subtle disabled:cursor-not-allowed disabled:opacity-50"
             >
               {bulkBusy === "archive"
                 ? t("Archiving...")
@@ -250,7 +250,7 @@ function CourseVisibilityManager({
               type="button"
               onClick={() => handleBulk("restore", onRestoreAll, grouped.archived)}
               disabled={bulkBusy !== false}
-              className="rounded-full border border-border-subtle bg-surface px-3 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:bg-subtle disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-medium text-text transition-colors hover:bg-subtle disabled:cursor-not-allowed disabled:opacity-50"
             >
               {bulkBusy === "restore"
                 ? t("Restoring...")
@@ -266,7 +266,7 @@ function CourseVisibilityManager({
         label={t("Active")}
         emptyLabel={t("No active courses match this search.")}
         actionLabel={t("Active")}
-        actionClassName="shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-200 transition-colors hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+        actionClassName="shrink-0 rounded-full bg-accent-soft px-3 py-1 text-xs font-semibold text-accent-soft-text transition-colors hover:bg-subtle-hover disabled:cursor-not-allowed disabled:opacity-50"
         nextActive={false}
         busyCourseId={busyCourseId}
         bulkBusy={bulkBusy}
@@ -280,7 +280,7 @@ function CourseVisibilityManager({
         label={t("Archived")}
         emptyLabel={t("No archived courses match this search.")}
         actionLabel={t("Archived")}
-        actionClassName="shrink-0 rounded-full border border-border-subtle bg-surface px-3 py-1 text-xs font-semibold text-text-secondary transition-colors hover:bg-subtle disabled:cursor-not-allowed disabled:opacity-50"
+        actionClassName="shrink-0 rounded-full border border-border bg-surface px-3 py-1 text-xs font-semibold text-text-secondary transition-colors hover:bg-subtle disabled:cursor-not-allowed disabled:opacity-50"
         nextActive
         busyCourseId={busyCourseId}
         bulkBusy={bulkBusy}
@@ -303,10 +303,10 @@ export function CourseVisibilityDialog({
     <Dialog open={open} onClose={onClose} className="relative z-[70]">
       <div className="fixed inset-0 bg-black/50 backdrop-blur-[1px]" aria-hidden="true" />
       <div className="fixed inset-0 flex items-end justify-center sm:items-center sm:p-4">
-        <DialogPanel {...swipe} className="flex max-h-[calc(100dvh-0.5rem)] w-full flex-col overflow-hidden rounded-t-radius-lg border border-border-subtle bg-app-page shadow-2xl sm:max-w-2xl sm:rounded-radius-lg">
+        <DialogPanel {...swipe} className="flex max-h-[calc(100dvh-0.5rem)] w-full flex-col overflow-hidden rounded-t-radius-2xl border border-border bg-surface shadow-float sm:max-w-2xl sm:rounded-radius-2xl">
           <div className="flex items-start justify-between border-b border-border-subtle px-5 py-4">
             <div>
-              <DialogTitle className="text-base font-semibold text-text-secondary">
+              <DialogTitle className="font-serif text-lg font-semibold tracking-tight text-text">
                 {t("Manage course visibility")}
               </DialogTitle>
               <p className="mt-1 text-sm text-text-tertiary">

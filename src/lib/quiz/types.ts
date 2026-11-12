@@ -114,6 +114,9 @@ export interface UserStreak {
     streak_milestones: { days: number; reached_at: string }[];
 }
 
+// a chunk with this many skip or parse strikes is no longer offered for generation
+export const QUIZ_GENERATION_MAX_FAILURES = 2;
+
 // session config defaults
 export const SESSION_DEFAULTS = {
     maxQuestions: 20,

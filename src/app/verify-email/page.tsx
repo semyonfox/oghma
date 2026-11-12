@@ -5,6 +5,17 @@ import { useState, Suspense, type FormEvent } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Alert } from "@/components/alert";
+import {
+  authColumnClass,
+  authInputClass,
+  authLabelClass,
+  authLinkClass,
+  authPageClass,
+  authPrimaryButtonClass,
+  authSecondaryButtonClass,
+  authSuccessTextClass,
+  authTitleClass,
+} from "@/components/auth/auth-styles";
 import { getPasswordRequirements } from "@/lib/auth/credentials";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
@@ -114,12 +125,12 @@ function VerifyEmailContent() {
   // verifying state
   if (verifying) {
     return (
-      <div className="flex min-h-full flex-col items-center justify-center py-12 bg-app-page">
-        <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-          <h2 className="font-serif text-2xl font-semibold text-text">
+      <div className={authPageClass}>
+        <div className={authColumnClass}>
+          <h2 className={authTitleClass}>
             {t("Verifying your email...")}
           </h2>
-          <p className="mt-2 text-text-tertiary">
+          <p className="mt-2 text-sm text-text-secondary">
             {t("Please wait a moment.")}
           </p>
         </div>
@@ -130,8 +141,8 @@ function VerifyEmailContent() {
   // verified state
   if (verified) {
     return (
-      <div className="flex min-h-full flex-col items-center justify-center py-12 bg-app-page">
-        <div className="sm:mx-auto sm:w-full sm:max-w-md">
+      <div className={authPageClass}>
+        <div className={authColumnClass}>
           <Alert
             variant="success"
             title={t("Email verified!")}
@@ -146,20 +157,20 @@ function VerifyEmailContent() {
 
   // default: check your inbox (no token) or error (bad token)
   return (
-    <div className="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8 bg-app-page">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center font-serif text-2xl font-semibold tracking-tight text-text">
+    <div className={authPageClass}>
+      <div className={authColumnClass}>
+        <h2 className={authTitleClass}>
           {token ? t("Verify email") : t("Check your email")}
         </h2>
         {instructions && (
-          <p className="mt-2 text-center text-sm text-text-tertiary">
+          <p className="mt-2 text-sm text-text-secondary">
             {instructions}
           </p>
         )}
       </div>
 
-      <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-[480px]">
-        <div className="glass-card px-6 py-12 rounded-radius-xl sm:px-12 space-y-6">
+      <div className={`mt-8 ${authColumnClass}`}>
+        <div className="space-y-5">
           {error && <Alert role="alert" variant="error" description={error} />}
           {resendMessage && (
             <Alert role="status" variant="info" description={resendMessage} />
@@ -169,7 +180,7 @@ function VerifyEmailContent() {
             <form onSubmit={verify} className="space-y-4">
               <label
                 htmlFor="verification-password"
-                className="block text-sm font-medium"
+                className={authLabelClass}
               >
                 {t("New password")}
               </label>
@@ -182,7 +193,7 @@ function VerifyEmailContent() {
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 aria-describedby="verification-password-requirements"
-                className="block w-full rounded-radius-md border border-border-subtle bg-surface px-3 py-2 text-text"
+                className={authInputClass}
               />
               <ul
                 id="verification-password-requirements"
@@ -193,7 +204,7 @@ function VerifyEmailContent() {
                     key={requirement.id}
                     className={
                       requirement.met
-                        ? "text-success-700 dark:text-emerald-400"
+                        ? authSuccessTextClass
                         : "text-text-tertiary"
                     }
                   >
@@ -206,7 +217,7 @@ function VerifyEmailContent() {
               </ul>
               <button
                 type="submit"
-                className="min-h-11 w-full rounded-radius-md bg-primary-600 px-3 py-2 text-text-on-primary"
+                className={authPrimaryButtonClass}
               >
                 {t("Verify email")}
               </button>
@@ -216,24 +227,24 @@ function VerifyEmailContent() {
             <button
               onClick={handleResend}
               disabled={resendLoading}
-              className="flex w-full justify-center rounded-radius-md bg-primary-600 px-3 py-1.5 text-sm/6 font-semibold text-text-on-primary hover:bg-primary-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              className={token ? authSecondaryButtonClass : authPrimaryButtonClass}
             >
               {resendLoading ? t("Sending...") : t("Resend verification email")}
             </button>
           )}
 
-          <p className="text-center text-sm text-text-tertiary">
+          <p className="text-center text-sm text-text-secondary">
             {t("Didn't receive the email? Check your spam folder.")} {" "}
-            <Link href="/contact" className="font-semibold text-primary-700 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300">
+            <Link href="/contact" className={authLinkClass}>
               {t("Contact support")}
             </Link>
           </p>
         </div>
 
-        <p className="mt-10 text-center text-sm/6 text-text-tertiary">
+        <p className="mt-8 text-center text-sm/6 text-text-secondary">
           <Link
             href="/login"
-            className="font-semibold text-primary-700 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300"
+            className={authLinkClass}
           >
             {t("Back to Login")}
           </Link>
@@ -248,7 +259,7 @@ export default function VerifyEmailPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-full items-center justify-center bg-app-page text-text-tertiary">
+        <div className="flex min-h-dvh items-center justify-center bg-background text-text-tertiary">
           {t("Loading...")}
         </div>
       }

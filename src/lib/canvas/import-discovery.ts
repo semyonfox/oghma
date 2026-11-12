@@ -21,6 +21,7 @@ import {
 import type { StoreS3 } from "../storage/s3.ts";
 import { pooled } from "./async-limiter";
 import {
+  canvasModulePosition,
   findOrCreateFolder,
   CanvasFolderTrashedError,
   cleanCourseName,
@@ -333,6 +334,7 @@ async function discoverModuleFiles(
         {
           canvasCourseId: canvasIdForBigintColumn(courseId, "Canvas course ID"),
           canvasModuleId: canvasIdForBigintColumn(module.id, "Canvas module ID"),
+          canvasModulePosition: canvasModulePosition(module),
         },
       );
       } catch (error) {
@@ -718,6 +720,7 @@ async function processModules(
         {
           canvasCourseId: canvasIdForBigintColumn(courseId, "Canvas course ID"),
           canvasModuleId: canvasIdForBigintColumn(module.id, "Canvas module ID"),
+          canvasModulePosition: canvasModulePosition(module),
         },
       );
       const metaResults = await pooled(

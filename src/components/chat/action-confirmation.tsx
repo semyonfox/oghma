@@ -2,8 +2,19 @@
 
 import { useEffect, useState } from "react";
 import { z } from "zod";
+import useNoteTreeStore from "@/lib/notes/state/tree";
+import { publishWorkspaceInvalidation } from "@/lib/notes/workspace-invalidation";
 
 const CALENDAR_TOOLS = new Set(["addTimeBlock", "completeTimeBlock"]);
+const NOTE_TOOLS = new Set(["makeMDNote", "renameNote", "moveNote"]);
+
+// the server runs approved note actions, so no tab has seen the change yet.
+// other tabs reload from the broadcast, and this one reloads its own tree
+function announceTreeChange(): void {
+  const tree = useNoteTreeStore.getState();
+  if (tree.ownerUserId) publishWorkspaceInvalidation(tree.ownerUserId, "tree");
+  if (tree.initLoaded) void tree.refreshTree();
+}
 
 const actionSchema = z.object({
   id: z.string().uuid(),
@@ -63,6 +74,9 @@ export default function ActionConfirmation({ actionId }: { actionId: string }) {
       ) {
         window.dispatchEvent(new CustomEvent("oghma:time-block-changed"));
       }
+      if (value.status === "completed" && NOTE_TOOLS.has(currentAction.tool_name)) {
+        announceTreeChange();
+      }
       setAction((current) =>
         current?.id === actionId
           ? { ...current, status: value.status }
@@ -99,14 +113,14 @@ export default function ActionConfirmation({ actionId }: { actionId: string }) {
               </p>
               <div className="flex gap-3">
                 <button
-                  className="min-h-11 rounded-radius-md bg-primary-600 px-4 text-white disabled:opacity-50"
+                  className="min-h-11 rounded-radius-md bg-action px-4 text-on-action hover:bg-action-hover disabled:opacity-50"
                   disabled={busy}
                   onClick={() => void decide("approve")}
                 >
                   Approve action
                 </button>
                 <button
-                  className="min-h-11 rounded-radius-md border border-border-subtle px-4 disabled:opacity-50"
+                  className="min-h-11 rounded-radius-md border border-border bg-surface px-4 text-text hover:bg-subtle disabled:opacity-50"
                   disabled={busy}
                   onClick={() => void decide("reject")}
                 >

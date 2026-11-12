@@ -1,9 +1,11 @@
 "use client";
 
-import { FC, useRef, useState } from "react";
+import { FC, ReactNode, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import CanvasImportIndicator from "@/components/canvas/canvas-import-indicator";
+import SidebarNavigation from "./sidebar-navigation";
+import { NAV_ITEMS, SETTINGS_ITEM, type NavItem } from "./nav-items";
 import BrandLogo from "@/components/brand-logo";
 import useLayoutStore from "@/lib/notes/state/layout";
 import useI18n from "@/lib/notes/hooks/use-i18n";
@@ -11,80 +13,23 @@ import useGlobalSearchStore from "@/lib/global-search/state";
 import usePomodoroStore from "@/lib/notes/state/pomodoro";
 import { useNativeAppBridge, supportsNativeOffline, postNativeOfflineOpen } from "@/lib/native-app";
 import {
-  DocumentTextIcon,
   MagnifyingGlassIcon,
-  CalendarIcon,
-  SparklesIcon,
   Cog6ToothIcon,
-  AcademicCapIcon,
   ClockIcon,
   ArrowDownTrayIcon,
-  Square3Stack3DIcon,
 } from "@heroicons/react/24/outline";
 
-interface NavItem {
-  id: string;
-  labelKey: string;
-  icon: FC<{ className?: string }>;
-  href: string;
-  section: "notes" | "search" | "calendar" | "settings" | "chat" | "quiz" | "study-map";
-}
-
 interface PrimaryNavigationProps {
-  variant?: "rail" | "drawer";
+  variant?: "rail" | "drawer" | "sidebar";
   onNavigate?: () => void;
+  // sidebar only: the page's own section (note tree, conversations) between nav and footer
+  children?: ReactNode;
 }
-
-const NAV_ITEMS: NavItem[] = [
-  {
-    id: "notes",
-    labelKey: "Notes",
-    icon: DocumentTextIcon,
-    href: "/notes",
-    section: "notes",
-  },
-  { id: "study-map", labelKey: "Study map", icon: Square3Stack3DIcon, href: "/study-map", section: "study-map" },
-  {
-    id: "search",
-    labelKey: "Search OghmaNotes",
-    icon: MagnifyingGlassIcon,
-    href: "/notes",
-    section: "search",
-  },
-  {
-    id: "calendar",
-    labelKey: "Calendar",
-    icon: CalendarIcon,
-    href: "/calendar",
-    section: "calendar",
-  },
-  {
-    id: "chat",
-    labelKey: "AI Chat",
-    icon: SparklesIcon,
-    href: "/chat",
-    section: "chat",
-  },
-  {
-    id: "quiz",
-    labelKey: "quiz.title",
-    icon: AcademicCapIcon,
-    href: "/quiz",
-    section: "quiz",
-  },
-];
-
-const SETTINGS_ITEM: NavItem = {
-  id: "settings",
-  labelKey: "Settings",
-  icon: Cog6ToothIcon,
-  href: "/settings",
-  section: "settings",
-};
 
 const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
   variant = "rail",
   onNavigate,
+  children,
 }) => {
   const nativeAppBridge = useNativeAppBridge();
   const pathname = usePathname();
@@ -143,6 +88,23 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
     setActiveNav(item.section);
   };
 
+  if (variant === "sidebar") {
+    return (
+      <SidebarNavigation
+        activeSection={derivedActiveSection}
+        homeHref={nativeAppBridge ? "/notes" : "/"}
+        onNavClick={handleNavClick}
+        onFocusClick={handleFocusClick}
+        focusActive={focusActive}
+        focusStarting={focusStarting}
+        focusTitle={focusTitle}
+        offlineAvailable={offlineAvailable}
+      >
+        {children}
+      </SidebarNavigation>
+    );
+  }
+
   if (variant === "drawer") {
     return (
       <nav
@@ -161,7 +123,7 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
         <button
           type="button"
           onClick={() => { onNavigate?.(); useGlobalSearchStore.getState().open(); }}
-          className="flex min-h-12 items-center gap-3 rounded-radius-xl border border-border-subtle bg-surface px-4 text-sm text-text-tertiary transition-colors hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50"
+          className="flex min-h-12 items-center gap-3 rounded-radius-xl border border-border bg-surface px-4 text-sm text-text-tertiary transition-colors hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
         >
           <MagnifyingGlassIcon className="h-5 w-5 shrink-0" aria-hidden="true" />
           <span>{t("Search OghmaNotes")}</span>
@@ -179,7 +141,7 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
                 <span>{translatedLabel}</span>
               </>
             );
-            const className = `flex min-h-11 w-full items-center gap-3 rounded-radius-md px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 ${isActive ? "bg-primary-500/10 text-primary-400" : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"}`;
+            const className = `flex min-h-11 w-full items-center gap-3 rounded-radius-md px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${isActive ? "atlas-raised text-text" : "text-text-secondary hover:bg-subtle hover:text-text"}`;
             return (
               <Link key={item.id} href={item.href}
                 onClick={() => handleNavClick(item)}
@@ -197,10 +159,10 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
             aria-label={focusLabel}
             aria-pressed={focusActive}
             aria-busy={focusStarting}
-            className={`mt-2 flex min-h-12 w-full items-center gap-3 rounded-radius-lg px-4 text-base font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 ${
+            className={`mt-2 flex min-h-12 w-full items-center gap-3 rounded-radius-lg px-4 text-base font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
               focusActive
-                ? "bg-primary-500/10 text-primary-600 dark:text-primary-400"
-                : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
+                ? "atlas-raised text-text"
+                : "text-text-secondary hover:bg-subtle hover:text-text"
             }`}
             title={focusStarting ? t("Loading...") : focusTitle}
           >
@@ -213,7 +175,7 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
           {offlineAvailable && <button
             type="button"
             onClick={() => { onNavigate?.(); postNativeOfflineOpen(); }}
-            className="flex min-h-12 w-full items-center gap-3 rounded-radius-lg px-3 text-sm font-medium text-text-secondary transition-colors hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50"
+            className="flex min-h-12 w-full items-center gap-3 rounded-radius-lg px-3 text-sm font-medium text-text-secondary transition-colors hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
           >
             <ArrowDownTrayIcon className="h-5 w-5 shrink-0" aria-hidden="true" />
             <span>{t("Offline notes")}</span>
@@ -226,10 +188,10 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
             aria-current={
               derivedActiveSection === "settings" ? "page" : undefined
             }
-            className={`flex min-h-11 w-full items-center gap-3 rounded-radius-md px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 ${
+            className={`flex min-h-11 w-full items-center gap-3 rounded-radius-md px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
               derivedActiveSection === "settings"
-                ? "bg-primary-500/10 text-primary-600 dark:text-primary-400"
-                : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
+                ? "atlas-raised text-text"
+                : "text-text-secondary hover:bg-subtle hover:text-text"
             }`}
             title={t("Settings")}
           >
@@ -243,12 +205,12 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
 
   return (
     <nav
-      className="flex h-full w-14 shrink-0 flex-col items-center gap-2 pb-2 pt-4"
+      className="flex h-full w-14 shrink-0 flex-col items-center gap-2 bg-sidebar pb-2 pt-4"
       aria-label={t("Main navigation")}
     >
       <Link
         href={nativeAppBridge ? "/notes" : "/"}
-        className="mb-4 flex h-10 min-h-[44px] w-10 min-w-[44px] items-center justify-center rounded-radius-md transition-opacity hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50"
+        className="mb-4 flex h-10 min-h-[44px] w-10 min-w-[44px] items-center justify-center rounded-radius-md transition-opacity hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
       >
         <BrandLogo size={24} alt="OghmaNotes Logo" className="h-6 w-6" />
       </Link>
@@ -259,7 +221,7 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
           const isActive = derivedActiveSection === item.section;
           const translatedLabel = t(item.labelKey);
 
-          const className = `group relative flex h-10 min-h-[44px] w-10 min-w-[44px] items-center justify-center rounded-radius-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 ${isActive ? "bg-primary-500/10 text-primary-400" : "text-text-tertiary hover:bg-subtle hover:text-text"}`;
+          const className = `group relative flex h-10 min-h-[44px] w-10 min-w-[44px] items-center justify-center rounded-radius-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${isActive ? "atlas-raised text-text" : "text-text-secondary hover:bg-subtle hover:text-text"}`;
           if (item.section !== "search") {
             return (
               <Link key={item.id} href={item.href}
@@ -268,7 +230,7 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
                 aria-current={isActive ? "page" : undefined}
                 title={translatedLabel} className={className}>
                 <IconComp className="h-5 w-5" aria-hidden="true" />
-                <span className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded-radius-md border border-border-subtle bg-surface px-2 py-1 text-xs text-text-secondary opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                <span className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded-radius-md border border-border bg-surface-elevated px-2 py-1 text-xs text-text-secondary shadow-float opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
                   {translatedLabel}
                 </span>
               </Link>
@@ -282,10 +244,10 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
               aria-label={translatedLabel}
               aria-current={isActive ? "page" : undefined}
               aria-describedby={`tooltip-${item.id}`}
-              className={`group relative flex h-10 min-h-[44px] w-10 min-w-[44px] items-center justify-center rounded-radius-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 ${
+              className={`group relative flex h-10 min-h-[44px] w-10 min-w-[44px] items-center justify-center rounded-radius-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
                 isActive
-                  ? "bg-primary-500/10 text-primary-600 dark:text-primary-400"
-                  : "text-text-tertiary hover:bg-subtle hover:text-text"
+                  ? "atlas-raised text-text"
+                  : "text-text-secondary hover:bg-subtle hover:text-text"
               }`}
               title={translatedLabel}
             >
@@ -293,9 +255,13 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
               <div
                 id={`tooltip-${item.id}`}
                 role="tooltip"
-                className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded-radius-md border border-border-subtle bg-surface px-2 py-1 text-xs text-text-secondary opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+                className="pointer-events-none absolute left-full z-50 ml-2 flex items-center gap-2 whitespace-nowrap rounded-radius-md border border-border bg-surface-elevated px-2 py-1 text-xs text-text-secondary shadow-float opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
               >
                 {translatedLabel}
+                <kbd aria-hidden="true" className="inline-flex items-center gap-0.5 rounded-radius-sm border border-border bg-surface px-1 font-mono text-[10px] leading-4 text-text-tertiary">
+                  <span>⌘</span>
+                  <span>K</span>
+                </kbd>
               </div>
             </button>
           );
@@ -309,10 +275,10 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
           aria-pressed={focusActive}
           aria-busy={focusStarting}
           aria-describedby="tooltip-focus"
-          className={`group relative flex h-10 min-h-[44px] w-10 min-w-[44px] items-center justify-center rounded-radius-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 ${
+          className={`group relative flex h-10 min-h-[44px] w-10 min-w-[44px] items-center justify-center rounded-radius-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
             focusActive
-              ? "bg-primary-500/10 text-primary-600 dark:text-primary-400"
-              : "text-text-tertiary hover:bg-subtle hover:text-text"
+              ? "atlas-raised text-text"
+              : "text-text-secondary hover:bg-subtle hover:text-text"
           }`}
           title={focusStarting ? t("Loading...") : focusTitle}
         >
@@ -320,7 +286,7 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
           <div
             id="tooltip-focus"
             role="tooltip"
-            className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded-radius-md border border-border-subtle bg-surface px-2 py-1 text-xs text-text-secondary opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+            className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded-radius-md border border-border bg-surface-elevated px-2 py-1 text-xs text-text-secondary shadow-float opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
           >
             {focusTitle}
           </div>
@@ -334,7 +300,7 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
         onClick={() => postNativeOfflineOpen()}
         aria-label={t("Offline notes")}
         title={t("Offline notes")}
-        className="flex min-h-11 min-w-11 items-center justify-center rounded-radius-md text-text-tertiary hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50"
+        className="flex min-h-11 min-w-11 items-center justify-center rounded-radius-md text-text-secondary hover:bg-subtle hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
       ><ArrowDownTrayIcon className="h-5 w-5" aria-hidden="true" /></button>}
 
       <Link
@@ -343,10 +309,10 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
         aria-describedby="tooltip-settings"
         aria-label={t("Settings")}
         aria-current={derivedActiveSection === "settings" ? "page" : undefined}
-        className={`group relative flex h-10 min-h-[44px] w-10 min-w-[44px] items-center justify-center rounded-radius-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 ${
+        className={`group relative flex h-10 min-h-[44px] w-10 min-w-[44px] items-center justify-center rounded-radius-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
           derivedActiveSection === "settings"
-            ? "bg-primary-500/10 text-primary-600 dark:text-primary-400"
-            : "text-text-tertiary hover:bg-subtle hover:text-text"
+            ? "atlas-raised text-text"
+            : "text-text-secondary hover:bg-subtle hover:text-text"
         }`}
         title={t("Settings")}
       >
@@ -354,7 +320,7 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
         <div
           id="tooltip-settings"
           role="tooltip"
-          className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded-radius-md border border-border-subtle bg-surface px-2 py-1 text-xs text-text-secondary opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+          className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded-radius-md border border-border bg-surface-elevated px-2 py-1 text-xs text-text-secondary shadow-float opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
         >
           {t("Settings")}
         </div>

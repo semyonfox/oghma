@@ -4,6 +4,14 @@ import { useEffect, useRef, useState, useEffectEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import { getProviders, signIn } from "next-auth/react";
 import BrandLogo from "@/components/brand-logo";
+import {
+  authColumnClass,
+  authErrorTextClass,
+  authLinkClass,
+  authPageClass,
+  authPrimaryButtonClass,
+  authTitleClass,
+} from "@/components/auth/auth-styles";
 import { z } from "zod";
 
 const accountSchema = z.object({
@@ -134,29 +142,29 @@ export default function MobileSignIn() {
   }
 
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-app-page px-6 py-12">
-      <div className="w-full max-w-md space-y-6">
-        <div className="flex items-center gap-3">
-          <BrandLogo size={36} />
-          <span className="text-xl font-semibold text-text">OghmaNotes</span>
+    <main className={authPageClass}>
+      <div className={`${authColumnClass} space-y-6`}>
+        <div className="flex items-center gap-2.5">
+          <BrandLogo size={30} />
+          <span className="font-serif text-lg font-semibold text-text">OghmaNotes</span>
         </div>
-        <h1 className="font-serif text-3xl text-text">
+        <h1 className={authTitleClass}>
           Sign in to your Android app
         </h1>
         {!valid ? (
-          <p role="alert" className="text-error-600 dark:text-error-400">
+          <p role="alert" className={authErrorTextClass}>
             This sign-in link is incomplete. Close this page and start again
             from the app.
           </p>
         ) : (
           <>
             {error && (
-              <p role="alert" className="text-error-600 dark:text-error-400">
+              <p role="alert" className={authErrorTextClass}>
                 {error}
               </p>
             )}
             {account ? (
-              <div className="glass-card space-y-5 rounded-radius-xl p-6">
+              <div className="space-y-5 rounded-radius-xl border border-border bg-surface p-6">
                 <p className="text-text-secondary">
                   Continue with{" "}
                   <strong className="break-all text-text">
@@ -168,14 +176,14 @@ export default function MobileSignIn() {
                   type="button"
                   onClick={() => void approve()}
                   disabled={busy}
-                  className="min-h-12 w-full rounded-radius-lg bg-primary-600 px-4 py-3 font-semibold text-white disabled:opacity-50"
+                  className={authPrimaryButtonClass}
                 >
                   {busy ? "Returning to app…" : "Continue to OghmaNotes"}
                 </button>
                 {returnUrl && (
                   <a
                     href={returnUrl}
-                    className="block text-primary-600 underline dark:text-primary-300"
+                    className={`block ${authLinkClass}`}
                   >
                     Open the app
                   </a>
@@ -184,7 +192,7 @@ export default function MobileSignIn() {
                   type="button"
                   onClick={() => void start()}
                   disabled={busy}
-                  className="min-h-12 text-text-secondary underline underline-offset-4"
+                  className="min-h-11 text-sm text-text-secondary underline underline-offset-4 hover:text-text"
                 >
                   Use another account
                 </button>
@@ -201,7 +209,7 @@ export default function MobileSignIn() {
                     type="button"
                     onClick={() => void start()}
                     disabled={busy}
-                    className="min-h-12 rounded-radius-lg bg-primary-600 px-6 py-3 font-semibold text-white"
+                    className={`${authPrimaryButtonClass} sm:w-auto sm:px-6`}
                   >
                     Sign in again
                   </button>

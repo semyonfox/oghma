@@ -7,6 +7,7 @@ import {
   parseCanvasInstitutions,
   type CanvasInstitution,
 } from "@/lib/canvas/institution-search";
+import { errorTextClass, inputClass } from "../settings-utils";
 
 type SearchStatus = "idle" | "loading" | "ready" | "error";
 
@@ -118,7 +119,7 @@ export default function CanvasInstitutionPicker({
           value={query}
           onChange={handleSearchChange}
           placeholder={t("Start typing your school name")}
-          className="mt-2 block w-full rounded-radius-md border border-border-subtle bg-surface px-3 py-1.5 text-sm text-text placeholder:text-text-tertiary focus:border-primary-500/50 focus:outline-none focus:ring-1 focus:ring-primary-500/50"
+          className={`mt-2 ${inputClass}`}
         />
         {query.trim().length > 0 && query.trim().length < 3 && (
           <p className="mt-1 text-xs text-text-tertiary">
@@ -128,7 +129,7 @@ export default function CanvasInstitutionPicker({
       </div>
 
       {selectedSchool && domain && (
-        <p className="rounded-radius-md border border-primary-500/30 bg-primary-500/10 px-3 py-2 text-sm text-text-secondary">
+        <p className="rounded-radius-md border border-accent/30 bg-accent-soft px-3 py-2 text-sm text-text-secondary">
           <span className="font-medium text-text">{selectedSchool}</span>
           <span className="block text-xs text-text-tertiary">{domain}</span>
         </p>
@@ -147,13 +148,13 @@ export default function CanvasInstitutionPicker({
             results.length === 0 &&
             looksLikeAddress &&
             !typedCanvasHost && (
-              <p role="alert" className="mt-1 text-xs text-red-400">
+              <p role="alert" className={`mt-1 text-xs ${errorTextClass}`}>
                 {t("Paste your Canvas URL or enter its address, for example")}{" "}
                 <span>example.instructure.com</span>
               </p>
             )}
           {status === "ready" && results.length > 0 && (
-            <ul className="max-h-56 space-y-1 overflow-y-auto rounded-radius-md border border-border-subtle bg-surface p-1">
+            <ul className="max-h-56 space-y-1 overflow-y-auto rounded-radius-md border border-border bg-surface p-1 shadow-float">
               {results.map((school, index) => (
                 <li key={`${school.domain}-${index}`}>
                   <button
@@ -165,7 +166,7 @@ export default function CanvasInstitutionPicker({
                       setManualOpen(false);
                       setManualValue("");
                     }}
-                    className="w-full rounded-radius-md px-2 py-2 text-left text-sm text-text hover:bg-primary-500/10 focus:bg-primary-500/10 focus:outline-none focus:ring-1 focus:ring-primary-500/50 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="w-full rounded-radius-md px-2 py-2 text-left text-sm text-text hover:bg-subtle focus:bg-subtle focus:outline-none focus:ring-1 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <span className="block font-medium">{school.name}</span>
                     <span className="block text-xs text-text-tertiary">
@@ -187,7 +188,7 @@ export default function CanvasInstitutionPicker({
                 setManualOpen(false);
                 setManualValue("");
               }}
-              className="mt-2 w-full rounded-radius-md border border-primary-500/30 bg-primary-500/10 px-3 py-2 text-left text-sm text-text hover:bg-primary-500/20 focus:outline-none focus:ring-1 focus:ring-primary-500/50"
+              className="mt-2 w-full rounded-radius-md border border-border bg-surface px-3 py-2 text-left text-sm text-text hover:bg-subtle focus:outline-none focus:ring-1 focus:ring-accent"
             >
               <span className="block font-medium">
                 {t("Use your Canvas URL instead")}
@@ -214,7 +215,7 @@ export default function CanvasInstitutionPicker({
             setResults([]);
             setStatus("idle");
           }}
-          className="text-sm font-medium text-primary-400 underline underline-offset-2"
+          className="text-sm font-medium text-accent underline underline-offset-2 hover:text-accent-hover"
         >
           {manualOpen ? t("Hide Canvas URL") : t("Use your Canvas URL instead")}
         </button>
@@ -242,10 +243,10 @@ export default function CanvasInstitutionPicker({
             placeholder="https://example.instructure.com"
             value={manualValue}
             onChange={handleManualChange}
-            className="mt-2 block w-full rounded-radius-md border border-border-subtle bg-surface px-3 py-1.5 text-sm text-text placeholder:text-text-tertiary focus:border-primary-500/50 focus:outline-none focus:ring-1 focus:ring-primary-500/50"
+            className={`mt-2 ${inputClass}`}
           />
           {manualValue.trim() && !domain && (
-            <p role="alert" className="mt-1 text-xs text-red-400">
+            <p role="alert" className={`mt-1 text-xs ${errorTextClass}`}>
               {t("Paste your Canvas URL or enter its address, for example")}{" "}
               <span>example.instructure.com</span>
             </p>

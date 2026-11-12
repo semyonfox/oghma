@@ -61,7 +61,7 @@ it("clears a cached draft matching the saved document without a recovery or conf
 });
 
 it("announces a recovered draft once, retains it, and stays quiet when reopened", async () => {
-  mocks.cache.set("draft:note", { content: "Recovered", draftAt: Date.parse("2026-09-15T13:00:00Z") });
+  mocks.cache.set("draft:note", { content: "Recovered", baseUpdatedAt: "2026-09-15T12:00:00Z", draftAt: Date.parse("2026-09-15T13:00:00Z") });
   const first = await open();
   await waitFor(() => expect(mocks.info).toHaveBeenCalledTimes(1));
   expect(screen.getByRole("textbox")).toHaveProperty("value", "Recovered");
@@ -83,7 +83,7 @@ it("does not announce a draft created during ordinary navigation in this session
 it("retains real conflict warnings instead of showing the routine recovery popup", async () => {
   mocks.cache.set("draft:note", { content: "Older work", draftAt: 1 });
   await open();
-  await waitFor(() => expect(mocks.warning).toHaveBeenCalledTimes(1));
+  expect(screen.getByRole("button", { name: "Load theirs" })).toBeTruthy();
   expect(mocks.info).not.toHaveBeenCalled();
   expect(state()).toBe("dirty");
 });

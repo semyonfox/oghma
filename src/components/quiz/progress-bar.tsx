@@ -21,23 +21,23 @@ export default function ProgressBar({
     <div className="flex items-center gap-3">
       <button
         onClick={onBack}
-        className="text-text-tertiary text-xs hover:text-text-secondary transition-colors"
+        className="min-h-11 rounded-radius-md px-2 text-sm text-text-secondary transition-colors hover:bg-subtle hover:text-text"
       >
         {t("quiz.progress.back")}
       </button>
-      <div className="flex-1 h-1 bg-surface rounded-full">
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-subtle-hover">
         <div
-          className="h-full bg-text-tertiary rounded-full transition-[width] duration-300"
+          className="h-full rounded-full bg-accent transition-[width] duration-300"
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className="text-text-tertiary text-xs">
+      <span className="font-mono text-xs text-text-secondary tabular-nums">
         {current}/{total}
       </span>
       {onSkip && (
         <button
           onClick={onSkip}
-          className="text-text-tertiary text-xs hover:text-text-secondary transition-colors"
+          className="min-h-11 rounded-radius-md px-2 text-sm text-text-secondary transition-colors hover:bg-subtle hover:text-text"
         >
           {t("quiz.progress.skip")}
         </button>

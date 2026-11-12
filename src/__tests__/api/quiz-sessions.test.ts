@@ -1,3 +1,4 @@
+vi.mock("@/lib/rate-limiter", () => ({ checkRateLimit: vi.fn().mockResolvedValue(null) }));
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/database/pgsql", () => ({ default: vi.fn() }));

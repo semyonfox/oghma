@@ -50,6 +50,7 @@ Status means:
 | [Performance](engineering/performance.md) | Current | Repeatable performance-audit workflow and evidence rules |
 | [Demo flow](engineering/demo-flow.md) | Current | Product walkthrough without duplicating architecture |
 | [Canvas data emergency plan](engineering/canvas-data-emergency-plan.md) | Target (contingency, not built) | Options for reducing or stopping retention of Canvas content |
+| [Review fix plan, November 2026](engineering/review-fix-plan-2026-11.md) | Target (plan) | Merged findings of the November 2026 code and security review, the fix order, the deferred items and the access matrix |
 
 ## Operations
 

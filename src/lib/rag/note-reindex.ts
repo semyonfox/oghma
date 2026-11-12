@@ -54,22 +54,47 @@ async function runReindex(
   if (!note) return "missing";
 
   const cleanedText = processExtractedText(note.content);
-  if (cleanedText === (note.extracted_text ?? "")) return "unchanged";
+  const unchanged = cleanedText === (note.extracted_text ?? "");
 
-  await replaceNoteEmbeddings(noteId, userId, chunkText(note.content));
+  if (!unchanged) await replaceNoteEmbeddings(noteId, userId, chunkText(note.content));
 
   const stamped = await sql`
     UPDATE app.notes
-    SET extracted_text = ${cleanedText}
+    SET extracted_text = ${cleanedText}, reindex_requested_at = NULL
     WHERE note_id = ${noteId}::uuid
       AND user_id = ${userId}::uuid
       AND deleted_at IS NULL
       AND updated_at = ${note.updated_at}::text::timestamptz
     RETURNING note_id
   `;
-  if (stamped.length > 0) return "indexed";
+  if (stamped.length > 0) return unchanged ? "unchanged" : "indexed";
 
   logger.info("note changed during reindex, requeueing", { noteId });
   await enqueueNoteReindexJob(noteId, userId);
   return "stale";
+}
+
+// the row marker survives a failed queue publish and is cleared only by a matching job
+export async function recoverNoteReindexes(): Promise<void> {
+  // re-stamping the claimed rows spaces retries of a note that keeps failing
+  // to one per window and lets newer requests reach the front
+  const notes = await sql<{ note_id: string; user_id: string }[]>`
+    UPDATE app.notes SET reindex_requested_at = NOW()
+    WHERE note_id IN (
+      SELECT note_id FROM app.notes
+      WHERE reindex_requested_at < NOW() - INTERVAL '2 minutes'
+        AND deleted_at IS NULL AND is_folder = FALSE
+      ORDER BY reindex_requested_at
+      LIMIT 100
+      FOR UPDATE SKIP LOCKED
+    )
+    RETURNING note_id, user_id
+  `;
+  for (const note of notes) {
+    try {
+      await enqueueNoteReindexJob(note.note_id, note.user_id);
+    } catch (error) {
+      logger.error("note reindex recovery enqueue failed", { noteId: note.note_id, error });
+    }
+  }
 }

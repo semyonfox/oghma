@@ -184,7 +184,6 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
     col: number;
     top: number;
     title: string;
-    color: string;
     type: AssignmentType;
     typeLabel: string;
   }[] = [];
@@ -200,7 +199,6 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
       col: colIdx,
       top: weekGridOffset(d, hourHeight),
       title: a.title,
-      color: a.course_color ?? "#ef4444",
       type: a.assignment_type,
       typeLabel: getAssignmentTypeLabel(a.assignment_type),
     });
@@ -276,7 +274,7 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
               <span
                 className={`mt-1 flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold ${
                   day.isToday
-                    ? "bg-primary-600 text-text-on-primary"
+                    ? "bg-accent text-on-action"
                     : "text-text-secondary"
                 }`}
               >
@@ -321,12 +319,10 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
                 .map((block) => (
                   <div
                     key={block.id}
-                    className={`group/block absolute left-0.5 right-0.5 overflow-hidden rounded-radius-md border-l-2 bg-surface-elevated px-1.5 py-1 text-xs leading-tight shadow-sm ${block.completed ? "opacity-60" : ""}`}
+                    className={`group/block absolute left-0.5 right-0.5 overflow-hidden rounded-radius-md border px-1.5 py-1 text-xs leading-tight ${block.completed ? "border-success-500/30 bg-success-500/10" : "border-border bg-surface"}`}
                     style={{
                       top: block.top,
                       height: block.height,
-                      borderColor:
-                        block.courseColor ?? "var(--color-primary-500)",
                     }}
                     onClick={(event) => event.stopPropagation()}
                   >
@@ -344,6 +340,10 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
                       <XMarkIcon className="h-3 w-3" />
                     </button>
                     <div className="flex items-center gap-1">
+                      <span
+                        aria-hidden="true"
+                        className={`h-1.5 w-1.5 shrink-0 rounded-full ${block.completed ? "bg-success-500" : "bg-accent"}`}
+                      />
                       <button
                         type="button"
                         onClick={(event) => {
@@ -363,9 +363,9 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
                         }
                       >
                         {block.completed ? (
-                          <CheckCircleIcon className="h-3.5 w-3.5 text-primary-500" />
+                          <CheckCircleIcon className="h-3.5 w-3.5 text-success-500" />
                         ) : (
-                          <CheckCircleOutline className="h-3.5 w-3.5 text-text-tertiary transition-colors hover:text-primary-500" />
+                          <CheckCircleOutline className="h-3.5 w-3.5 text-text-tertiary transition-colors hover:text-accent" />
                         )}
                       </button>
                       <p
@@ -386,19 +386,21 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
                 .map((marker) => (
                   <div
                     key={`due-${marker.assignment.id}`}
-                    className={`pointer-events-none absolute left-0 right-0 z-10 border-t-2 border-dashed ${marker.assignment.status === "done" ? "opacity-60" : ""}`}
+                    className={`pointer-events-none absolute left-0 right-0 z-10 border-t border-dashed ${marker.assignment.status === "done" ? "border-success-500/50" : "border-border-strong"}`}
                     style={{
                       top: marker.top,
-                      borderColor: marker.color,
                     }}
                     title={t("Due: {title}", {
                       title: `${marker.typeLabel}: ${marker.title}`,
                     })}
                   >
                     <span
-                      className="pointer-events-auto absolute right-0 top-0 flex max-w-[calc(100%-0.25rem)] -translate-y-full items-center gap-0.5 rounded-t-radius-sm px-1 py-0.5 text-[10px] font-medium text-white shadow-sm"
-                      style={{ backgroundColor: marker.color }}
+                      className={`pointer-events-auto absolute right-0.5 top-0 flex max-w-[calc(100%-0.25rem)] -translate-y-[calc(100%+2px)] items-center gap-0.5 rounded-radius-sm border px-1 py-0.5 text-[10px] font-medium ${marker.assignment.status === "done" ? "border-success-500/30 bg-success-500/10 text-text-tertiary" : "border-border bg-surface text-text-secondary"}`}
                     >
+                      <span
+                        aria-hidden="true"
+                        className={`ml-0.5 h-1.5 w-1.5 shrink-0 rounded-full ${marker.assignment.status === "done" ? "bg-success-500" : "bg-accent"}`}
+                      />
                       <button
                         type="button"
                         onClick={(event) => {
@@ -409,7 +411,7 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
                             event.currentTarget,
                           );
                         }}
-                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-radius-sm transition-colors hover:bg-black/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
+                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-radius-sm transition-colors hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                         aria-label={
                           marker.assignment.status === "done"
                             ? t("Mark as upcoming")
@@ -417,19 +419,19 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
                         }
                       >
                         {marker.assignment.status === "done" ? (
-                          <CheckCircleIcon className="h-3.5 w-3.5" />
+                          <CheckCircleIcon className="h-3.5 w-3.5 text-success-500" />
                         ) : (
-                          <CheckCircleOutline className="h-3.5 w-3.5" />
+                          <CheckCircleOutline className="h-3.5 w-3.5 text-text-tertiary" />
                         )}
                       </button>
                       <AssignmentTypeIcon
                         type={marker.type}
-                        className="h-3 w-3 shrink-0 text-white"
+                        className="h-3 w-3 shrink-0 text-text-tertiary"
                         label={marker.typeLabel}
                       />
                       <AssignmentDetailsTrigger
                         assignment={marker.assignment}
-                        className={`min-h-5 min-w-0 cursor-pointer truncate rounded-radius-sm px-0.5 text-left underline underline-offset-2 transition-colors hover:bg-black/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 ${marker.assignment.status === "done" ? "line-through opacity-70" : ""}`}
+                        className={`min-h-5 min-w-0 cursor-pointer truncate rounded-radius-sm px-0.5 text-left underline decoration-border-strong underline-offset-2 transition-colors hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${marker.assignment.status === "done" ? "line-through opacity-70" : ""}`}
                       />
                     </span>
                   </div>
@@ -437,10 +439,10 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
 
               {colIdx === todayCol && nowTop >= 0 && (
                 <div
-                  className="pointer-events-none absolute left-0 right-0 z-10 border-t-2 border-red-500"
+                  className="pointer-events-none absolute left-0 right-0 z-10 border-t-2 border-accent"
                   style={{ top: nowTop }}
                 >
-                  <div className="absolute -left-1 -top-1.5 h-3 w-3 rounded-full bg-red-500" />
+                  <div className="absolute -left-1 -top-1.5 h-3 w-3 rounded-full bg-accent" />
                 </div>
               )}
             </div>

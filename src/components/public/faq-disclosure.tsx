@@ -11,7 +11,7 @@ type FAQ = { question: string; answer: string };
 
 export default function FAQDisclosure({ faqs }: { faqs: FAQ[] }) {
   return (
-    <dl className="mt-16 divide-y divide-border-subtle">
+    <dl className="mt-16 divide-y divide-border">
       {faqs.map((faq) => (
         <Disclosure
           key={faq.question}

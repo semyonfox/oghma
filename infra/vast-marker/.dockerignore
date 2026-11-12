@@ -7,6 +7,7 @@
 !marker-plus-plus.tar.gz.sha256
 !marker-plus-plus.manifest.json
 !prefetch_models.py
+!install-marker.py
 !backend.py
 !worker.py
 !generate_benchmark_pdf.py

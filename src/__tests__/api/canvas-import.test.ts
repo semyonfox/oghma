@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 const canvas = vi.hoisted(() => ({
@@ -63,6 +63,8 @@ vi.mock("@/lib/canvas/client", () => ({
 }));
 vi.mock("@/lib/canvas/credentials", () => ({
   loadCanvasCredentials: vi.fn(),
+  markCanvasTokenInvalid: vi.fn(),
+  clearCanvasTokenInvalid: vi.fn(),
 }));
 vi.mock("@/lib/queue", () => ({ enqueueCanvasDiscoverJob: vi.fn() }));
 vi.mock("@/lib/marketing/events", () => ({
@@ -95,6 +97,9 @@ function rawRequest(body: string) {
 }
 
 describe("POST /api/canvas/import Canvas IDs", () => {
+  beforeEach(() => vi.stubEnv("CANVAS_CONTENT_IMPORT", "on"));
+  afterEach(() => vi.unstubAllEnvs());
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(findCanvasTrashConflicts).mockResolvedValue([]);
@@ -188,5 +193,14 @@ describe("POST /api/canvas/import Canvas IDs", () => {
     expect(await response.json()).toEqual({
       error: "Canvas token is invalid or expired",
     });
+  });
+});
+
+describe("POST /api/canvas/import while content import is paused", () => {
+  it("refuses before queueing anything", async () => {
+    vi.mocked(requireAuth).mockResolvedValue({ user_id: "user-123" } as never);
+    const response = await POST(request(["42"]));
+    expect(response.status).toBe(403);
+    expect(enqueueCanvasDiscoverJob).not.toHaveBeenCalled();
   });
 });

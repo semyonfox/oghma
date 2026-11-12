@@ -13,7 +13,6 @@ import { stripMarkdown } from "../rag/strip-markdown.ts";
 import { getStorageProvider } from "../storage/init.ts";
 import { moveNoteToExtractionBundle } from "../notes/extraction-bundle.ts";
 import { replaceNoteEmbeddings } from "../rag/indexing.ts";
-import { cacheInvalidate, cacheKeys } from "@/lib/cache";
 import {
   enqueueExtractionRetry,
   MAX_EXTRACTION_RETRIES,
@@ -92,9 +91,6 @@ async function replaceEmbeddings(targetNoteId: string, userId: string, chunks: s
   );
 }
 
-async function invalidateExtractedNote(userId: string, noteId: string) {
-  await cacheInvalidate(cacheKeys.note(userId, noteId));
-}
 
 async function queueExtractionRetry(retryOpts: ExtractionRetryMessage) {
   await enqueueExtractionRetry(retryOpts);
@@ -293,7 +289,6 @@ export async function processRagPipeline(
       if (updated.length === 0) {
         return { noteId, chunksStored: 0, skipped: true };
       }
-      await invalidateExtractedNote(userId, noteId);
       const embeddingStart = Date.now();
       const count = await replaceEmbeddings(noteId, userId, chunks);
       const embeddingElapsedMs = Date.now() - embeddingStart;
@@ -337,7 +332,6 @@ export async function processRagPipeline(
         RETURNING note_id
       `;
       if (updated.length === 0) return { noteId, chunksStored: 0, skipped: true };
-      await invalidateExtractedNote(userId, noteId);
       const count = await replaceEmbeddings(noteId, userId, chunks);
       return finish({ noteId, chunksStored: count });
     }
@@ -380,7 +374,6 @@ export async function processRagPipeline(
     if (updated.length === 0) {
       return { noteId, chunksStored: 0, skipped: true };
     }
-    await invalidateExtractedNote(userId, mdNoteId);
 
     const embeddingStart = Date.now();
     const count = await replaceEmbeddings(mdNoteId, userId, chunks);

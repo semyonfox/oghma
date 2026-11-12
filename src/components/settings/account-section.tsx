@@ -23,7 +23,15 @@ import {
   cn,
   readResponseError,
   saveBtnClass,
+  secondaryBtnClass,
+  selectClass,
+  unsavedChipClass,
 } from "./settings-utils";
+import {
+  SettingsCard,
+  SettingsCardBody,
+  SettingsCardFooter,
+} from "./settings-card";
 
 // the English label is the stored value, so a saved choice survives a language switch
 const TIMEZONE_OPTIONS = [
@@ -192,188 +200,187 @@ export default function AccountSection({
   };
 
   return (
-    <div
+    <SettingsCard
       id="account"
-      className="grid grid-cols-1 gap-x-8 gap-y-10 py-12 md:grid-cols-3"
+      title={t("Personal Information")}
+      description={t("Update your profile information and avatar.")}
+      aside={
+        hasChanges ? (
+          <span className={unsavedChipClass} role="status">
+            {t("Unsaved")}
+          </span>
+        ) : null
+      }
     >
-      <div>
-        <h2 className="text-base/7 font-semibold text-text">
-          {t("Personal Information")}
-        </h2>
-        <p className="mt-1 text-sm/6 text-text-tertiary">
-          {t("Update your profile information and avatar.")}
-        </p>
-      </div>
-
-      <form className="md:col-span-2" onSubmit={handleProfileSave}>
-        <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:max-w-xl sm:grid-cols-6">
-          {/* avatar */}
-          <div className="col-span-full flex items-center gap-x-8">
-            <input
-              ref={avatarInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleAvatarFileChange}
-            />
-            {avatarPreview || avatarUrl ? (
-              <img
-                alt={t("Profile")}
-                src={avatarPreview || avatarUrl || undefined}
-                className="size-24 flex-none rounded-radius-lg bg-surface object-cover ring-1 ring-border-subtle"
+      <form onSubmit={handleProfileSave}>
+        <SettingsCardBody>
+          <div className="grid grid-cols-1 gap-x-4 gap-y-5 sm:grid-cols-6">
+            {/* avatar */}
+            <div className="col-span-full flex items-center gap-x-4">
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarFileChange}
               />
-            ) : (
-              <div className="size-24 flex-none rounded-radius-lg bg-surface flex items-center justify-center ring-1 ring-border-subtle">
-                <UserCircleIcon className="size-12 text-text-tertiary" />
+              {avatarPreview || avatarUrl ? (
+                <img
+                  alt={t("Profile")}
+                  src={avatarPreview || avatarUrl || undefined}
+                  className="size-16 flex-none rounded-full bg-subtle object-cover ring-1 ring-border"
+                />
+              ) : (
+                <div className="size-16 flex-none rounded-full bg-subtle flex items-center justify-center ring-1 ring-border">
+                  <UserCircleIcon className="size-9 text-text-tertiary" />
+                </div>
+              )}
+              <div>
+                <button
+                  type="button"
+                  disabled={isUploadingAvatar}
+                  className={secondaryBtnClass}
+                  onClick={() => avatarInputRef.current?.click()}
+                >
+                  {isUploadingAvatar && (
+                    <ArrowPathIcon
+                      className="size-4 animate-spin"
+                      aria-hidden="true"
+                    />
+                  )}
+                  {isUploadingAvatar ? t("Uploading...") : t("Change avatar")}
+                </button>
+                <p className="mt-1.5 text-xs/5 text-text-tertiary">
+                  {t("JPG, GIF, PNG or WebP. 5 MB max.")}
+                </p>
               </div>
-            )}
-            <div>
-              <button
-                type="button"
-                disabled={isUploadingAvatar}
-                className="glass-card-interactive rounded-radius-md px-3 py-2 text-sm font-semibold text-text disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                onClick={() => avatarInputRef.current?.click()}
+            </div>
+            {/* first name */}
+            <div className="sm:col-span-3">
+              <label
+                htmlFor="first-name"
+                className="block text-sm/6 font-medium text-text"
               >
-                {isUploadingAvatar && (
-                  <ArrowPathIcon
-                    className="size-4 animate-spin"
-                    aria-hidden="true"
-                  />
-                )}
-                {isUploadingAvatar ? t("Uploading...") : t("Change avatar")}
-              </button>
-              <p className="mt-2 text-xs/5 text-text-tertiary">
-                {t("JPG, GIF, PNG or WebP. 5 MB max.")}
+                {t("First name")}
+              </label>
+              <div className="mt-1.5">
+                <input
+                  id="first-name"
+                  name="first-name"
+                  type="text"
+                  autoComplete="given-name"
+                  placeholder={t("John")}
+                  value={formState.firstName}
+                  onChange={(e) =>
+                    setFormState((prev) => ({
+                      ...prev,
+                      firstName: e.target.value,
+                    }))
+                  }
+                  className={inputClass}
+                />
+              </div>
+            </div>
+
+            {/* last name */}
+            <div className="sm:col-span-3">
+              <label
+                htmlFor="last-name"
+                className="block text-sm/6 font-medium text-text"
+              >
+                {t("Last name")}
+              </label>
+              <div className="mt-1.5">
+                <input
+                  id="last-name"
+                  name="last-name"
+                  type="text"
+                  autoComplete="family-name"
+                  placeholder={t("Doe")}
+                  value={formState.lastName}
+                  onChange={(e) =>
+                    setFormState((prev) => ({
+                      ...prev,
+                      lastName: e.target.value,
+                    }))
+                  }
+                  className={inputClass}
+                />
+              </div>
+            </div>
+
+            {/* email (read-only) */}
+            <div className="col-span-full">
+              <label
+                htmlFor="email"
+                className="block text-sm/6 font-medium text-text"
+              >
+                {t("Email address")}
+              </label>
+              <div className="mt-1.5">
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  value={formState.email}
+                  readOnly
+                  className={cn(inputClass, "cursor-not-allowed")}
+                />
+              </div>
+              <p className="mt-1.5 text-xs text-text-tertiary">
+                {t("Email is managed by your authentication provider.")}
               </p>
             </div>
-          </div>
 
-          {/* first name */}
-          <div className="sm:col-span-3">
-            <label
-              htmlFor="first-name"
-              className="block text-sm/6 font-medium text-text"
-            >
-              {t("First name")}
-            </label>
-            <div className="mt-2">
-              <input
-                id="first-name"
-                name="first-name"
-                type="text"
-                autoComplete="given-name"
-                placeholder={t("John")}
-                value={formState.firstName}
-                onChange={(e) =>
-                  setFormState((prev) => ({
-                    ...prev,
-                    firstName: e.target.value,
-                  }))
-                }
-                className={inputClass}
-              />
-            </div>
-          </div>
-
-          {/* last name */}
-          <div className="sm:col-span-3">
-            <label
-              htmlFor="last-name"
-              className="block text-sm/6 font-medium text-text"
-            >
-              {t("Last name")}
-            </label>
-            <div className="mt-2">
-              <input
-                id="last-name"
-                name="last-name"
-                type="text"
-                autoComplete="family-name"
-                placeholder={t("Doe")}
-                value={formState.lastName}
-                onChange={(e) =>
-                  setFormState((prev) => ({
-                    ...prev,
-                    lastName: e.target.value,
-                  }))
-                }
-                className={inputClass}
-              />
-            </div>
-          </div>
-
-          {/* email (read-only) */}
-          <div className="col-span-full">
-            <label
-              htmlFor="email"
-              className="block text-sm/6 font-medium text-text"
-            >
-              {t("Email address")}
-            </label>
-            <div className="mt-2">
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                value={formState.email}
-                readOnly
-                className={cn(inputClass, "cursor-not-allowed opacity-60")}
-              />
-            </div>
-            <p className="mt-1 text-xs text-text-tertiary">
-              {t("Email is managed by your authentication provider.")}
-            </p>
-          </div>
-
-          {/* timezone */}
-          <div className="col-span-full">
-            <label
-              htmlFor="timezone"
-              className="block text-sm/6 font-medium text-text"
-            >
-              {t("Timezone")}
-            </label>
-            <div className="mt-2 grid grid-cols-1">
-              <select
-                id="timezone"
-                name="timezone"
-                value={formState.timezone}
-                onChange={(e) =>
-                  setFormState((prev) => ({
-                    ...prev,
-                    timezone: e.target.value,
-                  }))
-                }
-                className="col-start-1 row-start-1 w-full appearance-none rounded-radius-md bg-surface border border-border-subtle py-1.5 pr-8 pl-3 text-sm text-text placeholder:text-text-tertiary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50 focus:outline-none"
+            {/* timezone */}
+            <div className="col-span-full">
+              <label
+                htmlFor="timezone"
+                className="block text-sm/6 font-medium text-text"
               >
-                {TIMEZONE_OPTIONS.map((zone) => (
-                  <option key={zone} value={zone}>
-                    {t(zone)}
-                  </option>
-                ))}
-              </select>
-              <ChevronDownIcon
-                aria-hidden="true"
-                className="pointer-events-none col-start-1 row-start-1 mr-2 size-5 self-center justify-self-end text-text-tertiary sm:size-4"
+                {t("Timezone")}
+              </label>
+              <div className="mt-1.5 grid grid-cols-1">
+                <select
+                  id="timezone"
+                  name="timezone"
+                  value={formState.timezone}
+                  onChange={(e) =>
+                    setFormState((prev) => ({
+                      ...prev,
+                      timezone: e.target.value,
+                    }))
+                  }
+                  className={selectClass}
+                >
+                  {TIMEZONE_OPTIONS.map((zone) => (
+                    <option key={zone} value={zone}>
+                      {t(zone)}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDownIcon
+                  aria-hidden="true"
+                  className="pointer-events-none col-start-1 row-start-1 mr-2 size-5 self-center justify-self-end text-text-tertiary sm:size-4"
+                />
+              </div>
+            </div>
+
+            {/* language - saved with the rest of this section */}
+            <div className="col-span-full">
+              <LanguageSelector
+                variant="compact"
+                showLabel={true}
+                value={formState.locale}
+                onSelect={(nextLocale) =>
+                  setFormState((prev) => ({ ...prev, locale: nextLocale }))
+                }
               />
             </div>
           </div>
-
-          {/* language - saved with the rest of this section */}
-          <div className="col-span-full">
-            <LanguageSelector
-              variant="compact"
-              showLabel={true}
-              value={formState.locale}
-              onSelect={(nextLocale) =>
-                setFormState((prev) => ({ ...prev, locale: nextLocale }))
-              }
-            />
-          </div>
-        </div>
-
-        <div className="mt-8 flex items-center gap-3">
+        </SettingsCardBody>
+        <SettingsCardFooter>
           <button
             type="submit"
             disabled={savingSection !== null || !hasChanges}
@@ -381,13 +388,8 @@ export default function AccountSection({
           >
             {savingSection === "profile" ? t("Saving...") : t("Save changes")}
           </button>
-          {hasChanges && (
-            <span className="text-xs text-text-tertiary" role="status">
-              {t("Unsaved")}
-            </span>
-          )}
-        </div>
+        </SettingsCardFooter>
       </form>
-    </div>
+    </SettingsCard>
   );
 }

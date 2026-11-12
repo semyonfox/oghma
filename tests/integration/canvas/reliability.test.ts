@@ -28,7 +28,6 @@ vi.mock("@/lib/queue", () => ({
 vi.mock("@/lib/canvas/import-embedding", () => ({ processRagPipeline: mocks.rag }));
 vi.mock("@/lib/crypto.ts", () => ({ decrypt: () => "disposable-token" }));
 vi.mock("@/lib/marketing/events.ts", () => ({ recordActivationMilestone: async () => true }));
-vi.mock("@/lib/notes/tree-cache", () => ({ invalidateTreeAfterPublish: async () => undefined }));
 vi.mock("@/lib/cache", () => ({ cacheInvalidate: async () => undefined, cacheKeys: { note: () => "test", treeChildren: () => "test", tree: () => "test", treeFull: () => "test", notesList: () => "test" } }));
 vi.mock("@/lib/qdrant", () => ({
   getChunkVectors: async () => [], deleteChunkVectors: mocks.deleteVectors,

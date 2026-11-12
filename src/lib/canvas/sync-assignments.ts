@@ -16,6 +16,7 @@ import { withCanvasPublication } from "./execution";
 import { canvasIdForBigintColumn } from "./id";
 import type { CanvasAssignment } from "./client";
 import { createAsyncLimiter } from "./async-limiter";
+import { canvasContentEnabled } from "@/lib/canvas/content-policy";
 
 interface AssignmentClient {
   getAssignments(courseId: string): Promise<{
@@ -140,7 +141,7 @@ export async function syncAssignmentMetadata(
           submitted_at, score, points_possible
         ) VALUES (
           ${userId}::uuid, ${canvasCourseId}::bigint, ${canvasIdForBigintColumn(a.id, "Canvas assignment ID")}::bigint,
-          ${a.name}, ${a.description ?? null}, ${courseTitle}, ${courseColor},
+          ${a.name}, ${canvasContentEnabled() ? (a.description ?? null) : null}, ${courseTitle}, ${courseColor},
           ${a.due_at ?? null}, ${status}, 'canvas', ${assignmentType},
           ${submission?.submitted_at ?? null},
           ${submission?.score ?? null},

@@ -1,6 +1,6 @@
 # OghmaNotes Android alpha
 
-Status: 0.1.6 is the published Android alpha, as of 2026-10-15. It adds EAS Update support and the verified App Link that native Google and GitHub sign-in needs. 0.1.5 was never released. The tracked download manifest identifies the APK served by a website deployment. See [mobile engineering notes](../../docs/engineering/mobile-alpha.md) for supported flows, verification and release boundaries.
+Status: 0.1.7 is the published Android alpha, as of 2026-11-10. It ships the Atlas design pass and the native clean-up made since 0.1.6. 0.1.6 added EAS Update support and the verified App Link that native Google and GitHub sign-in needs. 0.1.5 was never released. The tracked download manifest identifies the APK served by a website deployment. See [mobile engineering notes](../../docs/engineering/mobile-alpha.md) for supported flows, verification and release boundaries.
 
 This is a separate Expo application using React Native WebView to load the full existing OghmaNotes website, including its rich editor and PDF.js viewer. The existing Next.js website stays at the repository root. It has its own npm lockfile so native dependency versions do not change the web application's React version.
 

@@ -31,11 +31,6 @@ vi.mock("@/lib/auth/session", () => ({
   createAuthSession: vi.fn(),
 }));
 
-vi.mock("@/lib/notes/storage/pg-tree", () => ({
-  addNoteToTree: vi.fn().mockResolvedValue(undefined),
-  removeNoteFromTree: vi.fn().mockResolvedValue(undefined),
-}));
-
 // a stale Redis copy must never reach the editor; the route reads PostgreSQL
 
 vi.mock("@/lib/notes/storage/note-lifecycle", () => ({
@@ -255,7 +250,7 @@ describe("PUT /api/notes/[id]", () => {
     const [updateText, ...updateValues] = sql.mock.calls[1];
     expect(updateText.join(" ")).toMatch(/content = COALESCE\(\s*::text, content\)/);
     expect(updateValues).not.toContain(NOTE_ROW.content);
-    expect(updateValues).toEqual(["Renamed", null, null, "note-uuid-1", MOCK_USER.user_id]);
+    expect(updateValues).toEqual(["Renamed", null, null, true, false, "note-uuid-1", MOCK_USER.user_id]);
   });
 
   it("saves a note larger than the default JSON body limit", async () => {
@@ -302,6 +297,41 @@ describe("PATCH /api/notes/[id]", () => {
     expect((await res.json()).pinned).toBe(1);
     expect(sql.mock.calls[1][0].join(" ")).toContain("pinned =");
     expect(sql.mock.calls[1].slice(1)).toContain(1);
+  });
+});
+
+describe("edited_at on save", () => {
+  const save = (body) =>
+    notePATCH(makeRequest("PATCH", "http://localhost/api/notes/note-uuid-1", body), {
+      params: Promise.resolve({ id: "note-uuid-1" }),
+    });
+  const editedFlag = () => sql.mock.calls[1][4];
+  const bumpCalls = () => sql.mock.calls.filter(([text]) => text.join(" ").includes("WITH RECURSIVE ancestors"));
+
+  it("treats a pin as no edit, so the recent sort ignores it", async () => {
+    sql.mockResolvedValueOnce([NOTE_ROW]).mockResolvedValueOnce([{ ...NOTE_ROW, pinned: 1 }]);
+    expect((await save({ pinned: 1 })).status).toBe(200);
+    expect(sql.mock.calls[1][0].join(" ")).toContain("edited_at = CASE WHEN");
+    expect(editedFlag()).toBe(false);
+    expect(bumpCalls()).toHaveLength(0);
+  });
+
+  it("treats an autosave of unchanged text as no edit", async () => {
+    sql.mockResolvedValueOnce([NOTE_ROW]).mockResolvedValueOnce([NOTE_ROW]);
+    expect((await save({ title: NOTE_ROW.title, content: NOTE_ROW.content })).status).toBe(200);
+    expect(editedFlag()).toBe(false);
+    expect(bumpCalls()).toHaveLength(0);
+  });
+
+  it("marks a content change as an edit and carries it up to the note's folders", async () => {
+    sql.mockResolvedValueOnce([NOTE_ROW]).mockResolvedValueOnce([{ ...NOTE_ROW, content: "# New" }]);
+    expect((await save({ content: "# New" })).status).toBe(200);
+    expect(editedFlag()).toBe(true);
+    const [bump] = bumpCalls();
+    const text = bump[0].join(" ");
+    expect(text).toContain("SET edited_at = NOW()");
+    expect(text).toContain("SKIP LOCKED");
+    expect(bump.slice(1)).toContain("note-uuid-1");
   });
 });
 

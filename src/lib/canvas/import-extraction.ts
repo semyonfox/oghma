@@ -9,6 +9,7 @@ import { CanvasClaimLostError, withCanvasExecution, withCanvasPublication, withC
 
 export { PROCESSABLE_TYPES, resolveMimeType } from "./file-types";
 import { PROCESSABLE_TYPES, resolveMimeType } from "./file-types";
+import { markCanvasTokenInvalid } from "./credentials";
 import { createHash } from "node:crypto";
 import type postgres from "postgres";
 
@@ -24,7 +25,6 @@ import { getStorageProvider } from "../storage/init.ts";
 import { deleteChunkVectors } from "../qdrant.ts";
 import type { StoreS3 } from "../storage/s3.ts";
 import { findOrCreateExtractionBundle } from "../notes/extraction-bundle.ts";
-import { invalidateTreeAfterPublish } from "../notes/tree-cache";
 import {
   CanvasClient,
   MAX_CANVAS_FILE_BYTES,
@@ -280,7 +280,6 @@ async function createNote(
       ON CONFLICT (user_id, note_id) DO NOTHING
     `;
   });
-  await invalidateTreeAfterPublish(userId, parentId);
   return noteId;
 
   });
@@ -454,7 +453,10 @@ export async function fetchResource<T>(
   file?: CanvasResourceFile,
 ) {
   const { data, forbidden, unauthorized, error } = await fetchFn(courseId);
-  if (unauthorized) throw new Error("Invalid or expired Canvas token");
+  if (unauthorized) {
+    await markCanvasTokenInvalid(userId);
+    throw new Error("Invalid or expired Canvas token");
+  }
   const issue = error ?? (!data && !forbidden ? "Canvas returned an empty response" : null);
   if (forbidden || issue) {
     await recordCanvasResourceIssue(courseId, userId, courseTitle, kind, jobId,

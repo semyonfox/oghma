@@ -34,11 +34,11 @@ export default function MobileSheet({
         <DialogPanel
           transition
           {...swipe}
-          className="flex max-h-[85dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl border border-border-subtle bg-surface pb-[var(--safe-bottom)] text-text shadow-xl transition duration-150 data-[closed]:translate-y-4 data-[closed]:opacity-0 motion-reduce:transition-none sm:rounded-2xl"
+          className="flex max-h-[85dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-radius-2xl border border-border bg-surface pb-[var(--safe-bottom)] text-text shadow-float transition duration-150 data-[closed]:translate-y-4 data-[closed]:opacity-0 motion-reduce:transition-none sm:rounded-radius-2xl"
         >
           <div
             aria-hidden="true"
-            className="mx-auto mt-2 h-1 w-8 shrink-0 rounded-full bg-border sm:hidden"
+            className="mx-auto mt-2 h-1.5 w-10 shrink-0 rounded-full bg-border-strong sm:hidden"
           />
           <div className="flex min-h-16 shrink-0 items-center gap-3 border-b border-border-subtle px-4">
             <DialogTitle className="min-w-0 flex-1 truncate text-lg font-semibold">

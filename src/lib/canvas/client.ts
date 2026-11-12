@@ -88,6 +88,8 @@ export interface CanvasAssignment extends CanvasRecord {
 interface CanvasModule extends CanvasRecord {
   id: CanvasId;
   name: string;
+  /** 1-based order in the course. canvas always sends it, but old fixtures may not */
+  position?: unknown;
 }
 
 export interface CanvasModuleItem extends CanvasRecord {

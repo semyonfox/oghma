@@ -39,11 +39,11 @@ describe("reindexNote", () => {
   it("skips the embedding call when the index already matches the content", async () => {
     sqlMock.mockResolvedValueOnce([
       noteRow({ extracted_text: processExtractedText(CONTENT) }),
-    ]);
+    ]).mockResolvedValueOnce([{ note_id: "note-1" }]);
 
     await expect(reindexNote("note-1", "user-1")).resolves.toBe("unchanged");
     expect(replaceNoteEmbeddings).not.toHaveBeenCalled();
-    expect(sqlMock).toHaveBeenCalledTimes(1);
+    expect(sqlMock).toHaveBeenCalledTimes(2);
   });
 
   it("embeds the current content and stamps the row it read", async () => {

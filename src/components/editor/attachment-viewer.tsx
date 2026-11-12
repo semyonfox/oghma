@@ -83,7 +83,7 @@ export default function AttachmentViewer({ file }: { file: FileSpec }) {
           <a
             href={url}
             download={file.title || "download"}
-            className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded px-3 py-2 text-sm text-text-secondary hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+            className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded px-3 py-2 text-sm text-text-secondary hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             <ArrowDownTrayIcon className="h-4 w-4" aria-hidden="true" />
             {t("attachment_viewer.download")}

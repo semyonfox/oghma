@@ -3,10 +3,12 @@ export type ThemePreference = (typeof themePreferenceValues)[number];
 
 import { StyleSheet } from "react-native";
 
+// Atlas design system. Values mirror the tokens at the top of src/app/globals.css.
 export type Palette = {
   background: string;
   surface: string;
   surfaceElevated: string;
+  sidebar: string;
   input: string;
   text: string;
   muted: string;
@@ -19,7 +21,10 @@ export type Palette = {
   accentSoft: string;
   border: string;
   borderSubtle: string;
+  borderStrong: string;
   selected: string;
+  success: string;
+  successSoft: string;
   error: string;
   errorSoft: string;
   markdown: {
@@ -36,68 +41,88 @@ export type Palette = {
   };
 };
 
+// Geist for UI, Literata for titles and reading, Geist Mono for codes and metadata.
+export const fonts = {
+  ui: "Geist_400Regular",
+  uiMedium: "Geist_500Medium",
+  uiSemiBold: "Geist_600SemiBold",
+  title: "Literata_600SemiBold",
+  titleBold: "Literata_700Bold",
+  reading: "Literata_400Regular",
+  mono: "GeistMono_400Regular",
+} as const;
+
 export const lightPalette: Palette = {
-  background: "#f8fafc",
-  surface: "#ffffff",
-  surfaceElevated: "#f1f5f9",
-  input: "#ffffff",
-  text: "#0f172a",
-  muted: "#334155",
-  faint: "#475569",
-  textOnAccent: "#ffffff",
-  accent: "#4f46e5",
-  action: "#4f46e5",
-  actionPressed: "#4338ca",
-  accentHover: "#4338ca",
-  accentSoft: "rgba(79, 70, 229, 0.12)",
-  border: "rgba(0, 0, 0, 0.12)",
-  borderSubtle: "rgba(0, 0, 0, 0.06)",
-  selected: "rgba(79, 70, 229, 0.12)",
-  error: "#dc2626",
-  errorSoft: "#fef2f2",
+  background: "#FBFBFC",
+  surface: "#FFFFFF",
+  surfaceElevated: "#F3F4F6",
+  sidebar: "#F3F4F6",
+  input: "#FFFFFF",
+  text: "#15171C",
+  muted: "#40444D",
+  faint: "#575C66",
+  textOnAccent: "#FFFFFF",
+  accent: "#2453C6",
+  action: "#2453C6",
+  actionPressed: "#1C409C",
+  accentHover: "#1C409C",
+  accentSoft: "#E9EFFC",
+  border: "#E3E5E8",
+  borderSubtle: "#E9EBEE",
+  borderStrong: "#CDD1D8",
+  selected: "#FFFFFF",
+  success: "#276F21",
+  successSoft: "#F0F7EE",
+  error: "#B42318",
+  errorSoft: "#FEF2F2",
   markdown: {
-    heading1: "#4338ca",
-    heading2: "#1d4ed8",
-    heading3: "#0f766e",
-    link: "#4f46e5",
-    quoteText: "#334155",
-    quoteBorder: "rgba(79, 70, 229, 0.5)",
-    quoteBackground: "rgba(79, 70, 229, 0.055)",
-    codeText: "#9a3412",
-    codeBackground: "#f1f5f9",
-    codeBorder: "rgba(15, 23, 42, 0.1)",
+    heading1: "#15171C",
+    heading2: "#15171C",
+    heading3: "#15171C",
+    link: "#2453C6",
+    quoteText: "#40444D",
+    quoteBorder: "transparent",
+    quoteBackground: "#F3F4F6",
+    codeText: "#15171C",
+    codeBackground: "#F0F1F4",
+    codeBorder: "#E3E5E8",
   },
 };
 export const darkPalette: Palette = {
-  background: "#0f172a",
-  surface: "#1e293b",
-  surfaceElevated: "#334155",
-  input: "rgba(255, 255, 255, 0.05)",
-  text: "#f1f5f9",
-  muted: "#cbd5e1",
-  faint: "#94a3b8",
-  textOnAccent: "#ffffff",
-  accent: "#818cf8",
-  action: "#4f46e5",
-  actionPressed: "#4338ca",
-  accentHover: "#a5b4fc",
-  accentSoft: "rgba(99, 102, 241, 0.18)",
-  border: "rgba(255, 255, 255, 0.1)",
-  borderSubtle: "rgba(255, 255, 255, 0.05)",
-  selected: "rgba(99, 102, 241, 0.18)",
-  error: "#f87171",
-  errorSoft: "rgba(248, 113, 113, 0.12)",
+  background: "#111214",
+  surface: "#16171A",
+  surfaceElevated: "#1C1D21",
+  sidebar: "#0E0F11",
+  input: "#18191C",
+  text: "#ECECEE",
+  muted: "#C9CACF",
+  faint: "#A3A5AC",
+  // dark mode keeps primary buttons ink so the accent stays sparse
+  textOnAccent: "#111214",
+  accent: "#8EAEF6",
+  action: "#ECECEE",
+  actionPressed: "#FFFFFF",
+  accentHover: "#B9CCF9",
+  accentSoft: "#24262B",
+  border: "#2A2C31",
+  borderSubtle: "#222328",
+  borderStrong: "#3A3D43",
+  selected: "#24262B",
+  success: "#8DBF84",
+  successSoft: "rgba(141, 191, 132, 0.12)",
+  error: "#F08A7E",
+  errorSoft: "rgba(240, 138, 126, 0.12)",
   markdown: {
-    heading1: "#c4b5fd",
-    heading2: "#93c5fd",
-    heading3: "#5eead4",
-    link: "#818cf8",
-    quoteText: "#cbd5e1",
-    quoteBorder: "rgba(99, 102, 241, 0.72)",
-    quoteBackground: "rgba(99, 102, 241, 0.07)",
-    codeText: "#fbbf24",
-    codeBackground: "rgba(15, 23, 42, 0.72)",
-    codeBorder: "rgba(255, 255, 255, 0.08)",
+    heading1: "#ECECEE",
+    heading2: "#ECECEE",
+    heading3: "#ECECEE",
+    link: "#8EAEF6",
+    quoteText: "#C9CACF",
+    quoteBorder: "transparent",
+    quoteBackground: "#1C1D21",
+    codeText: "#ECECEE",
+    codeBackground: "#24262B",
+    codeBorder: "#2A2C31",
   },
 };
 
@@ -113,35 +138,42 @@ export function createStyles(colors: Palette) {
     content: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 32, gap: 16 },
     row: { flexDirection: "row", alignItems: "center", gap: 12 },
     title: {
-      fontFamily: "SourceSerif4_600SemiBold",
+      fontFamily: fonts.title,
       fontSize: 30,
       lineHeight: 38,
+      letterSpacing: -0.4,
       color: colors.text,
     },
     heading: {
-      fontFamily: "SourceSans3_600SemiBold",
+      fontFamily: fonts.title,
       fontSize: 20,
       lineHeight: 26,
       color: colors.text,
     },
     text: {
-      fontFamily: "SourceSans3_400Regular",
+      fontFamily: fonts.ui,
       fontSize: 17,
       lineHeight: 26,
       color: colors.text,
     },
     muted: {
-      fontFamily: "SourceSans3_400Regular",
+      fontFamily: fonts.ui,
       fontSize: 15,
       lineHeight: 22,
       color: colors.muted,
     },
+    // section label: quiet faint caption, never accent uppercase
     label: {
-      fontFamily: "SourceSans3_600SemiBold",
+      fontFamily: fonts.uiMedium,
       fontSize: 12,
       lineHeight: 16,
-      letterSpacing: 1.4,
-      color: colors.accent,
+      color: colors.faint,
+    },
+    mono: {
+      fontFamily: fonts.mono,
+      fontSize: 13,
+      lineHeight: 18,
+      color: colors.faint,
     },
     input: {
       backgroundColor: colors.input,
@@ -150,7 +182,7 @@ export function createStyles(colors: Palette) {
       borderRadius: 8,
       padding: 14,
       minHeight: 52,
-      fontFamily: "SourceSans3_400Regular",
+      fontFamily: fonts.ui,
       fontSize: 17,
       color: colors.text,
     },

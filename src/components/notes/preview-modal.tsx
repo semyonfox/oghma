@@ -61,7 +61,7 @@ const PreviewModal: FC = () => {
 
   return (
     <div
-      className="fixed z-50 w-72 max-h-48 bg-surface rounded-lg shadow-xl ring-1 ring-border-subtle overflow-hidden"
+      className="fixed z-50 w-72 max-h-48 bg-surface rounded-radius-lg shadow-float ring-1 ring-border overflow-hidden"
       style={{ top, left }}
       onMouseEnter={() => preview.cancelClose()}
       onMouseLeave={() => preview.close()}
@@ -71,7 +71,7 @@ const PreviewModal: FC = () => {
         className="block p-3 hover:bg-subtle transition-colors"
         onClick={() => preview.close()}
       >
-        <h4 className="text-sm font-medium text-text truncate mb-1">
+        <h4 className="font-serif text-sm font-medium tracking-tight text-text truncate mb-1">
           {title}
         </h4>
         {content && (

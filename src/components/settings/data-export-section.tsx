@@ -2,9 +2,19 @@
 
 import { type ChangeEvent, useState, useEffect } from "react";
 import { toast } from "sonner";
-import { ClipboardDocumentIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
+import { CheckIcon, ClipboardDocumentIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
+import { copyText } from "@/lib/clipboard";
 import useI18n from "@/lib/notes/hooks/use-i18n";
-import { cn, readResponseError } from "./settings-utils";
+import {
+  cn,
+  errorNoticeClass,
+  errorTextClass,
+  readResponseError,
+  saveBtnClass,
+  secondaryBtnClass,
+  successNoticeClass,
+} from "./settings-utils";
+import { SettingsCard, SettingsCardBody } from "./settings-card";
 import { usePollingJob } from "@/lib/hooks/use-polling-job";
 
 type ExportStatus = "uploading" | "processing" | "complete" | "failed" | "cancelled";
@@ -17,6 +27,7 @@ export default function DataExportSection() {
   const [calendarToken, setCalendarToken] = useState<string | null>(null);
   const [calendarLoading, setCalendarLoading] = useState(true);
   const [calendarRegenerating, setCalendarRegenerating] = useState(false);
+  const [calendarCopied, setCalendarCopied] = useState(false);
 
   const [importStatus, setImportStatus] = useState<ExportStatus | null>(null);
   const [importProgress, setImportProgress] = useState<Progress | null>(null);
@@ -60,10 +71,15 @@ export default function DataExportSection() {
 
   function handleCopyCalendarUrl() {
     const url = `${window.location.origin}/api/calendar/ical/${calendarToken}`;
-    navigator.clipboard
-      .writeText(url)
-      .then(() => toast.success(t("Copied to clipboard")))
-      .catch(() => toast.error(t("Failed to copy URL")));
+    setCalendarCopied(true);
+    void copyText(url).then((ok) => {
+      if (ok) {
+        window.setTimeout(() => setCalendarCopied(false), 1500);
+        return;
+      }
+      setCalendarCopied(false);
+      toast.error(t("Failed to copy URL"));
+    });
   }
 
   async function handleVaultImport(e: ChangeEvent<HTMLInputElement>) {
@@ -393,26 +409,17 @@ export default function DataExportSection() {
   }, []);
 
   return (
-    <div
+    <SettingsCard
       id="data"
-      className="grid grid-cols-1 gap-x-8 gap-y-10 py-12 md:grid-cols-3"
+      title={t("Data & Export")}
+      description={t("Import or export your notes in various formats.")}
     >
-      <div>
-        <h2 className="text-base/7 font-semibold text-text">
-          {t("Data & Export")}
-        </h2>
-        <p className="mt-1 text-sm/6 text-text-tertiary">
-          {t("Import or export your notes in various formats.")}
-        </p>
-      </div>
-
-      <div className="md:col-span-2">
-        <div className="space-y-6">
-          <div>
-            <h3 className="text-sm/6 font-medium text-text mb-1">
+      <SettingsCardBody className="divide-y divide-border-subtle py-0">
+          <div className="py-5">
+            <h3 className="text-sm/6 font-medium text-text">
               {t("Import Notes")}
             </h3>
-            <p className="text-sm text-text-tertiary mb-4">
+            <p className="text-xs text-text-tertiary mb-3">
               {t(
                 "Upload a .zip file to import folders and notes. Supports PDF, DOCX, Markdown, and more. Max 10GB.",
               )}
@@ -426,7 +433,7 @@ export default function DataExportSection() {
                 </div>
                 <div className="w-full bg-subtle rounded-full h-2">
                   <div
-                    className="bg-primary-500 h-2 rounded-full transition-all duration-300"
+                    className="bg-accent h-2 rounded-full transition-all duration-300"
                     style={{ width: `${uploadProgress}%` }}
                   />
                 </div>
@@ -449,7 +456,7 @@ export default function DataExportSection() {
                 </div>
                 <div className="w-full bg-subtle rounded-full h-2">
                   <div
-                    className="bg-primary-500 h-2 rounded-full transition-all duration-300"
+                    className="bg-accent h-2 rounded-full transition-all duration-300"
                     style={{
                       width: `${importProgress?.percent ?? 0}%`,
                     }}
@@ -459,7 +466,7 @@ export default function DataExportSection() {
             )}
 
             {importStatus === "complete" && (
-              <div className="mb-4 rounded-radius-md bg-green-500/10 px-3 py-2 text-sm text-green-400 ring-1 ring-inset ring-green-500/20">
+              <div className={`mb-4 ${successNoticeClass}`}>
                 {t("Import complete!")}
                 {importProgress &&
                   ` ${importProgress.completed} ${t("files processed")}.`}
@@ -467,7 +474,7 @@ export default function DataExportSection() {
             )}
 
             {importStatus === "failed" && (
-              <div className="mb-4 rounded-radius-md bg-red-500/10 px-3 py-2 text-sm text-red-400 ring-1 ring-inset ring-red-500/20">
+              <div className={`mb-4 ${errorNoticeClass}`}>
                 {importError || t("Import failed. Please try again.")}
               </div>
             )}
@@ -486,7 +493,8 @@ export default function DataExportSection() {
               <label
                 htmlFor="vault-import-file"
                 className={cn(
-                  "glass-card-interactive rounded-radius-md px-3 py-2 text-sm font-semibold text-text cursor-pointer",
+                  secondaryBtnClass,
+                  "cursor-pointer",
                   importStatus === "uploading" || importStatus === "processing"
                     ? "opacity-50 cursor-not-allowed"
                     : "",
@@ -504,7 +512,7 @@ export default function DataExportSection() {
                   onClick={handleCancelImport}
                   disabled={importCancelRequested}
                   className={cn(
-                    "glass-card-interactive rounded-radius-md px-3 py-2 text-sm font-semibold text-text",
+                    secondaryBtnClass,
                     importCancelRequested ? "opacity-50 cursor-not-allowed" : "",
                   )}
                 >
@@ -514,11 +522,11 @@ export default function DataExportSection() {
             </div>
           </div>
 
-          <div className="border-t border-border pt-6">
-            <h3 className="text-sm/6 font-medium text-text mb-1">
+          <div className="py-5">
+            <h3 className="text-sm/6 font-medium text-text">
               {t("Export Notes")}
             </h3>
-            <p className="text-sm text-text-tertiary mb-4">
+            <p className="text-xs text-text-tertiary mb-3">
               {t("Download all your notes and files as a zip archive.")}
             </p>
 
@@ -536,7 +544,7 @@ export default function DataExportSection() {
                 </div>
                 <div className="w-full bg-subtle rounded-full h-2">
                   <div
-                    className="bg-primary-500 h-2 rounded-full transition-all duration-300"
+                    className="bg-accent h-2 rounded-full transition-all duration-300"
                     style={{
                       width: `${exportProgress?.percent ?? 0}%`,
                     }}
@@ -547,13 +555,13 @@ export default function DataExportSection() {
 
             {exportStatus === "complete" && exportDownloadUrl && (
               <div className="mb-4">
-                <div className="rounded-radius-md bg-green-500/10 px-3 py-2 text-sm text-green-400 ring-1 ring-inset ring-green-500/20 mb-3">
+                <div className={`mb-3 ${successNoticeClass}`}>
                   {t("Export ready!")}
                 </div>
                 <a
                   href={exportDownloadUrl}
                   download
-                  className="rounded-radius-md bg-primary-600 px-3 py-2 text-sm font-semibold text-text-on-primary hover:bg-primary-700 inline-block"
+                  className={saveBtnClass}
                 >
                   {t("Download oghmanotes-vault.zip")}
                 </a>
@@ -564,7 +572,7 @@ export default function DataExportSection() {
             )}
 
             {exportStatus === "failed" && (
-              <div className="mb-4 rounded-radius-md bg-red-500/10 px-3 py-2 text-sm text-red-400 ring-1 ring-inset ring-red-500/20">
+              <div className={`mb-4 ${errorNoticeClass}`}>
                 {exportError || t("Export failed. Please try again.")}
               </div>
             )}
@@ -575,7 +583,7 @@ export default function DataExportSection() {
                 onClick={() => void handleVaultExport()}
                 disabled={exportStatus === "processing"}
                 className={cn(
-                  "glass-card-interactive rounded-radius-md px-3 py-2 text-sm font-semibold text-text",
+                  secondaryBtnClass,
                   exportStatus === "processing"
                     ? "opacity-50 cursor-not-allowed"
                     : "",
@@ -591,7 +599,7 @@ export default function DataExportSection() {
                   onClick={handleCancelExport}
                   disabled={exportCancelRequested}
                   className={cn(
-                    "glass-card-interactive rounded-radius-md px-3 py-2 text-sm font-semibold text-text",
+                    secondaryBtnClass,
                     exportCancelRequested ? "opacity-50 cursor-not-allowed" : "",
                   )}
                 >
@@ -601,11 +609,11 @@ export default function DataExportSection() {
             </div>
           </div>
 
-          <div className="border-t border-border pt-6">
-            <h3 className="text-sm/6 font-medium text-text mb-1">
+          <div className="py-5">
+            <h3 className="text-sm/6 font-medium text-text">
               {t("Calendar Subscription")}
             </h3>
-            <p className="text-sm text-text-tertiary mb-4">
+            <p className="text-xs text-text-tertiary mb-3">
               {t("Subscribe to your assignments and study blocks in Google Calendar, Apple Calendar, Outlook, or any app that supports iCal feeds.")}
             </p>
 
@@ -613,37 +621,44 @@ export default function DataExportSection() {
               <p className="text-sm text-text-tertiary">{t("Loading...")}</p>
             ) : calendarToken ? (
               <div className="space-y-3">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   <input
                     readOnly
+                    aria-label={t("Calendar Subscription")}
                     value={`${typeof window !== "undefined" ? window.location.origin : ""}/api/calendar/ical/${calendarToken}`}
-                    className="flex-1 rounded-radius-md glass-card px-3 py-2 text-xs text-text-secondary font-mono truncate focus:outline-none"
+                    className="block min-h-11 min-w-0 flex-1 truncate rounded-radius-md border border-border bg-subtle px-3 py-2 font-mono text-xs text-text-secondary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent sm:min-h-9"
                   />
-                  <button
-                    type="button"
-                    onClick={handleCopyCalendarUrl}
-                    className="shrink-0 glass-card-interactive rounded-radius-md p-2 text-text-tertiary hover:text-text-secondary"
-                    title={t("Copy URL")}
-                  >
-                    <ClipboardDocumentIcon className="h-4 w-4" />
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCopyCalendarUrl}
+                      className={secondaryBtnClass}
+                      title={t("Copy URL")}
+                    >
+                      {calendarCopied ? (
+                        <CheckIcon className="h-4 w-4 text-success-700 dark:text-success-400" aria-hidden="true" />
+                      ) : (
+                        <ClipboardDocumentIcon className="h-4 w-4 text-text-tertiary" aria-hidden="true" />
+                      )}
+                      {calendarCopied ? t("Copied") : t("Copy URL")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleRegenerateToken}
+                      disabled={calendarRegenerating}
+                      className={secondaryBtnClass}
+                    >
+                      <ArrowPathIcon className={`h-4 w-4 text-text-tertiary ${calendarRegenerating ? "animate-spin" : ""}`} aria-hidden="true" />
+                      {t("Regenerate URL")}
+                    </button>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleRegenerateToken}
-                  disabled={calendarRegenerating}
-                  className="flex items-center gap-1.5 text-xs text-text-tertiary hover:text-text-secondary disabled:opacity-50"
-                >
-                  <ArrowPathIcon className={`h-3.5 w-3.5 ${calendarRegenerating ? "animate-spin" : ""}`} />
-                  {t("Regenerate URL")}
-                </button>
               </div>
             ) : (
-              <p className="text-sm text-error-400">{t("Failed to load subscription URL")}</p>
+              <p className={`text-sm ${errorTextClass}`}>{t("Failed to load subscription URL")}</p>
             )}
           </div>
-        </div>
-      </div>
-    </div>
+      </SettingsCardBody>
+    </SettingsCard>
   );
 }

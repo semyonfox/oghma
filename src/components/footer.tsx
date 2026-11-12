@@ -54,11 +54,11 @@ export default function Footer() {
   };
 
   return (
-    <footer className="bg-background border-t border-border-subtle">
+    <footer className="bg-background border-t border-border">
       <div className="mx-auto max-w-7xl px-6 pt-12 pb-6 sm:pt-16 lg:px-8 lg:pt-20">
         <div className="xl:grid xl:grid-cols-3 xl:gap-6">
           <div className="space-y-4">
-            <div className="font-serif text-2xl font-bold text-text flex items-center gap-2">
+            <div className="font-serif text-2xl font-semibold tracking-[-0.02em] text-text flex items-center gap-2">
               <BrandLogo size={32} />
               {t("OghmaNotes")}
             </div>
@@ -74,7 +74,7 @@ export default function Footer() {
                   href={item.href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-text-tertiary hover:text-text-secondary"
+                  className="text-text-tertiary hover:text-text"
                 >
                   <span className="sr-only">{item.name}</span>
                   <item.icon aria-hidden="true" className="size-6" />
@@ -87,7 +87,7 @@ export default function Footer() {
           <div className="mt-10 grid grid-cols-2 gap-6 xl:col-span-2 xl:mt-0">
             <div className="md:grid md:grid-cols-2 md:gap-6">
               <div>
-                <h3 className="text-sm/6 font-semibold text-text">
+                <h3 className="font-mono text-xs/6 font-medium uppercase tracking-[0.14em] text-text-tertiary">
                   {t("Features")}
                 </h3>
                 <ul role="list" className="mt-4 space-y-2">
@@ -95,7 +95,7 @@ export default function Footer() {
                     <li key={item.name}>
                       <a
                         href={item.href}
-                        className="text-sm/6 text-text-tertiary hover:text-text-secondary"
+                        className="text-sm/6 text-text-secondary hover:text-text"
                       >
                         {item.name}
                       </a>
@@ -104,7 +104,7 @@ export default function Footer() {
                 </ul>
               </div>
               <div className="mt-6 md:mt-0">
-                <h3 className="text-sm/6 font-semibold text-text">
+                <h3 className="font-mono text-xs/6 font-medium uppercase tracking-[0.14em] text-text-tertiary">
                   {t("Support")}
                 </h3>
                 <ul role="list" className="mt-4 space-y-2">
@@ -112,7 +112,7 @@ export default function Footer() {
                     <li key={item.name}>
                       <a
                         href={item.href}
-                        className="text-sm/6 text-text-tertiary hover:text-text-secondary"
+                        className="text-sm/6 text-text-secondary hover:text-text"
                       >
                         {item.name}
                       </a>
@@ -123,7 +123,7 @@ export default function Footer() {
             </div>
             <div className="md:grid md:grid-cols-2 md:gap-6">
               <div>
-                <h3 className="text-sm/6 font-semibold text-text">
+                <h3 className="font-mono text-xs/6 font-medium uppercase tracking-[0.14em] text-text-tertiary">
                   {t("Company")}
                 </h3>
                 <ul role="list" className="mt-4 space-y-2">
@@ -131,7 +131,7 @@ export default function Footer() {
                     <li key={item.name}>
                       <a
                         href={item.href}
-                        className="text-sm/6 text-text-tertiary hover:text-text-secondary"
+                        className="text-sm/6 text-text-secondary hover:text-text"
                       >
                         {item.name}
                       </a>
@@ -140,7 +140,7 @@ export default function Footer() {
                 </ul>
               </div>
               <div className="mt-6 md:mt-0">
-                <h3 className="text-sm/6 font-semibold text-text">
+                <h3 className="font-mono text-xs/6 font-medium uppercase tracking-[0.14em] text-text-tertiary">
                   {t("Legal")}
                 </h3>
                 <ul role="list" className="mt-4 space-y-2">
@@ -148,7 +148,7 @@ export default function Footer() {
                     <li key={item.name}>
                       <a
                         href={item.href}
-                        className="text-sm/6 text-text-tertiary hover:text-text-secondary"
+                        className="text-sm/6 text-text-secondary hover:text-text"
                       >
                         {item.name}
                       </a>
@@ -159,8 +159,8 @@ export default function Footer() {
             </div>
           </div>
         </div>
-        <div className="mt-10 border-t border-border-subtle pt-6 sm:mt-12 lg:mt-14">
-          <p className="text-xs/5 text-text-tertiary">
+        <div className="mt-10 border-t border-border pt-6 sm:mt-12 lg:mt-14">
+          <p className="font-mono text-xs/5 text-text-tertiary">
             {t("© {year} OghmaNotes. All rights reserved.", {
               year: new Date().getFullYear(),
             })}

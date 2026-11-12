@@ -13,9 +13,7 @@ vi.mock("ai", () => ({ generateText: mockGenerateText }));
 vi.mock("@/lib/ai-config", () => ({
   buildReasoningOptions: vi.fn(() => ({})),
   createLlmProvider: vi.fn(() => vi.fn(() => "test-model")),
-  getLlmMaxTokens: vi.fn(() => 1000),
   getLlmModel: vi.fn(() => "test-model"),
-  getLlmReasoningEffort: vi.fn(() => "medium"),
   getLlmThinkingMode: vi.fn(() => "off"),
 }));
 vi.mock("@/lib/logger", () => ({
@@ -82,6 +80,7 @@ describe("quiz question persistence", () => {
     vi.clearAllMocks();
     mockSql.mockResolvedValue([]);
     mockGenerateText.mockResolvedValue({
+      usage: { inputTokens: 1, outputTokens: 1, outputTokenDetails: { reasoningTokens: 0 } }, finishReason: "stop",
       text: JSON.stringify({
         question_text: STORED.question_text,
         options: null,
@@ -147,11 +146,18 @@ describe("quiz question persistence", () => {
   it("persists nothing when the LLM output fails validation", async () => {
     databaseState({});
     mockGenerateText.mockResolvedValue({
+      usage: { inputTokens: 1, outputTokens: 1, outputTokenDetails: { reasoningTokens: 0 } }, finishReason: "stop",
       text: JSON.stringify({ question_text: "What is a stack?", correct_answer: 42 }),
     });
 
     await expect(generateQuestion(INPUT)).resolves.toBeNull();
     expect(txQueries().some((q) => q.includes("INSERT INTO"))).toBe(false);
+  });
+
+  it("gives quiz calls their own output ceiling instead of chat's", async () => {
+    databaseState({});
+    await generateQuestion(INPUT);
+    expect(mockGenerateText).toHaveBeenCalledWith(expect.objectContaining({ maxOutputTokens: 4_096 }));
   });
 
   it("returns null without persisting when the LLM call fails", async () => {

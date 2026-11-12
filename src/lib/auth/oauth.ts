@@ -141,6 +141,7 @@ export async function findOrCreateOAuthUser(
           title: gettingStartedNoteTitle(locale),
           content: renderGettingStartedNote(locale),
           isFolder: false,
+          requestReindex: false,
         });
       } else {
         const [existing] = await tx<UserIdRow[]>`

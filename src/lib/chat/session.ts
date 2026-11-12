@@ -296,7 +296,9 @@ export async function resolveSession(
   const sessionId = generateUUID();
   await sql`
     INSERT INTO app.chat_sessions(id, user_id, note_id, title)
-    VALUES(${sessionId}::uuid, ${userId}::uuid, ${noteIdValue}, ${title})
+    VALUES(${sessionId}::uuid, ${userId}::uuid,
+      (SELECT note_id FROM app.notes WHERE note_id = ${noteIdValue}::uuid
+       AND user_id = ${userId}::uuid AND deleted_at IS NULL), ${title})
   `;
   void Metrics.chatSessionCreated();
   return sessionId;

@@ -30,14 +30,14 @@ export interface StudyInspectorProps {
 }
 
 const fieldClass =
-  "w-full min-w-0 rounded-radius-md border border-border-subtle bg-surface px-3 py-2 text-base text-text placeholder:text-text-tertiary focus-visible:outline-2 focus-visible:outline-primary-500 disabled:opacity-50 md:text-sm";
+  "w-full min-w-0 rounded-radius-md border border-border-subtle bg-surface px-3 py-2 text-base text-text placeholder:text-text-tertiary focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50 md:text-sm";
 const buttonClass =
-  "min-h-11 rounded-radius-md px-3 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-primary-500 disabled:cursor-not-allowed disabled:opacity-50";
-const secondaryClass = `${buttonClass} bg-primary-500/5 text-text hover:bg-primary-500/10`;
-const primaryClass = `${buttonClass} bg-primary-600 text-text-on-primary hover:bg-primary-700`;
+  "min-h-11 rounded-radius-md px-3 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50";
+const secondaryClass = `${buttonClass} border border-border bg-surface text-text hover:bg-subtle`;
+const primaryClass = `${buttonClass} bg-action text-on-action hover:bg-action-hover`;
 const dangerClass = `${buttonClass} text-error-700 hover:bg-error-500/10 dark:text-error-300`;
 const linkClass =
-  "break-words text-sm text-primary-700 underline decoration-primary-500/40 underline-offset-4 hover:decoration-primary-500 focus-visible:outline-2 focus-visible:outline-primary-500 dark:text-primary-300";
+  "break-words text-sm text-accent underline decoration-accent/40 underline-offset-4 hover:decoration-accent focus-visible:outline-2 focus-visible:outline-accent";
 
 function splitList(value: string): string[] {
   return [
@@ -88,7 +88,7 @@ function Evidence({
         return (
           <li
             key={`${anchor.noteId}:${anchor.start}:${anchor.end}:${index}`}
-            className="space-y-1.5 border-l-2 border-border-subtle pl-3"
+            className="space-y-1.5 rounded-radius-md bg-surface-elevated p-3"
           >
             <blockquote className="whitespace-pre-wrap break-words text-sm leading-relaxed text-text-secondary">
               {anchor.quote}
@@ -121,11 +121,11 @@ function InspectorHeader({
     <header className="flex items-start justify-between gap-3 border-b border-border-subtle pb-4">
       <div className="min-w-0">
         <p className="mb-1 text-xs text-text-tertiary">{subtitle}</p>
-        <h2 className="break-words text-lg font-semibold text-text">{title}</h2>
+        <h2 className="break-words font-serif text-lg font-semibold tracking-tight text-text">{title}</h2>
       </div>
       <button
         type="button"
-        className="-mr-2 -mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-radius-md text-text-tertiary hover:bg-primary-500/10 hover:text-text focus-visible:outline-2 focus-visible:outline-primary-500"
+        className="-mr-2 -mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-radius-md text-text-tertiary hover:bg-subtle-hover hover:text-text focus-visible:outline-2 focus-visible:outline-accent"
         onClick={onClose}
         aria-label="Close inspector"
       >
@@ -251,7 +251,7 @@ function NoteInspector({
       <Link href={`/notes/${material.noteId}`} className={linkClass}>
         Open original in editor
       </Link>
-      <div className="space-y-2 rounded-radius-lg bg-primary-500/5 p-3 text-sm text-text-secondary">
+      <div className="space-y-2 rounded-radius-lg bg-surface-elevated p-3 text-sm text-text-secondary">
         <p className="font-medium text-text">
           {hasCorrections && !staleCorrections
             ? "Reviewed by you"
@@ -417,7 +417,7 @@ function NoteInspector({
                   </select>
                   {association && association.evidence.length > 0 && (
                     <details className="text-sm">
-                      <summary className="cursor-pointer rounded-radius-md py-1 text-text-secondary focus-visible:outline-2 focus-visible:outline-primary-500">
+                      <summary className="cursor-pointer rounded-radius-md py-1 text-text-secondary focus-visible:outline-2 focus-visible:outline-accent">
                         Source evidence
                       </summary>
                       <div className="mt-3">
@@ -616,7 +616,7 @@ function TopicInspector({
         subtitle="Topic definition"
         onClose={onClose}
       />
-      <div className="space-y-1 rounded-radius-lg bg-primary-500/5 p-3 text-sm text-text-secondary">
+      <div className="space-y-1 rounded-radius-lg bg-surface-elevated p-3 text-sm text-text-secondary">
         <p className="font-medium text-text">
           {topic.sources.length
             ? "Definition from source material"
@@ -715,7 +715,7 @@ function TopicInspector({
                   reviewed: event.target.checked,
                 }))
               }
-              className="mt-1 h-4 w-4 accent-primary-600 focus-visible:outline-2 focus-visible:outline-primary-500"
+              className="mt-1 h-4 w-4 accent-accent focus-visible:outline-2 focus-visible:outline-accent"
             />
             <span>
               <span className="block font-medium">Approve topic</span>

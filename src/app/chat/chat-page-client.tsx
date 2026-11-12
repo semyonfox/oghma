@@ -8,8 +8,9 @@ import {
   useEffectEvent,
 } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { ChatBubbleLeftRightIcon, PlusIcon } from "@heroicons/react/24/outline";
+import { Bars3BottomLeftIcon, PlusIcon } from "@heroicons/react/24/outline";
 import ChatInterface from "@/components/chat/chat-interface";
+import CourseScopeMenu from "@/components/chat/course-scope-menu";
 import {
   ConversationHistory,
   type ConversationHistoryProps,
@@ -462,48 +463,49 @@ export default function ChatPageClient() {
   };
 
   return (
-    <div className="flex h-dvh w-full flex-col overflow-hidden bg-app-page text-text">
+    <div className="flex h-app w-full flex-col overflow-hidden bg-app-page text-text">
       <MobileAppHeader
-        title={conversationTitle}
+        leading={
+          <button
+            type="button"
+            onClick={() => setHistoryOpen(true)}
+            className="-ml-2 flex h-11 w-11 items-center justify-center rounded-radius-md text-text transition-colors hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+            aria-label={t("Chat history")}
+          >
+            <Bars3BottomLeftIcon className="h-5 w-5" aria-hidden="true" />
+          </button>
+        }
+        title={t("AI Chat")}
+        subtitle={conversationTitle}
         actions={
-          <div className="flex items-center gap-0.5">
-            <button
-              type="button"
-              onClick={newConversation}
-              className="flex h-11 w-11 items-center justify-center rounded-radius-md text-primary-700 transition-colors hover:bg-primary-500/10 dark:text-primary-300"
-              aria-label={t("chat.new_conversation")}
-            >
-              <PlusIcon className="h-5 w-5" aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setHistoryOpen(true)}
-              className="flex h-11 w-11 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50"
-              aria-label={t("Chat history")}
-            >
-              <ChatBubbleLeftRightIcon className="h-5 w-5" aria-hidden="true" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={newConversation}
+            className="flex h-11 w-11 items-center justify-center rounded-radius-md text-text transition-colors hover:bg-subtle"
+            aria-label={t("chat.new_conversation")}
+          >
+            <PlusIcon className="h-5 w-5" aria-hidden="true" />
+          </button>
         }
       />
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {isDesktop === true && (
-          <div className="desktop-navigation-rail w-14 shrink-0 border-r border-border-subtle bg-background">
-            <PrimaryNavigation />
+          <div className="w-64 shrink-0 border-r border-border">
+            <PrimaryNavigation variant="sidebar">
+              <div className="-mx-3 flex min-h-0 flex-1 flex-col overflow-hidden">
+                <ConversationHistory {...historyProps} showHeader={false} />
+              </div>
+            </PrimaryNavigation>
           </div>
-        )}
-        {isDesktop === true && (
-          <aside className="w-64 flex-shrink-0 overflow-hidden border-r border-border-subtle">
-            <ConversationHistory {...historyProps} />
-          </aside>
         )}
 
         <main className="flex min-w-0 flex-1 flex-col">
-          <header className="glass-panel hidden min-h-[52px] flex-shrink-0 items-center border-b border-border-subtle px-5 lg:flex">
-            <h1 className="truncate text-sm font-medium text-text-secondary">
+          <header className="glass-panel hidden min-h-[56px] flex-shrink-0 items-center gap-3 border-b border-border-subtle px-6 lg:flex">
+            <h1 className="min-w-0 flex-1 truncate text-[15px] font-semibold text-text">
               {conversationTitle}
             </h1>
+            <CourseScopeMenu current={selectedFolders.length === 1 ? selectedFolders[0] : undefined} />
           </header>
 
           <ChatInterface
@@ -525,6 +527,7 @@ export default function ChatPageClient() {
             }
             selectedNotes={selectedNotes}
             selectedFolders={selectedFolders}
+            initialPrompt={routeSessionId ? undefined : searchParams.get("q") ?? undefined}
             onSessionCreated={handleSessionCreated}
             onClearContext={clearContextAndStartNewChat}
             onStreamComplete={handleStreamComplete}

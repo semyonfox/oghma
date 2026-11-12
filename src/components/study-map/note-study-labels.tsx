@@ -51,14 +51,14 @@ type LinkedMap = z.infer<typeof linkedMapSchema>;
 type MapChoice = z.infer<typeof mapChoiceSchema>;
 
 const buttonClass =
-  "inline-flex min-h-11 items-center justify-center rounded-radius-md px-3 py-2 text-sm font-medium text-text hover:bg-primary-500/5 focus-visible:outline-2 focus-visible:outline-primary-500 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex min-h-11 items-center justify-center rounded-radius-md px-3 py-2 text-sm font-medium text-text hover:bg-subtle focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50";
 const linkClass =
-  "inline-flex min-h-11 items-center break-words text-sm font-medium text-primary-700 underline decoration-primary-500/30 underline-offset-4 hover:decoration-primary-500 focus-visible:outline-2 focus-visible:outline-primary-500 dark:text-primary-300";
+  "inline-flex min-h-11 items-center break-words text-sm font-medium text-accent underline decoration-accent/30 underline-offset-4 hover:decoration-accent focus-visible:outline-2 focus-visible:outline-accent";
 // compact mode sits in the note inspector, so it borrows the tag pill and meta text styles
 const compactLinkClass =
-  "break-words text-sm text-text-secondary hover:text-text focus-visible:outline-2 focus-visible:outline-primary-500";
+  "break-words text-sm text-text-secondary hover:text-text focus-visible:outline-2 focus-visible:outline-accent";
 const compactButtonClass =
-  "text-xs text-text-tertiary transition-colors hover:text-text-secondary focus-visible:outline-2 focus-visible:outline-primary-500 disabled:opacity-50";
+  "text-xs text-text-tertiary transition-colors hover:text-text-secondary focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50";
 const compactPillClass =
   "inline-flex items-center gap-1 rounded-full border border-border-subtle bg-subtle px-2 py-0.5 text-xs text-text-tertiary";
 
@@ -148,7 +148,7 @@ function LinkedLabels({
         </Link>
         {material.noteId !== noteId && (
           <span
-            className="rounded-radius-sm bg-primary-500/5 px-2 py-1 text-xs text-text-secondary"
+            className="rounded-radius-sm bg-surface-elevated px-2 py-1 text-xs text-text-secondary"
             title="Labels from the explicitly linked original file or extracted note"
           >
             Linked source
@@ -190,8 +190,8 @@ function LinkedLabels({
                 aria-label={`${topic?.name}, ${association.relevance}, ${status.toLowerCase()}`}
                 className={
                   compact
-                    ? `${compactPillClass} hover:text-text-secondary focus-visible:outline-2 focus-visible:outline-primary-500`
-                    : "inline-flex min-h-11 items-center gap-1.5 rounded-radius-md bg-primary-500/5 px-2.5 py-2 text-xs text-text-secondary hover:bg-primary-500/10 focus-visible:outline-2 focus-visible:outline-primary-500"
+                    ? `${compactPillClass} hover:text-text-secondary focus-visible:outline-2 focus-visible:outline-accent`
+                    : "inline-flex min-h-11 items-center gap-1.5 rounded-radius-md bg-surface-elevated px-2.5 py-2 text-xs text-text-secondary hover:bg-subtle-hover focus-visible:outline-2 focus-visible:outline-accent"
                 }
               >
                 <span
@@ -468,7 +468,7 @@ function LabelsForNote({ noteId, compact = false }: NoteStudyLabelsProps) {
                   value={selected}
                   disabled={adding}
                   onChange={(event) => setSelectedMap(event.target.value)}
-                  className="min-h-11 w-full rounded-radius-md border border-border-subtle bg-surface px-3 py-2 text-base text-text focus-visible:outline-2 focus-visible:outline-primary-500 sm:text-sm"
+                  className="min-h-11 w-full rounded-radius-md border border-border-subtle bg-surface px-3 py-2 text-base text-text focus-visible:outline-2 focus-visible:outline-accent sm:text-sm"
                 >
                   {availableMaps.map((choice) => (
                     <option key={choice.id} value={choice.id}>
@@ -480,7 +480,7 @@ function LabelsForNote({ noteId, compact = false }: NoteStudyLabelsProps) {
               <button
                 type="submit"
                 disabled={adding}
-                className={`${buttonClass} bg-primary-600 text-text-on-primary hover:bg-primary-700`}
+                className={`${buttonClass} bg-action text-on-action hover:bg-action-hover`}
               >
                 {adding ? "Adding..." : "Add note"}
               </button>

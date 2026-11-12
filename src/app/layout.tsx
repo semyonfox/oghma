@@ -1,5 +1,4 @@
-import { Source_Sans_3, Source_Serif_4 } from "next/font/google";
-import "@fontsource-variable/strichpunkt-sans";
+import { Geist, Geist_Mono, Literata } from "next/font/google";
 import I18nRootProvider from "@/components/providers/i18n-root-provider";
 import ThemeProvider from "@/components/providers/theme-provider";
 import NativeAppBridge from "@/components/providers/native-app-bridge";
@@ -18,16 +17,26 @@ import type { Viewport } from "next";
 import "katex/dist/katex.min.css";
 import "./globals.css";
 
-const sourceSans = Source_Sans_3({
+// Atlas type: Geist for the interface, Geist Mono for codes and metadata,
+// Literata for reading and editorial headings.
+const geist = Geist({
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-source-sans",
+  variable: "--font-geist",
 });
 
-const sourceSerif = Source_Serif_4({
+const geistMono = Geist_Mono({
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-source-serif",
+  variable: "--font-geist-mono",
+});
+
+const literata = Literata({
+  subsets: ["latin"],
+  // note text is set in Literata, so emphasis needs the real italic, not a synthetic slant
+  style: ["normal", "italic"],
+  display: "swap",
+  variable: "--font-literata",
 });
 
 export const viewport: Viewport = {
@@ -43,7 +52,7 @@ export const metadata = {
     template: "%s | OghmaNotes",
   },
   description:
-    "A Canvas-connected study workspace that keeps supported course material, deadlines, cited answers, notes, flashcards, and planning together.",
+    "A study workspace that keeps your notes, files, deadlines, cited answers, flashcards and planning together.",
   metadataBase: new URL("https://oghmanotes.ie"),
   alternates: {
     canonical: "/",
@@ -54,7 +63,6 @@ export const metadata = {
     "RAG chat",
     "student notes",
     "semantic search",
-    "Canvas LMS",
     "adaptive quizzes",
     "spaced repetition",
     "PDF study assistant",
@@ -87,7 +95,7 @@ export const metadata = {
   openGraph: {
     title: "OghmaNotes",
     description:
-      "A Canvas-connected study workspace that keeps supported course material, deadlines, cited answers, notes, flashcards, and planning together.",
+      "A study workspace that keeps your notes, files, deadlines, cited answers, flashcards and planning together.",
     url: "https://oghmanotes.ie",
     siteName: "OghmaNotes",
     locale: "en_IE",
@@ -105,7 +113,7 @@ export const metadata = {
     card: "summary_large_image",
     title: "OghmaNotes",
     description:
-      "A Canvas-connected study workspace that keeps supported course material, deadlines, cited answers, notes, flashcards, and planning together.",
+      "A study workspace that keeps your notes, files, deadlines, cited answers, flashcards and planning together.",
     images: ["/notes-workspace-ultrawide.png"],
   },
 };
@@ -122,7 +130,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     <html
       lang={locale}
       dir={isRtlLocale(locale) ? "rtl" : "ltr"}
-      className={`${sourceSans.variable} ${sourceSerif.variable}`}
+      className={`${geist.variable} ${geistMono.variable} ${literata.variable}`}
       suppressHydrationWarning
     >
       <head>

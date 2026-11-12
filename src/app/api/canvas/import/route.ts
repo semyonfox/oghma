@@ -10,10 +10,11 @@ import { CanvasClient } from "@/lib/canvas/client";
 import sql from "@/database/pgsql";
 import { enqueueCanvasDiscoverJob } from "@/lib/queue";
 import logger from "@/lib/logger";
-import { loadCanvasCredentials } from "@/lib/canvas/credentials";
+import { loadCanvasCredentials, markCanvasTokenInvalid } from "@/lib/canvas/credentials";
 import { activeCanvasRun, canonicalCanvasCourses, lockCanvasRuns, startCanvasRun } from "@/lib/canvas/import-runs";
 import { isValidUUID } from "@/lib/utils/uuid";
 import { cancelActiveCanvasImportJobs } from "@/lib/canvas/cancel-import-jobs";
+import { assertCanvasContentEnabled } from "@/lib/canvas/content-policy";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -31,6 +32,7 @@ function errorMessage(error: unknown): string {
  */
 export const POST = withErrorHandler(async (request) => {
   const user = await requireAuth();
+  assertCanvasContentEnabled();
 
   const { courseIds, expectedActiveJobId, keepTrashedFolders } = await parseJsonObject(request);
   if (expectedActiveJobId !== undefined && !isValidUUID(expectedActiveJobId)) {
@@ -63,6 +65,7 @@ export const POST = withErrorHandler(async (request) => {
   const client = new CanvasClient(credentials.domain, credentials.token);
   const enrollmentValidation = await client.getSelfEnrollments();
   if (enrollmentValidation.unauthorized) {
+    await markCanvasTokenInvalid(user.user_id);
     throw new ApiError(401, "Canvas token is invalid or expired");
   }
   if (enrollmentValidation.error || enrollmentValidation.forbidden) {
@@ -70,6 +73,7 @@ export const POST = withErrorHandler(async (request) => {
     // A regular course-list response still proves that the token is live.
     const courseListValidation = await client.getDiscoverableCourses();
     if (courseListValidation.unauthorized) {
+      await markCanvasTokenInvalid(user.user_id);
       throw new ApiError(401, "Canvas token is invalid or expired");
     }
     if (courseListValidation.error || courseListValidation.forbidden) {

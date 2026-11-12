@@ -119,9 +119,9 @@ const LINK_LABELS = [
   "needed for",
 ];
 const toolbarButton =
-  "inline-flex min-h-7 items-center whitespace-nowrap rounded-radius-md px-2 text-xs font-medium text-text-secondary hover:bg-primary-500/10 hover:text-text focus-visible:outline-2 focus-visible:outline-primary-500";
+  "inline-flex min-h-7 items-center whitespace-nowrap rounded-radius-md px-2 text-xs font-medium text-text-secondary hover:bg-subtle-hover hover:text-text focus-visible:outline-2 focus-visible:outline-accent";
 const iconButton =
-  "grid h-8 w-8 place-items-center rounded-radius-md text-text-secondary hover:bg-primary-500/10 hover:text-text focus-visible:outline-2 focus-visible:outline-primary-500";
+  "grid h-8 w-8 place-items-center rounded-radius-md text-text-secondary hover:bg-subtle-hover hover:text-text focus-visible:outline-2 focus-visible:outline-accent";
 
 type Camera = { x: number; y: number; z: number };
 type Rect = { x: number; y: number; w: number; h: number };
@@ -571,7 +571,7 @@ function CardLayer({
             tabIndex={0}
             data-week={item.week ?? "none"}
             aria-label={`${item.title || "Untitled"}, ${item.week === null ? "no week" : `week ${item.week}`}, ${module.name}`}
-            className={`absolute rounded-radius-lg outline-offset-2 transition-[opacity,box-shadow] duration-150 focus-visible:outline-2 focus-visible:outline focus-visible:outline-primary-500 ${flags.includes("selected") ? "outline outline-[1.5px] outline-primary-500/80" : ""} ${flags.includes("related") ? "shadow-[0_0_0_1px_var(--color-primary-300)]" : ""} ${flags.includes("dim") ? "opacity-15" : ""} ${flags.includes("supporting") ? "opacity-60" : ""} ${flags.includes("flash") ? "animate-pulse" : ""}`}
+            className={`absolute rounded-radius-lg outline-offset-2 transition-[opacity,box-shadow] duration-150 focus-visible:outline-2 focus-visible:outline focus-visible:outline-accent ${flags.includes("selected") ? "outline outline-[1.5px] outline-accent" : ""} ${flags.includes("related") ? "ring-1 ring-accent/40" : ""} ${flags.includes("dim") ? "opacity-15" : ""} ${flags.includes("supporting") ? "opacity-60" : ""} ${flags.includes("flash") ? "animate-pulse" : ""}`}
             style={{
               left: x,
               top: y,
@@ -587,9 +587,9 @@ function CardLayer({
             />
             {stop !== undefined && (
               <span
-                className="absolute -left-2.5 -top-2.5 grid h-5 w-5 place-items-center rounded-full text-[11px] font-semibold text-white"
+                className="absolute -left-2.5 -top-2.5 grid h-5 w-5 place-items-center rounded-full text-[11px] font-semibold text-background"
                 style={{
-                  background: focusColour ?? "var(--color-primary-600)",
+                  background: focusColour ?? "var(--color-accent)",
                 }}
               >
                 {stop + 1}
@@ -778,7 +778,7 @@ function DeckLayer({
               data-deck={deck.id}
               aria-expanded={openKey === deck.id}
               aria-label={`${name}, ${refs.length} ${refs.length === 1 ? "file" : "files"}${deck.share !== null ? `, ${Math.round(deck.share * 100)}% of exam marks` : ""}`}
-              className={`study-deck study-deck-${deck.tier} absolute cursor-pointer outline-offset-8 focus-visible:outline-8 focus-visible:outline focus-visible:outline-primary-500 ${unfold ? (morph ? "z-[1]" : "") : "transition-opacity duration-200"} ${quiet && !unfold ? "opacity-20" : ""}`}
+              className={`study-deck study-deck-${deck.tier} absolute cursor-pointer outline-offset-8 focus-visible:outline-8 focus-visible:outline focus-visible:outline-accent ${unfold ? (morph ? "z-[1]" : "") : "transition-opacity duration-200"} ${quiet && !unfold ? "opacity-20" : ""}`}
               style={
                 {
                   left: lerp(from.x, to.x, at),
@@ -844,7 +844,7 @@ function DeckLayer({
               key={line.key}
               d={line.d}
               fill="none"
-              stroke="var(--color-primary-400)"
+              stroke="var(--color-accent)"
               strokeWidth={7}
               strokeLinecap="round"
             />
@@ -856,7 +856,7 @@ function DeckLayer({
         .map((line) => (
           <div
             key={`${line.key}-label`}
-            className="absolute z-20 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full bg-background px-5 py-1 font-semibold text-primary-700 dark:text-primary-300"
+            className="absolute z-20 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full bg-background px-5 py-1 font-semibold text-accent"
             style={{ left: line.x, top: line.y, fontSize: 34 }}
           >
             {line.label}
@@ -877,7 +877,7 @@ function DeckLayer({
             className={`study-fan-card absolute cursor-pointer ${index === hotIndex ? "z-30" : "z-20"} ${fanState(index)} ${selected === ref ? "study-fan-card-selected" : ""}`}
             style={{
               ...lift(index),
-              "--fan-colour": fanColour ?? "var(--color-primary-500)",
+              "--fan-colour": fanColour ?? "var(--color-accent)",
               left: slot.x,
               top: slot.y,
               width: FAN_CARD_WIDTH,
@@ -2519,7 +2519,7 @@ export default function StudyFlow({
           aria-roledescription="study map"
           aria-label="Study map. Zoomed out, each topic is a deck: Enter fans it out. Zoomed in, cards are grouped by topic. Tab moves between them, Enter reads a card, Space previews it."
           tabIndex={0}
-          className="absolute inset-0 touch-none select-none overflow-hidden bg-background focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary-500"
+          className="absolute inset-0 touch-none select-none overflow-hidden bg-background focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
           style={{
             backgroundImage:
               "radial-gradient(var(--color-border-subtle) 1px, transparent 1.2px)",
@@ -2695,7 +2695,7 @@ export default function StudyFlow({
                             ? `${cluster.topic.name}: follow this topic`
                             : undefined
                         }
-                        className={`flex w-full min-w-0 flex-col justify-center rounded-t-[18px] px-4 text-left transition-colors ${on ? "bg-primary-500/10" : cluster.topic ? "hover:bg-primary-500/5" : ""}`}
+                        className={`flex w-full min-w-0 flex-col justify-center rounded-t-[18px] px-4 text-left transition-colors ${on ? "bg-subtle-hover" : cluster.topic ? "hover:bg-subtle" : ""}`}
                         style={{ height: CLUSTER_HEADER - 4 }}
                       >
                         <span
@@ -2782,7 +2782,7 @@ export default function StudyFlow({
             {svg.labels.map((label) => (
                 <div
                   key={label.key}
-                  className={`absolute z-20 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 whitespace-nowrap rounded-full border bg-surface px-2 py-0.5 text-xs text-text-secondary ${label.tone === "cross" ? "border-dashed border-border" : label.tone === "strong" ? "border-text-tertiary text-text shadow" : "border-border-subtle"}`}
+                  className={`absolute z-20 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 whitespace-nowrap rounded-full border bg-surface px-2 py-0.5 text-xs text-text-secondary ${label.tone === "cross" ? "border-dashed border-border" : label.tone === "strong" ? "border-text-tertiary text-text shadow-raised" : "border-border-subtle"}`}
                   style={{ left: label.x, top: label.y }}
                 >
                   {label.text}
@@ -2870,7 +2870,7 @@ export default function StudyFlow({
           {connect && (
             <div
               data-flow-overlay
-              className="absolute left-1/2 top-16 z-40 w-[min(440px,calc(100%-1.5rem))] -translate-x-1/2 rounded-radius-xl border border-border-subtle bg-surface p-3 text-sm shadow-lg"
+              className="absolute left-1/2 top-16 z-40 w-[min(440px,calc(100%-1.5rem))] -translate-x-1/2 rounded-radius-xl border border-border-subtle bg-surface p-3 text-sm shadow-float"
             >
               {!connect.to ? (
                 <div className="flex items-center gap-2">
@@ -2910,7 +2910,7 @@ export default function StudyFlow({
                       <button
                         key={label}
                         type="button"
-                        className={`rounded-full border px-2 py-0.5 text-xs ${connect.label === label ? "border-primary-500 bg-primary-500/10 text-text" : "border-border-subtle text-text-secondary"}`}
+                        className={`rounded-full border px-2 py-0.5 text-xs ${connect.label === label ? "border-accent bg-accent-soft text-accent-soft-text" : "border-border-subtle text-text-secondary"}`}
                         onClick={() => setConnect({ ...connect, label })}
                       >
                         {label}
@@ -3096,7 +3096,7 @@ export default function StudyFlow({
                         </span>
                         <button
                           type="button"
-                          className="shrink-0 text-primary-700 hover:underline dark:text-primary-300"
+                          className="shrink-0 text-accent hover:underline"
                           onClick={() =>
                             splitOut(
                               previewPlaced.item.ref,
@@ -3175,7 +3175,7 @@ export default function StudyFlow({
               <MagnifyingGlassIcon className="h-4 w-4" aria-hidden="true" />
             </button>
             <label
-              className={`relative items-center ${searchOpen ? "flex max-sm:absolute max-sm:right-0 max-sm:top-full max-sm:mt-2 max-sm:w-[calc(100vw-1.5rem)] max-sm:rounded-radius-lg max-sm:border max-sm:border-border-subtle max-sm:bg-surface max-sm:p-1 max-sm:shadow-md" : "hidden sm:flex"}`}
+              className={`relative items-center ${searchOpen ? "flex max-sm:absolute max-sm:right-0 max-sm:top-full max-sm:mt-2 max-sm:w-[calc(100vw-1.5rem)] max-sm:rounded-radius-lg max-sm:border max-sm:border-border-subtle max-sm:bg-surface max-sm:p-1 max-sm:shadow-float" : "hidden sm:flex"}`}
             >
               <span className="sr-only">Search the map</span>
               <MagnifyingGlassIcon
@@ -3207,7 +3207,7 @@ export default function StudyFlow({
                   }
                 }}
                 placeholder="Search notes and topics"
-                className="min-h-8 w-full rounded-radius-md bg-background/70 py-1 pl-8 pr-2 text-base text-text placeholder:text-text-tertiary focus-visible:outline-2 focus-visible:outline-primary-500 sm:w-44 md:text-sm lg:w-56"
+                className="min-h-8 w-full rounded-radius-md bg-background/70 py-1 pl-8 pr-2 text-base text-text placeholder:text-text-tertiary focus-visible:outline-2 focus-visible:outline-accent sm:w-44 md:text-sm lg:w-56"
               />
             </label>
             <Popover>
@@ -3224,14 +3224,14 @@ export default function StudyFlow({
                 </span>
                 {filtered && (
                   <span
-                    className="h-1.5 w-1.5 rounded-full bg-primary-500 sm:hidden"
+                    className="h-1.5 w-1.5 rounded-full bg-accent sm:hidden"
                     aria-hidden="true"
                   />
                 )}
               </PopoverButton>
               <PopoverPanel
                 anchor="bottom end"
-                className="z-[60] w-60 rounded-radius-lg border border-border-subtle bg-surface p-3 text-sm text-text shadow-lg [--anchor-gap:8px] [--anchor-padding:8px] focus:outline-none"
+                className="z-[60] w-60 rounded-radius-lg border border-border-subtle bg-surface p-3 text-sm text-text shadow-float [--anchor-gap:8px] [--anchor-padding:8px] focus:outline-none"
               >
                 <fieldset>
                   <legend className="mb-1 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
@@ -3308,7 +3308,7 @@ export default function StudyFlow({
       {readerPlaced && (
         <aside
           aria-label={`Reading ${readerPlaced.item.title}`}
-          className="flex w-full max-w-[460px] shrink-0 flex-col border-l border-border-subtle bg-surface max-lg:absolute max-lg:inset-y-0 max-lg:right-0 max-lg:z-50 max-lg:shadow-2xl"
+          className="flex w-full max-w-[460px] shrink-0 flex-col border-l border-border-subtle bg-surface max-lg:absolute max-lg:inset-y-0 max-lg:right-0 max-lg:z-50 max-lg:shadow-float"
         >
           <div className="flex items-start gap-2 border-b border-border-subtle px-4 py-3">
             <div className="min-w-0 flex-1">
@@ -3316,7 +3316,7 @@ export default function StudyFlow({
             </div>
             <button
               type="button"
-              className="rounded-radius-md p-1.5 text-text-tertiary hover:bg-primary-500/5 hover:text-text"
+              className="rounded-radius-md p-1.5 text-text-tertiary hover:bg-subtle hover:text-text"
               onClick={() => setReader(null)}
               aria-label="Close reader"
             >
