@@ -83,7 +83,7 @@ function setSelectedFile(input: HTMLInputElement, file: File) {
   fireEvent.change(input, { target: { files: [file] } });
 }
 
-describe("DataExportSection vault import", () => {
+describe("DataExportSection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     FakeXMLHttpRequest.instances.length = 0;
@@ -116,6 +116,52 @@ describe("DataExportSection vault import", () => {
   afterAll(() => {
     globalThis.fetch = originalFetch;
     globalThis.XMLHttpRequest = originalXhr;
+  });
+
+  it("disables Google Calendar until a token is available", async () => {
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
+    const { getByRole } = render(React.createElement(DataExportSection));
+    const button = getByRole("button", { name: "Add to Google Calendar" });
+    expect(button.hasAttribute("disabled")).toBe(true);
+    await waitFor(() => {
+      expect(document.body.textContent).toContain("Failed to load subscription URL");
+    });
+    fireEvent.click(button);
+    expect(open).not.toHaveBeenCalled();
+    open.mockRestore();
+  });
+
+  it("opens a subscription for the displayed feed and uses a regenerated token", async () => {
+    let token = "test-calendar-token";
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (requestUrl(input) === "/api/calendar/token") {
+        if (init?.method === "POST") token = "regenerated-test-token";
+        return jsonResponse({ token });
+      }
+      return jsonResponse({ job: null });
+    });
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const { getByRole } = render(React.createElement(DataExportSection));
+    const button = getByRole("button", { name: "Add to Google Calendar" });
+    await waitFor(() => expect(button.hasAttribute("disabled")).toBe(false));
+    for (const expectedToken of ["test-calendar-token", "regenerated-test-token"]) {
+      await waitFor(() => {
+        const input = getByRole("textbox", { name: "Calendar Subscription" }) as HTMLInputElement;
+        expect(input.value).toBe(`${window.location.origin}/api/calendar/ical/${expectedToken}`);
+      });
+      fireEvent.click(button);
+      expect(open).toHaveBeenLastCalledWith(
+        `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(`webcal://${window.location.host}/api/calendar/ical/${expectedToken}`)}`,
+        "_blank",
+        "noopener,noreferrer",
+      );
+      if (expectedToken === "test-calendar-token") {
+        fireEvent.click(getByRole("button", { name: "Regenerate URL" }));
+      }
+    }
+    open.mockRestore();
+    confirm.mockRestore();
   });
 
   it("accepts uppercase ZIP files and sends the signed upload constraints", async () => {

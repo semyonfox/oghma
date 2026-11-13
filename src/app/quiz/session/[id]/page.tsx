@@ -210,7 +210,11 @@ function QuestionView({
       )}
 
       <div className="flex-1 flex flex-col mt-6">
-        <QuestionCard question={question} onAnswer={handleAnswer} />
+        <QuestionCard
+          question={question}
+          questionId={question.id}
+          onAnswer={handleAnswer}
+        />
 
         {answered && lastAnswer && (
           <div className="mt-4 space-y-3">

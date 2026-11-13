@@ -203,7 +203,7 @@ function LinkedLabels({
                 >
                   {topic?.name}
                 </span>
-                <span className={compact ? "text-text-tertiary/70" : undefined}>
+                <span className={compact ? "text-text-tertiary" : undefined}>
                   {association.relevance} · {status.toLowerCase()}
                 </span>
               </Link>

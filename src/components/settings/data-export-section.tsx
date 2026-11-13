@@ -3,6 +3,7 @@
 import { type ChangeEvent, useState, useEffect } from "react";
 import { toast } from "sonner";
 import { CheckIcon, ClipboardDocumentIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
+import { buildGoogleCalendarSubscriptionUrl } from "@/lib/calendar/subscription-url";
 import { copyText } from "@/lib/clipboard";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import {
@@ -69,10 +70,19 @@ export default function DataExportSection() {
       });
   }
 
+  const calendarUrl = calendarToken && typeof window !== "undefined"
+    ? `${window.location.origin}/api/calendar/ical/${calendarToken}`
+    : null;
+
+  function handleAddToGoogleCalendar() {
+    if (!calendarUrl) return;
+    window.open(buildGoogleCalendarSubscriptionUrl(calendarUrl), "_blank", "noopener,noreferrer");
+  }
+
   function handleCopyCalendarUrl() {
-    const url = `${window.location.origin}/api/calendar/ical/${calendarToken}`;
+    if (!calendarUrl) return;
     setCalendarCopied(true);
-    void copyText(url).then((ok) => {
+    void copyText(calendarUrl).then((ok) => {
       if (ok) {
         window.setTimeout(() => setCalendarCopied(false), 1500);
         return;
@@ -617,15 +627,15 @@ export default function DataExportSection() {
               {t("Subscribe to your assignments and study blocks in Google Calendar, Apple Calendar, Outlook, or any app that supports iCal feeds.")}
             </p>
 
-            {calendarLoading ? (
-              <p className="text-sm text-text-tertiary">{t("Loading...")}</p>
-            ) : calendarToken ? (
-              <div className="space-y-3">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+              {calendarLoading ? (
+                <p className="text-sm text-text-tertiary">{t("Loading...")}</p>
+              ) : calendarToken ? (
+                <>
                   <input
                     readOnly
                     aria-label={t("Calendar Subscription")}
-                    value={`${typeof window !== "undefined" ? window.location.origin : ""}/api/calendar/ical/${calendarToken}`}
+                    value={calendarUrl ?? ""}
                     className="block min-h-11 min-w-0 flex-1 truncate rounded-radius-md border border-border bg-subtle px-3 py-2 font-mono text-xs text-text-secondary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent sm:min-h-9"
                   />
                   <div className="flex gap-2">
@@ -652,11 +662,19 @@ export default function DataExportSection() {
                       {t("Regenerate URL")}
                     </button>
                   </div>
-                </div>
-              </div>
-            ) : (
-              <p className={`text-sm ${errorTextClass}`}>{t("Failed to load subscription URL")}</p>
-            )}
+                </>
+              ) : (
+                <p className={`text-sm ${errorTextClass}`}>{t("Failed to load subscription URL")}</p>
+              )}
+              <button
+                type="button"
+                onClick={handleAddToGoogleCalendar}
+                disabled={!calendarUrl}
+                className={secondaryBtnClass}
+              >
+                {t("Add to Google Calendar")}
+              </button>
+            </div>
           </div>
       </SettingsCardBody>
     </SettingsCard>
