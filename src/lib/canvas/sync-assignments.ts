@@ -14,11 +14,16 @@ import logger from "@/lib/logger";
 import sql from "@/database/pgsql";
 import { withCanvasPublication } from "./execution";
 import { canvasIdForBigintColumn } from "./id";
+import type { CanvasFeedbackSubmission } from "./assignment-feedback";
+import { stripHtmlToText } from "./content-formatting";
 import type { CanvasAssignment } from "./client";
 import { createAsyncLimiter } from "./async-limiter";
 import { canvasContentEnabled } from "@/lib/canvas/content-policy";
 
 interface AssignmentClient {
+  getRecentAssignmentFeedback?(courseId: string): Promise<{
+    data: CanvasFeedbackSubmission[]; forbidden?: boolean; unauthorized?: boolean; error?: string;
+  }>;
   getAssignments(courseId: string): Promise<{
     data: CanvasAssignment[];
     forbidden?: boolean;
@@ -118,6 +123,17 @@ export async function syncAssignmentMetadata(
     return { synced: 0, errors: 1, removed: 0 };
   }
   const assignments = fetched.data;
+  const feedback = new Map<string, CanvasFeedbackSubmission>();
+  // comments and rubrics are the student's own record and deliberately sync even
+  // when CANVAS_CONTENT_IMPORT pauses lecturer course-material imports
+  try {
+    const result = await client.getRecentAssignmentFeedback?.(courseId);
+    if (result && !result.error && !result.forbidden && !result.unauthorized) {
+      for (const item of result.data) feedback.set(String(item.assignment_id), item);
+    }
+  } catch {
+    logger.warn("canvas assignment feedback unavailable");
+  }
   // a self-fetched list is complete because the client reports any failed page
   const complete = knownAssignments ? options.complete === true : true;
   const canvasCourseId = canvasIdForBigintColumn(courseId, "Canvas course ID");
@@ -138,14 +154,15 @@ export async function syncAssignmentMetadata(
           user_id, canvas_course_id, canvas_assignment_id,
           title, description, course_name, course_color,
           due_at, status, source, assignment_type,
-          submitted_at, score, points_possible
+          submitted_at, score, points_possible, graded_at, grade
         ) VALUES (
           ${userId}::uuid, ${canvasCourseId}::bigint, ${canvasIdForBigintColumn(a.id, "Canvas assignment ID")}::bigint,
           ${a.name}, ${canvasContentEnabled() ? (a.description ?? null) : null}, ${courseTitle}, ${courseColor},
           ${a.due_at ?? null}, ${status}, 'canvas', ${assignmentType},
           ${submission?.submitted_at ?? null},
           ${submission?.score ?? null},
-          ${a.points_possible ?? null}
+          ${a.points_possible ?? null},
+          ${submission?.graded_at ?? null}, ${submission?.grade ?? null}
         )
         ON CONFLICT (user_id, canvas_assignment_id)
           WHERE canvas_assignment_id IS NOT NULL
@@ -162,9 +179,38 @@ export async function syncAssignmentMetadata(
           submitted_at = EXCLUDED.submitted_at,
           score = EXCLUDED.score,
           points_possible = EXCLUDED.points_possible,
+          graded_at = EXCLUDED.graded_at,
+          grade = EXCLUDED.grade,
           assignment_type = EXCLUDED.assignment_type,
           updated_at = NOW()
       `);
+      const item = feedback.get(String(a.id));
+      if (item && (item.submission_comments != null || item.rubric_assessment != null)) {
+        try {
+          const comments = (item.submission_comments ?? [])
+            .filter(c => c.comment && (item.user_id === undefined || c.author_id === undefined || String(c.author_id) !== String(item.user_id)))
+            .map(c => ({ author_name: stripHtmlToText(c.author_name), comment: stripHtmlToText(c.comment), created_at: c.created_at ?? null }));
+          const rubric = item.rubric_assessment ? Object.entries(item.rubric_assessment).map(([id, assessment]) => {
+            const criterion = item.assignment?.rubric?.find(c => c.id === id);
+            return { id, description: stripHtmlToText(criterion?.description) || id,
+              points: assessment.points ?? null, possible: criterion?.points ?? null,
+              comment: stripHtmlToText(assessment.comments) };
+          }) : null;
+          await withCanvasPublication(() => sql`
+            INSERT INTO app.assignment_feedback (assignment_id, user_id, comments, rubric, fetched_at)
+            SELECT id, user_id, ${JSON.stringify(comments)}::text::jsonb, ${rubric === null ? null : JSON.stringify(rubric)}::text::jsonb, NOW()
+            FROM app.assignments
+            WHERE user_id = ${userId}::uuid AND canvas_assignment_id = ${canvasIdForBigintColumn(a.id, "Canvas assignment ID")}::bigint
+              AND canvas_course_id = ${canvasCourseId}::bigint
+            ON CONFLICT (assignment_id) DO UPDATE SET
+              comments = CASE WHEN ${item.submission_comments != null} THEN EXCLUDED.comments ELSE app.assignment_feedback.comments END,
+              rubric = CASE WHEN ${item.rubric_assessment !== undefined} THEN EXCLUDED.rubric ELSE app.assignment_feedback.rubric END,
+              fetched_at = NOW()
+          `);
+        } catch {
+          logger.warn("canvas assignment feedback upsert unavailable");
+        }
+      }
       return true;
     } catch (error) {
       logger.error("canvas assignment upsert failed", { error });

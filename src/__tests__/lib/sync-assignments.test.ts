@@ -199,3 +199,61 @@ describe("deriveAssignmentType", () => {
     expect(deriveAssignmentType(null)).toBe("unknown");
   });
 });
+
+describe("graded feedback sync", () => {
+  const userId = "11111111-1111-4111-8111-111111111111";
+  const assignments = [{ id: "7", name: "Essay", submission: {
+    workflow_state: "graded", score: 0, grade: "F", graded_at: "2026-11-12T10:00:00Z",
+  } }];
+  beforeEach(() => vi.mocked(sql).mockReset().mockResolvedValue([]));
+
+  it("upserts scores and sanitised lecturer feedback with content import off and no rubric", async () => {
+    vi.stubEnv("CANVAS_CONTENT_IMPORT", "off");
+    try {
+      const client = { getAssignments: vi.fn(), getRecentAssignmentFeedback: vi.fn().mockResolvedValue({ data: [{
+        assignment_id: "7", user_id: "1", submission_comments: [
+          { author_id: "1", comment: "My question" },
+          { author_id: "2", author_name: "Lecturer", comment: "<p>Explain &amp; justify</p>", created_at: "2026-11-12T10:00:00Z" },
+        ],
+      }] }) };
+      expect(await syncAssignmentMetadata("42", userId, "Course", client, assignments)).toEqual({ synced: 1, errors: 0, removed: 0 });
+      expect(client.getRecentAssignmentFeedback).toHaveBeenCalledOnce();
+      const calls = vi.mocked(sql).mock.calls;
+      expect(calls[0]).toContain(0);
+      expect(calls[0]).toContain("F");
+      expect(calls[0]).toContain("2026-11-12T10:00:00Z");
+      expect(calls[1][0].join("?")).toContain("ON CONFLICT (assignment_id)");
+      expect(calls[1]).toContain(userId);
+      expect(calls[1]).toContain(JSON.stringify([{ author_name: "Lecturer", comment: "Explain & justify", created_at: "2026-11-12T10:00:00Z" }]));
+      expect(calls[1]).toContain(null);
+    } finally { vi.unstubAllEnvs(); }
+  });
+
+  it("stores rubric criteria even when Canvas omits submission comments", async () => {
+    const client = { getAssignments: vi.fn(), getRecentAssignmentFeedback: vi.fn().mockResolvedValue({ data: [{
+      assignment_id: "7", rubric_assessment: { clarity: { points: 0, comments: "<p>Define terms</p>" } },
+      assignment: { rubric: [{ id: "clarity", description: "Clarity", points: 5 }] },
+    }] }) };
+    await syncAssignmentMetadata("42", userId, "Course", client, assignments);
+    expect(vi.mocked(sql).mock.calls[1]).toContain(JSON.stringify([
+      { id: "clarity", description: "Clarity", points: 0, possible: 5, comment: "Define terms" },
+    ]));
+    expect(vi.mocked(sql).mock.calls[1][0].join("?")).toContain("ELSE app.assignment_feedback.comments END");
+  });
+
+  it.each([
+    { data: [], forbidden: true, error: "403" },
+    { data: [{ assignment_id: "7", submission_comments: [] }], error: "partial page failure" },
+  ])("keeps scores when feedback is unavailable or partial", async feedback => {
+    const client = { getAssignments: vi.fn(), getRecentAssignmentFeedback: vi.fn().mockResolvedValue(feedback) };
+    expect(await syncAssignmentMetadata("42", userId, "Course", client, assignments)).toEqual({ synced: 1, errors: 0, removed: 0 });
+    expect(sql).toHaveBeenCalledOnce();
+    expect(vi.mocked(sql).mock.calls[0]).toContain(0);
+  });
+
+  it("does not fail metadata sync if the feedback write fails", async () => {
+    vi.mocked(sql).mockResolvedValueOnce([]).mockRejectedValueOnce(new Error("write failed"));
+    const client = { getAssignments: vi.fn(), getRecentAssignmentFeedback: vi.fn().mockResolvedValue({ data: [{ assignment_id: "7", submission_comments: [] }] }) };
+    expect(await syncAssignmentMetadata("42", userId, "Course", client, assignments)).toEqual({ synced: 1, errors: 0, removed: 0 });
+  });
+});

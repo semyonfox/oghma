@@ -1,3 +1,4 @@
+import type { AssignmentFeedback } from "@/lib/canvas/assignment-feedback";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { AssignmentType } from "@/lib/notes/utils/assignment-type";
@@ -18,6 +19,9 @@ export interface Assignment {
   assignment_type: AssignmentType;
   submitted_at: string | null;
   score: number | null;
+  grade?: string | null;
+  graded_at?: string | null;
+  feedback?: AssignmentFeedback | null;
   points_possible: number | null;
   created_at: string;
   updated_at: string;
@@ -134,7 +138,7 @@ const useAssignmentStore = create<AssignmentState>()(
           if (!res.ok) return null;
           const updated = await res.json();
           set((s) => ({
-            assignments: s.assignments.map((a) => (a.id === id ? updated : a)),
+            assignments: s.assignments.map((a) => (a.id === id ? { ...a, ...updated } : a)),
           }));
           return updated;
         } catch {

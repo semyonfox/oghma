@@ -41,6 +41,7 @@ import {
   type CourseVisibilityItem,
 } from "@/components/course-visibility/course-visibility-manager";
 import NewTaskModal from "./new-task-modal";
+import RecentGraded from "./recent-graded";
 import AssignmentDetailsTrigger from "./assignment-details-trigger";
 import AssignmentTypeIcon from "./assignment-type-icon";
 
@@ -647,6 +648,7 @@ export default function AssignmentTracker({
         {t("Show archived courses")}
       </label>
 
+      {surface === "full" && <RecentGraded assignments={assignments} courseFilter={courseFilter} />}
       {surface === "full" && <ConcentricRings courses={courseRings} />}
 
       {error && assignments.length > 0 && (
