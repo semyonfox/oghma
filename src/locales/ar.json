@@ -1,4 +1,12 @@
 {
+  "sections.title": "الأقسام",
+  "sections.part": "قسم",
+  "sections.summarise": "تلخيص",
+  "sections.cards": "إنشاء بطاقات",
+  "sections.generating": "جارٍ الإنشاء…",
+  "sections.open_summary": "فتح الملخص",
+  "sections.saved_cards": "تم حفظ البطاقات في مكتبة الاختبارات",
+  "sections.error": "تعذر تحميل الأقسام أو إنشاء مواد الدراسة. حاول مرة أخرى.",
   "Add to Google Calendar": "إضافة إلى تقويم Google",
   "cards.make": "إنشاء بطاقة",
   "cards.edit": "تعديل البطاقة",

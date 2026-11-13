@@ -1,4 +1,12 @@
 {
+  "sections.title": "章节",
+  "sections.part": "章节",
+  "sections.summarise": "生成摘要",
+  "sections.cards": "生成卡片",
+  "sections.generating": "正在生成…",
+  "sections.open_summary": "打开摘要",
+  "sections.saved_cards": "卡片已保存到测验库",
+  "sections.error": "无法加载章节或生成学习材料。请重试。",
   "Add to Google Calendar": "添加到 Google 日历",
   "cards.make": "制作卡片",
   "cards.edit": "编辑卡片",

@@ -1,4 +1,12 @@
 {
+  "sections.title": "Rannóga",
+  "sections.part": "Rannóg",
+  "sections.summarise": "Déan achoimre",
+  "sections.cards": "Cruthaigh cártaí",
+  "sections.generating": "Á ghiniúint…",
+  "sections.open_summary": "Oscail an achoimre",
+  "sections.saved_cards": "Sábháladh na cártaí i do leabharlann tráth na gceist",
+  "sections.error": "Níorbh fhéidir na rannóga a lódáil ná ábhar staidéir a chruthú. Bain triail eile as.",
   "Add to Google Calendar": "Cuir le Google Calendar",
   "cards.make": "Cruthaigh cárta",
   "cards.edit": "Cuir cárta in eagar",

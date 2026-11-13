@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import NoteStudyLabels from "@/components/study-map/note-study-labels";
 
 import ManualNoteCards from "./manual-note-cards";
+import NoteSections from "./note-sections";
 
 const ChatInterface = dynamic(
   () => import("@/components/chat/chat-interface"),
@@ -398,6 +399,8 @@ export default function NoteInspectorPanel({
                     </dd>
                   </div>
                 </dl>
+
+                {note.id === activeFile.fileId && <NoteSections key={`${note.id}:${note.updatedAt}`} noteId={note.id} revision={note.updatedAt} />}
 
                 <ManualNoteCards key={activeFile.fileId} noteId={activeFile.fileId} />
 

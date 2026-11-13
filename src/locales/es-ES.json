@@ -1,4 +1,12 @@
 {
+  "sections.title": "Secciones",
+  "sections.part": "Sección",
+  "sections.summarise": "Resumir",
+  "sections.cards": "Generar tarjetas",
+  "sections.generating": "Generando…",
+  "sections.open_summary": "Abrir resumen",
+  "sections.saved_cards": "Tarjetas guardadas en tu biblioteca de cuestionarios",
+  "sections.error": "No se pudieron cargar las secciones o generar material de estudio. Inténtalo de nuevo.",
   "Add to Google Calendar": "Añadir a Google Calendar",
   "cards.make": "Crear tarjeta",
   "cards.edit": "Editar tarjeta",

@@ -1,4 +1,12 @@
 {
+  "sections.title": "Abschnitte",
+  "sections.part": "Abschnitt",
+  "sections.summarise": "Zusammenfassen",
+  "sections.cards": "Karten erstellen",
+  "sections.generating": "Wird erstellt…",
+  "sections.open_summary": "Zusammenfassung öffnen",
+  "sections.saved_cards": "Karten in deiner Quizbibliothek gespeichert",
+  "sections.error": "Abschnitte konnten nicht geladen oder Lernmaterialien nicht erstellt werden. Versuche es erneut.",
   "Add to Google Calendar": "Zu Google Kalender hinzufügen",
   "cards.make": "Karte erstellen",
   "cards.edit": "Karte bearbeiten",
