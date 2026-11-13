@@ -41,3 +41,12 @@ export function weekGridBlockPosition(
     height: Math.max((endHour - startHour) * hourHeight, MIN_BLOCK_HEIGHT),
   };
 }
+
+// click and drop use the same nearest half-hour slot
+export function weekGridSlot(dateKey: string, y: number, hourHeight: number): Date {
+  const date = new Date(`${dateKey}T00:00:00`);
+  const minutes =
+    WEEK_START_HOUR * 60 + Math.round((Math.max(0, y) / hourHeight) * 2) * 30;
+  date.setMinutes(Math.min(WEEK_END_HOUR * 60, minutes));
+  return date;
+}

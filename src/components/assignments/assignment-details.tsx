@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from "@headlessui/react";
 import DOMPurify from "dompurify";
 import AssignmentMaterials from "./assignment-materials";
+import { assignmentFeedbackSchema } from "@/lib/canvas/assignment-feedback";
 import { z } from "zod";
 import useAssignmentStore, { type Assignment } from "@/lib/notes/state/assignments";
 import useSwipeDismiss from "@/components/navigation/use-swipe-dismiss";
@@ -85,6 +86,7 @@ export default function AssignmentDetails({ assignment, onClose }: { assignment:
     return () => controller.abort();
   }, [assignment.id, assignment.source, attempt]);
 
+  const feedback = assignmentFeedbackSchema.safeParse(assignment.feedback);
   const description = details?.description ?? assignment.description;
   const canSubmit = details && !details.locked && details.types.some(value => value === "online_text_entry" || value === "online_url");
   const inputClass = "w-full rounded-radius-md border border-border-subtle bg-surface p-3 text-sm text-text-secondary";
@@ -126,6 +128,21 @@ export default function AssignmentDetails({ assignment, onClose }: { assignment:
             <button disabled={saving} onClick={onClose} className="min-h-11 px-2 text-sm text-text-secondary">{t("Close")}</button>
           </div>
           <div className="space-y-5 p-5">
+            {assignment.graded_at && <section className="space-y-3 rounded-radius-md border border-border-subtle p-4">
+              <h3 className="font-medium text-text">{t("Feedback")}</h3>
+              <p className="text-sm tabular-nums text-text-secondary">{assignment.score != null ? `${assignment.score}${assignment.points_possible != null ? ` / ${assignment.points_possible}` : ""}` : assignment.grade ?? t("Graded")} · {t("Graded")} {new Date(assignment.graded_at).toLocaleString()}</p>
+              {feedback.success && feedback.data.comments.length ? feedback.data.comments.map((comment, index) => <div key={index}>
+                <p className="text-xs text-text-tertiary">{comment.author_name}{comment.created_at && ` · ${new Date(comment.created_at).toLocaleString()}`}</p>
+                <p className="whitespace-pre-wrap break-words text-sm text-text-secondary">{comment.comment}</p>
+              </div>) : <p className="text-sm text-text-tertiary">{t("No written feedback")}</p>}
+              {feedback.success && !!feedback.data.rubric?.length && <div className="space-y-2">
+                <h4 className="text-sm font-medium text-text">{t("Rubric")}</h4>
+                {feedback.data.rubric.map(criterion => <div key={criterion.id} className="border-t border-border-subtle pt-2 text-sm text-text-secondary">
+                  <p>{criterion.description}{criterion.points != null && <span className="ml-2 tabular-nums">{criterion.points}{criterion.possible != null && ` / ${criterion.possible}`}</span>}</p>
+                  {criterion.comment && <p className="whitespace-pre-wrap break-words">{criterion.comment}</p>}
+                </div>)}
+              </div>}
+            </section>}
             {description ? assignment.source === "canvas" ? (
               <div className="prose prose-sm max-w-none text-text-secondary [&_a]:text-accent [&_a]:underline" dangerouslySetInnerHTML={{ __html: renderInstructions(description, details?.url) }} />
             ) : <p className="whitespace-pre-wrap text-sm text-text-secondary">{description}</p> : <p className="text-sm text-text-tertiary">{t("No description")}</p>}

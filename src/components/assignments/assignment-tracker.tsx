@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   PlayIcon,
+  CalendarDaysIcon,
   PlusIcon,
   ArrowPathIcon,
   CheckCircleIcon,
@@ -41,8 +42,13 @@ import {
   type CourseVisibilityItem,
 } from "@/components/course-visibility/course-visibility-manager";
 import NewTaskModal from "./new-task-modal";
+import RecentGraded from "./recent-graded";
 import AssignmentDetailsTrigger from "./assignment-details-trigger";
 import AssignmentTypeIcon from "./assignment-type-icon";
+
+import StudyBlockDialog from "@/components/calendar/study-block-dialog";
+import { ASSIGNMENT_DRAG_TYPE } from "@/components/calendar/use-assignment-drop";
+import { formatDateKey } from "@/lib/notes/utils/calendar-date";
 
 interface AssignmentTrackerProps {
   surface?: "compact" | "full";
@@ -233,6 +239,7 @@ export default function AssignmentTracker({
   } = useAssignmentStore();
   const pomodoroStart = usePomodoroStore((state) => state.start);
   const [showNewTask, setShowNewTask] = useState(false);
+  const [taskToSchedule, setTaskToSchedule] = useState<Assignment | null>(null);
   const [taskToEdit, setTaskToEdit] = useState<Assignment | null>(null);
   const [showCourseManager, setShowCourseManager] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -441,6 +448,11 @@ export default function AssignmentTracker({
       return (
         <article
           key={assignment.id}
+          draggable
+          onDragStart={(event) => {
+            event.dataTransfer.setData(ASSIGNMENT_DRAG_TYPE, assignment.id);
+            event.dataTransfer.effectAllowed = "copy";
+          }}
           className="relative glass-card-interactive cursor-pointer rounded-radius-lg p-3 transition-colors"
         >
           <div className="flex items-start gap-2">
@@ -553,6 +565,17 @@ export default function AssignmentTracker({
               </span>
             </div>
           )}
+          <div className={`mt-1 ${detailsIndent}`}>
+            <button
+              type="button"
+              onClick={() => setTaskToSchedule(assignment)}
+              className="relative z-20 inline-flex min-h-8 items-center gap-1.5 rounded-radius-md px-2 text-xs font-medium text-text-secondary transition-colors hover:bg-subtle hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 max-lg:min-h-11"
+              aria-label={t("Schedule {title}", { title: assignment.title })}
+            >
+              <CalendarDaysIcon className="h-4 w-4" aria-hidden="true" />
+              {t("Schedule")}
+            </button>
+          </div>
         </article>
       );
     });
@@ -647,6 +670,7 @@ export default function AssignmentTracker({
         {t("Show archived courses")}
       </label>
 
+      {surface === "full" && <RecentGraded assignments={assignments} courseFilter={courseFilter} />}
       {surface === "full" && <ConcentricRings courses={courseRings} />}
 
       {error && assignments.length > 0 && (
@@ -731,6 +755,12 @@ export default function AssignmentTracker({
         onClose={() => setTaskToEdit(null)}
         courses={courses}
         assignment={taskToEdit}
+      />
+      <StudyBlockDialog
+        open={taskToSchedule !== null}
+        onClose={() => setTaskToSchedule(null)}
+        initialDate={formatDateKey(new Date())}
+        assignment={taskToSchedule ?? undefined}
       />
       <CourseVisibilityDialog
         open={showCourseManager}
