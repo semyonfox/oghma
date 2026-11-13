@@ -7,6 +7,7 @@ import type { QuizSessionQuestion } from "@/lib/quiz/types";
 import { answersByTyping, gradeAnswer } from "@/lib/quiz/grade";
 import { CheckIcon, XMarkIcon } from "@heroicons/react/20/solid";
 import QuizMarkdown from "./quiz-markdown";
+import QuizAssist from "./quiz-assist";
 
 interface QuestionCardProps {
   question: Pick<
@@ -18,6 +19,8 @@ interface QuestionCardProps {
     | "correct_answer"
   >;
   moduleName?: string;
+  // enables the hint button; omitted where there is no stored question
+  questionId?: string;
   onAnswer: (answer: string, wasCorrect: boolean) => void;
 }
 
@@ -28,6 +31,7 @@ function QuizOptionText({ children }: { children: string }) {
 export default function QuestionCard({
   question,
   moduleName,
+  questionId,
   onAnswer,
 }: QuestionCardProps) {
   const { t } = useI18n();
@@ -195,6 +199,10 @@ export default function QuestionCard({
             }
           />
         </div>
+      )}
+
+      {!submitted && questionId && (
+        <QuizAssist questionId={questionId} modes={["hint"]} />
       )}
 
       {/* submit button */}

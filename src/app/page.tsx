@@ -338,7 +338,7 @@ export default async function Home() {
             {comparisonRows.map((row, index) => (
               <div
                 key={row.tool}
-                className={`grid gap-4 p-6 transition-colors sm:grid-cols-[12rem_1fr] ${
+                className={`grid gap-1 px-6 py-4 transition-colors sm:grid-cols-[12rem_1fr] sm:gap-4 sm:py-5 ${
                   index > 0 ? "border-t border-border" : ""
                 } ${row.tool === t("OghmaNotes") ? "bg-accent-soft" : ""}`}
               >
@@ -371,7 +371,7 @@ export default async function Home() {
             </FadeIn>
             <FadeIn delay={0.1}>
               <div className="rounded-radius-xl border border-border bg-surface p-6">
-                <div className="grid gap-5 sm:grid-cols-2">
+                <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
                   {[
                     t("Free first import before upgrade pressure"),
                     t("Export workflows so your notes are not trapped"),
@@ -381,9 +381,9 @@ export default async function Home() {
                     <div key={item} className="flex gap-3">
                       <CheckCircleIcon
                         aria-hidden="true"
-                        className="mt-1 size-5 flex-none text-accent"
+                        className="mt-0.5 size-5 flex-none text-accent"
                       />
-                      <p className="text-sm/6 text-text-secondary">{item}</p>
+                      <p className="text-base/6 text-text-secondary">{item}</p>
                     </div>
                   ))}
                 </div>
