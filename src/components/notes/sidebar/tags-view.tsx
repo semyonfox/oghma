@@ -221,7 +221,7 @@ function FileRow({
         <span className="min-w-0 flex-1 truncate text-base md:text-[13px]">{file.title}</span>
         {/* review rows give the room to their dots, the path is in the topic groups below */}
         {file.path && !aside && (
-          <span className="max-w-[45%] shrink truncate text-xs text-text-tertiary/80">{file.path}</span>
+          <span className="max-w-[45%] shrink truncate text-xs text-text-tertiary">{file.path}</span>
         )}
         {aside}
       </button>

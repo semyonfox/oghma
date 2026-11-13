@@ -155,7 +155,7 @@ function ReferenceList({
           ))}
         </ul>
       ) : (
-        <p className="text-xs text-text-tertiary/70">{emptyLabel}</p>
+        <p className="text-xs text-text-tertiary">{emptyLabel}</p>
       )}
     </section>
   );
@@ -440,7 +440,7 @@ export default function NoteInspectorPanel({
                       disabled={!canEditTags}
                       placeholder={t("add tag")}
                       aria-label={t("add tag")}
-                      className={`flex-1 bg-transparent text-text placeholder:text-text-tertiary/60 focus:outline-none disabled:opacity-50 min-w-0 ${presentation === "drawer" ? "text-base" : "text-xs"}`}
+                      className={`flex-1 bg-transparent text-text placeholder:text-text-tertiary focus:outline-none disabled:opacity-50 min-w-0 ${presentation === "drawer" ? "text-base" : "text-xs"}`}
                     />
                     <button
                       type="button"
