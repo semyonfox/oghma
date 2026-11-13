@@ -1,3 +1,4 @@
+vi.mock("@/lib/quiz/exams", () => ({ loadExamPlans: vi.fn().mockResolvedValue([]) }));
 vi.mock("@/lib/rate-limiter", () => ({ checkRateLimit: vi.fn().mockResolvedValue(null) }));
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -6,6 +7,7 @@ vi.mock("@/lib/auth/session", () => ({ validateSession: vi.fn() }));
 
 import { NextRequest } from "next/server";
 import sql from "@/database/pgsql";
+import { loadExamPlans } from "@/lib/quiz/exams";
 import { validateSession } from "@/lib/auth/session";
 import { GET as getSession } from "@/app/api/quiz/sessions/[id]/route";
 import { GET as getReviewDates } from "@/app/api/quiz/review-dates/route";
@@ -116,10 +118,26 @@ describe("GET /api/quiz/review-dates", () => {
     const res = await reviewDates("start=2026-10-01&end=2026-10-07&tz=Europe%2FDublin");
 
     // rows from the padded edges of the scan are trimmed to the asked range
-    expect(await res.json()).toEqual({ dates: ["2026-10-01"] });
+    expect(await res.json()).toEqual({ dates: ["2026-10-01"], examLoad: {} });
     const [strings, ...values] = vi.mocked(sql).mock.calls[0] as unknown as [TemplateStringsArray, ...unknown[]];
     expect(query(strings)).toContain("to_char(created_at AT TIME ZONE ?");
     expect(values[0]).toBe("Europe/Dublin");
+  });
+
+  it("counts overlapping exams once on the earliest planned day", async () => {
+    vi.mocked(sql).mockResolvedValue([] as never);
+    const exam = {
+      id: SESSION_ID, name: "Exam", exam_at: "2026-10-07T12:00:00Z",
+      canvas_course_id: null, study_map_id: null, note_ids: null,
+      daysLeft: 7, weighted: false,
+      plan: { total: 1, impossible: false, unallocated: 0,
+        days: [{ date: "2026-10-02", cardIds: [CARDS[0]], normal: 0, extra: 1 }] },
+    };
+    vi.mocked(loadExamPlans).mockResolvedValueOnce([exam, { ...exam,
+      plan: { ...exam.plan, days: [{ date: "2026-10-01", cardIds: [CARDS[0], CARDS[1]], normal: 1, extra: 1 }] },
+    }]);
+    const res = await reviewDates("start=2026-10-01&end=2026-10-07");
+    expect(await res.json()).toEqual({ dates: [], examLoad: { "2026-10-01": 2 } });
   });
 
   it("falls back to UTC for an unknown zone", async () => {

@@ -11,6 +11,7 @@ import {
   mergeCourseVisibilityItems,
   type CourseVisibilityItem,
 } from "@/components/course-visibility/course-visibility-manager";
+import ExamStrip from "./exam-strip";
 import StatsRow from "./stats-row";
 import CourseList from "./course-list";
 import { browserTimeZone, DEFAULT_TIME_ZONE } from "@/lib/quiz/time-zone";
@@ -140,7 +141,7 @@ export default function QuizDashboard({
     await refreshCourseData();
   };
 
-  const startReview = async (filterType: string, filterValue?: unknown) => {
+  const startReview = async (filterType: string, filterValue?: unknown, exam?: string) => {
     const key = filterValue != null ? String(filterValue) : "all";
     if (startingSession) return;
     setStartingSession(key);
@@ -156,7 +157,7 @@ export default function QuizDashboard({
       const res = await fetch("/api/quiz/sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filterType, filterValue }),
+        body: JSON.stringify({ filterType, filterValue, exam }),
       }).catch(() => null);
       if (!res) {
         connectionFailed();
@@ -239,6 +240,8 @@ export default function QuizDashboard({
           <span aria-hidden="true">→</span>
         </button>
       </div>
+
+      <ExamStrip courses={courses} onReview={(id) => startReview("all", undefined, id)} disabled={!!startingSession} />
 
       <StatsRow
         mastery={visibleDashboard.mastery}

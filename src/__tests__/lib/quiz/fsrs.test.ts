@@ -1,3 +1,4 @@
+import { examPlan } from "@/lib/quiz/exam-plan";
 import { describe, it, expect } from 'vitest';
 import { Rating, State } from 'ts-fsrs';
 import {
@@ -130,5 +131,38 @@ describe('cardFromDB / cardToDB', () => {
             last_review: '2026-02-28T12:00:00.000Z',
         };
         expect(cardToDB(cardFromDB(row))).toEqual(row);
+    });
+});
+
+
+describe('exam workload estimates', () => {
+    const options = { now: T0, examAt: new Date(T0.getTime() + 4 * DAY), timeZone: 'UTC' };
+    it('keeps due work on its normal day and never mutates cards', () => {
+        const card = { ...createNewCard(T0), due: new Date(T0.getTime() + DAY) };
+        const before = structuredClone(card);
+        const result = examPlan([{ id: 'a', card }, { id: 'a', card }], 5, options);
+        expect(result.days[1]).toMatchObject({ normal: 1, extra: 0, cardIds: ['a'] });
+        expect(result.total).toBe(1);
+        expect(card).toEqual(before);
+    });
+    it('adds only long-interval cards below target retention at the exam', () => {
+        const card = { ...createNewCard(T0), state: State.Review, last_review: T0,
+            stability: 1, due: new Date(T0.getTime() + 30 * DAY) };
+        const safe = { ...card, stability: 1000 };
+        const result = examPlan([{ id: 'low', card }, { id: 'safe', card: safe }], 5, options);
+        expect(result.total).toBe(1);
+        expect(result.days.flatMap((day) => day.cardIds)).toEqual(['low']);
+        expect(result.days[0].extra).toBe(1);
+    });
+    it('reports excess work and zero remaining days without hiding cards', () => {
+        const cards = Array.from({ length: 21 }, (_, i) => ({ id: String(i), card: createNewCard(T0) }));
+        expect(examPlan(cards, 1, options)).toMatchObject({ total: 21, impossible: true });
+        expect(examPlan(cards, 0, options)).toMatchObject({ total: 21, unallocated: 21, impossible: true });
+    });
+    it('buckets normal due dates in the student time zone across DST', () => {
+        const now = new Date('2026-10-31T23:30:00Z');
+        const card = { ...createNewCard(now), due: new Date('2026-11-01T01:30:00Z') };
+        const result = examPlan([{ id: 'a', card }], 3, { now, examAt: new Date('2026-11-03T12:00:00Z'), timeZone: 'America/New_York' });
+        expect(result.days[0]).toMatchObject({ date: '2026-10-31', normal: 1 });
     });
 });

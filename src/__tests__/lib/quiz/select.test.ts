@@ -169,3 +169,11 @@ describe('search filter', () => {
         expect(values).toContain('%100\\%\\_graphs%');
     });
 });
+
+
+it('prioritises exam cards inside the ordinary candidate buckets', () => {
+    const dueCards = cards('due', 4);
+    const result = selectCards({ dueCards, newCards: [], retentionCards: [] }, 2, new Set(['due-3']));
+    expect(sessionCardIds(result, 2)).toEqual(['due-3', 'due-0']);
+    expect(new Set(sessionCardIds(result, 2)).size).toBe(2);
+});
