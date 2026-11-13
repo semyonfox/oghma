@@ -21,6 +21,16 @@ from marker.output import text_from_rendered
 from marker.settings import settings
 
 
+IMAGE_SELECTION_POLICIES = {"semantic", "course", "all"}
+
+
+def image_selection_policy() -> str:
+    # course keeps small uncaptioned lecture visuals (oghma#478). it needs a
+    # Marker++ build that has the policy, so it stays opt-in per environment
+    policy = os.getenv("MARKER_IMAGE_SELECTION_POLICY", "semantic").strip().lower()
+    return policy if policy in IMAGE_SELECTION_POLICIES else "semantic"
+
+
 def positive_int_env(name: str, fallback: int) -> int:
     try:
         value = int(os.getenv(name, ""))
@@ -107,7 +117,7 @@ def convert_file(
         "mode": mode,
         "use_llm": use_llm,
         "describe_extracted_images": use_llm,
-        "image_selection_policy": "semantic",
+        "image_selection_policy": image_selection_policy(),
         "discard_unselected_images": True,
         "image_description_policy": "semantic" if use_llm else "off",
         "image_description_output": "alt",

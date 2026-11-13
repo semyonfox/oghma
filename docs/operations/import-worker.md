@@ -272,6 +272,39 @@ SELECT status, COUNT(*)
 - Run a small vault export and verify that its completion/download flow works.
 - Avoid large real-user imports as a routine deployment probe.
 
+## Production Import QA
+
+Use this to prove a real Canvas PDF goes all the way from Canvas to a cited
+answer. It needs `CANVAS_CONTENT_IMPORT=on` in the target environment (see the
+[content policy](../../src/lib/canvas/content-policy.ts)). As of Jenkins
+`oghma-prod` #180 and `oghma-dev` #455 on 2026-11-13, that flag is on for the
+app and the worker in both environments. Run every check read-only, apart
+from the import itself.
+
+1. In the app, connect Canvas and import one course with at least one digital
+   PDF. Note the filename.
+2. In `app.canvas_imports`, find the row by filename for that user. It should
+   move through `queued`, extraction and indexing to `complete`. On `error`,
+   keep `error_message`, `execution_attempts` and `updated_at` for the
+   follow-up issue.
+3. In `app.chunks`, count the rows whose `document_id` is the row's `note_id`.
+   Zero chunks on a `complete` row means extraction produced no text.
+4. In Qdrant, confirm the environment's collection (`QDRANT_COLLECTION`) is
+   `green` and holds points for those chunk ids.
+5. Search the app for a phrase from the PDF. It should return the note.
+6. Ask chat a question only that PDF answers. The answer should cite the note.
+
+If a step stalls, name the stage that stalled in the follow-up issue: Canvas
+permission, storage, queue, OCR, embedding, Qdrant, search or chat.
+
+Evidence on 2026-11-13 (prod, read-only): 1,801 `complete` Canvas import rows,
+1,654 of them PDFs. 1,326 of those PDF notes have chunks (22,492 chunks). The
+`oghma_prod_chunks` collection is `green` with 67,016 points against 48,238
+chunk rows. The extra points are orphans from deleted notes. Retrieval joins
+back to `app.chunks`, so they cost space but never surface. The error rows are
+mostly Vast timeouts (13), Canvas 404s on removed courses, and statement
+timeouts (7).
+
 ## Tuning
 
 Change one limiter at a time. Observe worker memory, Redis/BullMQ health,
