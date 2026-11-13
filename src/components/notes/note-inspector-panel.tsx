@@ -22,6 +22,8 @@ import useSaveIndicatorStore, { saveIndicatorKey } from "@/lib/notes/state/save-
 import { toast } from "sonner";
 import NoteStudyLabels from "@/components/study-map/note-study-labels";
 
+import ManualNoteCards from "./manual-note-cards";
+
 const ChatInterface = dynamic(
   () => import("@/components/chat/chat-interface"),
   { ssr: false }
@@ -396,6 +398,8 @@ export default function NoteInspectorPanel({
                     </dd>
                   </div>
                 </dl>
+
+                <ManualNoteCards key={activeFile.fileId} noteId={activeFile.fileId} />
 
                 {/* Tags section */}
                 <div>

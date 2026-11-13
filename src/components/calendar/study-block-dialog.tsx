@@ -12,6 +12,7 @@ import useCalendarStore from "@/lib/notes/state/calendar";
 import { formatDateKey, parseDateKey } from "@/lib/notes/utils/calendar-date";
 import useSwipeDismiss from "@/components/navigation/use-swipe-dismiss";
 import useI18n from "@/lib/notes/hooks/use-i18n";
+import type { Assignment } from "@/lib/notes/state/assignments";
 
 interface StudyBlockDialogProps {
   open: boolean;
@@ -19,6 +20,7 @@ interface StudyBlockDialogProps {
   initialDate: string;
   initialStart?: string;
   initialEnd?: string;
+  assignment?: Assignment;
 }
 
 function defaultTimeRange(dateKey: string) {
@@ -52,6 +54,7 @@ export default function StudyBlockDialog({
   initialDate,
   initialStart,
   initialEnd,
+  assignment,
 }: StudyBlockDialogProps) {
   const swipe = useSwipeDismiss({ open, onClose });
   const { t } = useI18n();
@@ -72,12 +75,12 @@ export default function StudyBlockDialog({
   useEffect(() => {
     if (!open) return;
     const defaults = defaultTimeRange(initialDate);
-    setTitle("");
+    setTitle(assignment?.title ?? "");
     setDate(initialDate);
     setStart(initialStart ?? defaults.start);
     setEnd(initialEnd ?? defaults.end);
     setError(null);
-  }, [initialDate, initialEnd, initialStart, open]);
+  }, [initialDate, initialEnd, initialStart, open, assignment]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -102,7 +105,8 @@ export default function StudyBlockDialog({
     setError(null);
     const run = async () => {
       const created = await createTimeBlock({
-        title: title.trim() || undefined,
+        assignment_id: assignment?.id,
+        title: assignment?.title ?? (title.trim() || undefined),
         starts_at: startsAt.toISOString(),
         ends_at: endsAt.toISOString(),
       });
@@ -155,6 +159,7 @@ export default function StudyBlockDialog({
               <input
                 id={titleId}
                 value={title}
+                readOnly={!!assignment}
                 onChange={(event) => setTitle(event.target.value)}
                 className={inputClassName}
                 placeholder={t("Study block")}

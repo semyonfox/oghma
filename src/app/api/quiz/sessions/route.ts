@@ -8,6 +8,7 @@ import {
 import { generateUUID } from "@/lib/utils/uuid";
 import {
   resolveChunkIds,
+  resolveNoteIds,
   getSessionCandidates,
   selectCards,
   sessionCardIds,
@@ -79,14 +80,15 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const userId = user.user_id;
 
   const chunkIds = await resolveChunkIds(userId, filter);
-  if (chunkIds.length === 0) {
+  const noteIds = await resolveNoteIds(userId, filter, chunkIds);
+  if (chunkIds.length === 0 && noteIds.length === 0) {
     return tracedError(
       "No content found for this filter. Import some notes first.",
       404,
     );
   }
 
-  const candidates = await getSessionCandidates(userId, chunkIds);
+  const candidates = await getSessionCandidates(userId, chunkIds, new Date(), noteIds);
   const { uncoveredChunkIds } = candidates;
 
   const maxQuestions = filter.maxQuestions || SESSION_DEFAULTS.maxQuestions;

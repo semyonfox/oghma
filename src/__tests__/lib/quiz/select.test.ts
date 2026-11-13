@@ -98,6 +98,34 @@ describe('card selection', () => {
 });
 
 describe('session candidates', () => {
+    it('includes manual and replaced-chunk cards through their live note', async () => {
+        vi.mocked(sql).mockReset();
+        vi.mocked(sql)
+            .mockResolvedValueOnce([
+                { id: 'manual', state: 'new', due: new Date(), last_review: null, chunk_id: null },
+                { id: 'old', state: 'new', due: new Date(), last_review: null, chunk_id: 'replaced' },
+            ] as never)
+            .mockResolvedValueOnce([{ id: 'replacement' }] as never);
+        const result = await getSessionCandidates('user', ['replacement'], new Date(), ['note']);
+        expect(result.newCards.map(({ id }) => id)).toEqual(['manual', 'old']);
+        expect(result.uncoveredChunkIds).toEqual(['replacement']);
+        const text = vi.mocked(sql).mock.calls[0][0].join('');
+        expect(text).toContain('n.note_id = qq.note_id');
+        expect(text).not.toContain('JOIN app.chunks');
+        expect(text).toContain('n.deleted_at IS NULL');
+        expect(text).toContain('ucs.is_active');
+    });
+
+    it('serves manual cards before any chunks exist', async () => {
+        vi.mocked(sql).mockReset();
+        vi.mocked(sql)
+            .mockResolvedValueOnce([{ id: 'manual', state: 'new', due: new Date(), last_review: null, chunk_id: null }] as never)
+            .mockResolvedValueOnce([] as never);
+        const result = await getSessionCandidates('user', [], new Date(), ['note']);
+        expect(result.newCards).toHaveLength(1);
+        expect(result.uncoveredChunkIds).toEqual([]);
+    });
+
     it('buckets cards by FSRS state and reports chunks without a card', async () => {
         const now = new Date('2026-10-06T12:00:00.000Z');
         const hoursAgo = (h: number) => new Date(now.getTime() - h * 3_600_000).toISOString();
@@ -114,7 +142,7 @@ describe('session candidates', () => {
             ] as never)
             .mockResolvedValueOnce([{ id: 'chunk-new' }, { id: 'chunk-uncovered' }] as never);
 
-        const result = await getSessionCandidates('user-1', ['chunk-new', 'chunk-uncovered'], now);
+        const result = await getSessionCandidates('user-1', ['chunk-new', 'chunk-uncovered'], now, ['note']);
 
         expect(result.newCards.map(({ id }) => id)).toEqual(['new']);
         expect(result.dueCards.map(({ id }) => id)).toEqual(['due']);

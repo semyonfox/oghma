@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useEffectEvent, useRef, useState } from "react";
+import useI18n from "@/lib/notes/hooks/use-i18n";
+import { ManualCardDialog } from "@/components/notes/manual-note-cards";
 import { createPortal } from "react-dom";
 import { Crepe, CrepeFeature } from "@milkdown/crepe";
 import { editorViewCtx, parserCtx } from "@milkdown/kit/core";
@@ -407,6 +409,18 @@ export default function MilkdownWriteEditor({
   currentNoteId,
   onOpenNote,
 }: MilkdownWriteEditorProps) {
+  const { t } = useI18n();
+  const [cardDraft, setCardDraft] = useState<{ noteId: string; quote: string } | null>(null);
+  const makeCard = () => {
+    if (!currentNoteId || !crepeRef.current) return;
+    const quote = crepeRef.current.editor.action((ctx) => {
+      const { doc, selection } = ctx.get(editorViewCtx).state;
+      return doc.textBetween(selection.from, selection.to, "\n").trim();
+    });
+    if (!quote) { toast.info(t("cards.select")); return; }
+    if (quote.length > 5000) { toast.error(t("cards.too_long")); return; }
+    setCardDraft({ noteId: currentNoteId, quote });
+  };
   const rootRef = useRef<HTMLDivElement>(null);
   const pickerListRef = useRef<HTMLDivElement>(null);
   const crepeRef = useRef<Crepe | null>(null);
@@ -433,6 +447,7 @@ export default function MilkdownWriteEditor({
     setSelectedOption(0);
     setPickerOpen(true);
   });
+  const openSelectedCard = useEffectEvent(() => makeCard());
   const emitMarkdown = useEffectEvent((markdown: string) => {
     onChange(markdown, false);
   });
@@ -440,6 +455,7 @@ export default function MilkdownWriteEditor({
   const readMountOptions = useEffectEvent(() => ({
     defaultValue: splitFrontmatter(value).body,
     placeholderText: placeholder,
+    makeCardLabel: t("cards.shortcut"),
   }));
 
   const pickerSearch = pickerQuery.trim().toLocaleLowerCase();
@@ -518,7 +534,7 @@ export default function MilkdownWriteEditor({
       });
     };
 
-    const { defaultValue, placeholderText } = readMountOptions();
+    const { defaultValue, placeholderText, makeCardLabel } = readMountOptions();
     const crepe = new Crepe({
       root,
       defaultValue,
@@ -527,6 +543,16 @@ export default function MilkdownWriteEditor({
         [CrepeFeature.TopBar]: true,
       },
       featureConfigs: {
+        [CrepeFeature.Toolbar]: {
+          buildToolbar: (builder) => {
+            builder.addGroup("cards", makeCardLabel).addItem("make-card", {
+              icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 12h8M12 8v8"/></svg>',
+              label: makeCardLabel,
+              active: () => false,
+              onRun: () => openSelectedCard(),
+            });
+          },
+        },
         [CrepeFeature.Placeholder]: { text: placeholderText },
         [CrepeFeature.TopBar]: {
           buildTopBar: (builder) => {
@@ -712,6 +738,12 @@ export default function MilkdownWriteEditor({
       className="oghma-milkdown-editor mobile-dock-clearance relative h-full min-h-0 overflow-auto bg-app-page"
       onBlurCapture={publishCurrentMarkdown}
       onKeyDownCapture={(event) => {
+        if (event.target instanceof Element && rootRef.current?.contains(event.target) && (event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "k" && !cardDraft) {
+          event.preventDefault();
+          event.stopPropagation();
+          makeCard();
+          return;
+        }
         if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
           event.preventDefault();
           publishCurrentMarkdown();
@@ -771,6 +803,7 @@ export default function MilkdownWriteEditor({
         preview.scheduleClose();
       }}
     >
+      {cardDraft && <ManualCardDialog noteId={cardDraft.noteId} sourceQuote={cardDraft.quote} onClose={() => setCardDraft(null)} />}
       <div ref={rootRef} className="mx-auto min-h-full" />
       {mermaidPortals.map(({ id, host, source }) =>
         createPortal(

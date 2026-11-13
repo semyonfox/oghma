@@ -21,7 +21,10 @@ import {
   WEEK_START_HOUR,
   weekGridBlockPosition,
   weekGridOffset,
+  weekGridSlot,
 } from "@/components/calendar/week-view-utils";
+
+import useAssignmentDrop from "./use-assignment-drop";
 
 const MIN_HOUR_HEIGHT = 56;
 const HOURS = Array.from(
@@ -70,6 +73,7 @@ interface WeekViewProps {
 
 export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
   const { activeLocale, t } = useI18n();
+  const assignmentDrop = useAssignmentDrop();
   const {
     currentDate,
     timeBlocks,
@@ -219,24 +223,8 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
   ) => {
     const rect = gridRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const y = e.clientY - rect.top;
-    const hour = Math.floor(y / hourHeight) + WEEK_START_HOUR;
-    const snappedMinute =
-      Math.round((y % hourHeight) / (hourHeight / 2)) * 30;
-
     const date = weekDays[colIdx].date;
-    const startHour = hour + (snappedMinute >= 60 ? 1 : 0);
-    const startMin = snappedMinute % 60;
-
-    const startDate = new Date(
-      Number.parseInt(date.slice(0, 4), 10),
-      Number.parseInt(date.slice(5, 7), 10) - 1,
-      Number.parseInt(date.slice(8, 10), 10),
-      startHour,
-      startMin,
-      0,
-      0,
-    );
+    const startDate = weekGridSlot(date, e.clientY - rect.top, hourHeight);
     setSelectedDate(date);
     const formatTime = (value: Date) =>
       `${String(value.getHours()).padStart(2, "0")}:${String(value.getMinutes()).padStart(2, "0")}`;
@@ -303,7 +291,13 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
           {weekDays.map((day, colIdx) => (
             <div
               key={day.date}
-              className="relative cursor-pointer border-r border-border-subtle"
+              className={`relative cursor-pointer border-r border-border-subtle ${assignmentDrop.dropDate === day.date ? "bg-accent-soft ring-2 ring-inset ring-accent" : ""}`}
+              onDragOver={(event) => assignmentDrop.dragOver(event, day.date)}
+              onDragLeave={assignmentDrop.dragLeave}
+              onDrop={(event) => {
+                const rect = gridRef.current?.getBoundingClientRect();
+                if (rect) void assignmentDrop.drop(event, weekGridSlot(day.date, event.clientY - rect.top, hourHeight));
+              }}
               onClick={(event) => handleGridClick(colIdx, event)}
             >
               {HOURS.map((hour) => (
@@ -343,6 +337,7 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
                       <span
                         aria-hidden="true"
                         className={`h-1.5 w-1.5 shrink-0 rounded-full ${block.completed ? "bg-success-500" : "bg-accent"}`}
+                        style={block.courseColor && !block.completed ? { backgroundColor: block.courseColor } : undefined}
                       />
                       <button
                         type="button"

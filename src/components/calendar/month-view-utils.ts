@@ -139,3 +139,21 @@ export function buildMonthCells({
 
   return cells;
 }
+
+export function nextFreeStudyHour(
+  dateKey: string,
+  blocks: readonly { starts_at: string; ends_at: string }[],
+): Date {
+  const start = new Date(`${dateKey}T09:00:00`);
+  for (let hour = 9; hour < 24; hour++) {
+    start.setHours(hour);
+    const end = start.getTime() + 60 * 60_000;
+    if (!blocks.some((block) =>
+      new Date(block.starts_at).getTime() < end &&
+      new Date(block.ends_at).getTime() > start.getTime(),
+    )) return start;
+  }
+  // keep a fully booked day schedulable, with the usual overlap warning
+  start.setHours(9);
+  return start;
+}

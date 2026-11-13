@@ -267,3 +267,9 @@ export function validateBody<T>(
   }
   return { success: true, data: result.data };
 }
+
+export const manualQuizCardSchema = z.object({
+  front: z.string().trim().min(1).max(5000),
+  back: z.string().trim().min(1).max(5000),
+  sourceQuote: z.string().max(10000).optional(),
+});

@@ -39,6 +39,7 @@ const MAX_RESPONSE_TIME_MS = 24 * 60 * 60 * 1000;
 const answerSchema = z.object({
   cardId: z.string().uuid(),
   userAnswer: z.string().max(5000).default(""),
+  rating: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]).optional(),
   responseTimeMs: z.number().finite().nullish(),
   timeZone: z.string().max(64).optional(),
 });
@@ -97,6 +98,7 @@ async function recordAnswer(
   cardId: string,
   userAnswer: string,
   responseTimeMs: number | null,
+  clientRating?: 1 | 2 | 3 | 4,
 ): Promise<AnswerOutcome> {
   const [session] = await tx<SessionRow[]>`
     SELECT card_ids, total_questions, correct_count
@@ -141,22 +143,34 @@ async function recordAnswer(
            qc.last_review, qq.id AS question_id, qq.question_type, qq.options,
            qq.correct_answer
     FROM app.quiz_cards qc
-    JOIN app.quiz_questions qq ON qc.question_id = qq.id
-    WHERE qc.id = ${cardId}::uuid AND qc.user_id = ${userId}::uuid
+    JOIN app.quiz_questions qq ON qc.question_id = qq.id AND qq.user_id = qc.user_id
+    JOIN app.notes n ON n.note_id = qq.note_id AND n.user_id = qc.user_id
+    LEFT JOIN app.user_course_settings ucs
+      ON ucs.user_id = qc.user_id AND ucs.canvas_course_id = n.canvas_course_id
+    WHERE n.deleted_at IS NULL AND COALESCE(ucs.is_active, true)
+      AND qc.id = ${cardId}::uuid AND qc.user_id = ${userId}::uuid
     FOR UPDATE OF qc
   `;
   if (!card) return { ok: false, message: "Card not found", status: 404 };
 
-  // grade against the same normalised question the client was shown
-  const wasCorrect = gradeAnswer(
-    {
-      question_type: card.question_type,
-      options: normalizeQuizOptions(card.options),
-      correct_answer: stripQuizArtifacts(String(card.correct_answer ?? "")),
-    },
-    userAnswer,
-  );
-  const rating = ratingForAnswer(wasCorrect, responseTimeMs);
+  if (card.question_type === "basic" && clientRating === undefined) {
+    return { ok: false, message: "A rating is required for basic cards", status: 400 };
+  }
+  const wasCorrect =
+    card.question_type === "basic" && clientRating !== undefined
+      ? clientRating > 1
+      : gradeAnswer(
+          {
+            question_type: card.question_type,
+            options: normalizeQuizOptions(card.options),
+            correct_answer: stripQuizArtifacts(String(card.correct_answer ?? "")),
+          },
+          userAnswer,
+        );
+  const rating =
+    card.question_type === "basic" && clientRating !== undefined
+      ? clientRating
+      : ratingForAnswer(wasCorrect, responseTimeMs);
   const next = cardToDB(reviewCard(cardFromDB(card), rating).card);
 
   await tx`
@@ -257,6 +271,7 @@ export const POST = withErrorHandler(
         cardId,
         userAnswer,
         responseTime(parsed.data.responseTimeMs),
+        parsed.data.rating,
       ),
     );
     if (!outcome.ok) return tracedError(outcome.message, outcome.status);

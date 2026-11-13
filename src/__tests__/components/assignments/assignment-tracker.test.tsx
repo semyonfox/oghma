@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import useCalendarStore from "@/lib/notes/state/calendar";
 import AssignmentTracker from "@/components/assignments/assignment-tracker";
 import type { Assignment, AssignmentTab } from "@/lib/notes/state/assignments";
 
@@ -71,6 +72,25 @@ afterEach(() => {
 });
 
 describe("assignment tracker", () => {
+  it.each(["compact", "full"] as const)("schedules a linked assignment from the %s tracker", async (surface) => {
+    const createTimeBlock = vi.fn().mockResolvedValue({ id: "block-1" });
+    useCalendarStore.setState({ createTimeBlock, timeBlocks: [] });
+    render(<AssignmentTracker surface={surface} />);
+    fireEvent.click(screen.getByRole("button", { name: "Schedule {title}" }));
+    const dialog = await screen.findByRole("dialog", { name: "Add study block" });
+    expect(within(dialog).getByLabelText("Title").getAttribute("readonly")).not.toBeNull();
+    fireEvent.change(within(dialog).getByLabelText("Date"), { target: { value: "2026-12-01" } });
+    fireEvent.change(within(dialog).getByLabelText("Start"), { target: { value: "09:00" } });
+    fireEvent.change(within(dialog).getByLabelText("End"), { target: { value: "10:00" } });
+    fireEvent.submit(dialog.querySelector("form")!);
+    await waitFor(() => expect(createTimeBlock).toHaveBeenCalledWith({
+      assignment_id: assignment.id,
+      title: assignment.title,
+      starts_at: new Date(2026, 11, 1, 9).toISOString(),
+      ends_at: new Date(2026, 11, 1, 10).toISOString(),
+    }));
+  });
+
   it("keeps very old due dates and hour estimates readable", () => {
     render(<AssignmentTracker surface="compact" />);
 

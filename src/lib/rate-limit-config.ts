@@ -19,6 +19,7 @@ export interface RateLimitRule {
 }
 
 export const RATE_LIMITS = {
+  'quiz-card-write': { limit: 60, windowSeconds: 60, keyType: 'userId' },
   // allows the initial start and five client retries per minute
   'quiz-session': { limit: 30, windowSeconds: 60, keyType: 'userId' },
   'study-map-jobs': { limit: 10, windowSeconds: 60, keyType: 'userId' },

@@ -35,6 +35,9 @@ export const GET = withErrorHandler(async (
              ELSE status
            END AS status,
            submitted_at, score::float8 AS score, points_possible::float8 AS points_possible,
+           graded_at, grade,
+           (SELECT jsonb_build_object('comments', f.comments, 'rubric', f.rubric)
+            FROM app.assignment_feedback f WHERE f.assignment_id = app.assignments.id AND f.user_id = ${user.user_id}::uuid) AS feedback,
            created_at, updated_at
     FROM app.assignments
     WHERE id = ${id}::uuid AND user_id = ${user.user_id}::uuid
@@ -81,6 +84,7 @@ export const PATCH = withErrorHandler(async (
              ELSE status
            END AS status,
            submitted_at, score::float8 AS score, points_possible::float8 AS points_possible,
+           graded_at, grade,
            created_at, updated_at
     FROM updated
   `;
