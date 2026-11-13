@@ -9,11 +9,11 @@ Unchecked items are not assumed complete. Record evidence or a link when closing
 ## 1. Hard Beta Blockers
 
 - [ ] Verify a real production Canvas PDF reaches extraction, indexing, Qdrant, and relevant search/chat retrieval.
-  2026-11-13: prod data shows 1,326 Canvas PDF notes indexed with chunks and a green Qdrant collection. The search and cited-chat steps of the [production import QA](../operations/import-worker.md#production-import-qa) are still to run by hand (#304).
+  2026-11-13: prod data shows 1,326 Canvas PDF notes indexed with chunks and a green Qdrant collection. Jenkins `oghma-prod` #180 and `oghma-dev` #455 set `CANVAS_CONTENT_IMPORT=on` on the app and the worker, and both `/api/health` endpoints returned 200 afterwards. The search and cited-chat steps of the [production import QA](../operations/import-worker.md#production-import-qa) are still to run by hand (#304).
 - [ ] Configure and test production verification, password-reset, welcome, and import-complete email delivery.
   2026-11-13: prod sends through Resend. Both password accounts created since the 2026-09-25 email fix have verified their address, so verification mail arrives. A reset request to a real inbox is still untested (#305).
 - [ ] Rotate development and default auth/encryption secrets in both live environments.
-  2026-11-13: no default values in either environment, but dev and prod shared `JWT_SECRET`, `NEXTAUTH_SECRET` and `SERVER_ENCRYPTION_SECRET`. Dev now has its own (dev Canvas tokens re-encrypted). Provider keys and the R2 bucket are still shared between dev and prod (#306).
+  2026-11-13: no default values in either environment. Dev and prod had shared `JWT_SECRET`, `NEXTAUTH_SECRET` and `SERVER_ENCRYPTION_SECRET`. Jenkins `oghma-dev` #455 is running dev's own copies, and both stored dev Canvas tokens decrypt with the new key. Prod was left on the previous values. On prod those two auth secrets are the same string, and NextAuth falls back to `JWT_SECRET` (`src/auth.config.ts`). Provider keys and the R2 bucket are still shared between dev and prod (#306).
 - [ ] Review `/privacy`, `/terms`, and `/cookies` against the actual providers, analytics, retention, and chat behavior.
 - [ ] Back up PostgreSQL and object storage offsite; complete a restore rehearsal.
   2026-11-13: nightly Postgres, Qdrant and RustFS exports go offsite to B2, with a 48-hour freshness alarm. Prod files live in R2, which the backup does not copy. No restore rehearsal yet.

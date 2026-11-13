@@ -276,8 +276,10 @@ SELECT status, COUNT(*)
 
 Use this to prove a real Canvas PDF goes all the way from Canvas to a cited
 answer. It needs `CANVAS_CONTENT_IMPORT=on` in the target environment (see the
-[content policy](../../src/lib/canvas/content-policy.ts)). Run every check
-read-only, apart from the import itself.
+[content policy](../../src/lib/canvas/content-policy.ts)). As of Jenkins
+`oghma-prod` #180 and `oghma-dev` #455 on 2026-11-13, that flag is on for the
+app and the worker in both environments. Run every check read-only, apart
+from the import itself.
 
 1. In the app, connect Canvas and import one course with at least one digital
    PDF. Note the filename.
