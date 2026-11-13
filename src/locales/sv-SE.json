@@ -1,4 +1,12 @@
 {
+  "sections.title": "Avsnitt",
+  "sections.part": "Avsnitt",
+  "sections.summarise": "Sammanfatta",
+  "sections.cards": "Skapa kort",
+  "sections.generating": "Skapar…",
+  "sections.open_summary": "Öppna sammanfattning",
+  "sections.saved_cards": "Korten har sparats i ditt quizbibliotek",
+  "sections.error": "Kunde inte läsa in avsnitt eller skapa studiematerial. Försök igen.",
   "cards.make": "Skapa kort",
   "cards.edit": "Redigera kort",
   "cards.front": "Framsida",

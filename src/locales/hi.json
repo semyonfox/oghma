@@ -1,4 +1,12 @@
 {
+  "sections.title": "अनुभाग",
+  "sections.part": "अनुभाग",
+  "sections.summarise": "सारांश बनाएँ",
+  "sections.cards": "कार्ड बनाएँ",
+  "sections.generating": "बनाया जा रहा है…",
+  "sections.open_summary": "सारांश खोलें",
+  "sections.saved_cards": "कार्ड आपकी प्रश्नोत्तरी लाइब्रेरी में सहेजे गए",
+  "sections.error": "अनुभाग लोड नहीं हो सके या अध्ययन सामग्री नहीं बन सकी। फिर से प्रयास करें।",
   "cards.make": "कार्ड बनाएँ",
   "cards.edit": "कार्ड संपादित करें",
   "cards.front": "सामने",

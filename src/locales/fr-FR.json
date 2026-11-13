@@ -1,4 +1,12 @@
 {
+  "sections.title": "Sections",
+  "sections.part": "Section",
+  "sections.summarise": "Résumer",
+  "sections.cards": "Créer des cartes",
+  "sections.generating": "Création en cours…",
+  "sections.open_summary": "Ouvrir le résumé",
+  "sections.saved_cards": "Cartes enregistrées dans votre bibliothèque de quiz",
+  "sections.error": "Impossible de charger les sections ou de créer le contenu de révision. Réessayez.",
   "cards.make": "Créer une carte",
   "cards.edit": "Modifier la carte",
   "cards.front": "Recto",

@@ -1,4 +1,12 @@
 {
+  "sections.title": "Sections",
+  "sections.part": "Section",
+  "sections.summarise": "Summarise",
+  "sections.cards": "Generate cards",
+  "sections.generating": "Generating…",
+  "sections.open_summary": "Open summary",
+  "sections.saved_cards": "Cards saved to your quiz library",
+  "sections.error": "Could not load sections or generate study material. Try again.",
   "cards.make": "Make card",
   "cards.edit": "Edit card",
   "cards.front": "Front",

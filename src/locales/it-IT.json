@@ -1,4 +1,12 @@
 {
+  "sections.title": "Sezioni",
+  "sections.part": "Sezione",
+  "sections.summarise": "Riassumi",
+  "sections.cards": "Genera schede",
+  "sections.generating": "Generazione…",
+  "sections.open_summary": "Apri riassunto",
+  "sections.saved_cards": "Schede salvate nella tua raccolta di quiz",
+  "sections.error": "Impossibile caricare le sezioni o generare materiale di studio. Riprova.",
   "cards.make": "Crea scheda",
   "cards.edit": "Modifica scheda",
   "cards.front": "Fronte",

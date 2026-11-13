@@ -1,4 +1,12 @@
 {
+  "sections.title": "Secties",
+  "sections.part": "Sectie",
+  "sections.summarise": "Samenvatten",
+  "sections.cards": "Kaarten maken",
+  "sections.generating": "Bezig met maken…",
+  "sections.open_summary": "Samenvatting openen",
+  "sections.saved_cards": "Kaarten opgeslagen in je quizbibliotheek",
+  "sections.error": "Kan secties niet laden of studiemateriaal maken. Probeer het opnieuw.",
   "cards.make": "Kaart maken",
   "cards.edit": "Kaart bewerken",
   "cards.front": "Voorkant",

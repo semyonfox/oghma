@@ -473,3 +473,14 @@ export async function generateQuestion(
     return null;
   }
 }
+
+// section cards share the normal quiz prompt, provider and response validation,
+// but have no chunk row and must be persisted with their section provenance
+export async function generateSectionQuestion(text: string, title: string, level: BloomLevel) {
+  const reply = await callLLM(
+    `${buildGenerationPrompt(stripQuizArtifacts(text), title, level, "fill_in")}\nUse British English.`,
+    "section",
+  );
+  if (reply.truncated || isSkipSignal(reply.text)) return null;
+  return parseGeneratedQuestion(reply.text, "fill_in");
+}

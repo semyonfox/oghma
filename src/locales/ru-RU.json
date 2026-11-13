@@ -1,4 +1,12 @@
 {
+  "sections.title": "Разделы",
+  "sections.part": "Раздел",
+  "sections.summarise": "Создать конспект",
+  "sections.cards": "Создать карточки",
+  "sections.generating": "Создание…",
+  "sections.open_summary": "Открыть конспект",
+  "sections.saved_cards": "Карточки сохранены в библиотеке тестов",
+  "sections.error": "Не удалось загрузить разделы или создать учебный материал. Повторите попытку.",
   "cards.make": "Создать карточку",
   "cards.edit": "Изменить карточку",
   "cards.front": "Лицевая сторона",
