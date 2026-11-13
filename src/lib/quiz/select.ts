@@ -92,6 +92,7 @@ export function allocateSlots(
 export function selectCards(
   candidates: Pick<SessionCandidates, "dueCards" | "newCards" | "retentionCards">,
   maxQuestions: number,
+  priorityIds: ReadonlySet<string> = new Set(),
 ): SelectionResult {
   const [dueCount, newCount, retentionCount] = allocateSlots(
     [
@@ -101,13 +102,14 @@ export function selectCards(
     ],
     maxQuestions,
   );
-  const byDue = (a: CandidateCard, b: CandidateCard) => time(a.due) - time(b.due);
+  const priority = (a: CandidateCard, b: CandidateCard) => Number(priorityIds.has(b.id)) - Number(priorityIds.has(a.id));
+  const byDue = (a: CandidateCard, b: CandidateCard) => priority(a, b) || time(a.due) - time(b.due);
 
   return {
     // most overdue first, and new cards in the order they were generated
     due: [...candidates.dueCards].sort(byDue).slice(0, dueCount),
     new: [...candidates.newCards].sort(byDue).slice(0, newCount),
-    retention: shuffled(candidates.retentionCards).slice(0, retentionCount),
+    retention: shuffled(candidates.retentionCards).sort(priority).slice(0, retentionCount),
   };
 }
 

@@ -34,6 +34,7 @@ vi.mock("@/lib/notes/state/calendar", () => ({
     ],
     fetchTimeBlocks: vi.fn(),
     reviewDates: new Set<string>(),
+    examLoad: {},
     fetchReviewDates: vi.fn(),
   }),
 }));

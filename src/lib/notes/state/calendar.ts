@@ -35,6 +35,7 @@ interface CalendarState {
   loading: boolean;
   error: string | null;
   reviewDates: Set<string>;
+  examLoad: Record<string, number>;
   reviewDatesLoading: boolean;
   reviewDatesError: string | null;
 
@@ -88,6 +89,7 @@ const useCalendarStore = create<CalendarState>()(
       loading: false,
       error: null,
       reviewDates: new Set<string>(),
+      examLoad: {},
       reviewDatesLoading: false,
       reviewDatesError: null,
 
@@ -147,6 +149,7 @@ const useCalendarStore = create<CalendarState>()(
           if (requestSequence !== reviewDateFetchSequence) return;
           set({
             reviewDates: new Set(data.dates),
+            examLoad: data.examLoad ?? {},
             reviewDatesLoading: false,
             reviewDatesError: null,
           });

@@ -31,6 +31,7 @@ export default function MonthView({ onSelectDate }: MonthViewProps) {
     toggleTimeBlockCompleted,
     timeBlocks,
     reviewDates,
+    examLoad,
   } = useCalendarStore();
   const { assignments, updateAssignment } = useAssignmentStore();
 
@@ -153,8 +154,14 @@ export default function MonthView({ onSelectDate }: MonthViewProps) {
                 </span>
               )}
 
+              {examLoad[day.date] > 0 && (
+                <span className="pointer-events-none relative z-10 mt-7 block rounded-radius-sm bg-accent-soft px-1.5 py-1 text-xs text-text-secondary">
+                  {t("exam.calendar_load", { count: examLoad[day.date] })}
+                </span>
+              )}
+
               {/* events */}
-              <div className="pointer-events-none relative z-10 mt-7 space-y-0.5">
+              <div className={`pointer-events-none relative z-10 space-y-0.5 ${examLoad[day.date] ? "mt-1" : "mt-7"}`}>
                 {day.assignments.slice(0, 2).map((a) => {
                   const assignment = assignments.find(item => item.id === a.id);
                   return (

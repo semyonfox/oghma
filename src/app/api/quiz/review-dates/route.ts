@@ -1,3 +1,4 @@
+import { loadExamPlans } from "@/lib/quiz/exams";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, withErrorHandler, tracedError } from "@/lib/api-error";
 import { resolveTimeZone } from "@/lib/quiz/time-zone";
@@ -48,7 +49,22 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     ORDER BY review_date
   `;
 
+  const exams = await loadExamPlans(user.user_id, timeZone);
+  const dailyCards = new Map<string, Set<string>>();
+  // overlapping exam scopes count a card once, on its earliest planned day
+  const planned = new Map<string, string>();
+  for (const exam of exams) for (const day of exam.plan.days) for (const id of day.cardIds) {
+    const previous = planned.get(id);
+    if (!previous || day.date < previous) planned.set(id, day.date);
+  }
+  for (const [id, date] of planned) {
+    if (date < start || date > end) continue;
+    const ids = dailyCards.get(date) ?? new Set<string>();
+    ids.add(id);
+    dailyCards.set(date, ids);
+  }
   return NextResponse.json({
+    examLoad: Object.fromEntries([...dailyCards].map(([date, ids]) => [date, ids.size])),
     dates: rows
       .map((r) => r.review_date)
       .filter((date) => date >= start && date <= end),
