@@ -608,3 +608,36 @@ describe("CanvasClient string-ID requests", () => {
     expect(fetchMock.mock.calls[0][1].headers).not.toHaveProperty("Authorization");
   });
 });
+
+describe("recent assignment feedback", () => {
+  it("reads paginated own submissions with a bounded grading window and optional rubric", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify([{ assignment_id: "7", submission_comments: [] }]), {
+        headers: { Link: '<https://example.instructure.com/api/v1/courses/42/students/submissions?page=2>; rel="next"' },
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([{ assignment_id: "8", rubric_assessment: { criterion: { points: 0, comments: "Try again" } } }])));
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await new CanvasClient("example.instructure.com", "token").getRecentAssignmentFeedback("42");
+    expect(result.data).toHaveLength(2);
+    const url = new URL(fetchMock.mock.calls[0][0]);
+    expect(Date.parse(url.searchParams.get("graded_since")!)).toBeGreaterThan(Date.now() - 61 * 86400000);
+    expect(url.searchParams.getAll("include[]")).toEqual(["submission_comments", "rubric_assessment", "assignment"]);
+    expect(url.searchParams.has("student_ids[]")).toBe(false);
+  });
+
+  it.each([401, 403])("returns permission failures without throwing: %s", async status => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status })));
+    const result = await new CanvasClient("example.instructure.com", "token").getRecentAssignmentFeedback("42");
+    expect(result.error).toBeTruthy();
+    expect(result.data).toEqual([]);
+  });
+
+  it("rejects malformed feedback at the Canvas boundary", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify([
+      { assignment_id: "7", submission_comments: [{ comment: { html: "invalid" } }] },
+    ]))));
+    const result = await new CanvasClient("example.instructure.com", "token").getRecentAssignmentFeedback("42");
+    expect(result.error).toBeTruthy();
+    expect(result.data).toEqual([]);
+  });
+});

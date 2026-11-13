@@ -11,6 +11,7 @@
  *   const { data, forbidden, error } = await client.getCourses();
  */
 
+import { canvasFeedbackSubmissionSchema, type CanvasFeedbackSubmission } from "./assignment-feedback";
 import { safeCanvasFetch } from "./safe-fetch";
 import { stripHtmlToText } from "./content-formatting";
 
@@ -68,6 +69,8 @@ interface CanvasSubmission extends CanvasRecord {
   workflow_state?: string;
   submitted_at?: string | null;
   score?: number | null;
+  graded_at?: string | null;
+  grade?: string | null;
   attachments?: CanvasFile[];
 }
 
@@ -178,6 +181,10 @@ function normalizeCanvasAssignmentFiles(
 function isCanvasSubmission(value: unknown): value is CanvasSubmission {
   return (
     isRecord(value) &&
+    (value.graded_at === undefined || value.graded_at === null ||
+      (typeof value.graded_at === "string" && Number.isFinite(Date.parse(value.graded_at)))) &&
+    (value.grade === undefined || value.grade === null || typeof value.grade === "string") &&
+    (value.score === undefined || value.score === null || typeof value.score === "number") &&
     (value.attachments === undefined ||
       (Array.isArray(value.attachments) && value.attachments.every(isCanvasFile)))
   );
@@ -566,6 +573,16 @@ export class CanvasClient {
       ...result,
       data: result.data.map(normalizeCanvasAssignmentFiles),
     };
+  }
+
+  async getRecentAssignmentFeedback(courseId: string) {
+    // omitting student_ids restricts this endpoint to the calling student
+
+    const since = new Date(Date.now() - 60 * 86400000).toISOString();
+    return this.#getPaginated(
+      `/courses/${encodeURIComponent(courseId)}/students/submissions?graded_since=${encodeURIComponent(since)}&include[]=submission_comments&include[]=rubric_assessment&include[]=assignment`,
+      (value: unknown): value is CanvasFeedbackSubmission => canvasFeedbackSubmissionSchema.safeParse(value).success,
+    );
   }
 
   /**
