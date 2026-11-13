@@ -1,3 +1,4 @@
+import { requireExam, examScopeNotes } from "@/lib/quiz/exams";
 import { NextRequest, NextResponse, after } from "next/server";
 import {
   parseJsonObject,
@@ -8,6 +9,7 @@ import {
 import { generateUUID } from "@/lib/utils/uuid";
 import {
   resolveChunkIds,
+  resolveNoteIds,
   getSessionCandidates,
   selectCards,
   sessionCardIds,
@@ -79,18 +81,30 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const userId = user.user_id;
 
   const chunkIds = await resolveChunkIds(userId, filter);
-  if (chunkIds.length === 0) {
+  const noteIds = await resolveNoteIds(userId, filter, chunkIds);
+  if (chunkIds.length === 0 && noteIds.length === 0) {
     return tracedError(
       "No content found for this filter. Import some notes first.",
       404,
     );
   }
 
-  const candidates = await getSessionCandidates(userId, chunkIds);
+  const candidates = await getSessionCandidates(userId, chunkIds, new Date(), noteIds);
   const { uncoveredChunkIds } = candidates;
 
+  const priorityIds = new Set<string>();
+  if (filter.exam) {
+    const exam = await requireExam(userId, filter.exam);
+    const scope = await examScopeNotes(userId, exam);
+    const rows = await sql<{ id: string }[]>`
+      SELECT qc.id FROM app.quiz_cards qc
+      JOIN app.quiz_questions qq ON qq.id = qc.question_id AND qq.user_id = qc.user_id
+      WHERE qc.user_id = ${userId}::uuid AND qq.note_id = ANY(${scope}::uuid[])
+    `;
+    rows.forEach((row) => priorityIds.add(row.id));
+  }
   const maxQuestions = filter.maxQuestions || SESSION_DEFAULTS.maxQuestions;
-  const cardIds = sessionCardIds(selectCards(candidates, maxQuestions), maxQuestions);
+  const cardIds = sessionCardIds(selectCards(candidates, maxQuestions, priorityIds), maxQuestions);
   const needed = Math.min(
     AI_GENERATION_BATCH_SIZE,
     Math.max(AI_GENERATION_TOP_UP, maxQuestions - cardIds.length),

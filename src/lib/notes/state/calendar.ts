@@ -9,6 +9,8 @@ import {
 import type { AssignmentType } from "@/lib/notes/utils/assignment-type";
 import { browserTimeZone } from "@/lib/quiz/time-zone";
 
+import useAssignmentStore from "./assignments";
+
 export type CalendarView = "month" | "week";
 
 export interface TimeBlock {
@@ -33,6 +35,7 @@ interface CalendarState {
   loading: boolean;
   error: string | null;
   reviewDates: Set<string>;
+  examLoad: Record<string, number>;
   reviewDatesLoading: boolean;
   reviewDatesError: string | null;
 
@@ -86,6 +89,7 @@ const useCalendarStore = create<CalendarState>()(
       loading: false,
       error: null,
       reviewDates: new Set<string>(),
+      examLoad: {},
       reviewDatesLoading: false,
       reviewDatesError: null,
 
@@ -145,6 +149,7 @@ const useCalendarStore = create<CalendarState>()(
           if (requestSequence !== reviewDateFetchSequence) return;
           set({
             reviewDates: new Set(data.dates),
+            examLoad: data.examLoad ?? {},
             reviewDatesLoading: false,
             reviewDatesError: null,
           });
@@ -167,8 +172,18 @@ const useCalendarStore = create<CalendarState>()(
           });
           if (!res.ok) return null;
           const created = await res.json();
-          set((state) => ({ timeBlocks: [...state.timeBlocks, created] }));
-          return created;
+          const assignment = useAssignmentStore.getState().assignments.find(
+            (item) => item.id === block.assignment_id,
+          );
+          const linked = assignment ? {
+            ...created,
+            assignment_title: assignment.title,
+            course_name: assignment.course_name ?? undefined,
+            course_color: assignment.course_color ?? undefined,
+            assignment_type: assignment.assignment_type,
+          } : created;
+          set((state) => ({ timeBlocks: [...state.timeBlocks, linked] }));
+          return linked;
         } catch {
           return null;
         }

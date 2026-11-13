@@ -10,6 +10,8 @@ const reactGlobals = globalThis as typeof globalThis & {
 };
 reactGlobals.IS_REACT_ACT_ENVIRONMENT = true;
 
+vi.mock("@/components/quiz/exam-strip", () => ({ default: () => null }));
+
 type CourseListProps = { courses: unknown[] };
 type CourseVisibilityProps = {
   onToggleCourse: (course: unknown, isActive: boolean) => Promise<void>;

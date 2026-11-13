@@ -83,6 +83,7 @@ runbook.
 | Recovery | Worker DB poll re-enqueues stale dispatch, completion, and failure continuations |
 | Operator view | `npm run marker:serverless:status` |
 | Emergency pause | `MARKER_SERVERLESS_DISPATCH_ENABLED=false` |
+| Image selection | `MARKER_IMAGE_SELECTION_POLICY` on the GPU backend: `semantic` (default), `course` or `all`. `course` keeps small uncaptioned lecture visuals and needs a Marker++ build with [marker-plus-plus#37](https://github.com/semyonfox/marker-plus-plus/pull/37). Measure it on visual-heavy PDFs before turning it on (#478) |
 
 The result object key is generated once and is immutable. Oghma makes at most
 one application-originated routed-worker request for a durable job. A lost or

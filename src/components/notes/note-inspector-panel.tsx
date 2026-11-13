@@ -22,6 +22,9 @@ import useSaveIndicatorStore, { saveIndicatorKey } from "@/lib/notes/state/save-
 import { toast } from "sonner";
 import NoteStudyLabels from "@/components/study-map/note-study-labels";
 
+import ManualNoteCards from "./manual-note-cards";
+import NoteSections from "./note-sections";
+
 const ChatInterface = dynamic(
   () => import("@/components/chat/chat-interface"),
   { ssr: false }
@@ -152,7 +155,7 @@ function ReferenceList({
           ))}
         </ul>
       ) : (
-        <p className="text-xs text-text-tertiary/70">{emptyLabel}</p>
+        <p className="text-xs text-text-tertiary">{emptyLabel}</p>
       )}
     </section>
   );
@@ -397,6 +400,10 @@ export default function NoteInspectorPanel({
                   </div>
                 </dl>
 
+                {note.id === activeFile.fileId && <NoteSections key={`${note.id}:${note.updatedAt}`} noteId={note.id} revision={note.updatedAt} />}
+
+                <ManualNoteCards key={activeFile.fileId} noteId={activeFile.fileId} />
+
                 {/* Tags section */}
                 <div>
                   <p className="text-xs text-text-tertiary mb-2">{t("Tags")}</p>
@@ -433,7 +440,7 @@ export default function NoteInspectorPanel({
                       disabled={!canEditTags}
                       placeholder={t("add tag")}
                       aria-label={t("add tag")}
-                      className={`flex-1 bg-transparent text-text placeholder:text-text-tertiary/60 focus:outline-none disabled:opacity-50 min-w-0 ${presentation === "drawer" ? "text-base" : "text-xs"}`}
+                      className={`flex-1 bg-transparent text-text placeholder:text-text-tertiary focus:outline-none disabled:opacity-50 min-w-0 ${presentation === "drawer" ? "text-base" : "text-xs"}`}
                     />
                     <button
                       type="button"

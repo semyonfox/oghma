@@ -104,12 +104,27 @@ describe("replaceNoteEmbeddings", () => {
     );
 
     expect(count).toBe(2);
-    expect(txMock).toHaveBeenCalledTimes(3);
+    expect(txMock).toHaveBeenCalledTimes(8);
     // the vector for each text must land on the id that text was stored under;
     // the ids are minted before the insert rather than read back from it
-    const [, ids, documentIds, userIds, texts] = txMock.mock.calls[2] as [
+    const insert = txMock.mock.calls.find(([strings]) =>
+      (strings as TemplateStringsArray).join(" ").includes("INSERT INTO app.chunks"),
+    );
+    const [, ids, documentIds, userIds, texts] = insert as [
       TemplateStringsArray, string[], string[], string[], string[],
     ];
+    const update = txMock.mock.calls.find(([strings]) =>
+      (strings as TemplateStringsArray).join(" ").includes("UPDATE app.quiz_questions"),
+    );
+    expect(update?.slice(1)).toEqual([["old-chunk"], ids, "user-1"]);
+    const dropped = txMock.mock.calls.find(([strings]) =>
+      (strings as TemplateStringsArray).join(" ").includes("DELETE FROM app.quiz_questions"),
+    );
+    expect(dropped?.slice(1)).toEqual(["user-1", ["old-chunk"]]);
+    const removed = txMock.mock.calls.find(([strings]) =>
+      (strings as TemplateStringsArray).join(" ").includes("DELETE FROM app.chunks"),
+    );
+    expect(removed?.slice(1)).toEqual(["user-1", ["old-chunk"]]);
     expect(documentIds).toEqual(["note-1", "note-1"]);
     expect(userIds).toEqual(["user-1", "user-1"]);
     expect(texts).toEqual(["alpha", "beta"]);
@@ -164,6 +179,10 @@ describe("replaceNoteEmbeddings", () => {
     expect(count).toBe(0);
     expect(embedChunks).not.toHaveBeenCalled();
     expect(deleteChunkVectors).toHaveBeenCalledWith(["old-chunk"]);
+    const dropped = txMock.mock.calls.find(([strings]) =>
+      (strings as TemplateStringsArray).join(" ").includes("DELETE FROM app.quiz_questions"),
+    );
+    expect(dropped?.slice(1)).toEqual(["user-1", ["old-chunk"]]);
   });
 
   it("does not insert chunks when Trash has locked and hidden the note", async () => {

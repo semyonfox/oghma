@@ -124,6 +124,7 @@ function QuestionView({
   const [lastAnswer, setLastAnswer] = useState<{
     answer: string;
     wasCorrect: boolean;
+    rating?: 1 | 2 | 3 | 4;
   } | null>(null);
   const [isLeech, setIsLeech] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -136,9 +137,9 @@ function QuestionView({
     startTimeRef.current = Date.now();
   }, []);
 
-  const handleAnswer = (answer: string, wasCorrect: boolean) => {
+  const handleAnswer = (answer: string, wasCorrect: boolean, rating?: 1 | 2 | 3 | 4) => {
     setAnswered(true);
-    setLastAnswer({ answer, wasCorrect });
+    setLastAnswer({ answer, wasCorrect, rating });
   };
 
   const handleContinue = async () => {
@@ -155,6 +156,7 @@ function QuestionView({
         body: JSON.stringify({
           cardId: question.card_id,
           userAnswer: lastAnswer.answer,
+          rating: lastAnswer.rating,
           responseTimeMs: Date.now() - startTime,
           timeZone: browserTimeZone(),
         }),
@@ -208,7 +210,11 @@ function QuestionView({
       )}
 
       <div className="flex-1 flex flex-col mt-6">
-        <QuestionCard question={question} onAnswer={handleAnswer} />
+        <QuestionCard
+          question={question}
+          questionId={question.id}
+          onAnswer={handleAnswer}
+        />
 
         {answered && lastAnswer && (
           <div className="mt-4 space-y-3">

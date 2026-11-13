@@ -87,6 +87,7 @@ export const quizSessionCreateSchema = z.discriminatedUnion("filterType", [
       filterType: z.literal("course"),
       filterValue: canvasBigintId,
       maxQuestions: quizMaxQuestions,
+      exam: z.uuid().optional(),
     })
     .strict(),
   z
@@ -94,6 +95,7 @@ export const quizSessionCreateSchema = z.discriminatedUnion("filterType", [
       filterType: z.literal("module"),
       filterValue: canvasBigintId,
       maxQuestions: quizMaxQuestions,
+      exam: z.uuid().optional(),
     })
     .strict(),
   z
@@ -101,6 +103,7 @@ export const quizSessionCreateSchema = z.discriminatedUnion("filterType", [
       filterType: z.literal("note"),
       filterValue: z.array(z.string().uuid()).min(1),
       maxQuestions: quizMaxQuestions,
+      exam: z.uuid().optional(),
     })
     .strict(),
   z
@@ -108,6 +111,7 @@ export const quizSessionCreateSchema = z.discriminatedUnion("filterType", [
       filterType: z.literal("search"),
       filterValue: z.string().trim().min(2).max(2000),
       maxQuestions: quizMaxQuestions,
+      exam: z.uuid().optional(),
     })
     .strict(),
   z
@@ -115,12 +119,14 @@ export const quizSessionCreateSchema = z.discriminatedUnion("filterType", [
       filterType: z.literal("chat_session"),
       filterValue: z.string().uuid(),
       maxQuestions: quizMaxQuestions,
+      exam: z.uuid().optional(),
     })
     .strict(),
   z
     .object({
       filterType: z.literal("all"),
       maxQuestions: quizMaxQuestions,
+      exam: z.uuid().optional(),
     })
     .strict(),
 ]);
@@ -267,3 +273,9 @@ export function validateBody<T>(
   }
   return { success: true, data: result.data };
 }
+
+export const manualQuizCardSchema = z.object({
+  front: z.string().trim().min(1).max(5000),
+  back: z.string().trim().min(1).max(5000),
+  sourceQuote: z.string().max(10000).optional(),
+});

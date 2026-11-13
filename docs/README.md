@@ -88,6 +88,7 @@ Dated evidence. Recheck volatile provider facts before acting.
 |---|---|---|
 | [Payment processor decision](decisions/2026-06-11-payment-processor.md) | Current decision | Accepted Stripe Managed Payments ADR and reopen conditions |
 | [Canvas import cost study](research/2026-06-14-canvas-import-costs.md) | History (dated research) | Aggregate workload and cost-model inputs |
+| [First-user usability sessions](research/2026-11-13-first-user-sessions.md) | Target | Session kit for the first real-student sessions (#402) |
 | [`SRS.tex`](SRS.tex) / [`SRS.pdf`](SRS.pdf) | History | University requirements artefact from the AWS-hosted phase. It still describes 1-hour presigned file URLs and ElastiCache rate limiting, neither of which is current |
 
 ## History

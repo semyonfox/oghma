@@ -7,6 +7,7 @@ import type { QuizSessionQuestion } from "@/lib/quiz/types";
 import { answersByTyping, gradeAnswer } from "@/lib/quiz/grade";
 import { CheckIcon, XMarkIcon } from "@heroicons/react/20/solid";
 import QuizMarkdown from "./quiz-markdown";
+import QuizAssist from "./quiz-assist";
 
 interface QuestionCardProps {
   question: Pick<
@@ -18,7 +19,9 @@ interface QuestionCardProps {
     | "correct_answer"
   >;
   moduleName?: string;
-  onAnswer: (answer: string, wasCorrect: boolean) => void;
+  // enables the hint button; omitted where there is no stored question
+  questionId?: string;
+  onAnswer: (answer: string, wasCorrect: boolean, rating?: 1 | 2 | 3 | 4) => void;
 }
 
 function QuizOptionText({ children }: { children: string }) {
@@ -28,13 +31,16 @@ function QuizOptionText({ children }: { children: string }) {
 export default function QuestionCard({
   question,
   moduleName,
+  questionId,
   onAnswer,
 }: QuestionCardProps) {
   const { t } = useI18n();
   const options = (Array.isArray(question.options) ? question.options : []);
   // a choice question whose options could not be read is answered by typing
-  const typed = answersByTyping(question);
-  const hasOptions = !typed;
+  const basic = question.question_type === "basic";
+  const [revealed, setRevealed] = useState(false);
+  const typed = !basic && answersByTyping(question);
+  const hasOptions = !basic && !typed;
   const [selected, setSelected] = useState<number | null>(null);
   const [fillInAnswer, setFillInAnswer] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -45,7 +51,7 @@ export default function QuestionCard({
   };
 
   const handleSubmit = () => {
-    if (submitted) return;
+    if (submitted || basic) return;
     const answer = typed
       ? fillInAnswer
       : selected !== null
@@ -113,6 +119,32 @@ export default function QuestionCard({
       <div className="font-serif text-[22px] font-bold leading-snug tracking-tight text-text sm:text-[26px]">
         <QuizMarkdown>{question.question_text}</QuizMarkdown>
       </div>
+
+      {basic && (
+        <div className="space-y-4">
+          {revealed ? (
+            <>
+              <div className="rounded-radius-lg border border-border bg-surface p-4 text-text">
+                <QuizMarkdown>{question.correct_answer}</QuizMarkdown>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {([1, 2, 3, 4] as const).map((rating) => (
+                  <button key={rating} disabled={submitted} className="min-h-11 rounded-radius-lg border border-border bg-surface px-3 py-2 text-sm text-text hover:bg-subtle disabled:opacity-40"
+                    onClick={() => {
+                      if (submitted) return;
+                      setSubmitted(true);
+                      onAnswer("", rating > 1, rating);
+                    }}>
+                    {rating === 1 ? t("cards.again") : rating === 2 ? t("cards.hard") : rating === 3 ? t("cards.good") : t("cards.easy")}
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <button onClick={() => setRevealed(true)} className="min-h-11 rounded-radius-lg bg-action px-6 py-2 text-sm font-semibold text-on-action hover:bg-action-hover">{t("cards.reveal")}</button>
+          )}
+        </div>
+      )}
 
       {/* MCQ / True-False options */}
       {hasOptions && (
@@ -197,8 +229,12 @@ export default function QuestionCard({
         </div>
       )}
 
+      {!submitted && questionId && (
+        <QuizAssist questionId={questionId} modes={["hint"]} />
+      )}
+
       {/* submit button */}
-      {!submitted && (
+      {!submitted && !basic && (
         <button
           onClick={handleSubmit}
           disabled={typed ? !fillInAnswer.trim() : selected === null}

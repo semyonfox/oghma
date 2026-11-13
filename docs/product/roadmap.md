@@ -133,7 +133,7 @@ The homelab remains user-facing infrastructure during beta. Its capacity and fai
 These remain discovery topics rather than committed deliverables:
 
 - Additional LMS integrations (Moodle, Brightspace) once the Canvas loop is proven; this is the main expansion axis beyond Canvas institutions.
-- Lecture transcription.
+- Audio and video ingestion: transcribe lecture recordings, remote classes and demos, then break them into timestamped notes with sections and key points, the same way Marker turns PDFs into structured notes. Parked until PDF conversion is reliable, and it needs its own GPU cost and storage estimate first.
 - Image-occlusion flashcards.
 - Offline-first editing and synchronisation.
 - Institution licensing, SSO, and procurement support.

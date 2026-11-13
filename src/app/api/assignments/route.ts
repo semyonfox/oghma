@@ -38,6 +38,7 @@ export const GET = withErrorHandler(async (request) => {
       OR a.status IN ('upcoming', 'in_progress')
       OR a.due_at >= ${cutoffIso}::timestamptz
       OR a.submitted_at >= ${cutoffIso}::timestamptz
+      OR a.graded_at >= ${cutoffIso}::timestamptz
     )`);
   }
   if (!includeArchived) {
@@ -54,6 +55,9 @@ export const GET = withErrorHandler(async (request) => {
            a.due_at, a.estimated_hours::float8 AS estimated_hours, a.logged_hours::float8 AS logged_hours, a.source, a.assignment_type,
            ${effectiveStatus} AS status,
            a.submitted_at, a.score::float8 AS score, a.points_possible::float8 AS points_possible,
+           a.graded_at, a.grade,
+           (SELECT jsonb_build_object('comments', f.comments, 'rubric', f.rubric)
+            FROM app.assignment_feedback f WHERE f.assignment_id = a.id AND f.user_id = ${user.user_id}::uuid) AS feedback,
            a.created_at, a.updated_at
     FROM app.assignments a
     LEFT JOIN app.user_course_settings ucs

@@ -11,7 +11,7 @@ const ALTERNATIVE_DELIMITER_REGEX = /\s*(?:\||;)\s*/u;
  * Fill-in answers are short recall prompts, so grading should not depend on
  * casing, accent marks, punctuation, or incidental whitespace.
  */
-function normalizeFillAnswer(answer: string): string {
+export function normalizeFillAnswer(answer: string): string {
   return answer
     .normalize("NFKD")
     .replace(COMBINING_MARKS_REGEX, "")
@@ -21,7 +21,7 @@ function normalizeFillAnswer(answer: string): string {
     .trim();
 }
 
-function acceptedFillAnswers(correctAnswer: string | string[]): string[] {
+export function acceptedFillAnswers(correctAnswer: string | string[]): string[] {
   const candidates = Array.isArray(correctAnswer)
     ? correctAnswer
     : correctAnswer.split(ALTERNATIVE_DELIMITER_REGEX);

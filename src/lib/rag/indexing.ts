@@ -1,3 +1,4 @@
+import postgres from "postgres";
 import sql, { afterDatabaseCommit, afterDatabaseRollback } from "@/database/pgsql";
 import { embedChunks } from "@/lib/rag/embeddings";
 import {
@@ -55,11 +56,64 @@ export async function deleteVectorsOrJournal(chunkIds: string[], userId: string)
   }
 }
 
+async function dropUnreviewedGeneratedQuestions(
+  db: postgres.TransactionSql,
+  userId: string,
+  chunkIds: string[],
+): Promise<void> {
+  if (chunkIds.length === 0) return;
+  await db`
+    DELETE FROM app.quiz_questions qq
+    WHERE qq.user_id = ${userId}::uuid
+      AND qq.origin = 'generated'
+      AND qq.chunk_id = ANY(${chunkIds}::uuid[])
+      AND NOT EXISTS (
+        SELECT 1 FROM app.quiz_reviews qr
+        WHERE qr.user_id = qq.user_id AND qr.question_id = qq.id
+      )
+  `;
+}
+
 async function deleteChunkSet(chunkIds: string[], userId: string): Promise<void> {
   if (chunkIds.length === 0) return;
 
   await afterDatabaseCommit(() => deleteVectorsOrJournal(chunkIds, userId));
-  await sql`DELETE FROM app.chunks WHERE id = ANY(${chunkIds}::uuid[])`;
+  await sql.begin(async (tx: postgres.TransactionSql) => {
+    await dropUnreviewedGeneratedQuestions(tx, userId, chunkIds);
+    await tx`DELETE FROM app.chunks WHERE id = ANY(${chunkIds}::uuid[])`;
+  });
+}
+
+// Sessions select cards by note, so a question left on a replaced chunk stays
+// in the deck while the new chunk looks uncovered and gets a second card.
+// Move generated questions onto the new chunk when the text matches once on
+// each side. Drop never-reviewed questions whose text changed. Reviewed
+// questions stay: chunk_id is provenance, not a foreign key.
+async function carryGeneratedQuestions(
+  tx: postgres.TransactionSql,
+  userId: string,
+  oldChunkIds: string[],
+  newChunkIds: string[],
+): Promise<void> {
+  if (oldChunkIds.length === 0) return;
+  await tx`
+    WITH old AS (
+      SELECT id, text, count(*) OVER (PARTITION BY text) AS copies
+      FROM app.chunks WHERE id = ANY(${oldChunkIds}::uuid[])
+    ),
+    fresh AS (
+      SELECT id, text, count(*) OVER (PARTITION BY text) AS copies
+      FROM app.chunks WHERE id = ANY(${newChunkIds}::uuid[])
+    )
+    UPDATE app.quiz_questions qq
+    SET chunk_id = fresh.id
+    FROM old JOIN fresh ON fresh.text = old.text
+    WHERE old.copies = 1 AND fresh.copies = 1
+      AND qq.user_id = ${userId}::uuid
+      AND qq.origin = 'generated'
+      AND qq.chunk_id = old.id
+  `;
+  await dropUnreviewedGeneratedQuestions(tx, userId, oldChunkIds);
 }
 
 export async function replaceNoteEmbeddings(
@@ -120,6 +174,17 @@ export async function replaceNoteEmbeddings(
         )
       `;
       insertedChunkIds = chunkIds;
+      const oldChunkIds = oldChunks.map((row) => row.id);
+      await carryGeneratedQuestions(tx, userId, oldChunkIds, chunkIds);
+      // Drop the old rows before commit. A later delete leaves them uncovered
+      // long enough for generation to mint a second card on the same text.
+      if (oldChunkIds.length > 0) {
+        await tx`
+          DELETE FROM app.chunks
+          WHERE user_id = ${userId}::uuid
+            AND id = ANY(${oldChunkIds}::uuid[])
+        `;
+      }
       afterDatabaseRollback(() => deleteVectorsOrJournal(chunkIds, userId));
 
       await upsertChunkVectors(

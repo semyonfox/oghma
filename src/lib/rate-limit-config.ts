@@ -19,12 +19,15 @@ export interface RateLimitRule {
 }
 
 export const RATE_LIMITS = {
+  'quiz-card-write': { limit: 60, windowSeconds: 60, keyType: 'userId' },
   // allows the initial start and five client retries per minute
   'quiz-session': { limit: 30, windowSeconds: 60, keyType: 'userId' },
   'study-map-jobs': { limit: 10, windowSeconds: 60, keyType: 'userId' },
 
   // tier 1 — expensive external API calls
   'chat':           { limit: 120, windowSeconds: 3600,  keyType: 'userId' },
+  // hints and explanations during a quiz, one short LLM reply each
+  'quiz-assist':    { limit: 60,  windowSeconds: 3600,  keyType: 'userId' },
   // presence heartbeats fire every ~10s per open tab plus visibility events
   'chat-presence':  { limit: 1200, windowSeconds: 3600, keyType: 'userId' },
   'chat-cancel':    { limit: 120, windowSeconds: 3600,  keyType: 'userId' },

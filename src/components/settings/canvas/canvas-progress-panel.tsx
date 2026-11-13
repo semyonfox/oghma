@@ -87,7 +87,7 @@ export default function CanvasProgressPanel({
           <span className="block font-sans">{t("Waiting for the document processor")}</span>
         )}
       </div>
-      <span className="shrink-0 text-text-tertiary/50">
+      <span className="shrink-0 text-text-tertiary">
         {relativeTime(log.updatedAt ?? new Date(), t)}
       </span>
     </div>

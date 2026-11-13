@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 
 import React from "react";
-import { render } from "@testing-library/react";
+import { fireEvent, render, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import MonthView from "@/components/calendar/month-view";
+
+const createTimeBlock = vi.fn().mockResolvedValue({ id: "created" });
 
 vi.mock("@/lib/notes/hooks/use-i18n", () => ({
   default: () => ({
@@ -14,6 +16,7 @@ vi.mock("@/lib/notes/hooks/use-i18n", () => ({
 
 vi.mock("@/lib/notes/state/calendar", () => ({
   default: () => ({
+    createTimeBlock,
     currentDate: "2026-07-15T12:00:00.000Z",
     selectedDate: null,
     setSelectedDate: vi.fn(),
@@ -31,6 +34,7 @@ vi.mock("@/lib/notes/state/calendar", () => ({
     ],
     fetchTimeBlocks: vi.fn(),
     reviewDates: new Set<string>(),
+    examLoad: {},
     fetchReviewDates: vi.fn(),
   }),
 }));
@@ -51,6 +55,22 @@ vi.mock("@/lib/notes/state/assignments", () => ({
 }));
 
 describe("MonthView", () => {
+  it("creates an assignment-linked hour on drop and ignores unrelated drags", async () => {
+    const { container } = render(React.createElement(MonthView));
+    const cell = container.querySelector('time[datetime="2026-07-15"]')?.closest("button")?.parentElement;
+    expect(cell).toBeTruthy();
+    if (!cell) return;
+    fireEvent.drop(cell, { dataTransfer: { getData: () => "unrelated" } });
+    expect(createTimeBlock).not.toHaveBeenCalled();
+    fireEvent.drop(cell, { dataTransfer: { getData: () => "assignment-1" } });
+    await waitFor(() => expect(createTimeBlock).toHaveBeenCalledWith({
+      assignment_id: "assignment-1",
+      title: "Submit report",
+      starts_at: new Date(2026, 6, 15, 9).toISOString(),
+      ends_at: new Date(2026, 6, 15, 10).toISOString(),
+    }));
+  });
+
   it("does not nest event action buttons inside day-selection buttons", () => {
     const { container } = render(React.createElement(MonthView));
 

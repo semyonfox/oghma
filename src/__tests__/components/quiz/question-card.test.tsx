@@ -28,6 +28,16 @@ const mcqQuestion: Question = {
 };
 
 describe("QuestionCard", () => {
+  it("reveals a basic card before accepting a self-rating", () => {
+    const onAnswer = vi.fn();
+    render(<QuestionCard question={{ ...mcqQuestion, question_type: "basic", options: null }} onAnswer={onAnswer} />);
+    expect(screen.queryByText("Correct answer")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "cards.reveal" }));
+    expect(screen.getByText("Correct answer")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "cards.hard" }));
+    expect(onAnswer).toHaveBeenCalledExactlyOnceWith("", true, 2);
+  });
+
   it("submits a clicked MCQ choice once and keeps option Markdown literal", () => {
     const onAnswer = vi.fn();
     const { container } = render(
