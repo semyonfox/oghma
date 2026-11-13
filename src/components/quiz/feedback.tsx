@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { CheckIcon, XMarkIcon } from "@heroicons/react/20/solid";
 import QuizMarkdown from "./quiz-markdown";
+import QuizAssist from "./quiz-assist";
 
 interface RelatedChunk {
   text: string;
@@ -70,6 +71,12 @@ export default function Feedback({
       {explanation && (
         <div className="font-serif text-base leading-relaxed text-text-secondary">
           <QuizMarkdown>{explanation}</QuizMarkdown>
+        </div>
+      )}
+
+      {questionId && (
+        <div className="mt-4">
+          <QuizAssist questionId={questionId} modes={["simpler", "example"]} />
         </div>
       )}
 
