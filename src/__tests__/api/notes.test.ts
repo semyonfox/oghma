@@ -362,3 +362,59 @@ describe("DELETE /api/notes/[id]", () => {
     );
   });
 });
+
+// manual cards must never be created for someone else's note
+vi.mock("@/lib/rate-limiter", () => ({ checkRateLimit: vi.fn().mockResolvedValue(null) }));
+import { POST as createCard, GET as listCards } from "@/app/api/notes/[id]/cards/route";
+import { PATCH as editCard, DELETE as deleteCard } from "@/app/api/quiz/cards/[id]/route";
+
+const cardContext = { params: Promise.resolve({ id: "00000000-0000-4000-8000-000000000011" }) };
+function cardRequest(method = "POST", body: unknown = { front: "Question", back: "Answer", sourceQuote: "Selected text" }) {
+  return new Request("http://localhost/api/notes/test/cards", {
+    method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  });
+}
+
+describe("manual note cards", () => {
+  it("rejects creation when the owned live note is missing", async () => {
+    vi.mocked(sql).mockResolvedValueOnce([]);
+    const response = await createCard(cardRequest(), cardContext);
+    expect(response.status).toBe(404);
+    expect(sql).toHaveBeenCalledTimes(1);
+  });
+
+  it("creates the question and scheduler card in one transaction", async () => {
+    const questionId = "00000000-0000-4000-8000-000000000012";
+    const cardId = "00000000-0000-4000-8000-000000000013";
+    vi.mocked(sql).mockResolvedValueOnce([{ note_id: "note" }])
+      .mockResolvedValueOnce([{ id: questionId }]).mockResolvedValueOnce([{ id: cardId }]);
+    const response = await createCard(cardRequest(), cardContext);
+    expect(response.status).toBe(201);
+    expect(await response.json()).toEqual({ card: { id: cardId } });
+    expect(sql.begin).toHaveBeenCalledOnce();
+    expect(vi.mocked(sql).mock.calls[1][0].join("")).toContain("'manual', 'basic', 1");
+    expect(vi.mocked(sql).mock.calls[1]).toContain("Selected text");
+    expect(vi.mocked(sql).mock.calls[2]).toContain(questionId);
+  });
+
+  it("rejects empty card fields before writing", async () => {
+    expect((await createCard(cardRequest("POST", { front: " ", back: "Answer" }), cardContext)).status).toBe(400);
+    expect(sql).not.toHaveBeenCalled();
+  });
+
+  it("does not list another user's cards", async () => {
+    vi.mocked(sql).mockResolvedValueOnce([]);
+    expect((await listCards(new Request("http://localhost/api/notes/test/cards"), cardContext)).status).toBe(404);
+    expect(sql).toHaveBeenCalledTimes(1);
+  });
+
+  it("limits edits and deletion to owned manual cards", async () => {
+    vi.mocked(sql).mockResolvedValue([]);
+    expect((await editCard(cardRequest("PATCH"), cardContext)).status).toBe(404);
+    expect((await deleteCard(new Request("http://localhost/api/quiz/cards/test", { method: "DELETE" }), cardContext)).status).toBe(404);
+    for (const [parts] of vi.mocked(sql).mock.calls) {
+      expect(parts.join("")).toContain("qq.origin = 'manual'");
+      expect(parts.join("")).toContain("qc.user_id =");
+    }
+  });
+});

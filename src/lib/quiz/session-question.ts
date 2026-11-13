@@ -45,8 +45,12 @@ export async function loadSessionQuestion(
     SELECT qc.id AS card_id, qq.id, qq.question_type, qq.bloom_level,
            qq.question_text, qq.options, qq.correct_answer, qq.explanation
     FROM app.quiz_cards qc
-    JOIN app.quiz_questions qq ON qq.id = qc.question_id
-    WHERE qc.id = ${cardId}::uuid AND qc.user_id = ${userId}::uuid
+    JOIN app.quiz_questions qq ON qq.id = qc.question_id AND qq.user_id = qc.user_id
+    JOIN app.notes n ON n.note_id = qq.note_id AND n.user_id = qc.user_id
+    LEFT JOIN app.user_course_settings ucs
+      ON ucs.user_id = qc.user_id AND ucs.canvas_course_id = n.canvas_course_id
+    WHERE n.deleted_at IS NULL AND COALESCE(ucs.is_active, true)
+      AND qc.id = ${cardId}::uuid AND qc.user_id = ${userId}::uuid
   `;
   return row ? toSessionQuestion(row) : null;
 }
