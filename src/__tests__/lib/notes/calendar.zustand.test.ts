@@ -36,6 +36,30 @@ describe("calendar store", () => {
     storage.getItem.mockReturnValue(null);
   });
 
+  it("shows linked assignment metadata immediately after creation", async () => {
+    const { default: assignments } = await import("@/lib/notes/state/assignments");
+    const linkedAssignment = {
+      id: "assignment-1", title: "Database report", description: null,
+      canvas_course_id: null, canvas_assignment_id: null,
+      course_name: "Databases", course_color: "#123456", due_at: null,
+      status: "upcoming", estimated_hours: null, logged_hours: 0,
+      source: "manual", assignment_type: "manual", submitted_at: null,
+      score: null, points_possible: null, created_at: "2026-10-06", updated_at: "2026-10-06",
+    } satisfies import("@/lib/notes/state/assignments").Assignment;
+    assignments.setState({ assignments: [linkedAssignment] });
+    const block = {
+      id: "block-1", assignment_id: linkedAssignment.id, title: linkedAssignment.title,
+      starts_at: "2026-10-06T09:00:00Z", ends_at: "2026-10-06T10:00:00Z",
+      pomodoro_count: 2, completed: false,
+    };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(block)));
+    const store = await loadStore();
+    const created = await store.getState().createTimeBlock(block);
+    expect(created).toMatchObject({ assignment_title: linkedAssignment.title, course_color: "#123456" });
+    expect(store.getState().timeBlocks[0]).toEqual(created);
+    assignments.setState({ assignments: [] });
+  });
+
   it("keeps the newest time-block request when an older request resolves last", async () => {
     const first = deferred<ReturnType<typeof response>>();
     const second = deferred<ReturnType<typeof response>>();

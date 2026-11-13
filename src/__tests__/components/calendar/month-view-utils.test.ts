@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMonthCells } from "@/components/calendar/month-view-utils";
+import { buildMonthCells, nextFreeStudyHour } from "@/components/calendar/month-view-utils";
 
 describe("buildMonthCells", () => {
   it("builds a Monday-start, six-week grid across month boundaries", () => {
@@ -80,5 +80,27 @@ describe("buildMonthCells", () => {
       ],
     });
     expect(cells.some((cell) => cell.assignments[0]?.id === "outside-grid")).toBe(false);
+  });
+});
+
+describe("nextFreeStudyHour", () => {
+  const block = (start: Date, end: Date) => ({ starts_at: start.toISOString(), ends_at: end.toISOString() });
+
+  it("defaults to 09:00 and skips partial overlaps, allowing adjacent blocks", () => {
+    expect(nextFreeStudyHour("2026-10-06", [])).toEqual(new Date(2026, 9, 6, 9));
+    const blocks = [
+      block(new Date(2026, 9, 6, 8, 30), new Date(2026, 9, 6, 9, 30)),
+      block(new Date(2026, 9, 6, 10, 30), new Date(2026, 9, 6, 11)),
+    ];
+    expect(nextFreeStudyHour("2026-10-06", blocks)).toEqual(new Date(2026, 9, 6, 11));
+  });
+
+  it("accounts for overnight blocks and falls back to 09:00 on a full day", () => {
+    expect(nextFreeStudyHour("2026-10-06", [
+      block(new Date(2026, 9, 5, 23), new Date(2026, 9, 6, 10)),
+    ])).toEqual(new Date(2026, 9, 6, 10));
+    expect(nextFreeStudyHour("2026-10-06", [
+      block(new Date(2026, 9, 6), new Date(2026, 9, 7)),
+    ])).toEqual(new Date(2026, 9, 6, 9));
   });
 });
