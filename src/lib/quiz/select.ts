@@ -259,31 +259,71 @@ export async function resolveChunkIds(
   }
 }
 
+// resolve notes independently of chunks so unindexed notes can have manual cards
+export async function resolveNoteIds(
+  userId: string,
+  filter: QuizSessionFilter,
+  chunkIds: string[],
+): Promise<string[]> {
+  if (filter.filterType === "search") {
+    return rowIds(await sql<IdRow[]>`
+      SELECT DISTINCT document_id AS id FROM app.chunks
+      WHERE user_id = ${userId}::uuid AND id = ANY(${chunkIds}::uuid[])
+    `);
+  }
+  if (filter.filterType === "chat_session") {
+    const messages = await sql<ChatMessageRow[]>`
+      SELECT cm.sources FROM app.chat_messages cm
+      JOIN app.chat_sessions cs ON cs.id = cm.session_id
+      WHERE cs.id = ${filter.filterValue}::uuid AND cs.user_id = ${userId}::uuid
+    `;
+    return [...new Set(messages.flatMap(({ sources }) => sourceNoteIds(sources)))];
+  }
+  const scope = filter.filterType === "course"
+    ? sql`AND n.canvas_course_id = ${filter.filterValue}::bigint`
+    : filter.filterType === "module"
+      ? sql`AND n.canvas_module_id = ${filter.filterValue}::bigint`
+      : filter.filterType === "note"
+        ? sql`AND n.note_id = ANY(${filter.filterValue}::uuid[])`
+        : sql``;
+  return rowIds(await sql<IdRow[]>`
+    SELECT n.note_id AS id FROM app.notes n
+    WHERE n.user_id = ${userId}::uuid AND n.deleted_at IS NULL
+      AND n.is_folder = false ${scope}
+  `);
+}
+
 /**
- * Bucket the cards behind `chunkIds` by FSRS state. Archived courses are left
+ * Bucket cards from the selected notes by FSRS state. Archived courses are left
  * out, and chunks with no card yet are reported so generation can cover them.
  */
 export async function getSessionCandidates(
   userId: string,
   chunkIds: string[],
   now = new Date(),
+  noteIds?: string[],
 ): Promise<SessionCandidates> {
-  if (chunkIds.length === 0) {
+  if (chunkIds.length === 0 && !noteIds?.length) {
     return { dueCards: [], newCards: [], retentionCards: [], uncoveredChunkIds: [] };
   }
 
+  const selectedNoteIds = noteIds ?? rowIds(await sql<IdRow[]>`
+    SELECT DISTINCT document_id AS id FROM app.chunks
+    WHERE user_id = ${userId}::uuid AND id = ANY(${chunkIds}::uuid[])
+  `);
+
   const [cards, activeChunks] = await Promise.all([
-    sql<Array<CandidateCard & { chunk_id: string }>>`
+    sql<Array<CandidateCard & { chunk_id: string | null }>>`
       SELECT qc.id, qc.due, qc.state, qc.last_review, qq.chunk_id
       FROM app.quiz_cards qc
-      JOIN app.quiz_questions qq ON qc.question_id = qq.id
-      JOIN app.chunks c ON c.id = qq.chunk_id
-      JOIN app.notes n ON n.note_id = c.document_id
+      JOIN app.quiz_questions qq ON qc.question_id = qq.id AND qq.user_id = qc.user_id
+      JOIN app.notes n ON n.note_id = qq.note_id AND n.user_id = qc.user_id
       LEFT JOIN app.user_course_settings ucs
         ON ucs.user_id = ${userId}::uuid
         AND ucs.canvas_course_id = n.canvas_course_id
       WHERE qc.user_id = ${userId}::uuid
-        AND qq.chunk_id = ANY(${chunkIds}::uuid[])
+        AND n.deleted_at IS NULL
+        AND n.note_id = ANY(${selectedNoteIds}::uuid[])
         AND (ucs.is_active IS NULL OR ucs.is_active = true)
     `,
     sql<IdRow[]>`

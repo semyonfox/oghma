@@ -4,6 +4,8 @@ import { createRoot } from "react-dom/client";
 import { fireEvent } from "@testing-library/dom";
 import { afterEach, expect, it, vi } from "vitest";
 
+vi.mock("@/lib/notes/hooks/use-i18n", () => ({ default: () => ({ t: (key: string) => key }) }));
+
 const editor = vi.hoisted(() => ({
   markdown: "# Saved note\n",
   updated: (_ctx: unknown, _markdown: string) => {},

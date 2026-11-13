@@ -37,7 +37,7 @@ function percent(part: number, total: number): number {
 }
 
 /**
- * Card counts only include cards whose source chunk is still indexed, matching
+ * Card counts include cards whose source note is still available, matching
  * what a session can actually serve. Review counts are plain history, so they
  * read quiz_reviews alone and stay correct after notes are edited or archived.
  */
@@ -54,9 +54,8 @@ export async function getQuizDashboardSummary(
           WHERE qc.state = 'review' AND qc.stability > ${MASTERED_STABILITY_DAYS}
         )::int AS mastered_count
       FROM app.quiz_cards qc
-      JOIN app.quiz_questions qq ON qq.id = qc.question_id
-      JOIN app.chunks c ON c.id = qq.chunk_id
-      JOIN app.notes n ON n.note_id = c.document_id
+      JOIN app.quiz_questions qq ON qq.id = qc.question_id AND qq.user_id = qc.user_id
+      JOIN app.notes n ON n.note_id = qq.note_id AND n.user_id = qc.user_id
       LEFT JOIN app.user_course_settings ucs
         ON ucs.user_id = ${userId}::uuid
         AND ucs.canvas_course_id = n.canvas_course_id
@@ -100,13 +99,13 @@ export async function getQuizDashboardSummary(
     weekAccuracy: percent(reviews.week_correct, reviews.week_total),
     currentStreak: streak?.current_streak ?? 0,
     longestStreak: streak?.longest_streak ?? 0,
-    hasContent: content.has_content,
+    hasContent: content.has_content || cards.total_cards > 0,
   };
 }
 
 /**
- * One row per Canvas course with indexed notes. Cards are counted through live
- * chunks, the same way the summary and session selection count them.
+ * One row per Canvas course with indexed notes or cards. Cards use live
+ * notes, the same way the summary and session selection count them.
  */
 export async function getQuizDashboardCourses(
   userId: string,
@@ -126,6 +125,9 @@ export async function getQuizDashboardCourses(
       WHERE EXISTS (
         SELECT 1 FROM app.chunks c
         WHERE c.document_id = cn.note_id AND c.user_id = ${userId}::uuid
+      ) OR EXISTS (
+        SELECT 1 FROM app.quiz_questions qq
+        WHERE qq.note_id = cn.note_id AND qq.user_id = ${userId}::uuid
       )
     ),
     course_cards AS (
@@ -137,10 +139,8 @@ export async function getQuizDashboardCourses(
           WHERE qc.state = 'review' AND qc.stability > ${MASTERED_STABILITY_DAYS}
         )::int AS mastered_count
       FROM course_notes cn
-      JOIN app.chunks c
-        ON c.document_id = cn.note_id AND c.user_id = ${userId}::uuid
       JOIN app.quiz_questions qq
-        ON qq.chunk_id = c.id AND qq.user_id = ${userId}::uuid
+        ON qq.note_id = cn.note_id AND qq.user_id = ${userId}::uuid
       JOIN app.quiz_cards qc
         ON qc.question_id = qq.id AND qc.user_id = ${userId}::uuid
       GROUP BY cn.canvas_course_id

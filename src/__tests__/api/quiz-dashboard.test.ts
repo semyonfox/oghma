@@ -39,6 +39,9 @@ describe("GET /api/quiz/dashboard", () => {
       new NextRequest("http://localhost/api/quiz/dashboard"),
     );
 
+    const countsQuery = vi.mocked(sql).mock.calls[0][0].join("");
+    expect(countsQuery).toContain("n.note_id = qq.note_id");
+    expect(countsQuery).not.toContain("JOIN app.chunks");
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       dueCount: 3,

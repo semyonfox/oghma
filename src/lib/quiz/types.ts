@@ -1,4 +1,4 @@
-export type QuestionType = 'mcq' | 'true_false' | 'fill_in';
+export type QuestionType = 'mcq' | 'true_false' | 'fill_in' | 'basic';
 export type BloomLevel = 1 | 2 | 3 | 4;
 export type CardState = 'new' | 'learning' | 'review' | 'relearning';
 export type FilterType = 'course' | 'module' | 'note' | 'search' | 'chat_session' | 'all';
@@ -34,7 +34,7 @@ export interface QuizQuestion {
     id: string;
     user_id: string;
     note_id: string;
-    chunk_id: string;
+    chunk_id: string | null;
     question_type: QuestionType;
     bloom_level: BloomLevel;
     question_text: string;

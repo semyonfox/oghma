@@ -9,6 +9,7 @@ vi.mock("@/database/pgsql", () => ({ default: mocks.sql }));
 vi.mock("next/server", async (original) => ({ ...await original<typeof import("next/server")>(), after: mocks.after }));
 vi.mock("@/lib/rate-limiter", () => ({ checkRateLimit: mocks.limited }));
 vi.mock("@/lib/quiz/select", () => ({
+  resolveNoteIds: async () => ["note"],
   resolveChunkIds: async () => ["chunk"], getSessionCandidates: mocks.candidates,
   selectCards: mocks.cards, sessionCardIds: (ids: string[]) => ids,
 }));

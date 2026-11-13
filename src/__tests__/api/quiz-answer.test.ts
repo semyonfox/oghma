@@ -187,6 +187,31 @@ beforeEach(() => {
 });
 
 describe("POST /api/quiz/sessions/[id]/answer", () => {
+  it.each([1, 2, 3, 4])("schedules a basic card with rating %s", async (rating) => {
+    seed({ card: cardRow({ question_type: "basic", options: null }) });
+    const response = await answer({ cardId: CARD_ID, rating, responseTimeMs: 1 });
+    expect(response.status).toBe(200);
+    expect((await response.json()).wasCorrect).toBe(rating > 1);
+    const insert = txMock.mock.calls.find(([parts]) => query(parts).includes("INSERT INTO app.quiz_reviews"));
+    expect(insert?.[5]).toBe(rating);
+    expect(db.cardUpdates).toBe(1);
+  });
+
+  it("requires a valid rating for basic cards without scheduling them", async () => {
+    seed({ card: cardRow({ question_type: "basic", options: null }) });
+    for (const rating of [undefined, 0, 5, 2.5, "3"]) {
+      expect((await answer({ cardId: CARD_ID, rating })).status).toBe(400);
+    }
+    expect(db.cardUpdates).toBe(0);
+  });
+
+  it("ignores client ratings for automatically graded cards", async () => {
+    const response = await answer({ cardId: CARD_ID, userAnswer: "wrong", rating: 4 });
+    expect((await response.json()).wasCorrect).toBe(false);
+    const insert = txMock.mock.calls.find(([parts]) => query(parts).includes("INSERT INTO app.quiz_reviews"));
+    expect(insert?.[5]).toBe(1);
+  });
+
   it("returns 401 when not authenticated", async () => {
     vi.mocked(validateSession).mockResolvedValue(null);
     expect((await answer({ cardId: CARD_ID })).status).toBe(401);
