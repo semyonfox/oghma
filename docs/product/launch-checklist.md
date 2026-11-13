@@ -1,7 +1,7 @@
 # Launch Checklist
 
 > **Status:** Active launch gate
-> **Last reviewed:** 2026-10-16 (deletion, analytics, cookie and vector-rebuild items updated after the domain audit)
+> **Last reviewed:** 2026-11-13 (hard-blocker evidence added after the issue triage)
 > **Source of truth for:** Readiness to invite beta users or enable paid checkout. Product sequencing lives in [roadmap.md](roadmap.md); prices and allowances live in [pricing.md](pricing.md).
 
 Unchecked items are not assumed complete. Record evidence or a link when closing a gate.
@@ -9,11 +9,16 @@ Unchecked items are not assumed complete. Record evidence or a link when closing
 ## 1. Hard Beta Blockers
 
 - [ ] Verify a real production Canvas PDF reaches extraction, indexing, Qdrant, and relevant search/chat retrieval.
+  2026-11-13: prod data shows 1,326 Canvas PDF notes indexed with chunks and a green Qdrant collection. The search and cited-chat steps of the [production import QA](../operations/import-worker.md#production-import-qa) are still to run by hand (#304).
 - [ ] Configure and test production verification, password-reset, welcome, and import-complete email delivery.
+  2026-11-13: prod sends through Resend. Both password accounts created since the 2026-09-25 email fix have verified their address, so verification mail arrives. A reset request to a real inbox is still untested (#305).
 - [ ] Rotate development and default auth/encryption secrets in both live environments.
+  2026-11-13: no default values in either environment, but dev and prod shared `JWT_SECRET`, `NEXTAUTH_SECRET` and `SERVER_ENCRYPTION_SECRET`. Dev now has its own (dev Canvas tokens re-encrypted). Provider keys and the R2 bucket are still shared between dev and prod (#306).
 - [ ] Review `/privacy`, `/terms`, and `/cookies` against the actual providers, analytics, retention, and chat behavior.
 - [ ] Back up PostgreSQL and object storage offsite; complete a restore rehearsal.
+  2026-11-13: nightly Postgres, Qdrant and RustFS exports go offsite to B2, with a 48-hour freshness alarm. Prod files live in R2, which the backup does not copy. No restore rehearsal yet.
 - [ ] Add basic uptime, disk, database, Qdrant, queue, and container/runtime health monitoring.
+  2026-11-13: a Sentry uptime monitor checks `https://oghmanotes.ie/api/health` every 5 minutes. The dev monitor exists but is disabled on the current Sentry plan. Host metrics run in Netdata. Queue-age and stalled-job alerts are still missing (#328).
 - [ ] Make long OCR, queue, and indexing waits explicit in the product.
 
 ## 2. Security And Data Protection
@@ -89,7 +94,7 @@ Run these against the environment users will receive:
 
 - [ ] Audit the public site against [positioning.md](positioning.md); remove or label unfinished features.
 - [ ] Make beta status and a real contact path visible.
-- [ ] Give an empty workspace a clear first action.
+- [x] Give an empty workspace a clear first action. The first-login welcome note and dialog shipped in a9df3ae0 (#314).
 - [ ] Show page estimates, allowance impact, and confirmation before a large Canvas import.
 - [ ] Explain when a job is queued, extracting, indexing, complete, failed, or cancelled.
 - [ ] Replace raw errors, dead buttons, and ambiguous “coming soon” actions.
