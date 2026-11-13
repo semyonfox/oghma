@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { z } from "zod";
+import { encodeSectionKey } from "@/lib/notes/sections";
 import useNoteTreeStore from "@/lib/notes/state/tree";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
@@ -35,7 +36,7 @@ export default function NoteSections({ noteId, revision }: { noteId: string; rev
     setBusy(key);
     setError(false);
     const run = async () => {
-      const response = await fetch(`/api/notes/${noteId}/sections/${encodeURIComponent(key)}/${action}`, { method: "POST" });
+      const response = await fetch(`/api/notes/${noteId}/sections/${encodeSectionKey(key)}/${action}`, { method: "POST" });
       if (!response.ok) throw new Error("Section generation failed");
       const result = resultSchema.parse(await response.json());
       if (result.noteId) void useNoteTreeStore.getState().refreshChildren(result.parentId ?? null).catch(() => {});

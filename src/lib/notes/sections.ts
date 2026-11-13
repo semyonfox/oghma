@@ -60,3 +60,24 @@ export function splitSections(markdown: string): NoteSection[] {
   }
   return windows;
 }
+
+// The key is JSON, so a heading such as "TCP/IP" contains a slash. A path
+// segment would split there, so the request carries the key as base64url.
+export function encodeSectionKey(key: string): string {
+  const bytes = new TextEncoder().encode(key);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+}
+
+export function decodeSectionKey(encoded: string): string | null {
+  if (!/^[A-Za-z0-9_-]+$/.test(encoded)) return null;
+  try {
+    const padded = encoded + "=".repeat((4 - (encoded.length % 4)) % 4);
+    const binary = atob(padded.replaceAll("-", "+").replaceAll("_", "/"));
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return null;
+  }
+}
