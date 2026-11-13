@@ -8,7 +8,8 @@ import { toast } from "sonner";
 import useCalendarStore from "@/lib/notes/state/calendar";
 import useAssignmentStore from "@/lib/notes/state/assignments";
 import useI18n from "@/lib/notes/hooks/use-i18n";
-import { buildMonthCells } from "@/components/calendar/month-view-utils";
+import useAssignmentDrop from "./use-assignment-drop";
+import { buildMonthCells, nextFreeStudyHour } from "@/components/calendar/month-view-utils";
 import { getCelebrationOrigin, triggerCelebration } from "@/lib/celebration";
 
 function dayOfMonth(dateStr: string): string {
@@ -21,6 +22,7 @@ interface MonthViewProps {
 
 export default function MonthView({ onSelectDate }: MonthViewProps) {
   const { activeLocale, t } = useI18n();
+  const assignmentDrop = useAssignmentDrop();
   const {
     currentDate,
     selectedDate,
@@ -110,8 +112,12 @@ export default function MonthView({ onSelectDate }: MonthViewProps) {
           {days.map((day) => (
             <div
               key={day.date}
+              onDragOver={(event) => assignmentDrop.dragOver(event, day.date)}
+              onDragLeave={assignmentDrop.dragLeave}
+              onDrop={(event) => void assignmentDrop.drop(event, nextFreeStudyHour(day.date, timeBlocks))}
               className={`
                 relative group bg-surface px-2 py-1.5 text-left transition-colors hover:bg-surface-elevated
+                ${assignmentDrop.dropDate === day.date ? "ring-2 ring-inset ring-accent bg-accent-soft" : ""}
                 ${!day.isCurrentMonth ? "opacity-40" : ""}
                 ${day.isSelected ? "ring-1 ring-inset ring-accent/50" : ""}
               `}
@@ -203,6 +209,7 @@ export default function MonthView({ onSelectDate }: MonthViewProps) {
                       <span
                         aria-hidden="true"
                         className={`h-1.5 w-1.5 shrink-0 rounded-full ${tb.completed ? "bg-success-500" : "bg-accent"}`}
+                        style={tb.courseColor && !tb.completed ? { backgroundColor: tb.courseColor } : undefined}
                       />
                       <button
                         type="button"

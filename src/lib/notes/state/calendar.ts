@@ -9,6 +9,8 @@ import {
 import type { AssignmentType } from "@/lib/notes/utils/assignment-type";
 import { browserTimeZone } from "@/lib/quiz/time-zone";
 
+import useAssignmentStore from "./assignments";
+
 export type CalendarView = "month" | "week";
 
 export interface TimeBlock {
@@ -167,8 +169,18 @@ const useCalendarStore = create<CalendarState>()(
           });
           if (!res.ok) return null;
           const created = await res.json();
-          set((state) => ({ timeBlocks: [...state.timeBlocks, created] }));
-          return created;
+          const assignment = useAssignmentStore.getState().assignments.find(
+            (item) => item.id === block.assignment_id,
+          );
+          const linked = assignment ? {
+            ...created,
+            assignment_title: assignment.title,
+            course_name: assignment.course_name ?? undefined,
+            course_color: assignment.course_color ?? undefined,
+            assignment_type: assignment.assignment_type,
+          } : created;
+          set((state) => ({ timeBlocks: [...state.timeBlocks, linked] }));
+          return linked;
         } catch {
           return null;
         }
