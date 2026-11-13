@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import NoteSections from "@/components/notes/note-sections";
+import { encodeSectionKey } from "@/lib/notes/sections";
 
 vi.mock("@/lib/notes/hooks/use-i18n", () => ({ default: () => ({ t: (key: string) => key }) }));
 const noteId = "00000000-0000-4000-8000-000000000001";
@@ -23,7 +24,7 @@ it("encodes the section key and shows linked summaries and generated cards besid
   fireEvent.click(await screen.findByRole("button", { name: "sections.summarise" }));
   const link = await screen.findByRole("link", { name: "sections.open_summary" });
   expect(link.getAttribute("href")).toBe(`/notes/${summaryId}`);
-  expect(fetch).toHaveBeenCalledWith(`/api/notes/${noteId}/sections/${encodeURIComponent(key)}/summary`, { method: "POST" });
+  expect(fetch).toHaveBeenCalledWith(`/api/notes/${noteId}/sections/${encodeSectionKey(key)}/summary`, { method: "POST" });
   fireEvent.click(screen.getByRole("button", { name: "sections.cards" }));
   await screen.findByText("What order?");
   expect(screen.getByText("LIFO")).toBeTruthy();

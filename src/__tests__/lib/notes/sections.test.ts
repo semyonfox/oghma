@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { splitSections } from "@/lib/notes/sections";
+import { decodeSectionKey, encodeSectionKey, splitSections } from "@/lib/notes/sections";
 
 describe("splitSections", () => {
   it("keeps heading paths and distinguishes repeated headings", () => {
@@ -25,5 +25,13 @@ describe("splitSections", () => {
     expect(sections.every((section) => section.text.length <= 1500)).toBe(true);
     expect(sections.map(({ text }) => text).join(" ")).toBe(text);
     expect(splitSections(" \n ")).toEqual([]);
+  });
+
+  it("keeps a slash in a heading inside one path segment", () => {
+    const key = splitSections("# TCP/IP\nPackets")[0].key;
+    const encoded = encodeSectionKey(key);
+    expect(encoded).not.toMatch(/[/%]/);
+    expect(decodeSectionKey(encoded)).toBe(key);
+    expect(decodeSectionKey(`${encoded}!`)).toBeNull();
   });
 });
