@@ -57,7 +57,7 @@ export function examPlan(
         day.normal++;
       }
     } else if (
-      scheduler.get_retrievability(entry.card, examAt, false) < targetRetention
+      scheduler.retrievability(entry.card, examAt) < targetRetention
     ) {
       extras.push(entry);
     }
