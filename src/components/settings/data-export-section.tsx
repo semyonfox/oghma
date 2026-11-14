@@ -385,9 +385,7 @@ export default function DataExportSection() {
             setImportJobId(job.jobId);
             setImportProgress(progress ?? null);
             setImportCancelRequested(Boolean(job.cancelRequested));
-          } else if (job?.status === "complete") {
-            setImportStatus("complete");
-            setImportProgress(progress ?? null);
+            // an old successful import isn't news, so only a failure is restored
           } else if (job?.status === "failed") {
             setImportStatus("failed");
             setImportError(job.error || null);
@@ -479,7 +477,7 @@ export default function DataExportSection() {
               <div className={`mb-4 ${successNoticeClass}`}>
                 {t("Import complete!")}
                 {importProgress &&
-                  ` ${importProgress.completed} ${t("files processed")}.`}
+                  ` ${t("Files processed: {count}", { count: importProgress.completed })}`}
               </div>
             )}
 
@@ -627,53 +625,55 @@ export default function DataExportSection() {
               {t("Subscribe to your assignments and study blocks in Google Calendar, Apple Calendar, Outlook, or any app that supports iCal feeds.")}
             </p>
 
-            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-              {calendarLoading ? (
-                <p className="text-sm text-text-tertiary">{t("Loading...")}</p>
-              ) : calendarToken ? (
-                <>
-                  <input
-                    readOnly
-                    aria-label={t("Calendar Subscription")}
-                    value={calendarUrl ?? ""}
-                    className="block min-h-11 min-w-0 flex-1 truncate rounded-radius-md border border-border bg-subtle px-3 py-2 font-mono text-xs text-text-secondary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent sm:min-h-9"
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={handleCopyCalendarUrl}
-                      className={secondaryBtnClass}
-                      title={t("Copy URL")}
-                    >
-                      {calendarCopied ? (
-                        <CheckIcon className="h-4 w-4 text-success-700 dark:text-success-400" aria-hidden="true" />
-                      ) : (
-                        <ClipboardDocumentIcon className="h-4 w-4 text-text-tertiary" aria-hidden="true" />
-                      )}
-                      {calendarCopied ? t("Copied") : t("Copy URL")}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleRegenerateToken}
-                      disabled={calendarRegenerating}
-                      className={secondaryBtnClass}
-                    >
-                      <ArrowPathIcon className={`h-4 w-4 text-text-tertiary ${calendarRegenerating ? "animate-spin" : ""}`} aria-hidden="true" />
-                      {t("Regenerate URL")}
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <p className={`text-sm ${errorTextClass}`}>{t("Failed to load subscription URL")}</p>
-              )}
+            {calendarLoading ? (
+              <p className="text-sm text-text-tertiary">{t("Loading...")}</p>
+            ) : calendarToken ? (
+              <div className="flex gap-2">
+                <input
+                  readOnly
+                  aria-label={t("Calendar Subscription")}
+                  value={calendarUrl ?? ""}
+                  onFocus={(event) => event.currentTarget.select()}
+                  className="block min-h-11 min-w-0 flex-1 truncate rounded-radius-md border border-border bg-subtle px-3 py-2 font-mono text-xs text-text-secondary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent sm:min-h-9"
+                />
+                <button
+                  type="button"
+                  onClick={handleCopyCalendarUrl}
+                  className={cn(secondaryBtnClass, "shrink-0")}
+                  title={t("Copy URL")}
+                >
+                  {calendarCopied ? (
+                    <CheckIcon className="h-4 w-4 text-success-700 dark:text-success-400" aria-hidden="true" />
+                  ) : (
+                    <ClipboardDocumentIcon className="h-4 w-4 text-text-tertiary" aria-hidden="true" />
+                  )}
+                  {calendarCopied ? t("Copied") : t("Copy URL")}
+                </button>
+              </div>
+            ) : (
+              <p className={`text-sm ${errorTextClass}`}>{t("Failed to load subscription URL")}</p>
+            )}
+
+            <div className="mt-3 flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={handleAddToGoogleCalendar}
                 disabled={!calendarUrl}
-                className={secondaryBtnClass}
+                className={cn(secondaryBtnClass, !calendarUrl ? "opacity-50 cursor-not-allowed" : "")}
               >
                 {t("Add to Google Calendar")}
               </button>
+              {calendarToken && (
+                <button
+                  type="button"
+                  onClick={handleRegenerateToken}
+                  disabled={calendarRegenerating}
+                  className="inline-flex min-h-11 items-center gap-1.5 rounded-radius-md px-2.5 text-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50 sm:min-h-9"
+                >
+                  <ArrowPathIcon className={`h-4 w-4 ${calendarRegenerating ? "animate-spin" : ""}`} aria-hidden="true" />
+                  {t("Regenerate URL")}
+                </button>
+              )}
             </div>
           </div>
       </SettingsCardBody>

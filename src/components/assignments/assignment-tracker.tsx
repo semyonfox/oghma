@@ -9,6 +9,8 @@ import {
   CheckCircleIcon,
   ChevronRightIcon,
   PencilSquareIcon,
+  AdjustmentsHorizontalIcon,
+  CheckIcon,
 } from "@heroicons/react/24/outline";
 import { CheckCircleIcon as CheckCircleSolid } from "@heroicons/react/24/solid";
 import {
@@ -16,6 +18,9 @@ import {
   ListboxButton,
   ListboxOption,
   ListboxOptions,
+  Popover,
+  PopoverButton,
+  PopoverPanel,
   Tab,
   TabGroup,
   TabList,
@@ -275,12 +280,20 @@ export default function AssignmentTracker({
         assignment.course_name ? [assignment.course_name] : [],
       ),
     ),
-  );
+  ).sort((a, b) => a.localeCompare(b));
+  // a saved pick can drop out of the list (archived or finished since), so only live picks filter
+  const selectedCourses = courseFilter.filter((course) => courses.includes(course));
+  const matchesCourse = (assignment: { course_name?: string | null }) =>
+    selectedCourses.length === 0 ||
+    (assignment.course_name != null && selectedCourses.includes(assignment.course_name));
+  const courseFilterLabel =
+    selectedCourses.length === 0
+      ? t("All Courses")
+      : selectedCourses.length === 1
+        ? selectedCourses[0]
+        : t("{count} courses", { count: selectedCourses.length });
 
-
-  const base = courseFilter
-    ? assignments.filter((assignment) => assignment.course_name === courseFilter)
-    : assignments;
+  const base = assignments.filter(matchesCourse);
   const courseRings = toCourseRings(base);
   const counts = {
     upcoming: base.filter((assignment) => isVisibleInTab(assignment, "upcoming", now))
@@ -394,7 +407,7 @@ export default function AssignmentTracker({
 
   const renderAssignments = (tab: AssignmentTab) => {
     const filtered = assignments.filter((assignment) => {
-      if (courseFilter && assignment.course_name !== courseFilter) return false;
+      if (!matchesCourse(assignment)) return false;
       return isVisibleInTab(assignment, tab, now);
     });
 
@@ -453,7 +466,7 @@ export default function AssignmentTracker({
             event.dataTransfer.setData(ASSIGNMENT_DRAG_TYPE, assignment.id);
             event.dataTransfer.effectAllowed = "copy";
           }}
-          className="relative glass-card-interactive cursor-pointer rounded-radius-lg p-3 transition-colors"
+          className={`relative glass-card-interactive cursor-pointer rounded-radius-lg transition-colors ${compact ? "px-2 py-1.5" : "p-3"}`}
         >
           <div className="flex items-start gap-2">
             <button
@@ -494,40 +507,11 @@ export default function AssignmentTracker({
                 </h3>
               </div>
             </div>
-
-            {assignment.source === "manual" && (
-              <button
-                type="button"
-                onClick={() => setTaskToEdit(assignment)}
-                className={`relative z-20 flex ${actionSize} shrink-0 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50`}
-                aria-label={`${t("Edit task")}: ${assignment.title}`}
-                title={t("Edit task")}
-              >
-                <PencilSquareIcon className="h-4 w-4" />
-              </button>
-            )}
-
-            {!completed && (
-              <button
-                type="button"
-                onClick={() =>
-                  pomodoroStart({
-                    assignmentId: assignment.id,
-                    assignmentTitle: assignment.title,
-                    courseName: assignment.course_name ?? undefined,
-                    courseColor: assignment.course_color ?? undefined,
-                  })
-                }
-                className={`relative z-20 flex ${actionSize} shrink-0 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-accent-soft hover:text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50`}
-                aria-label={t("Start Focus")}
-              >
-                <PlayIcon className="h-4 w-4" />
-              </button>
-            )}
           </div>
 
-          {(assignment.course_name || due.text || assignment.points_possible != null || completed) && (
-            <div className={`mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs leading-4 ${detailsIndent}`}>
+          <div className={`${compact ? "" : "mt-1"} flex min-w-0 items-center gap-2 ${detailsIndent}`}>
+            {/* actions share the meta line so the title keeps the full card width */}
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs leading-4">
               {assignment.course_name && (
                 <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 text-text-tertiary">
                   <span
@@ -548,10 +532,51 @@ export default function AssignmentTracker({
                 </span>
               )}
             </div>
-          )}
+            <div className="flex shrink-0 items-center">
+              {assignment.source === "manual" && (
+                <button
+                  type="button"
+                  onClick={() => setTaskToEdit(assignment)}
+                  className={`relative z-20 flex ${actionSize} shrink-0 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50`}
+                  aria-label={`${t("Edit task")}: ${assignment.title}`}
+                  title={t("Edit task")}
+                >
+                  <PencilSquareIcon className="h-4 w-4" />
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setTaskToSchedule(assignment)}
+                className={`relative z-20 flex ${actionSize} shrink-0 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50`}
+                aria-label={t("Schedule {title}", { title: assignment.title })}
+                title={t("Schedule")}
+              >
+                <CalendarDaysIcon className="h-4 w-4" aria-hidden="true" />
+              </button>
+
+              {!completed && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    pomodoroStart({
+                      assignmentId: assignment.id,
+                      assignmentTitle: assignment.title,
+                      courseName: assignment.course_name ?? undefined,
+                      courseColor: assignment.course_color ?? undefined,
+                    })
+                  }
+                  className={`relative z-20 flex ${actionSize} shrink-0 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-accent-soft hover:text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50`}
+                  aria-label={t("Start Focus")}
+                >
+                  <PlayIcon className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
 
           {hoursEstimated > 0 && (
-            <div className={`mt-2 flex items-center gap-2 ${detailsIndent}`}>
+            <div className={`${compact ? "mt-1.5" : "mt-2"} flex items-center gap-2 ${detailsIndent}`}>
               <div className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-subtle" aria-hidden="true">
                 <div
                   className="h-full rounded-full bg-accent transition-all duration-300"
@@ -565,17 +590,6 @@ export default function AssignmentTracker({
               </span>
             </div>
           )}
-          <div className={`mt-1 ${detailsIndent}`}>
-            <button
-              type="button"
-              onClick={() => setTaskToSchedule(assignment)}
-              className="relative z-20 inline-flex min-h-8 items-center gap-1.5 rounded-radius-md px-2 text-xs font-medium text-text-secondary transition-colors hover:bg-subtle hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 max-lg:min-h-11"
-              aria-label={t("Schedule {title}", { title: assignment.title })}
-            >
-              <CalendarDaysIcon className="h-4 w-4" aria-hidden="true" />
-              {t("Schedule")}
-            </button>
-          </div>
         </article>
       );
     });
@@ -595,82 +609,105 @@ export default function AssignmentTracker({
           </button>
         </div>
       )}
-      <div className="space-y-2 px-3 pb-2 pt-3">
-        <Listbox value={courseFilter} onChange={setCourseFilter}>
-          <div className="relative z-40 min-w-0">
-            <ListboxButton className={`relative flex ${compact ? "h-8" : "h-11"} w-full items-center rounded-radius-md py-1.5 pl-3 pr-9 text-left text-xs font-medium text-text-secondary glass-card-interactive focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50`}>
-              <span className="min-w-0 truncate">
-                {courseFilter || t("All Courses")}
-              </span>
+      <div className="flex items-center gap-1.5 px-3 pb-2 pt-3">
+        <Listbox
+          multiple
+          value={selectedCourses}
+          // the "All Courses" row carries an empty string, which clears the pick
+          onChange={(next: string[]) => setCourseFilter(next.includes("") ? [] : next)}
+        >
+          <div className="relative z-40 min-w-0 flex-1">
+            <ListboxButton className={`relative flex ${compact ? "h-8" : "h-11"} w-full items-center rounded-radius-md py-1.5 pl-3 pr-9 text-left text-xs font-medium glass-card-interactive focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${selectedCourses.length > 0 ? "text-accent" : "text-text-secondary"}`}>
+              <span className="min-w-0 truncate">{courseFilterLabel}</span>
               <span className="absolute inset-y-0 right-0 flex items-center pr-2">
                 <ChevronUpDownIcon className="h-3.5 w-3.5 text-text-tertiary" />
               </span>
             </ListboxButton>
-            <ListboxOptions className="absolute z-[80] mt-1 max-h-56 w-full overflow-auto rounded-radius-md bg-app-page py-1 text-xs shadow-float focus:outline-none">
-              <ListboxOption
-                value={null}
-                className={`${compact ? "min-h-8 py-1.5" : "min-h-11 py-3"} cursor-pointer bg-app-page px-3 text-text-secondary hover:bg-subtle data-[focus]:bg-subtle`}
-              >
+            <ListboxOptions className="absolute z-[80] mt-1 max-h-72 w-full min-w-56 overflow-auto rounded-radius-md bg-app-page py-1 text-xs shadow-float focus:outline-none">
+              <ListboxOption value="" className={`${compact ? "min-h-8 py-1.5" : "min-h-11 py-3"} flex cursor-pointer items-center gap-2 bg-app-page px-3 text-text-secondary hover:bg-subtle data-[focus]:bg-subtle border-b border-border-subtle`}>
+                <CheckIcon
+                  className={`h-3.5 w-3.5 shrink-0 text-accent ${selectedCourses.length === 0 ? "" : "invisible"}`}
+                  aria-hidden="true"
+                />
                 {t("All Courses")}
               </ListboxOption>
               {courses.map((course) => (
-                <ListboxOption
-                  key={course}
-                  value={course}
-                  className={`${compact ? "min-h-8 py-1.5" : "min-h-11 py-3"} cursor-pointer bg-app-page px-3 text-text-secondary hover:bg-subtle data-[focus]:bg-subtle`}
-                >
-                  {course}
+                <ListboxOption key={course} value={course} className={`${compact ? "min-h-8 py-1.5" : "min-h-11 py-3"} flex cursor-pointer items-center gap-2 bg-app-page px-3 text-text-secondary hover:bg-subtle data-[focus]:bg-subtle`}>
+                  {({ selected }) => (
+                    <>
+                      <CheckIcon
+                        className={`h-3.5 w-3.5 shrink-0 text-accent ${selected ? "" : "invisible"}`}
+                        aria-hidden="true"
+                      />
+                      <span className="min-w-0 truncate">{course}</span>
+                    </>
+                  )}
                 </ListboxOption>
               ))}
             </ListboxOptions>
           </div>
         </Listbox>
 
-        <div className="flex items-center gap-1 rounded-radius-md bg-subtle p-1">
-          <button
-            type="button"
-            onClick={() => setIncludeAll(!includeAll)}
-            className={`${compact ? "h-7" : "h-11"} min-w-0 flex-1 rounded-radius-sm px-2 text-xs font-medium transition-colors ${
-              includeAll
-                ? "atlas-raised text-text"
-                : "text-text-secondary hover:bg-surface/60"
-            }`}
-            aria-pressed={includeAll}
+        {/* fetch scope, archived courses and course management are occasional, so they share one menu */}
+        <Popover className="relative">
+          <PopoverButton
+            className={`flex ${compact ? "h-8 max-lg:h-11" : "h-11"} w-8 shrink-0 items-center justify-center rounded-radius-md text-text-secondary transition-colors hover:bg-subtle data-[open]:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 max-lg:w-11 ${includeAll || includeArchived ? "text-accent" : ""}`}
+            aria-label={t("View")}
+            title={t("View")}
           >
-            {t("Get all")}
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowCourseManager(true)}
-            className={`${compact ? "h-7" : "h-11"} min-w-0 flex-1 rounded-radius-sm px-2 text-xs font-medium text-text-secondary transition-colors hover:bg-surface/60`}
+            <AdjustmentsHorizontalIcon className="h-4 w-4" aria-hidden="true" />
+          </PopoverButton>
+          <PopoverPanel
+            anchor="bottom end"
+            className="z-[80] w-56 rounded-radius-lg border border-border bg-surface p-1 shadow-float [--anchor-gap:6px] [--anchor-padding:8px] focus:outline-none"
           >
-            {t("Manage")}
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleSync()}
-            disabled={syncing}
-            className={`flex ${compact ? "h-7 w-7" : "h-11 w-11"} shrink-0 items-center justify-center rounded-radius-sm text-text-secondary transition-colors hover:bg-surface/60 disabled:opacity-40`}
-            aria-label={t("Sync from Canvas")}
-          >
-            <ArrowPathIcon className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
-          </button>
-        </div>
+            {({ close }) => (
+              <>
+                <label className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-radius-md px-2.5 text-left text-xs text-text-secondary hover:bg-subtle hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 lg:min-h-8">
+                  <input
+                    type="checkbox"
+                    checked={includeAll}
+                    onChange={(event) => setIncludeAll(event.target.checked)}
+                    className="h-4 w-4 rounded border border-border-subtle accent-accent"
+                  />
+                  {t("Get all")}
+                </label>
+                <label className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-radius-md px-2.5 text-left text-xs text-text-secondary hover:bg-subtle hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 lg:min-h-8">
+                  <input
+                    type="checkbox"
+                    checked={includeArchived}
+                    onChange={(event) => void setIncludeArchived(event.target.checked)}
+                    className="h-4 w-4 rounded border border-border-subtle accent-accent"
+                  />
+                  {t("Show finished and archived courses")}
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    close();
+                    setShowCourseManager(true);
+                  }}
+                  className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-radius-md px-2.5 text-left text-xs text-text-secondary hover:bg-subtle hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 lg:min-h-8"
+                >
+                  {t("Manage")}
+                </button>
+              </>
+            )}
+          </PopoverPanel>
+        </Popover>
+        <button
+          type="button"
+          onClick={() => void handleSync()}
+          disabled={syncing}
+          className={`flex ${compact ? "h-8 max-lg:h-11" : "h-11"} w-8 shrink-0 items-center justify-center rounded-radius-md text-text-secondary transition-colors hover:bg-subtle disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 max-lg:w-11`}
+          aria-label={t("Sync from Canvas")}
+          title={t("Sync from Canvas")}
+        >
+          <ArrowPathIcon className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} aria-hidden="true" />
+        </button>
       </div>
 
-      <label
-        className={`mx-3 flex ${compact ? "h-8" : "min-h-11"} cursor-pointer items-center gap-2 text-xs text-text-secondary`}
-      >
-        <input
-          type="checkbox"
-          checked={includeArchived}
-          onChange={(event) => void setIncludeArchived(event.target.checked)}
-          className="h-4 w-4 rounded border border-border-subtle accent-accent text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
-        />
-        {t("Show archived courses")}
-      </label>
-
-      {surface === "full" && <RecentGraded assignments={assignments} courseFilter={courseFilter} />}
+      {surface === "full" && <RecentGraded assignments={base} />}
       {surface === "full" && <ConcentricRings courses={courseRings} />}
 
       {error && assignments.length > 0 && (
@@ -701,13 +738,13 @@ export default function AssignmentTracker({
         className="flex min-h-0 flex-1 flex-col"
       >
         <TabList
-          className="mx-3 mb-3 flex flex-wrap gap-1.5"
+          className={`mx-3 ${compact ? "mb-2" : "mb-3"} flex flex-wrap gap-1.5`}
           aria-label={t("Tasks")}
         >
           {tabs.map((tab) => (
             <Tab
               key={tab}
-              className="h-8 rounded-full border border-border bg-surface px-3 text-[13px] text-text-secondary transition-colors hover:bg-subtle max-lg:min-h-11 data-selected:border-transparent data-selected:bg-text data-selected:font-medium data-selected:text-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+              className="h-7 rounded-full border border-border bg-surface px-2.5 text-xs text-text-secondary transition-colors hover:bg-subtle max-lg:min-h-11 data-selected:border-transparent data-selected:bg-text data-selected:font-medium data-selected:text-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
             >
               {tabLabels[tab]}
               {counts[tab] > 0 && (

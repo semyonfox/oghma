@@ -43,6 +43,26 @@ export const GET = withErrorHandler(async (request) => {
   }
   if (!includeArchived) {
     conditions.push(sql`(ucs.is_active IS NULL OR ucs.is_active = true)`);
+    // a finished course counts as archived too, with the same rule the notes tree uses:
+    // the user's override on the top-level course folder wins, otherwise canvas saying 'past'
+    conditions.push(sql`NOT COALESCE(
+      (SELECT n.course_finished_override
+       FROM app.notes n
+       JOIN app.tree_items ti ON ti.note_id = n.note_id AND ti.parent_id IS NULL
+       WHERE n.user_id = a.user_id
+         AND n.canvas_course_id = a.canvas_course_id
+         AND n.is_folder
+         AND n.canvas_module_id IS NULL
+         AND n.canvas_assignment_id IS NULL
+         AND n.deleted_at IS NULL
+         AND n.course_finished_override IS NOT NULL
+       LIMIT 1),
+      (SELECT course.status = 'past'
+       FROM app.canvas_course_status course
+       WHERE course.user_id = a.user_id
+         AND course.canvas_course_id = a.canvas_course_id),
+      false
+    )`);
   }
 
   const where = conditions.reduce((a, c) => sql`${a} AND ${c}`);

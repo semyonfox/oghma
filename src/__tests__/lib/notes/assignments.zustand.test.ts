@@ -50,7 +50,7 @@ describe("assignment store archive visibility", () => {
     useAssignmentStore.setState({
       assignments: [],
       loading: false,
-      courseFilter: null,
+      courseFilter: [],
       activeTab: "upcoming",
       includeAll: true,
       includeArchived: true,
@@ -72,7 +72,7 @@ describe("assignment store archive visibility", () => {
     useAssignmentStore.setState({
       assignments: [],
       loading: false,
-      courseFilter: null,
+      courseFilter: [],
       activeTab: "upcoming",
       includeAll: true,
       includeArchived: true,
@@ -106,7 +106,7 @@ describe("assignment store archive visibility", () => {
     useAssignmentStore.setState({
       assignments: [],
       loading: false,
-      courseFilter: null,
+      courseFilter: [],
       activeTab: "upcoming",
       includeAll: false,
       includeArchived: false,

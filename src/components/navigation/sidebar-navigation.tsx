@@ -35,7 +35,7 @@ function formatClock(totalSeconds: number): string {
 }
 
 // desktop shell from the Atlas mockups: labelled nav, the page's own section,
-// then Canvas import status and the signed-in account
+// then the signed-in account with Canvas import status beside it
 export default function SidebarNavigation({
   activeSection,
   homeHref,
@@ -140,27 +140,30 @@ export default function SidebarNavigation({
             <span>{t("Offline notes")}</span>
           </button>
         )}
-        <CanvasImportIndicator variant="drawer" hideWhenIdle />
-        <Link
-          href={SETTINGS_ITEM.href}
-          onClick={() => onNavClick(SETTINGS_ITEM)}
-          aria-current={settingsActive ? "page" : undefined}
-          aria-label={t("Settings")}
-          className={`flex items-center gap-2.5 rounded-radius-lg px-2 py-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${settingsActive ? "atlas-raised" : "hover:bg-subtle"}`}
-        >
-          {avatarUrl ? (
-            <img src={avatarUrl} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover" />
-          ) : (
-            <span aria-hidden="true" className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-action text-sm font-semibold text-on-action">
-              {(accountLabel ?? "?").charAt(0).toUpperCase()}
+        <div className="flex items-center gap-1">
+          <Link
+            href={SETTINGS_ITEM.href}
+            onClick={() => onNavClick(SETTINGS_ITEM)}
+            aria-current={settingsActive ? "page" : undefined}
+            aria-label={t("Settings")}
+            className={`flex min-w-0 flex-1 items-center gap-2.5 rounded-radius-lg px-2 py-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${settingsActive ? "atlas-raised" : "hover:bg-subtle"}`}
+          >
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover" />
+            ) : (
+              <span aria-hidden="true" className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-action text-sm font-semibold text-on-action">
+                {(accountLabel ?? "?").charAt(0).toUpperCase()}
+              </span>
+            )}
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className="truncate text-sm font-semibold text-text">{accountLabel ?? t("Settings")}</span>
+              {name && email && <span className="truncate text-xs text-text-tertiary">{email}</span>}
             </span>
-          )}
-          <span className="flex min-w-0 flex-1 flex-col">
-            <span className="truncate text-sm font-semibold text-text">{accountLabel ?? t("Settings")}</span>
-            {name && email && <span className="truncate text-xs text-text-tertiary">{email}</span>}
-          </span>
-          <Cog6ToothIcon className="h-[18px] w-[18px] shrink-0 text-text-tertiary" aria-hidden="true" />
-        </Link>
+            <Cog6ToothIcon className="h-[18px] w-[18px] shrink-0 text-text-tertiary" aria-hidden="true" />
+          </Link>
+          {/* import status is an icon beside the account so a finished import doesn't hold a whole row */}
+          <CanvasImportIndicator hideWhenIdle />
+        </div>
       </div>
     </div>
   );

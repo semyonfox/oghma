@@ -415,7 +415,6 @@
   "file_view_pane.select_file_hint": "从侧边栏选择一条笔记以在此处打开",
   "files": "文件",
   "files deleted": "文件已删除",
-  "files processed": "已处理的文件",
   "First item": "第一项",
   "First name": "名字",
   "Fit to pane": "适合窗格",
@@ -821,7 +820,6 @@
   "Settings": "设置",
   "Short break": "短暂休息",
   "Shortcut": "捷径",
-  "Show archived courses": "显示存档的课程",
   "Sign in": "登录",
   "Sign in failed": "登录失败",
   "Sign in to your account": "登录您的账户",
@@ -1244,5 +1242,8 @@
   "now": "刚刚",
   "{count}m": "{count} 分钟",
   "{count}h": "{count} 小时",
-  "Importing Canvas files into OghmaNotes is paused while we agree it with lecturers. Deadlines still sync to your calendar, and you can upload your own files to Notes.": "在与讲师达成一致之前，将 Canvas 文件导入 OghmaNotes 的功能已暂停。截止日期仍会同步到你的日历，你也可以将自己的文件上传到笔记。"
+  "Importing Canvas files into OghmaNotes is paused while we agree it with lecturers. Deadlines still sync to your calendar, and you can upload your own files to Notes.": "在与讲师达成一致之前，将 Canvas 文件导入 OghmaNotes 的功能已暂停。截止日期仍会同步到你的日历，你也可以将自己的文件上传到笔记。",
+  "Files processed: {count}": "Files processed: {count}",
+  "{count} courses": "{count} courses",
+  "Show finished and archived courses": "Show finished and archived courses"
 }

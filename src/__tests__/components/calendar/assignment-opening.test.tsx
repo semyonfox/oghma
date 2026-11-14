@@ -19,7 +19,7 @@ vi.mock("@/lib/celebration", () => ({
   getCelebrationOrigin: () => ({ x: 0.5, y: 0.5 }),
   triggerCelebration: mocks.celebrate,
 }));
-vi.mock("@/lib/notes/state/assignments", () => ({ default: () => ({ assignments: [assignment], updateAssignment: mocks.update, hasLoaded: true, activeTab: "done", includeAll: true, includeArchived: false, courseFilter: null, fetchAssignments: mocks.fetch }) }));
+vi.mock("@/lib/notes/state/assignments", () => ({ default: () => ({ assignments: [assignment], updateAssignment: mocks.update, hasLoaded: true, activeTab: "done", includeAll: true, includeArchived: false, courseFilter: [], fetchAssignments: mocks.fetch }) }));
 vi.mock("@/lib/notes/state/calendar", () => ({ default: () => ({
   currentDate: "2026-09-21T12:00:00", selectedDate: "2026-09-21", timeBlocks: [], reviewDates: new Set(), examLoad: {},
   setSelectedDate: mocks.selectDate, deleteTimeBlock: vi.fn(), toggleTimeBlockCompleted: vi.fn(),

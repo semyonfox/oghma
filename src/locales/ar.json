@@ -415,7 +415,6 @@
   "file_view_pane.select_file_hint": "اختر ملاحظة من الشريط الجانبي لفتحها هنا",
   "files": "الملفات",
   "files deleted": "تم حذف الملفات",
-  "files processed": "تمت معالجة الملفات",
   "First item": "البند الأول",
   "First name": "الاسم الأول",
   "Fit to pane": "يصلح للجزء",
@@ -821,7 +820,6 @@
   "Settings": "الإعدادات",
   "Short break": "استراحة قصيرة",
   "Shortcut": "الاختصار",
-  "Show archived courses": "عرض الدورات المؤرشفة",
   "Sign in": "تسجيل الدخول",
   "Sign in failed": "فشل تسجيل الدخول",
   "Sign in to your account": "تسجيل الدخول إلى حسابك",
@@ -1244,5 +1242,8 @@
   "now": "الآن",
   "{count}m": "{count} د",
   "{count}h": "{count} س",
-  "Importing Canvas files into OghmaNotes is paused while we agree it with lecturers. Deadlines still sync to your calendar, and you can upload your own files to Notes.": "استيراد ملفات Canvas إلى OghmaNotes متوقف مؤقتًا ريثما نتفق على ذلك مع المحاضرين. لا تزال المواعيد النهائية تتزامن مع تقويمك، ويمكنك رفع ملفاتك الخاصة إلى الملاحظات."
+  "Importing Canvas files into OghmaNotes is paused while we agree it with lecturers. Deadlines still sync to your calendar, and you can upload your own files to Notes.": "استيراد ملفات Canvas إلى OghmaNotes متوقف مؤقتًا ريثما نتفق على ذلك مع المحاضرين. لا تزال المواعيد النهائية تتزامن مع تقويمك، ويمكنك رفع ملفاتك الخاصة إلى الملاحظات.",
+  "Files processed: {count}": "Files processed: {count}",
+  "{count} courses": "{count} courses",
+  "Show finished and archived courses": "Show finished and archived courses"
 }

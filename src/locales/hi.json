@@ -415,7 +415,6 @@
   "file_view_pane.select_file_hint": "यहां खोलने के लिए साइडबार से एक नोट चुनें",
   "files": "फाइलें",
   "files deleted": "फाइलें हटा दी गई हैं",
-  "files processed": "फ़ाइलें संसाधित",
   "First item": "पहला आइटम",
   "First name": "पहला नाम",
   "Fit to pane": "फलक पर फ़िट करें",
@@ -821,7 +820,6 @@
   "Settings": "सेटिंग्स",
   "Short break": "छोटा सा ब्रेक",
   "Shortcut": "शॉर्टकट",
-  "Show archived courses": "संग्रहीत पाठ्यक्रम दिखाएँ",
   "Sign in": "साइन इन करें",
   "Sign in failed": "भाग लेना विफल हुआ",
   "Sign in to your account": "अपने खाते में साइन इन करें",
@@ -1244,5 +1242,8 @@
   "now": "अभी",
   "{count}m": "{count} मि",
   "{count}h": "{count} घं",
-  "Importing Canvas files into OghmaNotes is paused while we agree it with lecturers. Deadlines still sync to your calendar, and you can upload your own files to Notes.": "लेक्चररों के साथ सहमति बनने तक Canvas फ़ाइलों को OghmaNotes में आयात करना रोका गया है। समय-सीमाएँ अब भी आपके कैलेंडर से सिंक होती हैं, और आप अपनी फ़ाइलें नोट्स में अपलोड कर सकते हैं।"
+  "Importing Canvas files into OghmaNotes is paused while we agree it with lecturers. Deadlines still sync to your calendar, and you can upload your own files to Notes.": "लेक्चररों के साथ सहमति बनने तक Canvas फ़ाइलों को OghmaNotes में आयात करना रोका गया है। समय-सीमाएँ अब भी आपके कैलेंडर से सिंक होती हैं, और आप अपनी फ़ाइलें नोट्स में अपलोड कर सकते हैं।",
+  "Files processed: {count}": "Files processed: {count}",
+  "{count} courses": "{count} courses",
+  "Show finished and archived courses": "Show finished and archived courses"
 }
