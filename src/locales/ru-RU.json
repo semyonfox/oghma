@@ -415,7 +415,6 @@
   "file_view_pane.select_file_hint": "Выберите заметку на боковой панели, чтобы открыть ее здесь.",
   "files": "файлы",
   "files deleted": "файлы удалены",
-  "files processed": "файлы обработаны",
   "First item": "Первый предмет",
   "First name": "Имя",
   "Fit to pane": "По размеру панели",
@@ -821,7 +820,6 @@
   "Settings": "Настройки",
   "Short break": "Короткий перерыв",
   "Shortcut": "Ярлык",
-  "Show archived courses": "Показать архивированные курсы",
   "Sign in": "Войти",
   "Sign in failed": "Войти не удалось",
   "Sign in to your account": "Войти в аккаунт",
@@ -1244,5 +1242,8 @@
   "now": "сейчас",
   "{count}m": "{count} мин",
   "{count}h": "{count} ч",
-  "Importing Canvas files into OghmaNotes is paused while we agree it with lecturers. Deadlines still sync to your calendar, and you can upload your own files to Notes.": "Импорт файлов Canvas в OghmaNotes приостановлен, пока мы согласовываем его с преподавателями. Сроки по-прежнему синхронизируются с вашим календарём, а свои файлы можно загрузить в Заметки."
+  "Importing Canvas files into OghmaNotes is paused while we agree it with lecturers. Deadlines still sync to your calendar, and you can upload your own files to Notes.": "Импорт файлов Canvas в OghmaNotes приостановлен, пока мы согласовываем его с преподавателями. Сроки по-прежнему синхронизируются с вашим календарём, а свои файлы можно загрузить в Заметки.",
+  "Files processed: {count}": "Files processed: {count}",
+  "{count} courses": "{count} courses",
+  "Show finished and archived courses": "Show finished and archived courses"
 }

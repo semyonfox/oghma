@@ -38,7 +38,7 @@ vi.mock("@/lib/notes/state/assignments", () => ({
     loading: false,
     hasLoaded: true,
     error: null,
-    courseFilter: null,
+    courseFilter: [],
     activeTab: selectedTab,
     includeAll: true,
     includeArchived: false,

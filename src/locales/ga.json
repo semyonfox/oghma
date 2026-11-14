@@ -415,7 +415,6 @@
   "file_view_pane.select_file_hint": "Roghnaigh nóta ón taobhbharra chun é a oscailt anseo",
   "files": "comhaid",
   "files deleted": "comhaid scriosta",
-  "files processed": "comhaid próiseáilte",
   "First item": "An chéad mhír",
   "First name": "Céadainm",
   "Fit to pane": "Oiriúnach don phána",
@@ -821,7 +820,6 @@
   "Settings": "Socruithe",
   "Short break": "Sos gairid",
   "Shortcut": "aicearra",
-  "Show archived courses": "Taispeáin cúrsaí cartlainne",
   "Sign in": "Sínigh isteach",
   "Sign in failed": "Theip ar logáil isteach",
   "Sign in to your account": "Sínigh isteach i do chuntas",
@@ -1244,5 +1242,8 @@
   "now": "anois",
   "{count}m": "{count} nóim",
   "{count}h": "{count} uair",
-  "Importing Canvas files into OghmaNotes is paused while we agree it with lecturers. Deadlines still sync to your calendar, and you can upload your own files to Notes.": "Tá iompórtáil comhad Canvas isteach in OghmaNotes ar sos fad is atáimid ag teacht ar chomhaontú le léachtóirí. Sioncronaítear spriocdhátaí le d'fhéilire fós, agus is féidir leat do chomhaid féin a uaslódáil chuig Nótaí."
+  "Importing Canvas files into OghmaNotes is paused while we agree it with lecturers. Deadlines still sync to your calendar, and you can upload your own files to Notes.": "Tá iompórtáil comhad Canvas isteach in OghmaNotes ar sos fad is atáimid ag teacht ar chomhaontú le léachtóirí. Sioncronaítear spriocdhátaí le d'fhéilire fós, agus is féidir leat do chomhaid féin a uaslódáil chuig Nótaí.",
+  "Files processed: {count}": "Files processed: {count}",
+  "{count} courses": "{count} courses",
+  "Show finished and archived courses": "Show finished and archived courses"
 }

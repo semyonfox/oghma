@@ -415,7 +415,6 @@
   "file_view_pane.select_file_hint": "Pick a note from the sidebar to open it here",
   "files": "files",
   "files deleted": "files deleted",
-  "files processed": "files processed",
   "First item": "First item",
   "First name": "First name",
   "Fit to pane": "Fit to pane",
@@ -821,7 +820,6 @@
   "Settings": "Settings",
   "Short break": "Short break",
   "Shortcut": "Shortcut",
-  "Show archived courses": "Show archived courses",
   "Sign in": "Sign in",
   "Sign in failed": "Sign in failed",
   "Sign in to your account": "Sign in to your account",
@@ -1244,5 +1242,8 @@
   "now": "now",
   "{count}m": "{count}m",
   "{count}h": "{count}h",
-  "Importing Canvas files into OghmaNotes is paused while we agree it with lecturers. Deadlines still sync to your calendar, and you can upload your own files to Notes.": "Importing Canvas files into OghmaNotes is paused while we agree it with lecturers. Deadlines still sync to your calendar, and you can upload your own files to Notes."
+  "Importing Canvas files into OghmaNotes is paused while we agree it with lecturers. Deadlines still sync to your calendar, and you can upload your own files to Notes.": "Importing Canvas files into OghmaNotes is paused while we agree it with lecturers. Deadlines still sync to your calendar, and you can upload your own files to Notes.",
+  "Files processed: {count}": "Files processed: {count}",
+  "{count} courses": "{count} courses",
+  "Show finished and archived courses": "Show finished and archived courses"
 }

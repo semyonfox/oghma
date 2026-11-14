@@ -415,7 +415,6 @@
   "file_view_pane.select_file_hint": "Kies een notitie uit de zijbalk om deze hier te openen",
   "files": "bestanden",
   "files deleted": "bestanden verwijderd",
-  "files processed": "bestanden verwerkt",
   "First item": "Eerste artikel",
   "First name": "Voornaam",
   "Fit to pane": "Passend bij ruit",
@@ -821,7 +820,6 @@
   "Settings": "Instellingen",
   "Short break": "Korte pauze",
   "Shortcut": "Snelkoppeling",
-  "Show archived courses": "Toon gearchiveerde cursussen",
   "Sign in": "Inloggen",
   "Sign in failed": "Aanmelden mislukt",
   "Sign in to your account": "Inloggen op uw account",
@@ -1244,5 +1242,8 @@
   "now": "nu",
   "{count}m": "{count} min",
   "{count}h": "{count} u",
-  "Importing Canvas files into OghmaNotes is paused while we agree it with lecturers. Deadlines still sync to your calendar, and you can upload your own files to Notes.": "Het importeren van Canvas-bestanden in OghmaNotes is gepauzeerd terwijl we dit met docenten afstemmen. Deadlines worden nog steeds met je agenda gesynchroniseerd en je kunt je eigen bestanden uploaden naar Notities."
+  "Importing Canvas files into OghmaNotes is paused while we agree it with lecturers. Deadlines still sync to your calendar, and you can upload your own files to Notes.": "Het importeren van Canvas-bestanden in OghmaNotes is gepauzeerd terwijl we dit met docenten afstemmen. Deadlines worden nog steeds met je agenda gesynchroniseerd en je kunt je eigen bestanden uploaden naar Notities.",
+  "Files processed: {count}": "Files processed: {count}",
+  "{count} courses": "{count} courses",
+  "Show finished and archived courses": "Show finished and archived courses"
 }
