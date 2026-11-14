@@ -138,7 +138,7 @@ async function recordAnswer(
   }
 
   const [card] = await tx<ReviewCardRow[]>`
-    SELECT qc.id, qc.state, qc.stability, qc.difficulty, qc.elapsed_days,
+    SELECT qc.id, qc.state, qc.stability, qc.difficulty,
            qc.scheduled_days, qc.learning_steps, qc.reps, qc.lapses, qc.due,
            qc.last_review, qq.id AS question_id, qq.question_type, qq.options,
            qq.correct_answer
@@ -178,7 +178,6 @@ async function recordAnswer(
     SET state = ${next.state},
         stability = ${next.stability},
         difficulty = ${next.difficulty},
-        elapsed_days = ${next.elapsed_days},
         scheduled_days = ${next.scheduled_days},
         learning_steps = ${next.learning_steps},
         reps = ${next.reps},

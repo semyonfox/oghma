@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "private": true,
   "engines": {
-    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
+    "node": "^24.15.0 || >=26.0.0"
   },
   "type": "module",
   "scripts": {
@@ -98,7 +98,7 @@
     "next": "16.4.6",
     "next-auth": "5.0.0-beta.32",
     "pdf-parse": "^2.4.5",
-    "postgres": "3.4.9",
+    "postgres": "4.1.1",
     "pupa": "^3.3.0",
     "react": "19.3.1",
     "react-complex-tree": "^2.6.4",
@@ -116,7 +116,7 @@
     "remove-markdown": "0.8.0",
     "shiki": "^4.6.0",
     "sonner": "^2.0.8",
-    "ts-fsrs": "5.4.2",
+    "ts-fsrs": "6.0.0",
     "tsx": "4.23.15",
     "undici": "8.12.4",
     "use-debounce": "^10.1.1",
@@ -146,7 +146,7 @@
     "eslint": "10.14.0",
     "eslint-plugin-react-hooks": "7.1.1",
     "husky": "9.1.7",
-    "jsdom": "30.1.3",
+    "jsdom": "31.0.0",
     "postcss": "8.5.32",
     "tailwindcss": "4.3.5",
     "typescript": "npm:@typescript/typescript6@6.0.2",

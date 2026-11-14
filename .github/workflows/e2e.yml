@@ -25,7 +25,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  NODE_VERSION: "22"
+  NODE_VERSION: "24"
   CI: "true"
   NODE_ENV: test
   NEXT_TELEMETRY_DISABLED: "1"
