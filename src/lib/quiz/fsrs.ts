@@ -19,7 +19,6 @@ export interface FSRSCardRow {
     state: string;
     stability: number;
     difficulty: number;
-    elapsed_days: number;
     scheduled_days: number;
     learning_steps: number;
     reps: number;
@@ -89,7 +88,6 @@ export function cardFromDB(row: FSRSCardRow): FSRSCard {
         state: isCardState(row.state) ? STATE_BY_NAME[row.state] : State.New,
         stability: row.stability,
         difficulty: row.difficulty,
-        elapsed_days: row.elapsed_days,
         scheduled_days: row.scheduled_days,
         learning_steps: row.learning_steps,
         reps: row.reps,
@@ -104,7 +102,6 @@ export function cardToDB(card: FSRSCard): FSRSCardValues {
         state: NAME_BY_STATE[card.state],
         stability: card.stability,
         difficulty: card.difficulty,
-        elapsed_days: card.elapsed_days,
         scheduled_days: card.scheduled_days,
         learning_steps: card.learning_steps,
         reps: card.reps,

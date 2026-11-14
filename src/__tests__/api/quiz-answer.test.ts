@@ -43,7 +43,6 @@ interface CardRow {
   state: string;
   stability: number;
   difficulty: number;
-  elapsed_days: number;
   scheduled_days: number;
   learning_steps: number;
   reps: number;
@@ -69,7 +68,6 @@ function cardRow(overrides: Partial<CardRow> = {}): CardRow {
     state: "new",
     stability: 0,
     difficulty: 0,
-    elapsed_days: 0,
     scheduled_days: 0,
     learning_steps: 0,
     reps: 0,
