@@ -81,7 +81,7 @@ export default function Feedback({
       )}
 
       {related.length > 0 && (
-        <div className="mt-4 space-y-2">
+        <div className="mt-4">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-text-tertiary">
               {t("quiz.feedback.related_notes")}
@@ -92,26 +92,12 @@ export default function Feedback({
                 title={chunk.title ?? undefined}
                 className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-accent-soft px-2.5 py-1 text-xs text-accent-soft-text"
               >
-                <span className="font-mono">{i + 1}</span>
                 <span className="truncate">
                   {chunk.title ?? t("quiz.feedback.related_notes")}
                 </span>
               </span>
             ))}
           </div>
-          <ol className="space-y-1.5">
-            {related.map((chunk, i) => (
-              <li
-                key={i}
-                className="flex gap-2 rounded-radius-md bg-surface-elevated px-3 py-2 text-xs leading-relaxed text-text-secondary"
-              >
-                <span className="font-mono text-text-tertiary">{i + 1}</span>
-                <div className="min-w-0 line-clamp-3">
-                  <QuizMarkdown>{chunk.text}</QuizMarkdown>
-                </div>
-              </li>
-            ))}
-          </ol>
         </div>
       )}
     </div>
