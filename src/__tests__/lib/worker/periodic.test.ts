@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/logger", () => ({ default: { error: vi.fn() } }));
+vi.mock("@/lib/logger", () => ({ default: { error: vi.fn(), warn: vi.fn() } }));
 
 import logger from "@/lib/logger";
 import { startPeriodicTask } from "@/lib/worker/periodic";
@@ -24,6 +24,10 @@ describe("worker periodic tasks", () => {
 
     release();
     await task.idle();
+    expect(logger.warn).toHaveBeenCalledWith(
+      "worker periodic task slow",
+      expect.objectContaining({ task: "slow", durationMs: 4_000 }),
+    );
     await vi.advanceTimersByTimeAsync(1_000);
     expect(work).toHaveBeenCalledTimes(2);
     task.stop();
