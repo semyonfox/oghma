@@ -24,8 +24,9 @@ export const BLOOM_DESCRIPTIONS: Record<BloomLevel, string> = {
 
 // question types appropriate for each bloom level
 export const BLOOM_QUESTION_TYPES: Record<BloomLevel, QuestionType[]> = {
-    1: ['mcq', 'true_false'],
-    2: ['mcq', 'true_false', 'fill_in'],
+    // repeats weight the random pick: true/false is a coin flip, so keep it rare
+    1: ['mcq', 'mcq', 'mcq', 'true_false'],
+    2: ['mcq', 'mcq', 'fill_in', 'true_false'],
     3: ['mcq', 'fill_in'],
     4: ['mcq', 'fill_in'],
 };

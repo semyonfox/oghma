@@ -53,6 +53,15 @@ import { canvasContentEnabled } from "@/lib/canvas/content-policy";
 
 type Transaction = postgres.TransactionSql;
 
+interface Candidate {
+  note_id: string;
+  needed: boolean;
+  latest_failed: boolean;
+  previous_hash: string | null;
+  previous_note_id: string | null;
+  previous_field: string | null;
+}
+
 interface ClaimedJob {
   id: string;
   user_id: string;
@@ -174,17 +183,39 @@ export async function enqueueStudyJobs(
       request.kind === "taxonomy"
         ? (map.syllabus_note_id ?? firstMaterial?.note_id ?? null)
         : request.noteId;
-    const candidates = explicitNote
-      ? [{ note_id: explicitNote, needed: true }]
-      : await tx<Array<{ note_id: string; needed: boolean }>>`
+    // the reconciler runs this every minute for every map, so the skip checks for
+    // unchanged materials come back with the candidates instead of as per-note queries
+    const candidates: Candidate[] = explicitNote
+      ? [
+          {
+            note_id: explicitNote,
+            needed: true,
+            latest_failed: false,
+            previous_hash: null,
+            previous_note_id: null,
+            previous_field: null,
+          },
+        ]
+      : await tx<Candidate[]>`
       SELECT material.note_id,
         CASE WHEN ${request.kind} = 'paper' THEN
           paper.note_id IS NULL OR paper.taxonomy_version <> ${map.taxonomy_version}
         ELSE material.status IN ('unclassified', 'stale') OR material.taxonomy_version <> ${map.taxonomy_version}
-        END AS needed
+        END AS needed,
+        COALESCE(latest.state = 'failed', FALSE) AS latest_failed,
+        CASE WHEN ${request.kind} = 'paper' THEN paper.source_hash ELSE material.source_hash END AS previous_hash,
+        CASE WHEN ${request.kind} = 'paper' THEN paper.structure #>> '{questions,0,source,noteId}'
+          ELSE material.classification #>> '{rawDecisions,0,anchor,noteId}' END AS previous_note_id,
+        CASE WHEN ${request.kind} = 'paper' THEN paper.structure #>> '{questions,0,source,field}'
+          ELSE material.classification #>> '{rawDecisions,0,anchor,field}' END AS previous_field
       FROM app.study_materials material
       JOIN app.notes n ON n.note_id = material.note_id AND n.user_id = material.user_id
       LEFT JOIN app.study_papers paper ON paper.map_id = material.map_id AND paper.note_id = material.note_id
+      LEFT JOIN (
+        SELECT DISTINCT ON (note_id) note_id, state FROM app.study_jobs
+        WHERE user_id = ${userId}::uuid AND map_id = ${mapId}::uuid AND kind = ${request.kind} AND note_id IS NOT NULL
+        ORDER BY note_id, created_at DESC, id DESC
+      ) latest ON latest.note_id = material.note_id
       WHERE material.user_id = ${userId}::uuid AND material.map_id = ${mapId}::uuid AND NOT material.excluded
         AND n.deleted_at IS NULL AND NOT n.is_folder AND NOT n.is_import_cache_source
         AND EXISTS (SELECT 1 FROM app.tree_items t WHERE t.note_id = n.note_id AND t.user_id = n.user_id)
@@ -194,7 +225,8 @@ export async function enqueueStudyJobs(
     let inserted = 0;
     for (const candidate of candidates) {
       if (inserted >= Math.min(50, 100 - active.count)) break;
-      if (options.automatic) {
+      if (options.automatic && candidate.latest_failed) continue;
+      if (options.automatic && explicitNote) {
         const [latest] = await tx<{ state: string }[]>`
           SELECT state FROM app.study_jobs WHERE user_id = ${userId}::uuid AND map_id = ${mapId}::uuid
             AND kind = ${request.kind} AND note_id IS NOT DISTINCT FROM ${request.kind === "taxonomy" ? null : candidate.note_id}::uuid
@@ -215,38 +247,14 @@ export async function enqueueStudyJobs(
         if (explicitNote) throw new ApiError(400, messages.text);
         continue;
       }
-      if (!explicitNote && !candidate.needed) {
-        const [previous] =
-          request.kind === "paper"
-            ? await tx<
-                {
-                  source_hash: string;
-                  source_note_id: string | null;
-                  source_field: string | null;
-                }[]
-              >`
-          SELECT source_hash, structure #>> '{questions,0,source,noteId}' AS source_note_id,
-            structure #>> '{questions,0,source,field}' AS source_field
-          FROM app.study_papers WHERE map_id = ${mapId}::uuid AND note_id = ${candidate.note_id}::uuid
-        `
-            : await tx<
-                {
-                  source_hash: string;
-                  source_note_id: string | null;
-                  source_field: string | null;
-                }[]
-              >`
-          SELECT source_hash, classification #>> '{rawDecisions,0,anchor,noteId}' AS source_note_id,
-            classification #>> '{rawDecisions,0,anchor,field}' AS source_field
-          FROM app.study_materials WHERE map_id = ${mapId}::uuid AND note_id = ${candidate.note_id}::uuid
-        `;
-        if (
-          previous?.source_hash === source.hash &&
-          previous.source_note_id === source.noteId &&
-          previous.source_field === source.field
-        )
-          continue;
-      }
+      if (
+        !explicitNote &&
+        !candidate.needed &&
+        candidate.previous_hash === source.hash &&
+        candidate.previous_note_id === source.noteId &&
+        candidate.previous_field === source.field
+      )
+        continue;
       const rows = await tx<{ id: string }[]>`
         INSERT INTO app.study_jobs (user_id, map_id, note_id, kind)
         VALUES (${userId}::uuid, ${mapId}::uuid, ${request.kind === "taxonomy" ? null : candidate.note_id}::uuid, ${request.kind})

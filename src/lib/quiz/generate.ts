@@ -81,6 +81,9 @@ ${typeInstruction}
 Rules:
 - The question must be fully self-contained — include all context needed to answer it within the question text itself
 - Never say "according to the notes", "from the provided content", "in your notes", or any phrase implying the student can see source material
+- Test transferable understanding a lecturer could set in an exam: a definition, principle, mechanism, trade-off, or a calculation whose inputs are all given in the question
+- Never ask what a specific worked example, figure, diagram, table, dataset, or code listing from the source shows or outputs (e.g. "the decision tree for the Iris data would classify..."). The student cannot see it, so the answer is unknowable. If the source is mostly such an example, ask about the general technique it illustrates, or return {"skip": true}
+- The question must have one defensible answer without guessing at hidden details
 - Only use facts from the source material above — do not introduce external information
 - Do not go beyond this module's scope
 - Match difficulty to the cognitive level

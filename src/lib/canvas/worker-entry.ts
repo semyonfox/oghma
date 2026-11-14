@@ -236,7 +236,8 @@ const tasks: PeriodicTask[] = [
     "study jobs",
     () => drainStudyJobs(processNextStudyJob, () => shuttingDown),
     5_000,
-    { runNow: true },
+    // a drain legitimately spans many provider calls
+    { runNow: true, slowAfterMs: 10 * MINUTE_MS },
   ),
   startPeriodicTask("study map reconciliation", reconcileStudyMaps, MINUTE_MS, { runNow: true }),
   startPeriodicTask("daily maintenance", runDailyMaintenance, DAY_MS, { runNow: true }),

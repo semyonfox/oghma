@@ -1064,6 +1064,36 @@ describe("study map storage and durable jobs", () => {
     );
   });
 
+  it("re-queues only edited materials and leaves failed ones in automatic map passes", async () => {
+    const map = await getStudyMap(userId, mapId);
+    await updateStudyMap(userId, mapId, {
+      ...map,
+      academicYear: map.academicYear,
+      version: map.version,
+      autoClassify: true,
+    });
+    const automaticPass = () =>
+      enqueueStudyJobs(
+        userId,
+        mapId,
+        { kind: "classify", noteId: null },
+        { automatic: true },
+      );
+    expect(await automaticPass()).toBeGreaterThan(0);
+    while (await processNextStudyJob());
+    expect(await automaticPass()).toBe(0);
+
+    await fixture`UPDATE app.notes SET content = 'Algorithms now have different source text.' WHERE note_id = ${noteId}::uuid`;
+    expect(await automaticPass()).toBe(1);
+    expect(await latestJob()).toMatchObject({ state: "pending" });
+
+    await fixture`UPDATE app.study_jobs SET state = 'failed', error = 'synthetic' WHERE note_id = ${noteId}::uuid AND state = 'pending'`;
+    expect(await automaticPass()).toBe(0);
+    expect(
+      await enqueueStudyJobs(userId, mapId, { kind: "classify", noteId: null }),
+    ).toBe(1);
+  });
+
   it("rejects a result when the topic meaning changes during processing", async () => {
     await enqueueStudyJobs(userId, mapId, { kind: "classify", noteId });
     await duringClassification(async () => {

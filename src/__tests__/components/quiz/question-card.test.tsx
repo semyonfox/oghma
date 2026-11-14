@@ -38,34 +38,28 @@ describe("QuestionCard", () => {
     expect(onAnswer).toHaveBeenCalledExactlyOnceWith("", true, 2);
   });
 
-  it("submits a clicked MCQ choice once and keeps option Markdown literal", () => {
+  it("answers on the first click, once, and keeps option Markdown literal", () => {
     const onAnswer = vi.fn();
     const { container } = render(
       <QuestionCard question={mcqQuestion} onAnswer={onAnswer} />,
     );
 
-    const submit = screen.getByRole("button", {
-      name: "quiz.question.check_answer",
-    }) as HTMLButtonElement;
-    expect(submit.disabled).toBe(true);
     expect(screen.getByText("## H2 Header").tagName).toBe("SPAN");
     expect(container.querySelector("h2")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: /Correct answer/ }));
-    expect(submit.disabled).toBe(false);
-    fireEvent.click(submit);
-
     expect(onAnswer).toHaveBeenCalledExactlyOnceWith("Correct answer", true);
-    fireEvent.keyDown(window, { key: "Enter" });
+
+    fireEvent.click(screen.getByRole("button", { name: /H2 Header/ }));
+    fireEvent.keyDown(window, { key: "B" });
     expect(onAnswer).toHaveBeenCalledOnce();
   });
 
-  it("selects and submits an MCQ choice from the keyboard", () => {
+  it("answers an MCQ choice with one key press", () => {
     const onAnswer = vi.fn();
     render(<QuestionCard question={mcqQuestion} onAnswer={onAnswer} />);
 
     fireEvent.keyDown(window, { key: "A" });
-    fireEvent.keyDown(window, { key: "Enter" });
 
     expect(onAnswer).toHaveBeenCalledExactlyOnceWith("## H2 Header", false);
   });
