@@ -41,6 +41,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { TreeViewMenu } from "./tree-view-menu";
 import { NewMenu } from "./new-menu";
+import { TrashButton } from "./trash-button";
 import { TagsView } from "./tags-view";
 import { TagEditor } from "./tag-editor";
 import { useTreeViewSettings } from "./use-tree-view-settings";
@@ -328,6 +329,7 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
               onNewFolder={handleQuickNewFolder}
               onUpload={() => uploadInputRef.current?.click()}
             />
+            <TrashButton onNavigate={onOpenNote} />
             <input
               ref={uploadInputRef}
               type="file"

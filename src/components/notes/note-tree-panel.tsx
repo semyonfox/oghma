@@ -1,84 +1,18 @@
 "use client";
 
-import { TrashIcon } from "@heroicons/react/24/outline";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { FC, useEffect, useState } from "react";
-import useI18n from "@/lib/notes/hooks/use-i18n";
+import { FC } from "react";
 import SidebarList from "@/components/notes/sidebar/sidebar-list";
 
 interface NoteTreePanelProps {
   onOpenNote?: () => void;
 }
 
-async function fetchTrashCount(signal: AbortSignal) {
-  const response = await fetch("/api/trash", { cache: "no-store", signal });
-  if (!response.ok) throw new Error(`Failed to load Trash: ${response.status}`);
-  const data = (await response.json()) as { items?: unknown };
-  return Array.isArray(data.items) ? data.items.length : 0;
-}
-
-const NoteTreePanel: FC<NoteTreePanelProps> = ({ onOpenNote }) => {
-  const { t } = useI18n();
-  const pathname = usePathname();
-  const isTrash = pathname === "/notes/trash";
-  const [trashCount, setTrashCount] = useState(0);
-
-  useEffect(() => {
-    let controller: AbortController | null = null;
-    const refresh = () => {
-      controller?.abort();
-      const current = new AbortController();
-      controller = current;
-      fetchTrashCount(current.signal).then(
-        (count) => {
-          if (!current.signal.aborted) setTrashCount(count);
-        },
-        () => {
-          if (!current.signal.aborted) setTrashCount(0);
-        },
-      );
-    };
-
-    refresh();
-    window.addEventListener("notes:trash-changed", refresh);
-    return () => {
-      controller?.abort();
-      window.removeEventListener("notes:trash-changed", refresh);
-    };
-  }, []);
-
-  return (
-    <div className="flex h-full flex-col overflow-hidden bg-sidebar">
-      <div className="obsidian-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
-        <SidebarList onOpenNote={onOpenNote} />
-      </div>
-      <div className="shrink-0 border-t border-border p-2 pb-[max(0.5rem,var(--safe-bottom))]">
-        <Link
-          href="/notes/trash"
-          onClick={() => onOpenNote?.()}
-          aria-current={isTrash ? "page" : undefined}
-          aria-label={trashCount > 0 ? `${t("Trash")} (${trashCount})` : undefined}
-          className={`flex min-h-11 items-center gap-2 rounded-radius-md px-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
-            isTrash
-              ? "atlas-raised text-text"
-              : "text-text-secondary hover:bg-subtle hover:text-text"
-          }`}
-        >
-          <TrashIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
-          <span>{t("Trash")}</span>
-          {trashCount > 0 && (
-            <span
-              className="ml-auto inline-flex min-w-5 shrink-0 items-center justify-center rounded-radius-sm bg-subtle px-1.5 py-0.5 font-mono text-xs font-medium tabular-nums text-text-tertiary"
-              aria-hidden="true"
-            >
-              {trashCount}
-            </span>
-          )}
-        </Link>
-      </div>
+const NoteTreePanel: FC<NoteTreePanelProps> = ({ onOpenNote }) => (
+  <div className="flex h-full flex-col overflow-hidden bg-sidebar">
+    <div className="obsidian-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
+      <SidebarList onOpenNote={onOpenNote} />
     </div>
-  );
-};
+  </div>
+);
 
 export default NoteTreePanel;
