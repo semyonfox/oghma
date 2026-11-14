@@ -217,24 +217,14 @@ function QuestionView({
         />
 
         {answered && lastAnswer && (
-          <div className="mt-4 space-y-3">
-            <Feedback
-              wasCorrect={lastAnswer.wasCorrect}
-              explanation={question.explanation}
-              correctAnswer={question.correct_answer}
-              questionId={question.id}
-            />
-            {isLeech && (
-              <p className="text-text-tertiary text-xs">
-                {t("quiz.session.leech_warning")}
-              </p>
-            )}
-            {submitFailed && (
-              <p role="alert" className="text-center text-xs text-error-700 dark:text-error-400">
-                {t("quiz.session.answer_failed")}
-              </p>
-            )}
-            <div className="flex justify-end pb-4">
+          <div className="mt-4 space-y-3 pb-4">
+            {/* continue sits right under the options so the pointer barely moves */}
+            <div className="flex items-center justify-end gap-3">
+              {submitFailed && (
+                <p role="alert" className="text-xs text-error-700 dark:text-error-400">
+                  {t("quiz.session.answer_failed")}
+                </p>
+              )}
               <button
                 onClick={() => void handleContinue()}
                 disabled={submitting}
@@ -243,6 +233,17 @@ function QuestionView({
                 {t("quiz.session.continue")}
               </button>
             </div>
+            {isLeech && (
+              <p className="text-text-tertiary text-xs">
+                {t("quiz.session.leech_warning")}
+              </p>
+            )}
+            <Feedback
+              wasCorrect={lastAnswer.wasCorrect}
+              explanation={question.explanation}
+              correctAnswer={question.correct_answer}
+              questionId={question.id}
+            />
           </div>
         )}
       </div>
