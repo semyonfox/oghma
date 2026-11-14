@@ -5,15 +5,12 @@ import type { Assignment } from "@/lib/notes/state/assignments";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import AssignmentDetailsTrigger from "./assignment-details-trigger";
 
-export default function RecentGraded({ assignments, courseFilter }: {
-  assignments: Assignment[];
-  courseFilter: string | null;
-}) {
+// callers pass assignments already narrowed to the selected courses
+export default function RecentGraded({ assignments }: { assignments: Assignment[] }) {
   const { t } = useI18n();
   const [cutoff] = useState(() => Date.now() - 60 * 86400000);
   const recent = assignments
-    .filter(a => a.graded_at && Date.parse(a.graded_at) >= cutoff &&
-      (!courseFilter || a.course_name === courseFilter))
+    .filter(a => a.graded_at && Date.parse(a.graded_at) >= cutoff)
     .sort((a, b) => Date.parse(b.graded_at!) - Date.parse(a.graded_at!))
     .slice(0, 4);
   if (!recent.length) return null;

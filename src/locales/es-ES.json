@@ -415,7 +415,6 @@
   "file_view_pane.select_file_hint": "Elija una nota de la barra lateral para abrirla aquí",
   "files": "archivos",
   "files deleted": "archivos eliminados",
-  "files processed": "archivos procesados",
   "First item": "Primer artículo",
   "First name": "Nombre",
   "Fit to pane": "Ajustar al panel",
@@ -821,7 +820,6 @@
   "Settings": "Configuración",
   "Short break": "Breve descanso",
   "Shortcut": "Atajo",
-  "Show archived courses": "Mostrar cursos archivados",
   "Sign in": "Iniciar sesión",
   "Sign in failed": "Error al iniciar sesión",
   "Sign in to your account": "Iniciar sesión en tu cuenta",
@@ -1244,5 +1242,8 @@
   "now": "ahora",
   "{count}m": "{count} min",
   "{count}h": "{count} h",
-  "Importing Canvas files into OghmaNotes is paused while we agree it with lecturers. Deadlines still sync to your calendar, and you can upload your own files to Notes.": "La importación de archivos de Canvas a OghmaNotes está en pausa mientras lo acordamos con el profesorado. Las fechas de entrega se siguen sincronizando con tu calendario y puedes subir tus propios archivos a Notas."
+  "Importing Canvas files into OghmaNotes is paused while we agree it with lecturers. Deadlines still sync to your calendar, and you can upload your own files to Notes.": "La importación de archivos de Canvas a OghmaNotes está en pausa mientras lo acordamos con el profesorado. Las fechas de entrega se siguen sincronizando con tu calendario y puedes subir tus propios archivos a Notas.",
+  "Files processed: {count}": "Files processed: {count}",
+  "{count} courses": "{count} courses",
+  "Show finished and archived courses": "Show finished and archived courses"
 }

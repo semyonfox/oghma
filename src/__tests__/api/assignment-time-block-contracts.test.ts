@@ -40,7 +40,8 @@ function isTemplateStrings(value: unknown): value is TemplateStringsArray {
 function mockSql(first: unknown) {
   if (isTemplateStrings(first)) {
     const query = first.join(" ");
-    if (/\b(?:SELECT|INSERT|UPDATE|DELETE|WITH)\b/i.test(query)) {
+    // fragments can hold subqueries, so only a template that starts with a statement is one
+    if (/^\s*(?:SELECT|INSERT|UPDATE|DELETE|WITH)\b/i.test(query)) {
       return Promise.resolve(mocks.queryResults.shift() ?? []);
     }
   }

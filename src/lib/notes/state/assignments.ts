@@ -51,7 +51,8 @@ interface AssignmentState {
   loading: boolean;
   hasLoaded: boolean;
   error: string | null;
-  courseFilter: string | null;
+  // course names to show; empty shows every course
+  courseFilter: string[];
   activeTab: AssignmentTab;
   includeAll: boolean;
   includeArchived: boolean;
@@ -67,7 +68,7 @@ interface AssignmentState {
   ) => Promise<Assignment | null>;
   deleteAssignment: (id: string) => Promise<boolean>;
   syncFromCanvas: () => Promise<CanvasSyncResult | null>;
-  setCourseFilter: (course: string | null) => void;
+  setCourseFilter: (courses: string[]) => void;
   setActiveTab: (tab: AssignmentTab) => void;
   setIncludeAll: (all: boolean) => void;
   setIncludeArchived: (value: boolean) => Promise<void>;
@@ -82,7 +83,7 @@ const useAssignmentStore = create<AssignmentState>()(
       loading: false,
       hasLoaded: false,
       error: null,
-      courseFilter: null,
+      courseFilter: [],
       activeTab: "upcoming",
       includeAll: false,
       includeArchived: false,
@@ -174,7 +175,7 @@ const useAssignmentStore = create<AssignmentState>()(
         }
       },
 
-      setCourseFilter: (course) => set({ courseFilter: course }),
+      setCourseFilter: (courses) => set({ courseFilter: courses }),
       setActiveTab: (tab) => set({ activeTab: tab }),
       setIncludeAll: (all) => set({ includeAll: all }),
       setIncludeArchived: async (value) => {
@@ -187,6 +188,21 @@ const useAssignmentStore = create<AssignmentState>()(
     }),
     {
       name: "oghma-assignments",
+      version: 1,
+      // v0 kept one course name or null. finished courses now count as archived, so a
+      // saved "show archived" choice is reset rather than suddenly showing old terms
+      migrate: (persisted, version) => {
+        const state = (persisted ?? {}) as Record<string, unknown>;
+        if (version < 1) {
+          const previous = state.courseFilter;
+          return {
+            ...state,
+            courseFilter: typeof previous === "string" ? [previous] : [],
+            includeArchived: false,
+          };
+        }
+        return state;
+      },
       partialize: (state) => ({
         courseFilter: state.courseFilter,
         activeTab: state.activeTab,

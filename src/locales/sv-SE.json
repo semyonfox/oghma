@@ -415,7 +415,6 @@
   "file_view_pane.select_file_hint": "Välj en anteckning från sidofältet för att öppna den här",
   "files": "filer",
   "files deleted": "filer raderade",
-  "files processed": "filer bearbetade",
   "First item": "Första objektet",
   "First name": "Förnamn",
   "Fit to pane": "Passa till rutan",
@@ -821,7 +820,6 @@
   "Settings": "Inställningar",
   "Short break": "Kort paus",
   "Shortcut": "Genväg",
-  "Show archived courses": "Visa arkiverade kurser",
   "Sign in": "Logga in",
   "Sign in failed": "Inloggningen misslyckades",
   "Sign in to your account": "Logga in på ditt konto",
@@ -1244,5 +1242,8 @@
   "now": "nu",
   "{count}m": "{count} min",
   "{count}h": "{count} h",
-  "Importing Canvas files into OghmaNotes is paused while we agree it with lecturers. Deadlines still sync to your calendar, and you can upload your own files to Notes.": "Import av Canvas-filer till OghmaNotes är pausad medan vi kommer överens med lärarna. Deadlines synkas fortfarande till din kalender, och du kan ladda upp dina egna filer till Anteckningar."
+  "Importing Canvas files into OghmaNotes is paused while we agree it with lecturers. Deadlines still sync to your calendar, and you can upload your own files to Notes.": "Import av Canvas-filer till OghmaNotes är pausad medan vi kommer överens med lärarna. Deadlines synkas fortfarande till din kalender, och du kan ladda upp dina egna filer till Anteckningar.",
+  "Files processed: {count}": "Files processed: {count}",
+  "{count} courses": "{count} courses",
+  "Show finished and archived courses": "Show finished and archived courses"
 }
