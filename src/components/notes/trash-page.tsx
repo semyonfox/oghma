@@ -304,7 +304,7 @@ export default function TrashPage() {
             </Link>
           </div>
         ) : (
-          <ul className="mx-auto flex max-w-3xl flex-col gap-2" aria-label={t("Trash")}>
+          <ul className="mx-auto flex max-w-3xl flex-col gap-1.5" aria-label={t("Trash")}>
             {items.map((item) => {
               const isBusy = busyId === item.id;
               const itemTitle = item.title || t("Untitled");
@@ -320,49 +320,54 @@ export default function TrashPage() {
               return (
                 <li
                   key={item.id}
-                  className={`group flex flex-col gap-4 rounded-radius-lg border border-border-subtle bg-surface p-3 transition-[border-color,background-color,opacity,transform] duration-150 motion-reduce:transition-none sm:flex-row sm:items-center sm:p-4 ${
+                  className={`group flex flex-col gap-2 rounded-radius-lg border border-border-subtle bg-surface px-3 py-2 transition-[border-color,background-color,opacity,transform] duration-150 motion-reduce:transition-none sm:flex-row sm:items-center sm:gap-3 ${
                     isBusy
                       ? "pointer-events-none translate-y-0.5 opacity-60"
                       : "hover:border-accent/25 hover:bg-surface"
                   }`}
                 >
-                  <div className="flex min-w-0 flex-1 items-start gap-3">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-radius-md bg-subtle text-text-tertiary">
+                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-radius-md bg-subtle text-text-tertiary">
                       {item.isFolder ? (
                         <FolderIcon className="h-4 w-4" aria-hidden="true" />
                       ) : (
                         <DocumentIcon className="h-4 w-4" aria-hidden="true" />
                       )}
                     </span>
-                    <div className="min-w-0 pt-0.5">
+                    <div className="min-w-0">
                       <h2 className="truncate text-sm font-semibold text-text" title={itemTitle}>
                         {itemTitle}
                       </h2>
-                      {path && (
-                        <p className="mt-1 truncate text-xs text-text-tertiary" title={path}>
-                          {path}
-                        </p>
-                      )}
-                      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-text-tertiary">
-                        <time dateTime={item.deletedAt}>{formatDate(item.deletedAt, activeLocale)}</time>
+                      <p className="flex min-w-0 items-center gap-x-2 text-xs text-text-tertiary">
+                        <time className="shrink-0" dateTime={item.deletedAt}>
+                          {formatDate(item.deletedAt, activeLocale)}
+                        </time>
                         {item.isFolder && item.descendantCount > 0 && (
-                          <span className="before:mr-2 before:text-border before:content-['•']">
+                          <span className="shrink-0 before:mr-2 before:text-border before:content-['•']">
                             {t("Contains {count} items", {
                               count: item.descendantCount,
                             })}
                           </span>
                         )}
-                      </div>
+                        {path && (
+                          <span
+                            className="min-w-0 truncate before:mr-2 before:text-border before:content-['•']"
+                            title={path}
+                          >
+                            {path}
+                          </span>
+                        )}
+                      </p>
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center justify-between gap-2 sm:ml-auto sm:flex-nowrap sm:justify-end">
+                  <div className="flex min-w-0 items-center justify-between gap-1.5 sm:ml-auto sm:justify-end sm:gap-2">
                     <span
-                      className={`inline-flex min-h-7 items-center rounded-full border px-2 text-xs font-medium tabular-nums ${expiryTone(days)}`}
+                      className={`min-w-0 truncate rounded-full border px-1.5 py-0.5 text-[11px] sm:px-2 sm:text-xs font-medium tabular-nums ${expiryTone(days)}`}
                     >
                       {expiryLabel}
                     </span>
-                    <div className="flex items-center gap-2">
+                    <div className="flex shrink-0 items-center gap-1">
                       <button
                         ref={(element) => {
                           if (element) {
@@ -375,7 +380,7 @@ export default function TrashPage() {
                         onClick={() => void handleRestore(item)}
                         disabled={isMutating}
                         aria-label={`${t("Restore")}: ${itemTitle}`}
-                        className="inline-flex min-h-11 items-center gap-1.5 rounded-radius-md bg-action px-3 text-sm font-semibold text-on-action transition-colors hover:bg-action-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-wait disabled:opacity-50"
+                        className="inline-flex min-h-11 items-center gap-1.5 rounded-radius-md bg-action px-3 text-sm sm:min-h-8 sm:px-2.5 font-semibold text-on-action transition-colors hover:bg-action-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-wait disabled:opacity-50"
                       >
                         {isBusy ? (
                           <ArrowPathIcon className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -390,7 +395,7 @@ export default function TrashPage() {
                         disabled={isMutating}
                         aria-label={`${t("Delete permanently")}: ${itemTitle}`}
                         title={`${t("Delete permanently")}: ${itemTitle}`}
-                        className="inline-flex h-11 w-11 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-error-500/10 hover:text-error-700 dark:hover:text-error-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error-500/50 disabled:cursor-wait disabled:opacity-50"
+                        className="inline-flex h-11 w-11 items-center justify-center rounded-radius-md text-text-tertiary sm:h-8 sm:w-8 transition-colors hover:bg-error-500/10 hover:text-error-700 dark:hover:text-error-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error-500/50 disabled:cursor-wait disabled:opacity-50"
                       >
                         <TrashIcon className="h-4 w-4" aria-hidden="true" />
                       </button>
