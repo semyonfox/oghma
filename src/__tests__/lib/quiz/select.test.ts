@@ -98,6 +98,27 @@ describe('card selection', () => {
 });
 
 describe('session candidates', () => {
+    it('serves planned future reviews once in the due bucket and restores retention after removing exams', async () => {
+        const now = new Date('2026-10-06T12:00:00Z');
+        const future = ['today', 'later', 'unallocated'].map((id) => ({
+            id, state: 'review', due: '2026-11-01T12:00:00Z',
+            last_review: '2026-10-01T12:00:00Z', chunk_id: null,
+        }));
+        const load = () => {
+            vi.mocked(sql).mockReset();
+            vi.mocked(sql).mockResolvedValueOnce(future as never).mockResolvedValueOnce([] as never);
+        };
+        load();
+        const result = await getSessionCandidates('user', [], now, ['note'], new Set(['today']), new Set(future.map((card) => card.id)));
+        expect(result.dueCards.map((card) => card.id)).toEqual(['today']);
+        expect(result.retentionCards).toEqual([]);
+        expect(sessionCardIds(selectCards(result, 20), 20)).toEqual(['today']);
+        load();
+        const removed = await getSessionCandidates('user', [], now, ['note']);
+        expect(removed.dueCards).toEqual([]);
+        expect(removed.retentionCards.map((card) => card.id)).toEqual(['today', 'later', 'unallocated']);
+    });
+
     it('includes manual and replaced-chunk cards through their live note', async () => {
         vi.mocked(sql).mockReset();
         vi.mocked(sql)
