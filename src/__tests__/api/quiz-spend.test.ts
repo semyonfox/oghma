@@ -13,7 +13,9 @@ vi.mock("@/lib/quiz/select", () => ({
   resolveChunkIds: async () => ["chunk"], getSessionCandidates: mocks.candidates,
   selectCards: mocks.cards, sessionCardIds: (ids: string[]) => ids,
 }));
+vi.mock("@/lib/quiz/exams", () => ({ loadExamPlans: vi.fn().mockResolvedValue([]) }));
 vi.mock("@/lib/quiz/generate-background", () => ({ generateBatch: mocks.generate }));
+import { loadExamPlans } from "@/lib/quiz/exams";
 import { POST } from "@/app/api/quiz/sessions/route";
 const start = (maxQuestions = 10) => POST(new NextRequest("http://localhost/api/quiz/sessions", {
   method: "POST", headers: { "content-type": "application/json" },
@@ -71,4 +73,25 @@ it("caps an empty session's generation pass at 25 chunks", async () => {
   expect((await start(50)).status).toBe(202);
   await mocks.after.mock.calls[0][0]();
   expect(mocks.generate.mock.calls[0][1]).toHaveLength(25);
+});
+
+it("passes today's exam work to selection in the requested time zone", async () => {
+  const now = new Date('2026-10-06T23:30:00Z');
+  vi.useFakeTimers();
+  vi.setSystemTime(now);
+  try {
+    vi.mocked(loadExamPlans).mockResolvedValueOnce([{
+      id: 'exam', name: 'Exam', exam_at: '2026-10-10T12:00:00Z',
+      created_at: '2026-10-01T00:00:00Z', canvas_course_id: null, study_map_id: null, note_ids: null,
+      daysLeft: 4, weighted: false, futureCardIds: ['today', 'tomorrow'],
+      plan: { total: 2, unallocated: 0, impossible: false, days: [
+        { date: '2026-10-07', cardIds: ['today'], normal: 0, extra: 1 },
+        { date: '2026-10-08', cardIds: ['tomorrow'], normal: 0, extra: 1 },
+      ] },
+    }]);
+    await POST(new NextRequest('http://localhost/api/quiz/sessions?tz=Europe%2FDublin', {
+      method: 'POST', body: JSON.stringify({ filterType: 'all' }),
+    }));
+    expect(mocks.candidates).toHaveBeenCalledWith(expect.any(String), ['chunk'], now, ['note'], new Set(['today']), new Set(['today', 'tomorrow']));
+  } finally { vi.useRealTimers(); }
 });

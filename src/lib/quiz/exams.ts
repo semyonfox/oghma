@@ -28,10 +28,12 @@ export const examInput = z
   .strict();
 export interface StudyExam extends z.output<typeof examInput> {
   id: string;
+  created_at: string;
 }
 export async function listExams(userId: string): Promise<StudyExam[]> {
   return sql<StudyExam[]>`
     SELECT id, name,
+      to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at,
       to_char(exam_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS exam_at,
       canvas_course_id::text, study_map_id, note_ids
     FROM app.study_exams WHERE user_id = ${userId}::uuid ORDER BY exam_at, id
@@ -80,71 +82,85 @@ export async function loadExamPlans(
   now = new Date(),
 ) {
   const exams = await listExams(userId);
-  return Promise.all(
-    exams.map(async (exam) => {
-      const examAt = new Date(exam.exam_at);
-      const daysLeft =
-        examAt <= now
-          ? 0
-          : 1 +
-            Math.max(
-              0,
-              Math.ceil(
-                (Date.parse(
-                  `${dateKeyInTimeZone(examAt, timeZone)}T00:00:00Z`,
-                ) -
-                  Date.parse(`${dateKeyInTimeZone(now, timeZone)}T00:00:00Z`)) /
-                  86400000,
-              ),
-            );
-      const noteIds = await examScopeNotes(userId, exam);
-      const cards = await sql<
-        (FSRSCardRow & { id: string; note_id: string })[]
-      >`
-      SELECT qc.*, qq.note_id FROM app.quiz_cards qc
-      JOIN app.quiz_questions qq ON qq.id = qc.question_id AND qq.user_id = qc.user_id
-      JOIN app.notes n ON n.note_id = qq.note_id AND n.user_id = qc.user_id
-      LEFT JOIN app.user_course_settings ucs ON ucs.user_id = qc.user_id AND ucs.canvas_course_id = n.canvas_course_id
-      WHERE qc.user_id = ${userId}::uuid AND qq.note_id = ANY(${noteIds}::uuid[])
-        AND (ucs.is_active IS NULL OR ucs.is_active = TRUE)
+  if (exams.length === 0) return [];
+  const shared = new Map<string, string>();
+  const today = dateKeyInTimeZone(now, timeZone);
+  const [reviewed] = await sql<{ count: number }[]>`
+    SELECT count(DISTINCT card_id)::int AS count FROM app.quiz_reviews
+    WHERE user_id = ${userId}::uuid
+      AND to_char(created_at AT TIME ZONE ${timeZone}, 'YYYY-MM-DD') = ${today}
+  `;
+  const plans = [];
+  for (const exam of exams) {
+    const examAt = new Date(exam.exam_at);
+    const daysLeft =
+      examAt <= now
+        ? 0
+        : 1 +
+          Math.max(
+            0,
+            Math.ceil(
+              (Date.parse(
+                `${dateKeyInTimeZone(examAt, timeZone)}T00:00:00Z`,
+              ) -
+                Date.parse(`${dateKeyInTimeZone(now, timeZone)}T00:00:00Z`)) /
+                86400000,
+            ),
+          );
+    const noteIds = await examScopeNotes(userId, exam);
+    const cards = await sql<
+      (FSRSCardRow & { id: string; note_id: string })[]
+    >`
+    SELECT qc.*, qq.note_id FROM app.quiz_cards qc
+    JOIN app.quiz_questions qq ON qq.id = qc.question_id AND qq.user_id = qc.user_id
+    JOIN app.notes n ON n.note_id = qq.note_id AND n.user_id = qc.user_id
+    LEFT JOIN app.user_course_settings ucs ON ucs.user_id = qc.user_id AND ucs.canvas_course_id = n.canvas_course_id
+    WHERE qc.user_id = ${userId}::uuid AND qq.note_id = ANY(${noteIds}::uuid[])
+      AND (ucs.is_active IS NULL OR ucs.is_active = TRUE)
     `;
-      const weights = new Map<string, number>();
-      if (exam.study_map_id) {
-        const snapshot = await getStudyMapSnapshot(userId, exam.study_map_id);
-        const corpus = summariseExamCorpus(
-          snapshot.papers,
-          snapshot.map.topics,
+    const weights = new Map<string, number>();
+    if (exam.study_map_id) {
+      const snapshot = await getStudyMapSnapshot(userId, exam.study_map_id);
+      const corpus = summariseExamCorpus(
+        snapshot.papers,
+        snapshot.map.topics,
+        snapshot.map.taxonomyVersion,
+      );
+      const marks = new Map(
+        corpus.topics.map((topic) => [
+          topic.topicId,
+          topic.exclusiveMarks + topic.sharedMarks,
+        ]),
+      );
+      for (const material of snapshot.materials) {
+        const values = effectiveAssociations(
+          material,
           snapshot.map.taxonomyVersion,
-        );
-        const marks = new Map(
-          corpus.topics.map((topic) => [
-            topic.topicId,
-            topic.exclusiveMarks + topic.sharedMarks,
-          ]),
-        );
-        for (const material of snapshot.materials) {
-          const values = effectiveAssociations(
-            material,
-            snapshot.map.taxonomyVersion,
-          ).map((topic) => marks.get(topic.topicId) ?? 0);
-          const weight = values.reduce((sum, value) => sum + value, 0);
-          if (weight > 0) weights.set(material.noteId, weight);
-        }
+        ).map((topic) => marks.get(topic.topicId) ?? 0);
+        const weight = values.reduce((sum, value) => sum + value, 0);
+        if (weight > 0) weights.set(material.noteId, weight);
       }
-      return {
-        ...exam,
+    }
+    plans.push({
+      ...exam,
+      daysLeft,
+      weighted: weights.size > 0,
+      futureCardIds: cards
+        .filter((row) => new Date(row.due) > examAt && examAt > now)
+        .map((row) => row.id),
+      plan: examPlan(
+        cards.map((row) => ({
+          id: row.id,
+          card: cardFromDB(row),
+          weight: weights.get(row.note_id),
+        })),
         daysLeft,
-        weighted: weights.size > 0,
-        plan: examPlan(
-          cards.map((row) => ({
-            id: row.id,
-            card: cardFromDB(row),
-            weight: weights.get(row.note_id),
-          })),
-          daysLeft,
-          { now, examAt, timeZone },
-        ),
-      };
-    }),
-  );
+        {
+          now, examAt, timeZone, createdAt: new Date(exam.created_at), shared,
+          completedToday: reviewed?.count ?? 0,
+        },
+      ),
+    });
+  }
+  return plans;
 }

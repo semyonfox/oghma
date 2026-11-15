@@ -1,4 +1,5 @@
-import { requireExam, examScopeNotes } from "@/lib/quiz/exams";
+import { requireExam, examScopeNotes, loadExamPlans } from "@/lib/quiz/exams";
+import { resolveTimeZone, dateKeyInTimeZone } from "@/lib/quiz/time-zone";
 import { NextRequest, NextResponse, after } from "next/server";
 import {
   parseJsonObject,
@@ -89,7 +90,20 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     );
   }
 
-  const candidates = await getSessionCandidates(userId, chunkIds, new Date(), noteIds);
+  const now = new Date();
+  const timeZone = resolveTimeZone(new URL(request.url).searchParams.get("tz"));
+  const today = dateKeyInTimeZone(now, timeZone);
+  const plans = await loadExamPlans(userId, timeZone, now);
+  const examManagedIds = new Set(plans.flatMap((exam) => exam.futureCardIds));
+  const examDueIds = new Set(
+    plans.flatMap((exam) => exam.plan.days
+      .filter((day) => day.date <= today)
+      .flatMap((day) => day.cardIds))
+      .filter((id) => examManagedIds.has(id)),
+  );
+  const candidates = await getSessionCandidates(
+    userId, chunkIds, now, noteIds, examDueIds, examManagedIds,
+  );
   const { uncoveredChunkIds } = candidates;
 
   const priorityIds = new Set<string>();
