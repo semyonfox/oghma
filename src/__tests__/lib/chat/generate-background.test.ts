@@ -20,8 +20,10 @@ const mocks = vi.hoisted(() => ({
   buildLlmCall: vi.fn(),
   requeue: vi.fn(),
   resetEvents: vi.fn(),
+  shuttingDown: vi.fn(() => false),
 }));
 
+vi.mock("@/lib/worker/shutdown", () => ({ workerShuttingDown: mocks.shuttingDown }));
 vi.mock("@/lib/logger", () => ({
   default: {
     error: mocks.loggerError,
@@ -413,6 +415,15 @@ describe("background chat durability", () => {
       "Background chat generation failed",
       expect.objectContaining({ error: failure }),
     );
+  });
+
+  it("leaves a generation cut off by a deploy for recovery instead of failing it", async () => {
+    mocks.prepare.mockRejectedValue(new Error("Connection closed"));
+    mocks.shuttingDown.mockReturnValueOnce(true);
+    await processChatGeneration("11111111-1111-1111-1111-111111111111", 3, 3);
+    expect(mocks.fail).not.toHaveBeenCalled();
+    expect(mocks.finalize).not.toHaveBeenCalled();
+    expect(mocks.requeue).not.toHaveBeenCalled();
   });
 
   it("clears the replay stream when recovery reruns a started generation", async () => {
