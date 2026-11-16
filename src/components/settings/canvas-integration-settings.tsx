@@ -65,7 +65,13 @@ const isTrue = (value: unknown): value is boolean => value === true;
 
 // a saved selection survives reconnects, but only for courses still listed;
 // historical courses are always preselected so a resync keeps them
-function initialSelection(courses: Course[]): string[] {
+// canvas won't serve these, so they can never be selected for import
+function isSelectable(course: Course): boolean {
+  return course.canvasStatus !== "inaccessible" && course.canvasStatus !== "unavailable";
+}
+
+function initialSelection(allCourses: Course[]): string[] {
+  const courses = allCourses.filter(isSelectable);
   const listedIds = courses.map((course) => String(course.id));
   const saved = readStored(LS_SELECTED);
   const selected = Array.isArray(saved)
@@ -394,7 +400,7 @@ export default function CanvasIntegrationSettings() {
   const toggleCourse = (courseId: string | number) => {
     const id = String(courseId);
     const course = courses.find((item) => String(item.id) === id);
-    if (!course) return;
+    if (!course || !isSelectable(course)) return;
     setSelectedCourseIds((prev) =>
       prev.includes(id)
         ? prev.filter((selectedId) => selectedId !== id)
@@ -403,7 +409,7 @@ export default function CanvasIntegrationSettings() {
   };
 
   const toggleSelectAll = () => {
-    const listedIds = courses.map((course) => String(course.id));
+    const listedIds = courses.filter(isSelectable).map((course) => String(course.id));
     const allSelected =
       listedIds.length > 0 &&
       listedIds.every((id) => selectedCourseIds.includes(id));

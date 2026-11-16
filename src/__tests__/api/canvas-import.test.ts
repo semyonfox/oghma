@@ -4,7 +4,7 @@ import { NextRequest } from "next/server";
 const canvas = vi.hoisted(() => ({
   getSelfEnrollments: vi.fn(),
   getDiscoverableCourses: vi.fn(),
-  getCourses: vi.fn(),
+  getCourse: vi.fn(),
 }));
 type TestRouteHandler = (
   request: NextRequest,
@@ -109,6 +109,10 @@ describe("POST /api/canvas/import Canvas IDs", () => {
       token: "token",
     });
     canvas.getSelfEnrollments.mockResolvedValue({ data: [] });
+    canvas.getDiscoverableCourses.mockResolvedValue({
+      data: [{ id: "42", name: "2526-CT216 Software Engineering I", course_code: "2526-CT216", term: null }],
+    });
+    canvas.getCourse.mockResolvedValue({ forbidden: true });
     vi.mocked(enqueueCanvasDiscoverJob).mockResolvedValue(undefined);
   });
 
@@ -150,19 +154,33 @@ describe("POST /api/canvas/import Canvas IDs", () => {
     expect(tx.mock.calls.some(([parts]) => Array.from(parts).join("").includes("INSERT INTO"))).toBe(false);
   });
 
-  it("uses self enrollments to validate token liveness before queueing", async () => {
+  it("queues Canvas's own course record, not the name the client sent", async () => {
     const tx = vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValue([{ id: "job-123" }]);
     const begin = vi.fn(async (callback) => callback(tx));
     Object.assign(sql, { begin });
-    canvas.getSelfEnrollments.mockResolvedValue({ data: [] });
 
-    const response = await POST(request(["9007199254740993"]));
+    const response = await POST(request([{ id: "42", name: "Canvas course unavailable", course_code: "" }]));
 
     expect(response.status).toBe(200);
-    expect(canvas.getSelfEnrollments).toHaveBeenCalledOnce();
-    expect(canvas.getCourses).not.toHaveBeenCalled();
-    expect(begin).toHaveBeenCalledOnce();
+    const written = JSON.stringify(tx.mock.calls);
+    expect(written).toContain("2526-CT216 Software Engineering I");
+    expect(written).not.toContain("Canvas course unavailable");
     expect(enqueueCanvasDiscoverJob).toHaveBeenCalledWith("job-123", "user-123");
+  });
+
+  it("refuses a course Canvas will not serve instead of importing a placeholder", async () => {
+    const begin = vi.fn();
+    Object.assign(sql, { begin });
+    canvas.getSelfEnrollments.mockResolvedValue({
+      data: [{ course_id: "56263", enrollment_state: "active" }],
+    });
+
+    const response = await POST(request([{ id: "56263", name: "Canvas course unavailable", course_code: "" }]));
+
+    expect(response.status).toBe(400);
+    expect(canvas.getCourse).toHaveBeenCalledWith("56263");
+    expect(begin).not.toHaveBeenCalled();
+    expect(enqueueCanvasDiscoverJob).not.toHaveBeenCalled();
   });
 
   it("falls back to the regular course list when enrollment access is scoped", async () => {
@@ -173,19 +191,17 @@ describe("POST /api/canvas/import Canvas IDs", () => {
       forbidden: true,
       error: "Access restricted by lecturer",
     });
-    canvas.getDiscoverableCourses.mockResolvedValue({ data: [] });
 
-    const response = await POST(request(["9007199254740993"]));
+    const response = await POST(request(["42"]));
 
     expect(response.status).toBe(200);
     expect(canvas.getDiscoverableCourses).toHaveBeenCalledOnce();
   });
 
   it("uses the structured unauthorized flag for expired tokens", async () => {
-    canvas.getSelfEnrollments.mockResolvedValue({
-      unauthorized: true,
-      error: "A provider-specific token error",
-    });
+    const expired = { unauthorized: true, error: "A provider-specific token error" };
+    canvas.getSelfEnrollments.mockResolvedValue(expired);
+    canvas.getDiscoverableCourses.mockResolvedValue(expired);
 
     const response = await POST(request(["42"]));
 

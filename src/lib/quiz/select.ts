@@ -322,26 +322,20 @@ export async function getSessionCandidates(
       FROM app.quiz_cards qc
       JOIN app.quiz_questions qq ON qc.question_id = qq.id AND qq.user_id = qc.user_id
       JOIN app.notes n ON n.note_id = qq.note_id AND n.user_id = qc.user_id
-      LEFT JOIN app.user_course_settings ucs
-        ON ucs.user_id = ${userId}::uuid
-        AND ucs.canvas_course_id = n.canvas_course_id
       WHERE qc.user_id = ${userId}::uuid
         AND n.deleted_at IS NULL
         AND n.note_id = ANY(${selectedNoteIds}::uuid[])
-        AND (ucs.is_active IS NULL OR ucs.is_active = true)
+        AND NOT app.course_archived(${userId}::uuid, n.canvas_course_id)
     `,
     sql<IdRow[]>`
       SELECT c.id
       FROM app.chunks c
       JOIN app.notes n ON n.note_id = c.document_id
-      LEFT JOIN app.user_course_settings ucs
-        ON ucs.user_id = ${userId}::uuid
-        AND ucs.canvas_course_id = n.canvas_course_id
       WHERE c.user_id = ${userId}::uuid
         AND c.id = ANY(${chunkIds}::uuid[])
         AND n.deleted_at IS NULL
         AND c.quiz_generation_failures < ${QUIZ_GENERATION_MAX_FAILURES}
-        AND (ucs.is_active IS NULL OR ucs.is_active = true)
+        AND NOT app.course_archived(${userId}::uuid, n.canvas_course_id)
     `,
   ]);
 

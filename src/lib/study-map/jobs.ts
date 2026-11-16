@@ -748,6 +748,7 @@ export async function reconcileStudyMaps(): Promise<void> {
       SELECT map.id, map.user_id FROM app.study_maps map
       JOIN app.login l ON l.user_id = map.user_id AND l.is_active AND l.deleted_at IS NULL
       WHERE map.auto_classify AND map.id > ${reconciliationCursor}::uuid
+        AND NOT app.course_archived(map.user_id, map.canvas_course_id::bigint)
       ORDER BY map.id LIMIT 50
     `;
     reconciliationCursor =

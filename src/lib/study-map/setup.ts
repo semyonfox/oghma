@@ -26,8 +26,7 @@ export async function setupStudyMaps(userId: string): Promise<number> {
       AND EXISTS (SELECT 1 FROM app.tree_items t WHERE t.user_id = n.user_id AND t.note_id = n.note_id)
       AND NOT EXISTS (SELECT 1 FROM app.study_maps m WHERE m.user_id = n.user_id AND m.canvas_course_id = n.canvas_course_id::text)
       AND NOT EXISTS (SELECT 1 FROM app.study_map_dismissed_courses d WHERE d.user_id = n.user_id AND d.canvas_course_id = n.canvas_course_id::text)
-      AND NOT EXISTS (SELECT 1 FROM app.user_course_settings s WHERE s.user_id = n.user_id
-        AND s.canvas_course_id::text = n.canvas_course_id::text AND NOT s.is_active)
+      AND NOT app.course_archived(n.user_id, n.canvas_course_id)
     ORDER BY n.created_at, n.note_id
     LIMIT 100
   `;

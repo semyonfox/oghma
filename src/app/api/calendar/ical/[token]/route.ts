@@ -42,9 +42,10 @@ export const GET = withErrorHandler(async (
 
   const assignments = await sql<FeedAssignment[]>`
     SELECT id, title, description, course_name, due_at, status
-    FROM app.assignments
+    FROM app.assignments a
     WHERE user_id = ${userId}::uuid
       AND due_at IS NOT NULL
+      AND NOT app.course_archived(a.user_id, a.canvas_course_id)
     ORDER BY due_at ASC
   `;
 

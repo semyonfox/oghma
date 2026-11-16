@@ -145,9 +145,7 @@ async function recordAnswer(
     FROM app.quiz_cards qc
     JOIN app.quiz_questions qq ON qc.question_id = qq.id AND qq.user_id = qc.user_id
     JOIN app.notes n ON n.note_id = qq.note_id AND n.user_id = qc.user_id
-    LEFT JOIN app.user_course_settings ucs
-      ON ucs.user_id = qc.user_id AND ucs.canvas_course_id = n.canvas_course_id
-    WHERE n.deleted_at IS NULL AND COALESCE(ucs.is_active, true)
+    WHERE n.deleted_at IS NULL AND NOT app.course_archived(qc.user_id, n.canvas_course_id)
       AND qc.id = ${cardId}::uuid AND qc.user_id = ${userId}::uuid
     FOR UPDATE OF qc
   `;

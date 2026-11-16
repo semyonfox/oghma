@@ -194,7 +194,12 @@ export const GET = withErrorHandler(async (request) => {
             (n.canvas_course_id IS NOT NULL AND n.canvas_module_id IS NULL
               AND n.canvas_assignment_id IS NULL) as "isCanvasCourse",
             course.status as "canvasStatus",
-            n.course_finished_override as "courseOverride",
+            -- a canvas course's finished state is the same archive setting the rest of the app reads
+            CASE WHEN n.canvas_course_id IS NOT NULL AND n.canvas_module_id IS NULL AND n.canvas_assignment_id IS NULL
+              THEN (SELECT NOT s.is_active FROM app.user_course_settings s
+                    WHERE s.user_id = n.user_id AND s.canvas_course_id = n.canvas_course_id)
+              ELSE n.course_finished_override
+            END as "courseOverride",
             n.canvas_academic_year as "academicYear"
           FROM app.tree_items ti
           JOIN app.notes n ON ti.note_id = n.note_id

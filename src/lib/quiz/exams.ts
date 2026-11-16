@@ -114,9 +114,8 @@ export async function loadExamPlans(
     SELECT qc.*, qq.note_id FROM app.quiz_cards qc
     JOIN app.quiz_questions qq ON qq.id = qc.question_id AND qq.user_id = qc.user_id
     JOIN app.notes n ON n.note_id = qq.note_id AND n.user_id = qc.user_id
-    LEFT JOIN app.user_course_settings ucs ON ucs.user_id = qc.user_id AND ucs.canvas_course_id = n.canvas_course_id
     WHERE qc.user_id = ${userId}::uuid AND qq.note_id = ANY(${noteIds}::uuid[])
-      AND (ucs.is_active IS NULL OR ucs.is_active = TRUE)
+      AND NOT app.course_archived(qc.user_id, n.canvas_course_id)
     `;
     const weights = new Map<string, number>();
     if (exam.study_map_id) {

@@ -345,14 +345,11 @@ async function quizCourseRows(
       FROM app.notes n
       LEFT JOIN app.quiz_questions qq ON qq.note_id = n.note_id AND qq.user_id = ${userId}::uuid
       LEFT JOIN app.quiz_cards qc ON qc.question_id = qq.id AND qc.user_id = ${userId}::uuid
-      LEFT JOIN app.user_course_settings ucs
-        ON ucs.user_id = ${userId}::uuid
-        AND ucs.canvas_course_id = n.canvas_course_id
       WHERE n.user_id = ${userId}::uuid
         AND n.canvas_course_id IS NOT NULL
         ${courseScope}
         AND n.deleted_at IS NULL
-        AND (ucs.is_active IS NULL OR ucs.is_active = true)
+        AND NOT app.course_archived(${userId}::uuid, n.canvas_course_id)
         AND EXISTS (
           SELECT 1 FROM app.chunks c
           WHERE c.document_id = n.note_id AND c.user_id = ${userId}::uuid

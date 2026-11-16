@@ -41,6 +41,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const includeDeleted = url.searchParams.get("includeDeleted") === "1";
   const conditions = [sql`cpi.user_id = ${user.user_id}::uuid`];
   if (!includeDeleted) conditions.push(sql`cpi.deleted_at IS NULL`);
+  conditions.push(sql`NOT app.course_archived(cpi.user_id, cpi.canvas_course_id)`);
   if (start && end) {
     conditions.push(sql`(
       cpi.display_at BETWEEN ${start}::timestamptz AND ${end}::timestamptz

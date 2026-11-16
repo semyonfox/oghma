@@ -40,7 +40,10 @@ export default function CanvasCourseSelector({
   const selectedCount = courses.filter((course) =>
     selectedCourseIds.includes(String(course.id)),
   ).length;
-  const allSelected = courses.length > 0 && selectedCount === courses.length;
+  const selectableCount = courses.filter(
+    (course) => !["inaccessible", "unavailable"].includes(course.canvasStatus ?? ""),
+  ).length;
+  const allSelected = selectableCount > 0 && selectedCount >= selectableCount;
 
   return (
     <div className="overflow-hidden rounded-radius-lg border border-border">
@@ -100,6 +103,7 @@ export default function CanvasCourseSelector({
                     checked={selectedCourseIds.includes(String(course.id))}
                     aria-describedby={unavailable ? reasonId : undefined}
                     onChange={() => onToggleCourse(course.id)}
+                    disabled={unavailable}
                     className="mt-0.5 size-4 shrink-0 accent-accent"
                   />
                   <div className="flex-1 min-w-0">
