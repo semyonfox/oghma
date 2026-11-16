@@ -7,12 +7,12 @@ import {
 
 describe("quiz generation provider contract", () => {
   it("includes the source, module, Bloom level, and MCQ shape", () => {
-    const prompt = buildGenerationPrompt(
-      "Pipelining overlaps fetch, decode, and execute stages.",
-      "CT213 Computer Systems",
-      2,
-      "mcq",
-    );
+    const prompt = buildGenerationPrompt({
+      focusText: "Pipelining overlaps fetch, decode, and execute stages.",
+      moduleName: "CT213 Computer Systems",
+      bloomLevel: 2,
+      questionType: "mcq",
+    });
 
     expect(prompt).toContain(
       "Pipelining overlaps fetch, decode, and execute stages.",
@@ -24,44 +24,55 @@ describe("quiz generation provider contract", () => {
     expect(prompt).toContain('"correct_answer"');
   });
 
-  it("pins the requested true/false answer", () => {
-    const prompt = buildGenerationPrompt(
-      "A stack is last-in, first-out.",
-      "Data Structures",
-      1,
-      "true_false",
-      undefined,
-      "true",
-    );
+  it("keeps neighbouring text apart from the passage under test", () => {
+    const prompt = buildGenerationPrompt({
+      focusText: "A queue is first-in, first-out.",
+      contextText: "A stack is last-in, first-out.",
+      moduleName: "Data Structures",
+      bloomLevel: 2,
+      questionType: "mcq",
+    });
 
-    expect(prompt).toContain("The correct option MUST be True");
-    expect(prompt).toContain('{text: "True", is_correct: ...}');
-    expect(prompt).toContain('{text: "False", is_correct: ...}');
+    expect(prompt.indexOf("Focus passage")).toBeLessThan(prompt.indexOf("A queue"));
+    expect(prompt.indexOf("Surrounding text")).toBeLessThan(prompt.indexOf("A stack"));
+  });
+
+  it("asks for a true and a false statement instead of pinning the answer", () => {
+    const prompt = buildGenerationPrompt({
+      focusText: "A stack is last-in, first-out.",
+      moduleName: "Data Structures",
+      bloomLevel: 1,
+      questionType: "true_false",
+    });
+
+    expect(prompt).toContain('"true_statement"');
+    expect(prompt).toContain('"false_statement"');
+    expect(prompt).not.toContain("MUST be");
   });
 
   it("requires null options for fill-in questions", () => {
-    const prompt = buildGenerationPrompt(
-      "Dijkstra's algorithm finds shortest paths.",
-      "Algorithms",
-      3,
-      "fill_in",
-    );
+    const prompt = buildGenerationPrompt({
+      focusText: "Dijkstra's algorithm finds shortest paths.",
+      moduleName: "Algorithms",
+      bloomLevel: 3,
+      questionType: "fill_in",
+    });
 
     expect(prompt).toContain("fill-in-the-blank question");
     expect(prompt).toContain("Set options to null");
   });
 
-  it("includes recent questions as an anti-duplication constraint", () => {
-    const prompt = buildGenerationPrompt(
-      "A queue is first-in, first-out.",
-      "Data Structures",
-      2,
-      "mcq",
-      ["What is a queue?"],
-    );
+  it("lists the note's existing questions so they are not repeated", () => {
+    const prompt = buildGenerationPrompt({
+      focusText: "A queue is first-in, first-out.",
+      moduleName: "Data Structures",
+      bloomLevel: 2,
+      questionType: "mcq",
+      existingQuestions: ["What is a queue?"],
+    });
 
     expect(prompt).toContain("1. What is a queue?");
-    expect(prompt).toContain("Ask about a DIFFERENT concept or aspect");
+    expect(prompt).toContain("Do not repeat or rephrase");
   });
 });
 
@@ -190,31 +201,6 @@ describe("generated question parsing", () => {
       },
     ],
     [
-      "a true/false question without named True and False options",
-      "true_false" as const,
-      {
-        ...question,
-        options: [
-          { text: "Yes", is_correct: true },
-          { text: "No", is_correct: false },
-        ],
-        correct_answer: "Yes",
-      },
-    ],
-    [
-      "a true/false question with the wrong option count",
-      "true_false" as const,
-      {
-        ...question,
-        options: [
-          { text: "True", is_correct: true },
-          { text: "False", is_correct: false },
-          { text: "Unknown", is_correct: false },
-        ],
-        correct_answer: "True",
-      },
-    ],
-    [
       "a fill-in question with options",
       "fill_in" as const,
       question,
@@ -225,20 +211,31 @@ describe("generated question parsing", () => {
     ).toBeNull();
   });
 
-  it("accepts the requested true/false shape", () => {
-    const trueFalseQuestion = {
-      question_text: "A stack is last-in, first-out.",
-      options: [
-        { text: "True", is_correct: true },
-        { text: "False", is_correct: false },
-      ],
-      correct_answer: "True",
+  it("keys a true/false item by the statement it shows", () => {
+    const pair = JSON.stringify({
+      true_statement: "A stack is last-in, first-out.",
+      false_statement: "A stack is first-in, first-out.",
       explanation: "The newest item is removed first.",
-    };
+    });
 
-    expect(
-      parseGeneratedQuestion(JSON.stringify(trueFalseQuestion), "true_false"),
-    ).toEqual(trueFalseQuestion);
+    const shownTrue = parseGeneratedQuestion(pair, "true_false", "true");
+    expect(shownTrue?.question_text).toBe("True or false: A stack is last-in, first-out.");
+    expect(shownTrue?.correct_answer).toBe("True");
+    expect(shownTrue?.options).toEqual([
+      { text: "True", is_correct: true },
+      { text: "False", is_correct: false },
+    ]);
+
+    const shownFalse = parseGeneratedQuestion(pair, "true_false", "false");
+    expect(shownFalse?.question_text).toBe("True or false: A stack is first-in, first-out.");
+    expect(shownFalse?.correct_answer).toBe("False");
+    expect(shownFalse?.options?.find((option) => option.is_correct)?.text).toBe("False");
+    expect(shownFalse?.explanation).toContain("A stack is last-in, first-out.");
+  });
+
+  it("rejects a true/false pair whose statements are the same", () => {
+    const same = JSON.stringify({ true_statement: "X", false_statement: " X " });
+    expect(parseGeneratedQuestion(same, "true_false", "false")).toBeNull();
   });
 
   it("recognizes only a boolean skip signal", () => {

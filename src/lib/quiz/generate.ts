@@ -26,33 +26,66 @@ const MAX_CHUNK_CHARS = 4000;
 const QUIZ_MAX_OUTPUT_TOKENS = 4_096;
 const QUIZ_REASONING_EFFORT = "medium";
 
-type TrueFalseTarget = "true" | "false";
+export type TrueFalseTarget = "true" | "false";
 
+// asking the model for a true or a false statement skews it towards true, and
+// pinning the answer made it write true statements keyed False. it now writes
+// both and the code picks one, so the key is right by construction
 function pickTrueFalseTarget(): TrueFalseTarget {
   return Math.random() < 0.5 ? "true" : "false";
 }
 
-export function buildGenerationPrompt(
-  chunkText: string,
-  moduleName: string,
-  bloomLevel: BloomLevel,
-  questionType: QuestionType,
-  existingQuestions?: string[],
-  trueFalseTarget?: TrueFalseTarget,
-): string {
+// what each level should demand, so higher levels are genuinely harder rather than reworded recall
+const LEVEL_GUIDANCE: Record<BloomLevel, string> = {
+  1: "Ask for a core definition or fact the rest of the topic depends on. No trivia.",
+  2: "Ask why or how something works, or to tell two related ideas apart. Do not ask for a definition or a plain fact lookup.",
+  3: "Give a new concrete scenario with every input stated (values, code, a situation) and ask the student to apply the idea: calculate, trace, or choose the right approach.",
+  4: "Ask the student to analyse: weigh a trade-off, find the flaw in a described approach, or predict what changes when one part of a system changes.",
+};
+
+export interface GenerationPromptInput {
+  /** the passage the question must test */
+  focusText: string;
+  /** neighbouring text that only helps the model read the focus passage */
+  contextText?: string;
+  moduleName: string;
+  bloomLevel: BloomLevel;
+  questionType: QuestionType;
+  /** questions already asked on this note, which must not be repeated */
+  existingQuestions?: string[];
+}
+
+export function buildGenerationPrompt({
+  focusText,
+  contextText,
+  moduleName,
+  bloomLevel,
+  questionType,
+  existingQuestions,
+}: GenerationPromptInput): string {
   const levelName = BLOOM_NAMES[bloomLevel];
   const levelDesc = BLOOM_DESCRIPTIONS[bloomLevel];
 
   let typeInstruction = "";
+  let replyShape = `{
+  "question_text": "...",
+  "options": [{"text": "...", "is_correct": true/false}, ...] or null,
+  "correct_answer": "...",
+  "explanation": "..."
+}`;
   switch (questionType) {
     case "mcq":
       typeInstruction =
-        "Generate a multiple choice question with exactly 4 options. Exactly one option must be correct.";
+        "Generate a multiple choice question with exactly 4 options. Exactly one option must be correct, and the wrong options must be plausible to someone who half-understands the topic.";
       break;
     case "true_false":
-      const targetLabel =
-        (trueFalseTarget ?? "false") === "true" ? "True" : "False";
-      typeInstruction = `Generate a true/false question. The correct option MUST be ${targetLabel}. Set options to [{text: "True", is_correct: ...}, {text: "False", is_correct: ...}]. Ensure exactly one option is correct and that the correct_answer field matches ${targetLabel}.`;
+      typeInstruction =
+        "Generate a true/false item as a pair of statements about the same idea. true_statement must be accurate. false_statement must change one meaningful detail so it is wrong to someone who understands the topic, not a wording trick or an added \"not\". The explanation must teach the idea without saying which statement the student saw.";
+      replyShape = `{
+  "true_statement": "...",
+  "false_statement": "...",
+  "explanation": "..."
+}`;
       break;
     case "fill_in":
       typeInstruction =
@@ -66,15 +99,21 @@ export function buildGenerationPrompt(
 
 The text below is source material extracted from a student's notes. Use it to write a question, but the student will NOT have access to these notes when answering — the question must work entirely on its own.
 
-Source material:
+Focus passage (the question must test this):
 ---
-${chunkText}
+${focusText}
 ---
-
+${contextText ? `
+Surrounding text, only to help you read the focus passage:
+---
+${contextText}
+---
+` : ""}
 Module: ${moduleName}
 Question type: ${questionType}
 Target cognitive level: ${levelName} (Bloom's Taxonomy level ${bloomLevel})
 ${levelDesc}
+${LEVEL_GUIDANCE[bloomLevel]}
 
 ${typeInstruction}
 
@@ -83,6 +122,9 @@ Rules:
 - Never say "according to the notes", "from the provided content", "in your notes", or any phrase implying the student can see source material
 - Test transferable understanding a lecturer could set in an exam: a definition, principle, mechanism, trade-off, or a calculation whose inputs are all given in the question
 - Never ask what a specific worked example, figure, diagram, table, dataset, or code listing from the source shows or outputs (e.g. "the decision tree for the Iris data would classify..."). The student cannot see it, so the answer is unknowable. If the source is mostly such an example, ask about the general technique it illustrates, or return {"skip": true}
+- Never ask what a course, syllabus, outline, slide or document lists, mentions or covers. Ask about the concept itself
+- No trivia: dates, deadlines, version numbers, installation steps, tool defaults, people's names, rooms or timetables
+- Never ask how a particular named script, class or file from an assignment behaves. Ask about the general programming idea behind it
 - The question must have one defensible answer without guessing at hidden details
 - Only use facts from the source material above — do not introduce external information
 - Do not go beyond this module's scope
@@ -98,20 +140,15 @@ Rules:
 - If the content is purely administrative or trivial — assignment credit weightings, submission deadlines, vocabulary lists, grading breakdowns, course logistics — and contains no learnable academic concept, return {"skip": true} instead
 
 Return ONLY valid JSON. Either:
-{
-  "question_text": "...",
-  "options": [{"text": "...", "is_correct": true/false}, ...] or null,
-  "correct_answer": "...",
-  "explanation": "..."
-}
+${replyShape}
 or if the content is not suitable:
 {"skip": true}
 ${
   existingQuestions && existingQuestions.length > 0
     ? `
-IMPORTANT: Avoid generating questions similar to these existing questions for this course:
+IMPORTANT: These questions already exist on this material. Do not repeat or rephrase any of them:
 ${existingQuestions.map((q, i) => `${i + 1}. ${q}`).join("\n")}
-Ask about a DIFFERENT concept or aspect of the material.`
+Ask about a DIFFERENT concept or aspect of the material, or test the same idea at a deeper level.`
     : ""
 }`;
 }
@@ -151,10 +188,11 @@ export interface GenerateQuestionInput {
   noteId: string;
   chunkId: string;
   chunkText: string;
+  /** neighbouring chunks, only for reading the focus chunk */
+  contextText?: string;
   moduleName: string;
   bloomLevel: BloomLevel;
   questionType: QuestionType;
-  courseId?: string;
 }
 
 function parseJsonObject(raw: string): Record<string, unknown> | null {
@@ -212,10 +250,38 @@ export function isSkipSignal(raw: string): boolean {
   return parseJsonObject(raw)?.skip === true;
 }
 
+const trueFalsePairSchema = z.object({
+  true_statement: nonBlankString,
+  false_statement: nonBlankString,
+  explanation: z.string().optional().catch("").transform((value) => value ?? ""),
+});
+
+function parseTrueFalsePair(raw: string, target: TrueFalseTarget): ParsedQuestion | null {
+  const result = trueFalsePairSchema.safeParse(parseJsonObject(raw));
+  if (!result.success) return null;
+  const { true_statement, false_statement, explanation } = result.data;
+  if (true_statement.trim() === false_statement.trim()) return null;
+  const isTrue = target === "true";
+  const answer = isTrue ? "True" : "False";
+  return {
+    question_text: `True or false: ${(isTrue ? true_statement : false_statement).trim()}`,
+    options: [
+      { text: "True", is_correct: isTrue },
+      { text: "False", is_correct: !isTrue },
+    ],
+    correct_answer: answer,
+    explanation: isTrue
+      ? `**True.**\n\n${explanation}`.trim()
+      : `**False.** The accurate statement is: ${true_statement.trim()}\n\n${explanation}`.trim(),
+  };
+}
+
 export function parseGeneratedQuestion(
   raw: string,
   questionType: QuestionType,
+  trueFalseTarget: TrueFalseTarget = "true",
 ): ParsedQuestion | null {
+  if (questionType === "true_false") return parseTrueFalsePair(raw, trueFalseTarget);
   const result = generatedQuestionSchema.safeParse(parseJsonObject(raw));
   if (!result.success) return null;
 
@@ -374,20 +440,13 @@ async function persistQuestion(
   });
 }
 
-async function recentCourseQuestions(
-  userId: string,
-  courseId: string | undefined,
-): Promise<string[]> {
-  if (!courseId) return [];
+// questions already on this note, so a new one covers something else or goes deeper
+async function existingNoteQuestions(userId: string, noteId: string): Promise<string[]> {
   const rows = await sql<Array<{ question_text: string }>>`
-    SELECT qq.question_text
-    FROM app.quiz_questions qq
-    JOIN app.notes n ON qq.note_id = n.note_id
-    WHERE qq.user_id = ${userId}::uuid
-      AND n.canvas_course_id = ${courseId}::bigint
-      AND n.deleted_at IS NULL
-    ORDER BY qq.created_at DESC
-    LIMIT 5
+    SELECT question_text FROM app.quiz_questions
+    WHERE user_id = ${userId}::uuid AND note_id = ${noteId}::uuid
+    ORDER BY created_at DESC
+    LIMIT 15
   `;
   return rows.map(({ question_text }) => question_text);
 }
@@ -415,22 +474,24 @@ export async function generateQuestion(
     return null;
   }
 
-  const cleanedChunkText = stripQuizArtifacts(input.chunkText);
-  const limitedChunkText =
-    cleanedChunkText.length > MAX_CHUNK_CHARS
-      ? `${cleanedChunkText.slice(0, MAX_CHUNK_CHARS)}\n\n[truncated for question generation]`
-      : cleanedChunkText;
+  const limit = (text: string, chars: number) => {
+    const cleaned = stripQuizArtifacts(text);
+    return cleaned.length > chars
+      ? `${cleaned.slice(0, chars)}\n\n[truncated for question generation]`
+      : cleaned;
+  };
+  const trueFalseTarget = pickTrueFalseTarget();
 
   let reply: LlmReply;
   try {
-    const prompt = buildGenerationPrompt(
-      limitedChunkText,
-      input.moduleName,
+    const prompt = buildGenerationPrompt({
+      focusText: limit(input.chunkText, MAX_CHUNK_CHARS),
+      contextText: input.contextText ? limit(input.contextText, MAX_CHUNK_CHARS) : undefined,
+      moduleName: input.moduleName,
       bloomLevel,
       questionType,
-      await recentCourseQuestions(userId, input.courseId),
-      questionType === "true_false" ? pickTrueFalseTarget() : undefined,
-    );
+      existingQuestions: await existingNoteQuestions(userId, input.noteId),
+    });
     reply = await callLLM(prompt, chunkId);
   } catch (err) {
     logger.error("quiz generation LLM call failed", {
@@ -451,7 +512,7 @@ export async function generateQuestion(
     return null;
   }
 
-  const parsed = parseGeneratedQuestion(reply.text, questionType);
+  const parsed = parseGeneratedQuestion(reply.text, questionType, trueFalseTarget);
   if (!parsed) {
     logger.warn("quiz generation: failed to parse LLM response", {
       chunkId,
@@ -481,7 +542,7 @@ export async function generateQuestion(
 // but have no chunk row and must be persisted with their section provenance
 export async function generateSectionQuestion(text: string, title: string, level: BloomLevel) {
   const reply = await callLLM(
-    `${buildGenerationPrompt(stripQuizArtifacts(text), title, level, "fill_in")}\nUse British English.`,
+    `${buildGenerationPrompt({ focusText: stripQuizArtifacts(text), moduleName: title, bloomLevel: level, questionType: "fill_in" })}\nUse British English.`,
     "section",
   );
   if (reply.truncated || isSkipSignal(reply.text)) return null;

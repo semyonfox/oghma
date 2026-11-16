@@ -1,33 +1,35 @@
 import { describe, it, expect } from "vitest";
-import {
-  getCurrentBloomLevel,
-  pickQuestionType,
-} from "@/lib/quiz/bloom";
+import { nextBloomLevel, pickQuestionType } from "@/lib/quiz/bloom";
 
-describe("bloom level tracking", () => {
-  it("returns level 1 when no reviews exist", () => {
-    const level = getCurrentBloomLevel([]);
-    expect(level).toBe(1);
+describe("next bloom level for a chunk", () => {
+  it("starts a new chunk at Understand", () => {
+    expect(nextBloomLevel([], [])).toBe(2);
   });
 
-  it("moves up when recent accuracy is very high (zpd upshift)", () => {
+  it("steps up once the hardest question was right twice in a row", () => {
     const reviews = [
-      { bloom_level: 2, was_correct: true },
-      { bloom_level: 2, was_correct: true },
+      { bloom_level: 2, was_correct: false },
       { bloom_level: 2, was_correct: true },
       { bloom_level: 2, was_correct: true },
     ];
-    expect(getCurrentBloomLevel(reviews)).toBe(3);
+    expect(nextBloomLevel([2], reviews)).toBe(3);
   });
 
-  it("moves down when recent accuracy is too low (zpd downshift)", () => {
+  it("waits while the hardest question is still being missed", () => {
     const reviews = [
-      { bloom_level: 3, was_correct: false },
-      { bloom_level: 3, was_correct: false },
+      { bloom_level: 2, was_correct: true },
       { bloom_level: 3, was_correct: true },
       { bloom_level: 3, was_correct: false },
     ];
-    expect(getCurrentBloomLevel(reviews)).toBe(2);
+    expect(nextBloomLevel([2, 3], reviews)).toBeNull();
+  });
+
+  it("stops at Analyse", () => {
+    const reviews = [
+      { bloom_level: 4, was_correct: true },
+      { bloom_level: 4, was_correct: true },
+    ];
+    expect(nextBloomLevel([2, 3, 4], reviews)).toBeNull();
   });
 
   it("picks a valid question type for each bloom level", () => {
