@@ -45,6 +45,7 @@ import {
 } from "@/lib/chat/presence";
 import { toSseEvent } from "@/lib/chat/sse";
 import { createBufferedSseWriter } from "@/lib/chat/redis-event-writer";
+import { workerShuttingDown } from "@/lib/worker/shutdown";
 
 const WATCHDOG_INTERVAL_MS = 5_000;
 
@@ -451,6 +452,16 @@ export async function processChatGeneration(
           error: cancelError,
         });
       }
+      return;
+    }
+    // a deploy closing this worker's connections is not the answer failing.
+    // leaving the lease to expire lets recovery regenerate it on another worker
+    if (workerShuttingDown()) {
+      logger.warn("Chat generation interrupted by worker shutdown; left for recovery", {
+        generationId,
+        sessionId,
+      });
+      transport.discard();
       return;
     }
     void Metrics.llmError();

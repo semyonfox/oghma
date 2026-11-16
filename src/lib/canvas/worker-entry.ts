@@ -51,6 +51,7 @@ import {
   writeWorkerHeartbeat,
 } from "../worker/heartbeat";
 import { drainStudyJobs, pruneInBatches } from "../worker/maintenance";
+import { beginWorkerShutdown } from "../worker/shutdown";
 import { startPeriodicTask, type PeriodicTask } from "../worker/periodic";
 import { checkAndCompleteJob } from "./import-extraction";
 import { recoverCanvasExecutions } from "./execution-recovery";
@@ -83,7 +84,9 @@ function positiveIntegerEnv(name: string, fallback: number): number {
 // docker stop sends SIGKILL after 10 seconds by default. Exit just before
 // that so database and Redis connections close cleanly; anything still
 // running is redelivered and fenced by its database claim
-const SHUTDOWN_GRACE_MS = positiveIntegerEnv("WORKER_SHUTDOWN_GRACE_MS", 5_000);
+// long enough for an in-flight chat answer to finish during a deploy; the
+// deploy's docker stop timeout must be longer than this
+const SHUTDOWN_GRACE_MS = positiveIntegerEnv("WORKER_SHUTDOWN_GRACE_MS", 90_000);
 
 // On unless explicitly disabled, so an existing worker keeps consuming Marker
 // dispatches after an upgrade. The healthcheck uses the same parser.
@@ -257,6 +260,7 @@ function withinGrace(work: Promise<unknown>): Promise<void> {
 async function shutdown(): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
+  beginWorkerShutdown();
   logger.info("worker shutting down");
   for (const task of tasks) task.stop();
   await clearWorkerHeartbeat().catch(() => undefined);
