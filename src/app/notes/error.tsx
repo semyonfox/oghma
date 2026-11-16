@@ -18,7 +18,7 @@ export default function NotesError({
   }, [error]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[50vh] p-8 bg-app-page">
+    <div className="flex flex-col items-center justify-center min-h-[50dvh] p-8 bg-app-page">
       <h2 className="font-serif text-2xl font-semibold mb-2">
         {t("error.editor_error")}
       </h2>

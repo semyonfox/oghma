@@ -208,7 +208,7 @@ function getHomeFAQs(t: Translate) {
 
 function HeroMockup() {
   return (
-    <div className="relative mt-16 sm:mt-24 rounded-radius-2xl border border-border bg-surface shadow-float overflow-hidden">
+    <div className="relative mt-16 sm:mt-24 rounded-radius-2xl border border-border bg-surface-overlay shadow-float overflow-hidden">
       <Image
         src="/notes-workspace-ultrawide.png"
         alt="OghmaNotes workspace with course files, notes, and study chat"

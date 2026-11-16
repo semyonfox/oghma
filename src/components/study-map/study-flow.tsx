@@ -2870,7 +2870,7 @@ export default function StudyFlow({
           {connect && (
             <div
               data-flow-overlay
-              className="absolute left-1/2 top-16 z-40 w-[min(440px,calc(100%-1.5rem))] -translate-x-1/2 rounded-radius-xl border border-border-subtle bg-surface p-3 text-sm shadow-float"
+              className="absolute left-1/2 top-16 z-40 w-[min(440px,calc(100%-1.5rem))] -translate-x-1/2 rounded-radius-xl border border-border-subtle bg-surface-overlay p-3 text-sm shadow-float"
             >
               {!connect.to ? (
                 <div className="flex items-center gap-2">
@@ -3231,7 +3231,7 @@ export default function StudyFlow({
               </PopoverButton>
               <PopoverPanel
                 anchor="bottom end"
-                className="z-[60] w-60 rounded-radius-lg border border-border-subtle bg-surface p-3 text-sm text-text shadow-float [--anchor-gap:8px] [--anchor-padding:8px] focus:outline-none"
+                className="z-[60] w-60 rounded-radius-lg border border-border-subtle bg-surface-overlay p-3 text-sm text-text shadow-float [--anchor-gap:8px] [--anchor-padding:8px] focus:outline-none"
               >
                 <fieldset>
                   <legend className="mb-1 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
@@ -3308,7 +3308,7 @@ export default function StudyFlow({
       {readerPlaced && (
         <aside
           aria-label={`Reading ${readerPlaced.item.title}`}
-          className="flex w-full max-w-[460px] shrink-0 flex-col border-l border-border-subtle bg-surface max-lg:absolute max-lg:inset-y-0 max-lg:right-0 max-lg:z-50 max-lg:shadow-float"
+          className="flex w-full max-w-[460px] shrink-0 flex-col border-l border-border-subtle bg-surface-overlay max-lg:absolute max-lg:inset-y-0 max-lg:right-0 max-lg:z-50 max-lg:shadow-float"
         >
           <div className="flex items-start gap-2 border-b border-border-subtle px-4 py-3">
             <div className="min-w-0 flex-1">

@@ -387,7 +387,7 @@ export default function GlobalSearchModal() {
         </Transition.Child>
 
         <div className="fixed inset-0 overflow-y-auto">
-          <div className="flex min-h-full items-start justify-center p-3 pt-[12vh] sm:p-6">
+          <div className="flex min-h-full items-start justify-center p-3 pt-[12dvh] sm:p-6">
             <Transition.Child
               as={Fragment}
               enter="ease-out duration-150"
@@ -397,7 +397,7 @@ export default function GlobalSearchModal() {
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="w-full max-w-[800px] overflow-hidden rounded-radius-xl border border-border bg-surface shadow-float">
+              <Dialog.Panel className="w-full max-w-[800px] overflow-hidden rounded-radius-xl border border-border bg-surface-overlay shadow-float">
                 <Dialog.Title className="sr-only">
                   {t("Search OghmaNotes")}
                 </Dialog.Title>
@@ -500,7 +500,7 @@ export default function GlobalSearchModal() {
                       </span>
                     </button>
                   )}
-                  <div id={resultsId} role="listbox" aria-label={t("Search OghmaNotes")} aria-busy={loading} className="max-h-[62vh] overflow-y-auto">
+                  <div id={resultsId} role="listbox" aria-label={t("Search OghmaNotes")} aria-busy={loading} className="max-h-[62dvh] overflow-y-auto">
                     {SECTION_ORDER.map((section) => {
                       const sectionResults = results[section];
                       if (sectionResults.length === 0) return null;
@@ -627,7 +627,7 @@ export default function GlobalSearchModal() {
                   </div>
                   </div>
 
-                  <aside className="hidden max-h-[62vh] overflow-y-auto bg-surface p-5 md:block">
+                  <aside className="hidden max-h-[62dvh] overflow-y-auto bg-surface p-5 md:block">
                     {selectedResult ? (
                       <div className="flex h-full flex-col">
                         <div className="flex items-start gap-3">

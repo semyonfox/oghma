@@ -85,7 +85,7 @@ const trustPoints = [
 
 export default function PricingPage() {
   return (
-    <div className="min-h-screen bg-landing text-text">
+    <div className="min-h-dvh bg-landing text-text">
       <Header />
       <main>
         <section className="relative px-6 pb-20 pt-36 sm:pb-28 sm:pt-44 lg:px-8">

@@ -303,7 +303,7 @@ export function CourseVisibilityDialog({
     <Dialog open={open} onClose={onClose} className="relative z-[70]">
       <div className="fixed inset-0 bg-black/50 backdrop-blur-[1px]" aria-hidden="true" />
       <div className="fixed inset-0 flex items-end justify-center sm:items-center sm:p-4">
-        <DialogPanel {...swipe} className="flex max-h-[calc(100dvh-0.5rem)] w-full flex-col overflow-hidden rounded-t-radius-2xl border border-border bg-surface shadow-float sm:max-w-2xl sm:rounded-radius-2xl">
+        <DialogPanel {...swipe} className="flex max-h-[calc(100dvh-0.5rem)] w-full flex-col overflow-hidden rounded-t-radius-2xl border border-border bg-surface-overlay shadow-float sm:max-w-2xl sm:rounded-radius-2xl">
           <div className="flex items-start justify-between border-b border-border-subtle px-5 py-4">
             <div>
               <DialogTitle className="font-serif text-lg font-semibold tracking-tight text-text">

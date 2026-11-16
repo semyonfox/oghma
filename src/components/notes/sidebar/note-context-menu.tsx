@@ -185,7 +185,7 @@ export default function NoteContextMenuPortal({
   return createPortal(
     <div
       ref={menuRef}
-      className="fixed z-[9999] min-w-[180px] rounded-radius-md bg-surface py-1 shadow-float ring-1 ring-border"
+      className="fixed z-[9999] min-w-[180px] rounded-radius-md bg-surface-overlay py-1 shadow-float ring-1 ring-border"
       style={{
         top: `${(adjusted ?? position).y}px`,
         left: `${(adjusted ?? position).x}px`,

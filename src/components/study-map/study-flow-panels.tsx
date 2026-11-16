@@ -547,7 +547,7 @@ export function TrailPanel({
   return (
     <aside
       aria-label={`${topic.name} through the course`}
-      className="absolute left-3 top-16 z-30 flex max-h-[calc(100%-8.5rem)] w-[min(320px,calc(100%-1.5rem))] max-sm:top-[7.5rem] max-sm:max-h-[calc(100%-12rem)] flex-col overflow-hidden rounded-radius-xl border border-border-subtle bg-surface shadow-float"
+      className="absolute left-3 top-16 z-30 flex max-h-[calc(100%-8.5rem)] w-[min(320px,calc(100%-1.5rem))] max-sm:top-[7.5rem] max-sm:max-h-[calc(100%-12rem)] flex-col overflow-hidden rounded-radius-xl border border-border-subtle bg-surface-overlay shadow-float"
     >
       <div className="flex items-start gap-2 px-4 pt-3">
         <span

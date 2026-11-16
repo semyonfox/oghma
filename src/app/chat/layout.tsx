@@ -7,7 +7,7 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
     <>
       <Suspense
         fallback={
-          <div className="flex h-screen w-screen items-center justify-center bg-app-page">
+          <div className="flex h-dvh w-screen items-center justify-center bg-app-page">
             <SparklesIcon className="h-8 w-8 animate-pulse text-accent" />
           </div>
         }

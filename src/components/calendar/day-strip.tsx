@@ -95,7 +95,7 @@ export default function DayStrip({
       role="group"
       aria-label={label}
       data-swipe-ignore
-      className="relative h-14 touch-pan-y select-none overflow-hidden [mask-image:linear-gradient(to_right,transparent,#000_14%,#000_86%,transparent)]"
+      className="relative h-14 touch-pan-y select-none overflow-hidden scroll-fade-x"
       onPointerDown={(event) => {
         if (!event.isPrimary || event.button !== 0 || gesture.current) return;
         const step = strip.current

@@ -6,17 +6,38 @@ let diagramSequence = 0;
 // follow light and dark mode. Fallbacks are the dark-theme values.
 function atlasDiagramColours() {
   const style = getComputedStyle(document.documentElement);
+  const raw = (name: string) => style.getPropertyValue(name).trim();
+  // mermaid derives shades with khroma, which only parses hex/rgb/hsl, so the
+  // oklch and translucent Atlas tokens are flattened onto the surface first
+  const surface = toOpaqueHex(raw("--color-surface"), "#000000") ?? "#16171a";
   const token = (name: string, fallback: string) =>
-    style.getPropertyValue(name).trim() || fallback;
+    toOpaqueHex(raw(name), surface) ?? fallback;
   return {
     text: token("--color-text", "#ececee"),
     muted: token("--color-text-tertiary", "#a3a5ac"),
-    surface: token("--color-surface", "#16171a"),
+    surface,
     elevated: token("--color-surface-elevated", "#1c1d21"),
     border: token("--color-border-strong", "#3a3d43"),
     accentSoft: token("--color-accent-soft", "#24262b"),
-    font: token("--font-sans", "ui-sans-serif, system-ui, sans-serif"),
+    font: raw("--font-sans") || "ui-sans-serif, system-ui, sans-serif",
   };
+}
+
+let swatch: CanvasRenderingContext2D | null | undefined;
+
+function toOpaqueHex(colour: string, backdrop: string) {
+  if (!colour) return null;
+  if (/^#[0-9a-f]{6}$/i.test(colour)) return colour;
+  swatch ??= document
+    .createElement("canvas")
+    .getContext("2d", { willReadFrequently: true });
+  if (!swatch) return null;
+  swatch.fillStyle = backdrop;
+  swatch.fillRect(0, 0, 1, 1);
+  swatch.fillStyle = colour;
+  swatch.fillRect(0, 0, 1, 1);
+  const [r, g, b] = swatch.getImageData(0, 0, 1, 1).data;
+  return `#${[r, g, b].map((c) => c.toString(16).padStart(2, "0")).join("")}`;
 }
 
 export async function renderMermaidElement(source: string) {

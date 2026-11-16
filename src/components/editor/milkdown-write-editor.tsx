@@ -331,11 +331,13 @@ export function enhanceMilkdownCodeBlocks(root: HTMLElement) {
           ? "Copy Mermaid source"
           : "Copy code";
       copy.classList.add("oghma-code-copy");
-      copy.innerHTML = COPY_ICON;
+      // both icons stay mounted so .icon-swap can blur one into the other
+      copy.innerHTML = `<span class="icon-swap" data-swapped="false" aria-hidden="true">${COPY_ICON}${CHECK_ICON}</span>`;
+      const swap = copy.querySelector<HTMLElement>(".icon-swap");
       copy.title = copyLabel;
       copy.setAttribute("aria-label", copyLabel);
       copy.addEventListener("click", () => {
-        copy.innerHTML = CHECK_ICON;
+        swap?.setAttribute("data-swapped", "true");
         copy.title = "Copied";
         copy.setAttribute(
           "aria-label",
@@ -345,7 +347,7 @@ export function enhanceMilkdownCodeBlocks(root: HTMLElement) {
         );
         window.setTimeout(() => {
           if (!copy.isConnected) return;
-          copy.innerHTML = COPY_ICON;
+          swap?.setAttribute("data-swapped", "false");
           copy.title = copyLabel;
           copy.setAttribute("aria-label", copyLabel);
         }, 1600);

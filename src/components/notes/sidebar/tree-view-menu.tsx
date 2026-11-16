@@ -10,7 +10,7 @@ import type { TreeViewSettings } from "@/lib/notes/tree-view-settings";
 const headingClass =
   "px-2.5 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-text-tertiary";
 const optionClass =
-  "flex min-h-11 w-full items-center gap-2 rounded-radius-md px-2.5 text-left text-sm text-text-secondary hover:bg-subtle hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent md:min-h-8 md:text-[13px]";
+  "flex min-h-11 w-full items-center gap-2 rounded-radius-sm px-2.5 text-left text-sm text-text-secondary hover:bg-subtle hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent md:min-h-8 md:text-[13px]";
 
 function Option({
   checked,
@@ -68,7 +68,7 @@ function ViewHint({ anchor, onDismiss }: { anchor: HTMLElement; onDismiss: () =>
     <div
       role="dialog"
       aria-label={t("View")}
-      className="fixed z-[55] rounded-radius-lg border border-border bg-surface p-3 text-sm shadow-float"
+      className="fixed z-[55] rounded-radius-lg border border-border bg-surface-overlay p-3 text-sm shadow-float"
       style={{ top: rect.bottom + 8, left, width }}
     >
       <span
@@ -120,7 +120,7 @@ export function TreeViewMenu({ view, topicsReady, showHint, refreshing, onRefres
           anchor="bottom end"
           role="menu"
           aria-label={t("View")}
-          className="z-[60] w-64 max-w-[calc(100vw-1rem)] rounded-radius-lg border border-border bg-surface p-1 text-text shadow-float [--anchor-gap:6px] [--anchor-padding:8px] focus:outline-none"
+          className="z-[60] w-64 max-w-[calc(100vw-1rem)] rounded-radius-lg border border-border bg-surface-overlay p-1 text-text shadow-float [--anchor-gap:6px] [--anchor-padding:8px] focus:outline-none"
         >
           <div role="group" aria-label={t("Group by")}>
             <p className={headingClass}>{t("Group by")}</p>
