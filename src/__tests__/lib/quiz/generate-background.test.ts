@@ -11,7 +11,7 @@ vi.mock("@/lib/quiz/generate", () => ({
   generateQuestion: mockGenerateQuestion,
 }));
 vi.mock("@/lib/quiz/bloom", () => ({
-  getCurrentBloomLevel: vi.fn(() => 1),
+  nextBloomLevel: vi.fn(() => 2),
   pickQuestionType: vi.fn(() => "mcq"),
 }));
 vi.mock("@/lib/logger", () => ({ default: mockLogger }));
@@ -28,10 +28,10 @@ describe("generateBatch", () => {
           text: "Primary chunk text",
           document_id: "note-1",
           title: "Module title",
-          canvas_course_id: null,
         },
       ])
-      .mockResolvedValueOnce([{ text: "Primary chunk text" }])
+      .mockResolvedValueOnce([{ text: "Next chunk text" }])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
   });
 
@@ -45,10 +45,10 @@ describe("generateBatch", () => {
       noteId: "note-1",
       chunkId: "chunk-1",
       chunkText: "Primary chunk text",
+      contextText: "Next chunk text",
       moduleName: "Module title",
-      bloomLevel: 1,
+      bloomLevel: 2,
       questionType: "mcq",
-      courseId: undefined,
     });
   });
 
@@ -80,10 +80,10 @@ describe("generateBatch", () => {
           text: "Primary chunk text",
           document_id: "note-1",
           title: "Module title",
-          canvas_course_id: null,
         },
       ])
-      .mockResolvedValueOnce([{ text: "Primary chunk text" }])
+      .mockResolvedValueOnce([{ text: "Next chunk text" }])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
     await generateBatch("user-1", ["chunk-1"]);
 

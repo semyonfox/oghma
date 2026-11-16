@@ -18,7 +18,7 @@ import {
 import { checkRateLimit } from "@/lib/rate-limiter";
 import { generateBatch } from "@/lib/quiz/generate-background";
 import { loadSessionQuestion } from "@/lib/quiz/session-question";
-import { SESSION_DEFAULTS } from "@/lib/quiz/types";
+import { QUIZ_GENERATION_MAX_FAILURES, SESSION_DEFAULTS } from "@/lib/quiz/types";
 import type { QuizSessionStartResponse } from "@/lib/quiz/types";
 import sql from "@/database/pgsql";
 import {
@@ -39,9 +39,46 @@ interface ChunkModuleRow {
   module_id: string;
 }
 
-// spread one pass across modules so a single large module can't use it all
+// course admin rather than course content: outlines, welcome pages, task lists,
+// submission pages and setup guides only ever produced trivia questions
+const ADMIN_NOTE_TITLE =
+  "(orientation|course outline|course introduction|course intro|syllabus|task list|home page|welcome to|submission link|how to install|handbook|calendar|timetable)";
+
+/**
+ * Chunks whose hardest question was answered correctly twice in a row, so the
+ * next question on them should go a level deeper. Mirrors nextBloomLevel.
+ */
+async function chunksReadyToLevelUp(userId: string, chunkIds: string[]): Promise<string[]> {
+  if (chunkIds.length === 0) return [];
+  const rows = await sql<{ id: string }[]>`
+    SELECT q.chunk_id AS id
+    FROM app.quiz_questions q
+    JOIN app.chunks c ON c.id = q.chunk_id AND c.user_id = q.user_id
+    WHERE q.user_id = ${userId}::uuid
+      AND q.chunk_id = ANY(${chunkIds}::uuid[])
+      AND q.bloom_level < 4
+      AND c.quiz_generation_failures < ${QUIZ_GENERATION_MAX_FAILURES}
+      AND q.bloom_level = (
+        SELECT max(x.bloom_level) FROM app.quiz_questions x
+        WHERE x.user_id = q.user_id AND x.chunk_id = q.chunk_id
+      )
+      AND (
+        SELECT count(*) = 2 AND bool_and(last.was_correct)
+        FROM (
+          SELECT r.was_correct FROM app.quiz_reviews r
+          WHERE r.question_id = q.id AND r.user_id = q.user_id
+          ORDER BY r.created_at DESC LIMIT 2
+        ) last
+      )
+  `;
+  return rows.map((row) => row.id);
+}
+
+// harder questions on mastered chunks come first, then new chunks, spread
+// across modules so a single large module can't use the whole pass
 async function pickChunksToGenerate(
   userId: string,
+  levelUpChunkIds: string[],
   uncoveredChunkIds: string[],
   limit: number,
 ): Promise<string[]> {
@@ -50,8 +87,9 @@ async function pickChunksToGenerate(
     FROM app.chunks c
     JOIN app.notes n ON c.document_id = n.note_id
     WHERE c.user_id = ${userId}::uuid
-      AND c.id = ANY(${uncoveredChunkIds}::uuid[])
-    ORDER BY random()
+      AND c.id = ANY(${[...levelUpChunkIds, ...uncoveredChunkIds]}::uuid[])
+      AND n.title !~* ${ADMIN_NOTE_TITLE}
+    ORDER BY (c.id = ANY(${levelUpChunkIds}::uuid[])) DESC, random()
   `;
 
   const picked: string[] = [];
@@ -105,6 +143,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     userId, chunkIds, now, noteIds, examDueIds, examManagedIds,
   );
   const { uncoveredChunkIds } = candidates;
+  // only chunks the archive rule let through can step up, so archived courses stay quiet
+  const levelUpChunkIds = await chunksReadyToLevelUp(userId, candidates.activeChunkIds);
 
   const priorityIds = new Set<string>();
   if (filter.exam) {
@@ -124,10 +164,11 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     Math.max(AI_GENERATION_TOP_UP, maxQuestions - cardIds.length),
   );
   const batchKey = `${userId}:${JSON.stringify(filter)}`;
-  if (uncoveredChunkIds.length > 0 && !inFlightBatches.has(batchKey)) {
+  const canGenerate = uncoveredChunkIds.length + levelUpChunkIds.length > 0;
+  if (canGenerate && !inFlightBatches.has(batchKey)) {
     inFlightBatches.add(batchKey);
     try {
-      const bgChunkIds = await pickChunksToGenerate(userId, uncoveredChunkIds, needed);
+      const bgChunkIds = await pickChunksToGenerate(userId, levelUpChunkIds, uncoveredChunkIds, needed);
       if (bgChunkIds.length > 0) {
         after(async () => {
           try { await generateBatch(userId, bgChunkIds); }
@@ -144,7 +185,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   if (cardIds.length === 0) {
     // no cards yet — generation was kicked off above, so tell the client to retry
-    if (uncoveredChunkIds.length > 0) {
+    if (canGenerate) {
       return NextResponse.json(
         { generating: true, retryAfter: 3 },
         { status: 202 },

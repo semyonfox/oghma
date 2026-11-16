@@ -120,7 +120,7 @@ export const QUIZ_GENERATION_MAX_FAILURES = 2;
 
 // session config defaults
 export const SESSION_DEFAULTS = {
-    maxQuestions: 20,
+    maxQuestions: 10,
     leechThreshold: 4,
     fatigueThreshold: 0.4, // 40% wrong triggers fatigue warning
     weightDue: 0.7,

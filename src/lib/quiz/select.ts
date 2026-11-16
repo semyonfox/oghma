@@ -33,6 +33,8 @@ export interface SessionCandidates {
   newCards: CandidateCard[];
   retentionCards: CandidateCard[];
   uncoveredChunkIds: string[];
+  /** chunks in scope that pass the archive and failure filters, covered or not */
+  activeChunkIds: string[];
 }
 
 export interface SelectionResult {
@@ -308,7 +310,7 @@ export async function getSessionCandidates(
   examManagedIds: ReadonlySet<string> = new Set(),
 ): Promise<SessionCandidates> {
   if (chunkIds.length === 0 && !noteIds?.length) {
-    return { dueCards: [], newCards: [], retentionCards: [], uncoveredChunkIds: [] };
+    return { dueCards: [], newCards: [], retentionCards: [], uncoveredChunkIds: [], activeChunkIds: [] };
   }
 
   const selectedNoteIds = noteIds ?? rowIds(await sql<IdRow[]>`
@@ -359,7 +361,8 @@ export async function getSessionCandidates(
   }
 
   const covered = new Set(cards.map(({ chunk_id }) => chunk_id));
-  const uncoveredChunkIds = rowIds(activeChunks).filter((id) => !covered.has(id));
+  const activeChunkIds = rowIds(activeChunks);
+  const uncoveredChunkIds = activeChunkIds.filter((id) => !covered.has(id));
 
-  return { dueCards, newCards, retentionCards, uncoveredChunkIds };
+  return { dueCards, newCards, retentionCards, uncoveredChunkIds, activeChunkIds };
 }

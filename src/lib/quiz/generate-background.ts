@@ -1,6 +1,6 @@
 import sql from "@/database/pgsql";
 import { generateQuestion } from "./generate";
-import { getCurrentBloomLevel, pickQuestionType } from "./bloom";
+import { nextBloomLevel, pickQuestionType } from "./bloom";
 import logger from "@/lib/logger";
 import { QUIZ_GENERATION_MAX_FAILURES } from "./types";
 
@@ -19,7 +19,6 @@ interface ChunkRow {
   text: string;
   document_id: string;
   title: string | null;
-  canvas_course_id: string | null;
 }
 
 interface ChunkTextRow {
@@ -86,7 +85,7 @@ export async function generateBatch(
 
   async function generateForChunk(chunkId: string): Promise<number> {
     const [chunk] = await sql<ChunkRow[]>`
-      SELECT c.id, c.text, c.document_id, n.title, n.canvas_course_id
+      SELECT c.id, c.text, c.document_id, n.title
       FROM app.chunks c
       JOIN app.notes n ON c.document_id = n.note_id
       WHERE c.id = ${chunkId}::uuid
@@ -107,13 +106,11 @@ export async function generateBatch(
       SELECT o.text
       FROM ordered o
       CROSS JOIN target_rn t
-      WHERE o.rn BETWEEN t.rn - 1 AND t.rn + 1
+      WHERE o.rn BETWEEN t.rn - 1 AND t.rn + 1 AND o.rn <> t.rn
       ORDER BY o.rn
     `;
-    const contextText =
-      neighbors.length > 1
-        ? neighbors.map(({ text }) => text).join("\n\n")
-        : chunk.text;
+    // neighbours only help the model read the chunk, so they don't become questions of their own
+    const contextText = neighbors.map(({ text }) => text).join("\n\n") || undefined;
 
     const reviews = await sql<ReviewRow[]>`
       SELECT qq.bloom_level, qr.was_correct
@@ -122,18 +119,23 @@ export async function generateBatch(
       WHERE qq.chunk_id = ${chunkId}::uuid AND qr.user_id = ${userId}::uuid
       ORDER BY qr.created_at ASC
     `;
-    const bloomLevel = getCurrentBloomLevel(reviews);
+    const levels = await sql<{ bloom_level: number }[]>`
+      SELECT bloom_level FROM app.quiz_questions
+      WHERE chunk_id = ${chunkId}::uuid AND user_id = ${userId}::uuid
+    `;
+    const bloomLevel = nextBloomLevel(levels.map((row) => row.bloom_level), reviews);
+    if (bloomLevel === null) return 0;
     const questionType = pickQuestionType(bloomLevel);
 
     const question = await generateQuestion({
       userId,
       noteId: chunk.document_id,
       chunkId,
-      chunkText: contextText,
+      chunkText: chunk.text,
+      contextText,
       moduleName: chunk.title || "Unknown Module",
       bloomLevel,
       questionType,
-      courseId: chunk.canvas_course_id ?? undefined,
     });
 
     return question ? 1 : 0;

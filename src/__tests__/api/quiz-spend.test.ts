@@ -26,8 +26,8 @@ beforeEach(() => {
   mocks.auth.mockResolvedValue({ user_id: crypto.randomUUID() });
   mocks.limited.mockResolvedValue(null);
   mocks.cards.mockReturnValue([]);
-  mocks.candidates.mockResolvedValue({ uncoveredChunkIds: Array.from({ length: 30 }, (_, i) => `chunk-${i}`) });
-  mocks.sql.mockImplementation(async (parts: TemplateStringsArray) => parts.join("").includes("ORDER BY random()")
+  mocks.candidates.mockResolvedValue({ uncoveredChunkIds: Array.from({ length: 30 }, (_, i) => `chunk-${i}`), activeChunkIds: [] });
+  mocks.sql.mockImplementation(async (parts: TemplateStringsArray) => parts.join("").includes("random()")
     ? Array.from({ length: 30 }, (_, i) => ({ id: `chunk-${i}`, module_id: String(i) })) : []);
   mocks.generate.mockResolvedValue(0);
 });
