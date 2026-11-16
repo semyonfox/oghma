@@ -225,10 +225,15 @@ export function applyBulkToggle(
 
 // finished courses
 
+/** canvas saying the course is over; matches app.course_archived in the database */
+export function canvasSaysFinished(course: CourseState): boolean {
+  return course.canvasStatus === "past" || course.canvasStatus === "inaccessible";
+}
+
 export function isFinishedCourse(course: CourseState | undefined): boolean {
   if (!course) return false;
   if (course.override !== null) return course.override;
-  return course.canvasStatus === "past";
+  return canvasSaysFinished(course);
 }
 
 /**
@@ -237,7 +242,7 @@ export function isFinishedCourse(course: CourseState | undefined): boolean {
  */
 export function nextFinishedOverride(course: CourseState): boolean | null {
   const finished = !isFinishedCourse(course);
-  const canvasSays = course.canvasStatus === "past";
+  const canvasSays = canvasSaysFinished(course);
   return course.isCanvasCourse && finished === canvasSays ? null : finished;
 }
 

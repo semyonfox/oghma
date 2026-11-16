@@ -15,6 +15,8 @@ import { activeCanvasRun, canonicalCanvasCourses, lockCanvasRuns, startCanvasRun
 import { isValidUUID } from "@/lib/utils/uuid";
 import { cancelActiveCanvasImportJobs } from "@/lib/canvas/cancel-import-jobs";
 import { assertCanvasContentEnabled } from "@/lib/canvas/content-policy";
+import { discoverCanvasCourses, isCanvasCourseImportable } from "@/lib/canvas/sync-courses";
+import { normalizeCanvasCourseSelection } from "@/lib/canvas/id";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -60,39 +62,37 @@ export const POST = withErrorHandler(async (request) => {
     throw new ApiError(400, "No Canvas account connected");
   }
 
-  // Validate against the enrollment ledger rather than the active-course
-  // dashboard list. A valid token may have only older or pending courses.
+  // resolve the selection against Canvas itself. the picker shows courses Canvas won't
+  // serve under a placeholder name, so names come from Canvas and those courses are dropped
   const client = new CanvasClient(credentials.domain, credentials.token);
-  const enrollmentValidation = await client.getSelfEnrollments();
-  if (enrollmentValidation.unauthorized) {
+  const discovery = await discoverCanvasCourses(
+    client,
+    normalizedCourseIds.map((course) => course.id),
+  );
+  if (discovery.unauthorized) {
     await markCanvasTokenInvalid(user.user_id);
     throw new ApiError(401, "Canvas token is invalid or expired");
   }
-  if (enrollmentValidation.error || enrollmentValidation.forbidden) {
-    // Some institutional developer keys scope the self-enrollments endpoint.
-    // A regular course-list response still proves that the token is live.
-    const courseListValidation = await client.getDiscoverableCourses();
-    if (courseListValidation.unauthorized) {
-      await markCanvasTokenInvalid(user.user_id);
-      throw new ApiError(401, "Canvas token is invalid or expired");
-    }
-    if (courseListValidation.error || courseListValidation.forbidden) {
-      throw new ApiError(
-        502,
-        `Canvas connection failed: ${
-          courseListValidation.error ??
-          enrollmentValidation.error ??
-          "access was denied"
-        }`,
-      );
-    }
-    // Continue: the worker validates the selected course's real resources.
+  if (discovery.error) {
+    throw new ApiError(502, `Canvas connection failed: ${discovery.error}`);
+  }
+  const canvasCourses = new Map(discovery.data.map((course) => [String(course.id), course]));
+  const courses = normalizedCourseIds.flatMap((selected) => {
+    const course = canvasCourses.get(selected.id);
+    if (!course || !isCanvasCourseImportable(course)) return [];
+    return [{
+      ...normalizeCanvasCourseSelection(course),
+      ...(selected.assignmentId ? { assignmentId: selected.assignmentId } : {}),
+    }];
+  });
+  if (courses.length === 0) {
+    throw new ApiError(400, "Canvas does not give access to the selected courses");
   }
 
   const result = await startCanvasRun({
     checkTrash: !keepTrashedFolders,
     userId: user.user_id,
-    courses: normalizedCourseIds,
+    courses,
     mode: "import",
     expectedActiveJobId: typeof expectedActiveJobId === "string" ? expectedActiveJobId : undefined,
   }).catch((error: unknown) => {

@@ -10,6 +10,7 @@ import {
   isCanvasCourseImportable,
 } from "@/lib/canvas/sync-courses";
 import { recordCanvasCourseStatuses } from "@/lib/canvas/course-status";
+import sql from "@/database/pgsql";
 
 /**
  * POST /api/assignments/sync
@@ -42,7 +43,14 @@ export const POST = withErrorHandler(async () => {
     });
   }
   await recordCanvasCourseStatuses(user.user_id, discovery.data);
-  const courses = discovery.data.filter(isCanvasCourseImportable);
+  // archived courses get no more updates
+  const importable = discovery.data.filter(isCanvasCourseImportable);
+  const active = await sql<{ id: string }[]>`
+    SELECT id::text AS id FROM unnest(${importable.map((course) => String(course.id))}::bigint[]) AS id
+    WHERE NOT app.course_archived(${user.user_id}::uuid, id)
+  `;
+  const activeIds = new Set(active.map((row) => row.id));
+  const courses = importable.filter((course) => activeIds.has(String(course.id)));
 
   let totalSynced = 0;
   let totalErrors = 0;

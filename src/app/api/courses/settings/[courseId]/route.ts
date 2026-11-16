@@ -31,17 +31,27 @@ export const PATCH = withErrorHandler(
       return tracedError("isActive must be a boolean", 400);
     }
 
+    // an upsert, because a course canvas archived has no row until the user restores it
     const setting = await sql`
-      UPDATE app.user_course_settings
-      SET 
-        is_active = ${isActive},
-        archived_at = CASE 
-          WHEN ${isActive} = false THEN NOW() 
-          ELSE NULL 
-        END,
+      INSERT INTO app.user_course_settings (user_id, canvas_course_id, course_name, is_active, archived_at)
+      VALUES (
+        ${userId}::uuid, ${courseId}::bigint,
+        COALESCE(
+          (SELECT NULLIF(BTRIM(f.title), '') FROM app.notes f
+           WHERE f.user_id = ${userId}::uuid AND f.canvas_course_id = ${courseId}::bigint
+             AND f.is_folder AND f.canvas_module_id IS NULL AND f.canvas_assignment_id IS NULL
+             AND f.deleted_at IS NULL
+           ORDER BY f.created_at ASC LIMIT 1),
+          'Course ' || ${courseId}::text
+        ),
+        ${isActive},
+        CASE WHEN ${isActive} = false THEN NOW() END
+      )
+      ON CONFLICT (user_id, canvas_course_id) DO UPDATE SET
+        is_active = EXCLUDED.is_active,
+        archived_at = EXCLUDED.archived_at,
         updated_at = NOW()
-      WHERE user_id = ${userId}::uuid AND canvas_course_id = ${courseId}::bigint
-      RETURNING 
+      RETURNING
         id,
         canvas_course_id::text as "canvasCourseId",
         course_name as "courseName",
@@ -49,10 +59,6 @@ export const PATCH = withErrorHandler(
         auto_archived as "autoArchived",
         archived_at as "archivedAt"
     `;
-
-    if (setting.length === 0) {
-      return tracedError("Course setting not found", 404);
-    }
 
     return NextResponse.json(setting[0]);
   },

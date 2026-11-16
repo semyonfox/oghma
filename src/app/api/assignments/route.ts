@@ -23,7 +23,6 @@ export const GET = withErrorHandler(async (request) => {
   const cutoffIso = new Date(Date.now() - windowDays * 86400000).toISOString();
 
   // build WHERE dynamically instead of 8 separate query branches
-  // note: ucs.is_active IS NULL means the course has no settings row (visible by default)
   const effectiveStatus = sql`CASE
     WHEN a.status <> 'done' AND a.due_at IS NOT NULL AND a.due_at < NOW() THEN 'late'
     WHEN a.status = 'late' AND (a.due_at IS NULL OR a.due_at >= NOW()) THEN 'upcoming'
@@ -42,27 +41,7 @@ export const GET = withErrorHandler(async (request) => {
     )`);
   }
   if (!includeArchived) {
-    conditions.push(sql`(ucs.is_active IS NULL OR ucs.is_active = true)`);
-    // a finished course counts as archived too, with the same rule the notes tree uses:
-    // the user's override on the top-level course folder wins, otherwise canvas saying 'past'
-    conditions.push(sql`NOT COALESCE(
-      (SELECT n.course_finished_override
-       FROM app.notes n
-       JOIN app.tree_items ti ON ti.note_id = n.note_id AND ti.parent_id IS NULL
-       WHERE n.user_id = a.user_id
-         AND n.canvas_course_id = a.canvas_course_id
-         AND n.is_folder
-         AND n.canvas_module_id IS NULL
-         AND n.canvas_assignment_id IS NULL
-         AND n.deleted_at IS NULL
-         AND n.course_finished_override IS NOT NULL
-       LIMIT 1),
-      (SELECT course.status = 'past'
-       FROM app.canvas_course_status course
-       WHERE course.user_id = a.user_id
-         AND course.canvas_course_id = a.canvas_course_id),
-      false
-    )`);
+    conditions.push(sql`NOT app.course_archived(a.user_id, a.canvas_course_id)`);
   }
 
   const where = conditions.reduce((a, c) => sql`${a} AND ${c}`);
@@ -80,9 +59,6 @@ export const GET = withErrorHandler(async (request) => {
             FROM app.assignment_feedback f WHERE f.assignment_id = a.id AND f.user_id = ${user.user_id}::uuid) AS feedback,
            a.created_at, a.updated_at
     FROM app.assignments a
-    LEFT JOIN app.user_course_settings ucs
-      ON ucs.user_id = ${user.user_id}::uuid
-      AND ucs.canvas_course_id = a.canvas_course_id
     WHERE ${where}
     ORDER BY due_at ASC NULLS LAST, created_at DESC
   `;

@@ -82,12 +82,13 @@ export const POST = withErrorHandler(async (request) => {
     });
   }
 
-  // Derive the set of course IDs previously imported by this user
+  // previously imported courses, minus archived ones: archived means no more updates
   const prevCourseRows = await sql<{ canvas_course_id: string | number }[]>`
-    SELECT DISTINCT canvas_course_id
-    FROM app.canvas_imports
-    WHERE user_id = ${user.user_id}
-      AND canvas_course_id IS NOT NULL
+    SELECT DISTINCT ci.canvas_course_id
+    FROM app.canvas_imports ci
+    WHERE ci.user_id = ${user.user_id}
+      AND ci.canvas_course_id IS NOT NULL
+      AND NOT app.course_archived(ci.user_id, ci.canvas_course_id)
   `;
 
   if (prevCourseRows.length === 0) {

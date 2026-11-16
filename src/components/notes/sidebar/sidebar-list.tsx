@@ -32,7 +32,7 @@ import {
 } from "./selection-utils";
 import { ROOT_ID } from "@/lib/notes/types/tree";
 import { applyTreeView, topLevelAncestor } from "@/lib/notes/tree-view";
-import { isFinishedCourse, nextFinishedOverride } from "@/lib/notes/tree-topics";
+import { canvasSaysFinished, isFinishedCourse, nextFinishedOverride } from "@/lib/notes/tree-topics";
 import useTagEditorStore, { type TagTarget } from "@/lib/notes/state/tag-editor";
 import type { TagsViewFile } from "@/lib/notes/tags-view";
 import { useCanvasImportNotification } from "@/components/canvas/canvas-import-notifications";
@@ -178,7 +178,7 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
     const course = tree.items[id]?.data?.course;
     if (!course || tree.items[id]?.data?.bundle) return null;
     if (!isFinishedCourse(course)) return { label: t("Mark as finished") };
-    return course.isCanvasCourse && course.canvasStatus === "past" && course.override === null
+    return course.isCanvasCourse && canvasSaysFinished(course) && course.override === null
       ? { label: t("Keep as active"), hint: t("Canvas says finished") }
       : { label: t("Mark as active") };
   };

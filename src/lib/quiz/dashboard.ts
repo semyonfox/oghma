@@ -56,12 +56,9 @@ export async function getQuizDashboardSummary(
       FROM app.quiz_cards qc
       JOIN app.quiz_questions qq ON qq.id = qc.question_id AND qq.user_id = qc.user_id
       JOIN app.notes n ON n.note_id = qq.note_id AND n.user_id = qc.user_id
-      LEFT JOIN app.user_course_settings ucs
-        ON ucs.user_id = ${userId}::uuid
-        AND ucs.canvas_course_id = n.canvas_course_id
       WHERE qc.user_id = ${userId}::uuid
         AND n.deleted_at IS NULL
-        AND (ucs.is_active IS NULL OR ucs.is_active = true)
+        AND NOT app.course_archived(${userId}::uuid, n.canvas_course_id)
     `,
     sql<ReviewCountsRow[]>`
       WITH bounds AS (
@@ -163,13 +160,13 @@ export async function getQuizDashboardCourses(
       COALESCE(cc.total_cards, 0) AS total_cards,
       COALESCE(cc.due_count, 0) AS due_count,
       COALESCE(cc.mastered_count, 0) AS mastered_count,
-      COALESCE(ucs.is_active, true) AS is_active
+      NOT app.course_archived(${userId}::uuid, ic.canvas_course_id) AS is_active
     FROM indexed_courses ic
     LEFT JOIN course_cards cc ON cc.canvas_course_id = ic.canvas_course_id
     LEFT JOIN app.user_course_settings ucs
       ON ucs.user_id = ${userId}::uuid
       AND ucs.canvas_course_id = ic.canvas_course_id
-    WHERE ${includeArchived}::boolean OR ucs.is_active IS NULL OR ucs.is_active = true
+    WHERE ${includeArchived}::boolean OR NOT app.course_archived(${userId}::uuid, ic.canvas_course_id)
     ORDER BY due_count DESC, total_cards DESC
   `;
 

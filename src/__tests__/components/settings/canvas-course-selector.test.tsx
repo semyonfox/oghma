@@ -61,19 +61,17 @@ describe("CanvasCourseSelector", () => {
     expect(pastRow?.textContent).toContain("Synced");
   });
 
-  it("allows requesting inaccessible courses while retaining their access warning", () => {
-    const { onToggleCourse } = renderSelector();
+  it("disables inaccessible courses while keeping their access warning", () => {
+    renderSelector();
     const unavailable = screen.getByRole("checkbox", {
       name: /Unavailable Networks/i,
     });
 
-    expect((unavailable as HTMLInputElement).disabled).toBe(false);
+    expect((unavailable as HTMLInputElement).disabled).toBe(true);
     const descriptionId = unavailable.getAttribute("aria-describedby");
     expect(document.getElementById(descriptionId ?? "")?.textContent).toBe(
       "Canvas data access depends on your permissions",
     );
-    fireEvent.click(unavailable);
-    expect(onToggleCourse).toHaveBeenCalledWith("unavailable");
   });
 
   it("distinguishes a temporary Canvas lookup failure from revoked access", () => {
@@ -92,7 +90,7 @@ describe("CanvasCourseSelector", () => {
     const checkbox = screen.getByRole("checkbox", {
       name: /Checking History/i,
     });
-    expect((checkbox as HTMLInputElement).disabled).toBe(false);
+    expect((checkbox as HTMLInputElement).disabled).toBe(true);
     expect(
       document.getElementById(checkbox.getAttribute("aria-describedby") ?? "")
         ?.textContent,
@@ -132,7 +130,7 @@ describe("CanvasCourseSelector", () => {
     expect(list.getAttribute("tabindex")).toBe("0");
     expect(list.querySelectorAll('input[type="checkbox"]')).toHaveLength(12);
     expect((screen.getByRole("checkbox", { name: /Course 12/i }) as HTMLInputElement).disabled)
-      .toBe(false);
+      .toBe(true);
 
     const selectAll = screen.getByRole("button", { name: "Select all" });
     expect(selectAll.closest("header")).toBeTruthy();

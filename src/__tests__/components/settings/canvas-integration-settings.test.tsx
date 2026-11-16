@@ -202,7 +202,7 @@ describe("CanvasIntegrationSettings connection check", () => {
     ).toBeNull();
   });
 
-  it("selects and deselects every listed course from a long list", async () => {
+  it("selects and deselects every course Canvas can serve from a long list", async () => {
     localStorage.setItem("canvas_selected_courses", "[]");
     mockConnectionResponse({
       connected: true,
@@ -226,16 +226,16 @@ describe("CanvasIntegrationSettings connection check", () => {
     fireEvent.click(selectAll);
 
     expect(
-      screen.getByRole("button", { name: "Import selected courses (12)" }),
+      screen.getByRole("button", { name: "Import selected courses (11)" }),
     ).toBeTruthy();
     expect(
-      screen.getByText("12 selected"),
+      screen.getByText("11 selected"),
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Deselect all" })).toBeTruthy();
     expect(
       (screen.getByRole("checkbox", { name: /Course 12/i }) as HTMLInputElement)
         .checked,
-    ).toBe(true);
+    ).toBe(false);
 
     fireEvent.click(screen.getByRole("button", { name: "Deselect all" }));
     expect(screen.getByRole("button", { name: "Select all" })).toBeTruthy();
@@ -249,7 +249,7 @@ describe("CanvasIntegrationSettings connection check", () => {
     ).toBe(false);
   });
 
-  it("selects every listed course on first connection before saving the selection", async () => {
+  it("selects every course Canvas can serve on first connection before saving the selection", async () => {
     mockConnectionResponse({
       connected: true,
       connectionState: "connected",
@@ -263,10 +263,10 @@ describe("CanvasIntegrationSettings connection check", () => {
     render(<CanvasIntegrationSettings />);
 
     expect(
-      await screen.findByText("2 selected"),
+      await screen.findByText("1 selected"),
     ).toBeTruthy();
     await waitFor(() => {
-      expect(localStorage.getItem("canvas_selected_courses")).toBe('["1","2"]');
+      expect(localStorage.getItem("canvas_selected_courses")).toBe('["1"]');
     });
   });
   it("survives corrupt saved state instead of crashing the settings page", async () => {

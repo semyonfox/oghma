@@ -134,7 +134,7 @@ describe('session candidates', () => {
         expect(text).toContain('n.note_id = qq.note_id');
         expect(text).not.toContain('JOIN app.chunks');
         expect(text).toContain('n.deleted_at IS NULL');
-        expect(text).toContain('ucs.is_active');
+        expect(text).toContain('NOT app.course_archived(');
     });
 
     it('serves manual cards before any chunks exist', async () => {
