@@ -154,7 +154,7 @@ export default function QuizDashboard({
       setStartingSession(null);
     };
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-      const res = await fetch("/api/quiz/sessions", {
+      const res = await fetch(`/api/quiz/sessions?tz=${encodeURIComponent(browserTimeZone())}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ filterType, filterValue, exam }),

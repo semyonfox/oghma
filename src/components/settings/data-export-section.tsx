@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { CheckIcon, ClipboardDocumentIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
 import { buildGoogleCalendarSubscriptionUrl } from "@/lib/calendar/subscription-url";
 import { copyText } from "@/lib/clipboard";
+import { IconSwap } from "@/components/icon-swap";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import {
   cn,
@@ -642,11 +643,11 @@ export default function DataExportSection() {
                   className={cn(secondaryBtnClass, "shrink-0")}
                   title={t("Copy URL")}
                 >
-                  {calendarCopied ? (
-                    <CheckIcon className="h-4 w-4 text-success-700 dark:text-success-400" aria-hidden="true" />
-                  ) : (
-                    <ClipboardDocumentIcon className="h-4 w-4 text-text-tertiary" aria-hidden="true" />
-                  )}
+                  <IconSwap
+                    swapped={calendarCopied}
+                    from={<ClipboardDocumentIcon className="h-4 w-4 text-text-tertiary" />}
+                    to={<CheckIcon className="h-4 w-4 text-success-700 dark:text-success-400" />}
+                  />
                   {calendarCopied ? t("Copied") : t("Copy URL")}
                 </button>
               </div>

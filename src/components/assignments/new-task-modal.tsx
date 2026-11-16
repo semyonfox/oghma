@@ -131,7 +131,7 @@ export default function NewTaskModal({
         <DialogPanel
           {...swipe}
           data-testid="new-task-panel"
-          className="flex max-h-[calc(100dvh-0.5rem)] w-full flex-col overflow-hidden rounded-t-radius-lg border border-border-subtle bg-surface shadow-xl sm:max-w-sm sm:rounded-radius-lg"
+          className="flex max-h-[calc(100dvh-0.5rem)] w-full flex-col overflow-hidden rounded-t-radius-lg border border-border-subtle bg-surface-overlay shadow-xl sm:max-w-sm sm:rounded-radius-lg"
         >
           <div className="flex h-12 shrink-0 items-center justify-between border-b border-border-subtle px-4">
             <DialogTitle className="text-sm font-medium text-text-secondary">

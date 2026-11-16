@@ -11,6 +11,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { renderMermaidElement } from "../mermaid";
 import { copyText } from "@/lib/clipboard";
+import { IconSwap } from "@/components/icon-swap";
 
 const VIEWPORT_PADDING = 16;
 const MIN_VIEWPORT_HEIGHT = 96;
@@ -281,11 +282,11 @@ export default function MermaidInlineViewer({
             aria-label={copied ? "Mermaid source copied" : "Copy Mermaid source"}
             title={copied ? "Copied" : "Copy Mermaid source"}
           >
-            {copied ? (
-              <CheckIcon aria-hidden="true" />
-            ) : (
-              <ClipboardDocumentIcon aria-hidden="true" />
-            )}
+            <IconSwap
+              swapped={copied}
+              from={<ClipboardDocumentIcon />}
+              to={<CheckIcon />}
+            />
           </button>
           <div
             className="oghma-mermaid-inline-zoom"

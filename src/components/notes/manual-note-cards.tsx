@@ -41,7 +41,7 @@ export function ManualCardDialog({ noteId, sourceQuote, card, onClose }: {
     <Dialog open onClose={() => { if (!saving) onClose(); }} className="relative z-[100]">
       <div className="fixed inset-0 bg-black/40" aria-hidden="true" />
       <div className="fixed inset-0 flex items-center justify-center overflow-y-auto p-4">
-        <DialogPanel className="w-full max-w-lg space-y-4 rounded-radius-lg border border-border bg-surface p-5 text-text shadow-float">
+        <DialogPanel className="w-full max-w-lg space-y-4 rounded-radius-lg border border-border bg-surface-overlay p-5 text-text shadow-float">
           <DialogTitle className="text-lg font-semibold">{card ? t("cards.edit") : t("cards.make")}</DialogTitle>
           <label className="block space-y-1 text-sm">
             <span>{t("cards.front")}</span>

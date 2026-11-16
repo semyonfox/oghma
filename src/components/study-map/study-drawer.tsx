@@ -89,7 +89,7 @@ export default function StudyDrawer({
       <aside
         ref={panelRef}
         aria-label={title}
-        className={`absolute bottom-16 right-3 top-16 z-50 flex flex-col overflow-hidden rounded-radius-xl border border-border-subtle bg-surface text-text shadow-float ${wide ? "w-[min(640px,calc(100%-1.5rem))]" : "w-[min(440px,calc(100%-1.5rem))]"}`}
+        className={`absolute bottom-16 right-3 top-16 z-50 flex flex-col overflow-hidden rounded-radius-xl border border-border-subtle bg-surface-overlay text-text shadow-float ${wide ? "w-[min(640px,calc(100%-1.5rem))]" : "w-[min(440px,calc(100%-1.5rem))]"}`}
       >
         {header && (
           <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle py-2 pl-4 pr-2">

@@ -459,7 +459,7 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <nav className="shrink-0 border-b border-border-subtle overflow-x-auto overscroll-x-contain lg:hidden">
+      <nav className="scroll-fade-x-auto shrink-0 border-b border-border-subtle overflow-x-auto overscroll-x-contain lg:hidden">
         <ul className="flex min-w-full items-center gap-x-2 px-4 py-2.5 text-sm font-medium sm:px-6">
           {navigation.map((item) => (
             <li key={item.id} className="whitespace-nowrap">

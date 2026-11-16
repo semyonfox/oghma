@@ -143,18 +143,18 @@ describe('exam workload estimates', () => {
         expect(result.total).toBe(1);
         expect(card).toEqual(before);
     });
-    it('adds only long-interval cards below target retention at the exam', () => {
+    it('pulls all future cards forward, including high-retention cards', () => {
         const card = { ...createNewCard(T0), state: State.Review, last_review: T0,
             stability: 1, due: new Date(T0.getTime() + 30 * DAY) };
         const safe = { ...card, stability: 1000 };
         const result = examPlan([{ id: 'low', card }, { id: 'safe', card: safe }], 5, options);
-        expect(result.total).toBe(1);
-        expect(result.days.flatMap((day) => day.cardIds)).toEqual(['low']);
+        expect(result.total).toBe(2);
+        expect(result.days.flatMap((day) => day.cardIds)).toEqual(['low', 'safe']);
         expect(result.days[0].extra).toBe(1);
     });
     it('reports excess work and zero remaining days without hiding cards', () => {
         const cards = Array.from({ length: 21 }, (_, i) => ({ id: String(i), card: createNewCard(T0) }));
-        expect(examPlan(cards, 1, options)).toMatchObject({ total: 21, impossible: true });
+        expect(examPlan(cards, 1, options)).toMatchObject({ total: 21, impossible: false });
         expect(examPlan(cards, 0, options)).toMatchObject({ total: 21, unallocated: 21, impossible: true });
     });
     it('buckets normal due dates in the student time zone across DST', () => {
@@ -162,5 +162,39 @@ describe('exam workload estimates', () => {
         const card = { ...createNewCard(now), due: new Date('2026-11-01T01:30:00Z') };
         const result = examPlan([{ id: 'a', card }], 3, { now, examAt: new Date('2026-11-03T12:00:00Z'), timeZone: 'America/New_York' });
         expect(result.days[0]).toMatchObject({ date: '2026-10-31', normal: 1 });
+    });
+});
+
+
+describe('exam review limits', () => {
+    const options = { now: T0, examAt: new Date(T0.getTime() + 2 * DAY), timeZone: 'UTC', createdAt: T0 };
+    const future = (id: string) => ({ id, card: { ...createNewCard(T0), state: State.Review, due: new Date(T0.getTime() + 30 * DAY) } });
+    it('shares the cap and assignments across exams, with excess work visible', () => {
+        const shared = new Map<string, string>();
+        const cards = Array.from({ length: 45 }, (_, i) => future(String(i)));
+        const first = examPlan(cards, 3, { ...options, shared });
+        const second = examPlan(cards, 4, { ...options, examAt: new Date(T0.getTime() + 3 * DAY), shared });
+        expect(first).toMatchObject({ total: 45, unallocated: 5, impossible: true });
+        expect(first.days.map((day) => day.extra)).toEqual([20, 20, 0]);
+        expect(second.days.map((day) => day.extra)).toEqual([20, 20, 5, 0]);
+        expect(new Set(second.days.flatMap((day) => day.cardIds)).size).toBe(45);
+        for (const day of first.days) for (const id of day.cardIds) expect(shared.get(id)).toBe(day.date);
+    });
+    it('does not refill today beyond the cap after reviews or pull a completed card again', () => {
+        const cards = Array.from({ length: 30 }, (_, i) => future(String(i)));
+        cards[0].card.last_review = T0;
+        const result = examPlan(cards, 3, { ...options, completedToday: 19 });
+        expect(result.days[0].extra).toBe(1);
+        expect(result.days.flatMap((day) => day.cardIds)).not.toContain('0');
+        expect(result.unallocated).toBe(8);
+    });
+    it('recomputes on date, scope and card changes without changing FSRS due dates', () => {
+        const cards = [future('a'), future('b')];
+        expect(examPlan(cards, 1, { ...options, examAt: T0 }).unallocated).toBe(2);
+        expect(examPlan(cards, 3, options).unallocated).toBe(0);
+        expect(examPlan(cards.slice(1), 3, options).total).toBe(1);
+        cards[1].card.due = new Date(T0.getTime() + DAY);
+        expect(examPlan(cards, 3, options).days[1]).toMatchObject({ normal: 1, cardIds: ['b'] });
+        expect(cards[0].card.due.getTime()).toBe(T0.getTime() + 30 * DAY);
     });
 });

@@ -129,7 +129,7 @@ describe("GET /api/quiz/review-dates", () => {
     const exam = {
       id: SESSION_ID, name: "Exam", exam_at: "2026-10-07T12:00:00Z",
       canvas_course_id: null, study_map_id: null, note_ids: null,
-      daysLeft: 7, weighted: false,
+      daysLeft: 7, weighted: false, created_at: "2026-09-01T00:00:00Z", futureCardIds: [],
       plan: { total: 1, impossible: false, unallocated: 0,
         days: [{ date: "2026-10-02", cardIds: [CARDS[0]], normal: 0, extra: 1 }] },
     };

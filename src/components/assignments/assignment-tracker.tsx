@@ -659,11 +659,11 @@ export default function AssignmentTracker({
           </PopoverButton>
           <PopoverPanel
             anchor="bottom end"
-            className="z-[80] w-56 rounded-radius-lg border border-border bg-surface p-1 shadow-float [--anchor-gap:6px] [--anchor-padding:8px] focus:outline-none"
+            className="z-[80] w-56 rounded-radius-lg border border-border bg-surface-overlay p-1 shadow-float [--anchor-gap:6px] [--anchor-padding:8px] focus:outline-none"
           >
             {({ close }) => (
               <>
-                <label className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-radius-md px-2.5 text-left text-xs text-text-secondary hover:bg-subtle hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 lg:min-h-8">
+                <label className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-radius-sm px-2.5 text-left text-xs text-text-secondary hover:bg-subtle hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 lg:min-h-8">
                   <input
                     type="checkbox"
                     checked={includeAll}
@@ -672,7 +672,7 @@ export default function AssignmentTracker({
                   />
                   {t("Get all")}
                 </label>
-                <label className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-radius-md px-2.5 text-left text-xs text-text-secondary hover:bg-subtle hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 lg:min-h-8">
+                <label className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-radius-sm px-2.5 text-left text-xs text-text-secondary hover:bg-subtle hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 lg:min-h-8">
                   <input
                     type="checkbox"
                     checked={includeArchived}
@@ -687,7 +687,7 @@ export default function AssignmentTracker({
                     close();
                     setShowCourseManager(true);
                   }}
-                  className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-radius-md px-2.5 text-left text-xs text-text-secondary hover:bg-subtle hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 lg:min-h-8"
+                  className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-radius-sm px-2.5 text-left text-xs text-text-secondary hover:bg-subtle hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 lg:min-h-8"
                 >
                   {t("Manage")}
                 </button>

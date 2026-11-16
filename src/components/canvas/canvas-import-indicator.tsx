@@ -112,7 +112,7 @@ export default function CanvasImportIndicator({
       </PopoverButton>
       <PopoverPanel
         anchor={variant === "drawer" ? "top start" : "right end"}
-        className="z-[80] w-60 max-w-[calc(100vw-1rem)] rounded-radius-md border border-border bg-surface px-3 py-2.5 text-xs text-text-secondary shadow-float [--anchor-gap:8px] [--anchor-padding:8px] focus:outline-none"
+        className="z-[80] w-60 max-w-[calc(100vw-1rem)] rounded-radius-md border border-border bg-surface-overlay px-3 py-2.5 text-xs text-text-secondary shadow-float [--anchor-gap:8px] [--anchor-padding:8px] focus:outline-none"
       >
         {({ close }) => (
           <>

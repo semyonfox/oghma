@@ -61,7 +61,7 @@ const PreviewModal: FC = () => {
 
   return (
     <div
-      className="fixed z-50 w-72 max-h-48 bg-surface rounded-radius-lg shadow-float ring-1 ring-border overflow-hidden"
+      className="fixed z-50 w-72 max-h-48 bg-surface-overlay rounded-radius-lg shadow-float ring-1 ring-border overflow-hidden"
       style={{ top, left }}
       onMouseEnter={() => preview.cancelClose()}
       onMouseLeave={() => preview.close()}

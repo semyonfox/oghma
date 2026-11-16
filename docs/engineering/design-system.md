@@ -2,7 +2,7 @@
 
 > **Status:** Active reference
 >
-> **Last reviewed:** 2026-11-08 (Atlas)
+> **Last reviewed:** 2026-11-16 (Atlas polish rules)
 >
 > **Source of truth:** [`src/app/globals.css`](../../src/app/globals.css), [`tailwind.config.js`](../../tailwind.config.js), and this usage guide
 
@@ -22,13 +22,14 @@ OghmaNotes uses **Atlas**: a light, reading-first interface with a neutral charc
 | App shell | `bg-app-page` | Full-page application shells such as chat, settings, auth, and quiz (plain ground, no tint) |
 | Solid surface | `bg-surface` | Cards, inputs, editor and reading regions |
 | Elevated | `bg-surface-elevated` | Code blocks, quotes, stat tiles, segmented-control tracks |
+| Overlay | `bg-surface-overlay` | Anything with `shadow-float` or a larger shadow: menus, popovers, dialogs, sheets, the dock. White in light mode, a lifted charcoal in dark |
 | Navigation | `bg-sidebar` / `.glass-panel` | The desktop sidebar, settings rail and inspectors (solid, hairline edge) |
 | Card | `.glass-card` | Hairline-bordered groups |
 | Interactive card | `.glass-card-interactive` | Clickable cards; hover darkens the hairline |
 | Selected card | `.glass-card-active` | The selected card: 1.5px accent ring |
 | Raised pill | `.atlas-raised` (`bg-selected shadow-raised`) | The one active state for nav items, tree rows, list rows and segments |
 
-Use hairlines (`border-border`, `border-border-subtle`) for dividers and inputs. **Never mark selection or emphasis with a coloured left, top or side bar**, an inset stripe, a gradient or a glow. Tab underlines are the only accent line. The glass-* names are kept for compatibility; in Atlas they are solid.
+Use hairlines (`border-border`, `border-border-subtle`) for dividers and inputs. The three border tokens are translucent ink (white in dark, ink in light), so they read the same on every surface. Do not swap them for solid greys. **Never mark selection or emphasis with a coloured left, top or side bar**, an inset stripe, a gradient or a glow. Tab underlines are the only accent line. The glass-* names are kept for compatibility; in Atlas they are solid.
 
 ## Shape and layout
 
@@ -42,6 +43,8 @@ Use hairlines (`border-border`, `border-border-subtle`) for dividers and inputs.
 | `rounded-full` | pill | The mobile dock and its items, toggles, pill chips, avatars |
 
 Named content widths are `max-w-container-narrow` (480px), `max-w-container-content` (768px), and `max-w-container-wide` (1280px). Prefer the standard Tailwind spacing scale; use compact spacing for controls and progressively larger spacing for cards, sections, and landing-page compositions.
+
+Nested corners follow `inner radius = outer radius - padding`. A `rounded-radius-lg` menu with `p-1` holds `rounded-radius-sm` items, a `rounded-radius-md` track with `p-0.5` holds `rounded-radius-sm` segments, and the `rounded-radius-xl` chat composer with 6px padding holds `rounded-radius-md` buttons. Pills nest as `rounded-full`.
 
 The file tree retains its deliberately dense sizing and small radius. Treat it as an explicit exception, not a template for new UI.
 
@@ -60,6 +63,7 @@ The file tree retains its deliberately dense sizing and small radius. Treat it a
 - `text-text`, `text-text-secondary`, and `text-text-tertiary` form the content hierarchy.
 - Colour has strict meanings. **Cobalt** (`accent`, `primary-*`, `ai-*`) means interactive, selected, in progress or AI. **Green** (`success-*`, the logo green; `secondary-*` aliases it) means only correct, done, saved, connected, imported or mastered. **Red** (`error-*`) means error, destructive or incorrect. **Amber** (`warning-*`) means attention. Everything else is neutral; headings are ink, not coloured.
 - Dark mode keeps the accent sparse: `action` (primary buttons) is ink and `accent-soft` chips are neutral. Light mode uses cobalt for both.
+- Palette tokens are written in OKLCH. Tune a ramp by moving lightness and chroma in OKLCH, not by picking new hex values. Code that hands tokens to a library which cannot parse OKLCH (Mermaid) flattens them to hex first, as `src/lib/markdown/mermaid.ts` does.
 - Never use raw Tailwind palette classes (`blue-500`, `zinc-800`, `amber-400`, …), `text-white`, or hex colours in components. Use the semantic tokens.
 
 ## Controls
@@ -86,6 +90,8 @@ focus:ring-1 focus:ring-accent/50 focus:border-accent
 
 Large composers may intentionally use a softer radius. All controls still need visible keyboard focus, disabled state, and readable contrast in light and dark themes. Use `text-base md:text-sm` for inputs.
 
+Outline icons take their stroke from the text weight around them: 1.5 at normal, 1.75 at `font-medium`, 2 at `font-semibold` and bold. This is automatic for stock heroicons. Icons that swap (copy to check) use `IconSwap` from `src/components/icon-swap.tsx`, which blurs the outgoing icon. Horizontal scrollers fade their edges: `scroll-fade-x` for carousels such as the calendar day strip, `scroll-fade-x-auto` for tab rows, which only fades an edge with more content past it.
+
 Shared compact icon controls use `.ui-icon-button`: 44px below 1024px and 32px on desktop, with consistent focus, hover and disabled states. Give icon-only actions an accessible label. Actions hidden on hover must remain available on touch devices.
 
 ## Application navigation
@@ -103,7 +109,9 @@ Calendar is agenda-first on phones. A compact week strip selects the day and the
 ## Guardrails
 
 - Reuse semantic tokens and shared surface utilities before adding one-off colour or shadow values.
-- No gradients, glows, coloured shadows or decorative blobs anywhere, including the landing page.
+- No gradients, glows, coloured shadows or decorative blobs anywhere, including the landing page. Masks and any gradient a future change truly needs interpolate in OKLCH (`linear-gradient(in oklch, ...)`).
+- Dark mode shows depth with lighter surfaces (`bg-surface-overlay`), not shadows. The shadow tokens are hairline-only in dark mode.
+- Full-height layouts use `dvh` (`min-h-dvh`, `h-dvh`), never `vh` or `h-screen`, so mobile browser chrome cannot hide content.
 - Use structural borders for layout; use glass utilities for elevation.
 - Do not encode state with colour alone.
 - Check both themes and keyboard focus before treating a component as complete.

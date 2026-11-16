@@ -154,7 +154,7 @@ export default function CanvasInstitutionPicker({
               </p>
             )}
           {status === "ready" && results.length > 0 && (
-            <ul className="max-h-56 space-y-1 overflow-y-auto rounded-radius-md border border-border bg-surface p-1 shadow-float">
+            <ul className="max-h-56 space-y-1 overflow-y-auto rounded-radius-lg border border-border bg-surface-overlay p-1 shadow-float">
               {results.map((school, index) => (
                 <li key={`${school.domain}-${index}`}>
                   <button
@@ -166,7 +166,7 @@ export default function CanvasInstitutionPicker({
                       setManualOpen(false);
                       setManualValue("");
                     }}
-                    className="w-full rounded-radius-md px-2 py-2 text-left text-sm text-text hover:bg-subtle focus:bg-subtle focus:outline-none focus:ring-1 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-60"
+                    className="w-full rounded-radius-sm px-2 py-2 text-left text-sm text-text hover:bg-subtle focus:bg-subtle focus:outline-none focus:ring-1 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <span className="block font-medium">{school.name}</span>
                     <span className="block text-xs text-text-tertiary">

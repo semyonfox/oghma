@@ -23,7 +23,7 @@ export default function AppError({
   return (
     <div
       role="alert"
-      className="flex flex-col items-center justify-center min-h-[50vh] p-8 bg-app-page"
+      className="flex flex-col items-center justify-center min-h-[50dvh] p-8 bg-app-page"
     >
       <h2 className="font-serif text-2xl font-semibold tracking-tight text-text mb-2">
         {t("error.something_went_wrong")}

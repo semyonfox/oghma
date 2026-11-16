@@ -1242,7 +1242,7 @@ function ModuleWorkspace({
     return (
       <ChromeFrame notices={notices}>
         {error ? (
-          <div className="max-w-md space-y-3 rounded-radius-xl border border-border-subtle bg-surface p-5 shadow-float">
+          <div className="max-w-md space-y-3 rounded-radius-xl border border-border-subtle bg-surface-overlay p-5 shadow-float">
             <p role="alert" className={errorClass}>
               {error}
             </p>
@@ -1417,7 +1417,7 @@ function ModuleWorkspace({
     <div
       role="status"
       title={setupStatus.text}
-      className={`pointer-events-auto flex max-w-[min(22rem,calc(100vw-1.5rem))] items-center gap-2 rounded-full border border-border-subtle bg-surface/95 py-1 pl-3 text-xs text-text-secondary shadow-float backdrop-blur ${setupStatus.action ? "pr-1" : "pr-3"}`}
+      className={`pointer-events-auto flex max-w-[min(22rem,calc(100vw-1.5rem))] items-center gap-2 rounded-full border border-border-subtle bg-surface-overlay/95 py-1 pl-3 text-xs text-text-secondary shadow-float backdrop-blur ${setupStatus.action ? "pr-1" : "pr-3"}`}
     >
       <span
         className={`h-2 w-2 shrink-0 rounded-full ${setupStatus.action ? "bg-warning-500" : "animate-pulse bg-accent"}`}
@@ -1963,7 +1963,7 @@ export default function StudyWorkspace({
               Setting up your modules...
             </p>
           ) : (
-            <section className="max-w-md rounded-radius-xl border border-border-subtle bg-surface p-6 shadow-float">
+            <section className="max-w-md rounded-radius-xl border border-border-subtle bg-surface-overlay p-6 shadow-float">
               <h2 className="font-serif text-lg font-semibold tracking-tight">No modules yet</h2>
               <p className="mt-2 text-sm text-text-secondary">
                 Import a course from Canvas and its module map appears here on

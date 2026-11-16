@@ -304,6 +304,8 @@ export async function getSessionCandidates(
   chunkIds: string[],
   now = new Date(),
   noteIds?: string[],
+  examDueIds: ReadonlySet<string> = new Set(),
+  examManagedIds: ReadonlySet<string> = new Set(),
 ): Promise<SessionCandidates> {
   if (chunkIds.length === 0 && !noteIds?.length) {
     return { dueCards: [], newCards: [], retentionCards: [], uncoveredChunkIds: [] };
@@ -348,11 +350,12 @@ export async function getSessionCandidates(
   const newCards: CandidateCard[] = [];
   const retentionCards: CandidateCard[] = [];
   for (const card of cards) {
-    if (card.state === "new") {
+    if (card.state === "new" && (!examManagedIds.has(card.id) || examDueIds.has(card.id))) {
       newCards.push(card);
-    } else if (time(card.due) <= nowMs) {
+    } else if (time(card.due) <= nowMs || examDueIds.has(card.id)) {
       dueCards.push(card);
     } else if (
+      !examManagedIds.has(card.id) &&
       card.state === "review" &&
       card.last_review !== null &&
       nowMs - time(card.last_review) >= RETENTION_MIN_AGE_MS

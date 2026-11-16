@@ -229,7 +229,7 @@ export default function DangerSection() {
       {/* delete account modal */}
       {deleteAccountModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md space-y-4 rounded-radius-xl border border-border bg-surface p-6 shadow-float">
+          <div className="w-full max-w-md space-y-4 rounded-radius-xl border border-border bg-surface-overlay p-6 shadow-float">
             <h2 className="text-base font-semibold text-error-700 dark:text-error-400">
               {t("Delete your account?")}
             </h2>

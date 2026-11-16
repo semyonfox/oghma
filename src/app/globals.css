@@ -47,118 +47,123 @@
   --radius-radius-xl: 14px;
   --radius-radius-2xl: 20px;
 
-  /* === SURFACES & TEXT (dark) === neutral charcoal, no tint */
-  --color-background: #111214;
-  --color-surface: #16171a;
-  --color-surface-elevated: #1c1d21;
-  --color-sidebar: #0e0f11;
-  --color-border: #2a2c31;
-  --color-border-subtle: #222328;
-  --color-border-strong: #3a3d43;
+  /* === SURFACES & TEXT (dark) === neutral charcoal, no tint. Palettes are
+     written in OKLCH so steps stay perceptually even when they are retuned. */
+  --color-background: oklch(18.2% 0.0044 264.5);
+  --color-surface: oklch(20.48% 0.0061 271.1);
+  --color-surface-elevated: oklch(23.14% 0.0078 274.6);
+  /* menus, popovers, sheets and the dock. Dark mode shows depth by lifting the
+     surface rather than casting a shadow you cannot see on charcoal */
+  --color-surface-overlay: oklch(24.42% 0.0077 274.6);
+  --color-sidebar: oklch(16.82% 0.0045 264.4);
+  /* hairlines are translucent ink so they read the same on every surface */
+  --color-border: rgb(255 255 255 / 0.09);
+  --color-border-subtle: rgb(255 255 255 / 0.055);
+  --color-border-strong: rgb(255 255 255 / 0.165);
 
-  --color-text: #ececee;
-  --color-text-secondary: #c9cacf;
-  --color-text-tertiary: #a3a5ac;
-  --color-text-on-primary: #ffffff;
+  --color-text: oklch(94.37% 0.0027 286.3);
+  --color-text-secondary: oklch(83.97% 0.007 277.1);
+  --color-text-tertiary: oklch(72.25% 0.0103 273.3);
+  --color-text-on-primary: oklch(100% 0 0);
 
   /* === ACTION & ACCENT === Cobalt marks what you can act on or have selected.
      Dark mode keeps primary buttons ink so the accent stays sparse. */
-  --color-action: #ececee;
-  --color-action-hover: #ffffff;
-  --color-on-action: #111214;
-  --color-accent: #8eaef6;
-  --color-accent-hover: #b9ccf9;
-  --color-accent-soft: #24262b;
-  --color-accent-soft-text: #c9cacf;
-  --color-selected: #24262b;
+  --color-action: oklch(94.37% 0.0027 286.3);
+  --color-action-hover: oklch(100% 0 0);
+  --color-on-action: oklch(18.2% 0.0044 264.5);
+  --color-accent: oklch(75.52% 0.1102 265.5);
+  --color-accent-hover: oklch(84.61% 0.0664 267);
+  --color-accent-soft: oklch(26.86% 0.0097 268.3);
+  --color-accent-soft-text: oklch(83.97% 0.007 277.1);
+  --color-selected: oklch(26.86% 0.0097 268.3);
 
   /* === PRIMARY: Cobalt === 500/600 carry white text at ≥5.5:1 */
-  --color-primary-50: #f2f5fe;
-  --color-primary-100: #e9effc;
-  --color-primary-200: #d3def8;
-  --color-primary-300: #b9ccf9;
-  --color-primary-400: #8eaef6;
-  --color-primary-500: #2f5fd3;
-  --color-primary-600: #2453c6;
-  --color-primary-700: #1c409c;
-  --color-primary-800: #163380;
-  --color-primary-900: #12296a;
-  --color-primary-950: #0b1a45;
+  --color-primary-50: oklch(97.05% 0.0124 271.3);
+  --color-primary-100: oklch(95.14% 0.0186 266);
+  --color-primary-200: oklch(90.03% 0.0376 267.3);
+  --color-primary-300: oklch(84.61% 0.0664 267);
+  --color-primary-400: oklch(75.52% 0.1102 265.5);
+  --color-primary-500: oklch(52.2% 0.1867 264);
+  --color-primary-600: oklch(48.37% 0.1868 263.9);
+  --color-primary-700: oklch(40.65% 0.1558 264.3);
+  --color-primary-800: oklch(35.2% 0.1349 264.6);
+  --color-primary-900: oklch(30.85% 0.1173 265.2);
+  --color-primary-950: oklch(23.58% 0.0836 265.7);
 
   /* === AI === AI is part of the product, not a separate colour: it uses the accent. */
-  --color-ai-50: #f2f5fe;
-  --color-ai-100: #e9effc;
-  --color-ai-200: #d3def8;
-  --color-ai-300: #b9ccf9;
-  --color-ai-400: #8eaef6;
-  --color-ai-500: #2f5fd3;
-  --color-ai-600: #2453c6;
-  --color-ai-700: #1c409c;
-  --color-ai-800: #163380;
-  --color-ai-900: #12296a;
+  --color-ai-50: oklch(97.05% 0.0124 271.3);
+  --color-ai-100: oklch(95.14% 0.0186 266);
+  --color-ai-200: oklch(90.03% 0.0376 267.3);
+  --color-ai-300: oklch(84.61% 0.0664 267);
+  --color-ai-400: oklch(75.52% 0.1102 265.5);
+  --color-ai-500: oklch(52.2% 0.1867 264);
+  --color-ai-600: oklch(48.37% 0.1868 263.9);
+  --color-ai-700: oklch(40.65% 0.1558 264.3);
+  --color-ai-800: oklch(35.2% 0.1349 264.6);
+  --color-ai-900: oklch(30.85% 0.1173 265.2);
 
   /* === SUCCESS: logo green === only ever means correct, done, healthy or mastered */
-  --color-success-50: #f0f7ee;
-  --color-success-100: #e6f0e4;
-  --color-success-200: #cde3c8;
-  --color-success-300: #a9d1a1;
-  --color-success-400: #8dbf84;
-  --color-success-500: #3f8a37;
-  --color-success-600: #2f7f28;
-  --color-success-700: #276f21;
-  --color-success-800: #1f5a1a;
-  --color-success-900: #174513;
+  --color-success-50: oklch(96.84% 0.014 138.7);
+  --color-success-100: oklch(94.43% 0.0191 140.5);
+  --color-success-200: oklch(89.22% 0.0433 139.9);
+  --color-success-300: oklch(81.93% 0.0784 140.4);
+  --color-success-400: oklch(75.42% 0.0979 140.7);
+  --color-success-500: oklch(56.64% 0.1402 141.8);
+  --color-success-600: oklch(52.82% 0.1452 142);
+  --color-success-700: oklch(47.92% 0.133 142);
+  --color-success-800: oklch(41.41% 0.1137 142);
+  --color-success-900: oklch(34.63% 0.0934 142);
 
   /* === SECONDARY === progress toward mastery shares the success green */
-  --color-secondary-50: #f0f7ee;
-  --color-secondary-100: #e6f0e4;
-  --color-secondary-200: #cde3c8;
-  --color-secondary-300: #a9d1a1;
-  --color-secondary-400: #8dbf84;
-  --color-secondary-500: #3f8a37;
-  --color-secondary-600: #2f7f28;
-  --color-secondary-700: #276f21;
-  --color-secondary-800: #1f5a1a;
-  --color-secondary-900: #174513;
+  --color-secondary-50: oklch(96.84% 0.014 138.7);
+  --color-secondary-100: oklch(94.43% 0.0191 140.5);
+  --color-secondary-200: oklch(89.22% 0.0433 139.9);
+  --color-secondary-300: oklch(81.93% 0.0784 140.4);
+  --color-secondary-400: oklch(75.42% 0.0979 140.7);
+  --color-secondary-500: oklch(56.64% 0.1402 141.8);
+  --color-secondary-600: oklch(52.82% 0.1452 142);
+  --color-secondary-700: oklch(47.92% 0.133 142);
+  --color-secondary-800: oklch(41.41% 0.1137 142);
+  --color-secondary-900: oklch(34.63% 0.0934 142);
 
   /* === WARNING: amber === attention that is not an error */
-  --color-warning-50: #fffbeb;
-  --color-warning-100: #fef3c7;
-  --color-warning-200: #fde68a;
-  --color-warning-300: #fcd34d;
-  --color-warning-400: #e8b65a;
-  --color-warning-500: #d4952a;
-  --color-warning-600: #b45309;
-  --color-warning-700: #92400e;
-  --color-warning-800: #78350f;
-  --color-warning-900: #451a03;
+  --color-warning-50: oklch(98.69% 0.0214 95.3);
+  --color-warning-100: oklch(96.19% 0.058 95.6);
+  --color-warning-200: oklch(92.43% 0.1151 95.7);
+  --color-warning-300: oklch(87.9% 0.1534 91.6);
+  --color-warning-400: oklch(80.38% 0.1238 80.7);
+  --color-warning-500: oklch(71.46% 0.1373 75.4);
+  --color-warning-600: oklch(55.53% 0.1455 49);
+  --color-warning-700: oklch(47.32% 0.1247 46.2);
+  --color-warning-800: oklch(41.37% 0.1054 45.9);
+  --color-warning-900: oklch(27.91% 0.0742 45.6);
 
   /* === ERROR: red === */
-  --color-error-50: #fef2f2;
-  --color-error-100: #fee2e2;
-  --color-error-200: #fecaca;
-  --color-error-300: #f6a59b;
-  --color-error-400: #f08a7e;
-  --color-error-500: #e5484d;
-  --color-error-600: #d03b3b;
-  --color-error-700: #b42318;
-  --color-error-800: #8a1c14;
-  --color-error-900: #5c140f;
+  --color-error-50: oklch(97.05% 0.0129 17.4);
+  --color-error-100: oklch(93.56% 0.0309 17.7);
+  --color-error-200: oklch(88.45% 0.0593 18.3);
+  --color-error-300: oklch(79.86% 0.0979 27.2);
+  --color-error-400: oklch(73.99% 0.1265 27.6);
+  --color-error-500: oklch(62.56% 0.1933 23);
+  --color-error-600: oklch(57.48% 0.1862 25.2);
+  --color-error-700: oklch(50.03% 0.1821 29.5);
+  --color-error-800: oklch(41.49% 0.1466 29.2);
+  --color-error-900: oklch(31.64% 0.1048 28.6);
 
   /* === NEUTRAL: Atlas greys (no tint) === */
-  --color-neutral-50: #fbfbfc;
-  --color-neutral-100: #f3f4f6;
-  --color-neutral-200: #e3e5e8;
-  --color-neutral-300: #cdd1d8;
-  --color-neutral-400: #9a9fa8;
-  --color-neutral-500: #6b707a;
-  --color-neutral-600: #575c66;
-  --color-neutral-700: #40444d;
-  --color-neutral-800: #2d3139;
-  --color-neutral-900: #15171c;
+  --color-neutral-50: oklch(98.84% 0.0013 286.4);
+  --color-neutral-100: oklch(96.7% 0.0029 264.5);
+  --color-neutral-200: oklch(92.12% 0.0046 258.3);
+  --color-neutral-300: oklch(85.97% 0.0106 261.8);
+  --color-neutral-400: oklch(70.13% 0.0143 262.4);
+  --color-neutral-500: oklch(54.43% 0.0167 264.4);
+  --color-neutral-600: oklch(47.39% 0.0173 264.4);
+  --color-neutral-700: oklch(38.64% 0.0162 266.5);
+  --color-neutral-800: oklch(31.25% 0.0154 264.3);
+  --color-neutral-900: oklch(20.47% 0.0104 268.2);
 
   /* === INTERACTIVE ELEMENTS === */
-  --color-input: #18191c;
+  --color-input: oklch(21.36% 0.0061 271.1);
   --color-subtle: rgb(255 255 255 / 0.05);
   --color-subtle-hover: rgb(255 255 255 / 0.08);
 
@@ -167,18 +172,26 @@
      utilities point at runtime vars that html.light can override. */
   --shadow-raised: var(--atlas-shadow-raised);
   --shadow-float: var(--atlas-shadow-float);
+  --shadow-lg: var(--atlas-shadow-lg);
+  --shadow-xl: var(--atlas-shadow-xl);
+  --shadow-2xl: var(--atlas-shadow-2xl);
 }
 
 :root {
-  --atlas-shadow-raised: 0 0 0 1px #2a2c31;
-  --atlas-shadow-float: 0 0 0 1px #2a2c31, 0 10px 15px -3px rgb(0 0 0 / 0.45), 0 4px 6px -4px rgb(0 0 0 / 0.35);
+  /* dark mode: depth comes from --color-surface-overlay, so shadows are just
+     the hairline */
+  --atlas-shadow-raised: 0 0 0 1px var(--color-border);
+  --atlas-shadow-float: 0 0 0 1px var(--color-border);
+  --atlas-shadow-lg: 0 0 #0000;
+  --atlas-shadow-xl: 0 0 #0000;
+  --atlas-shadow-2xl: 0 0 #0000;
   /* Markdown/editor semantic palette: one source of truth for write + preview.
      Atlas reads like a book: ink headings, accent only on links and markers. */
   --md-bg: var(--color-background);
   --md-surface: var(--color-surface);
   --md-surface-subtle: rgb(255 255 255 / 0.035);
-  --md-code-bg: #1a1b1f;
-  --md-code-header-bg: #1e1f24;
+  --md-code-bg: oklch(22.28% 0.0079 274.6);
+  --md-code-header-bg: oklch(24.04% 0.0096 276.7);
   --md-code-border: var(--color-border);
   --md-text: var(--color-text-secondary);
   --md-text-muted: var(--color-text-secondary);
@@ -199,79 +212,83 @@
   --md-quote-border: transparent;
   --md-quote-bg: var(--color-surface-elevated);
   --md-inline-code-text: var(--color-text);
-  --md-inline-code-bg: #24262b;
+  --md-inline-code-bg: oklch(26.86% 0.0097 268.3);
   --md-inline-code-border: transparent;
   --md-selection: rgb(142 174 246 / 0.28);
   --md-active-line: rgb(255 255 255 / 0.03);
-  --md-syntax-base: #dcdde1;
-  --md-syntax-comment: #8e9098;
-  --md-syntax-keyword: #8eaef6;
-  --md-syntax-string: #8dbf84;
-  --md-syntax-number: #e8b65a;
-  --md-syntax-function: #b9ccf9;
-  --md-syntax-type: #c9cacf;
-  --md-syntax-variable: #dcdde1;
-  --md-syntax-invalid: #f08a7e;
+  --md-syntax-base: oklch(89.79% 0.0055 275);
+  --md-syntax-comment: oklch(65.42% 0.012 274.8);
+  --md-syntax-keyword: oklch(75.52% 0.1102 265.5);
+  --md-syntax-string: oklch(75.42% 0.0979 140.7);
+  --md-syntax-number: oklch(80.38% 0.1238 80.7);
+  --md-syntax-function: oklch(84.61% 0.0664 267);
+  --md-syntax-type: oklch(83.97% 0.007 277.1);
+  --md-syntax-variable: oklch(89.79% 0.0055 275);
+  --md-syntax-invalid: oklch(73.99% 0.1265 27.6);
 }
 
 /* topic colours for the study map and tree marks. Light enough to read on
    charcoal; html.light swaps in deeper shades. Only read through var(). */
 :root {
-  --color-topic-0: #8eaef6;
-  --color-topic-1: #e8b65a;
-  --color-topic-2: #8dbf84;
-  --color-topic-3: #f08a7e;
-  --color-topic-4: #7cc4e4;
-  --color-topic-5: #f0a46b;
-  --color-topic-6: #b7cb8c;
-  --color-topic-7: #d3a6f0;
+  --color-topic-0: oklch(75.52% 0.1102 265.5);
+  --color-topic-1: oklch(80.38% 0.1238 80.7);
+  --color-topic-2: oklch(75.42% 0.0979 140.7);
+  --color-topic-3: oklch(73.99% 0.1265 27.6);
+  --color-topic-4: oklch(78.46% 0.0852 228.1);
+  --color-topic-5: oklch(78.1% 0.1162 56.9);
+  --color-topic-6: oklch(81.15% 0.0868 122.6);
+  --color-topic-7: oklch(79.15% 0.1128 311.6);
 }
 
 /* light mode overrides */
 html.light {
-  --color-topic-0: #2453c6;
-  --color-topic-1: #b45309;
-  --color-topic-2: #276f21;
-  --color-topic-3: #b42318;
-  --color-topic-4: #0e6d99;
-  --color-topic-5: #c2410c;
-  --color-topic-6: #556b2f;
-  --color-topic-7: #8a3fb8;
+  --color-topic-0: oklch(48.37% 0.1868 263.9);
+  --color-topic-1: oklch(55.53% 0.1455 49);
+  --color-topic-2: oklch(47.92% 0.133 142);
+  --color-topic-3: oklch(50.03% 0.1821 29.5);
+  --color-topic-4: oklch(50.65% 0.1053 236.4);
+  --color-topic-5: oklch(55.34% 0.1739 38.4);
+  --color-topic-6: oklch(49.55% 0.0896 126.2);
+  --color-topic-7: oklch(52.17% 0.1877 309.9);
 
-  --color-background: #fbfbfc;
-  --color-surface: #ffffff;
-  --color-surface-elevated: #f3f4f6;
-  --color-sidebar: #f3f4f6;
-  --color-border: #e3e5e8;
-  --color-border-subtle: #e9ebee;
-  --color-border-strong: #cdd1d8;
-  --color-text: #15171c;
+  --color-background: oklch(98.84% 0.0013 286.4);
+  --color-surface: oklch(100% 0 0);
+  --color-surface-elevated: oklch(96.7% 0.0029 264.5);
+  --color-sidebar: oklch(96.7% 0.0029 264.5);
+  --color-surface-overlay: oklch(100% 0 0);
+  --color-border: rgb(21 23 28 / 0.11);
+  --color-border-subtle: rgb(21 23 28 / 0.085);
+  --color-border-strong: rgb(21 23 28 / 0.19);
+  --color-text: oklch(20.47% 0.0104 268.2);
   /* Strong enough for reading outdoors, not just a dark-mode desk setup. */
-  --color-text-secondary: #40444d;
-  --color-text-tertiary: #575c66;
-  --color-input: #ffffff;
+  --color-text-secondary: oklch(38.64% 0.0162 266.5);
+  --color-text-tertiary: oklch(47.39% 0.0173 264.4);
+  --color-input: oklch(100% 0 0);
   --color-subtle: rgb(21 23 28 / 0.04);
   --color-subtle-hover: rgb(21 23 28 / 0.07);
 
-  --color-action: #2453c6;
-  --color-action-hover: #1c409c;
-  --color-on-action: #ffffff;
-  --color-accent: #2453c6;
-  --color-accent-hover: #1c409c;
-  --color-accent-soft: #e9effc;
-  --color-accent-soft-text: #1c409c;
-  --color-selected: #ffffff;
+  --color-action: oklch(48.37% 0.1868 263.9);
+  --color-action-hover: oklch(40.65% 0.1558 264.3);
+  --color-on-action: oklch(100% 0 0);
+  --color-accent: oklch(48.37% 0.1868 263.9);
+  --color-accent-hover: oklch(40.65% 0.1558 264.3);
+  --color-accent-soft: oklch(95.14% 0.0186 266);
+  --color-accent-soft-text: oklch(40.65% 0.1558 264.3);
+  --color-selected: oklch(100% 0 0);
 
-  --atlas-shadow-raised: 0 0 0 1px #e3e5e8, 0 1px 2px rgb(16 24 40 / 0.06);
-  --atlas-shadow-float: 0 0 0 1px #e3e5e8, 0 10px 15px -3px rgb(16 24 40 / 0.1), 0 4px 6px -4px rgb(16 24 40 / 0.08);
+  --atlas-shadow-raised: 0 0 0 1px var(--color-border), 0 1px 2px rgb(16 24 40 / 0.06);
+  --atlas-shadow-float: 0 0 0 1px var(--color-border), 0 10px 15px -3px rgb(16 24 40 / 0.1), 0 4px 6px -4px rgb(16 24 40 / 0.08);
+  --atlas-shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --atlas-shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --atlas-shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
 
   --md-bg: var(--color-background);
   --md-surface: var(--color-surface);
   --md-surface-subtle: rgb(21 23 28 / 0.03);
-  --md-code-bg: #f4f5f7;
-  --md-code-header-bg: #eceef1;
+  --md-code-bg: oklch(97% 0.0029 264.5);
+  --md-code-header-bg: oklch(94.84% 0.0046 258.3);
   --md-code-border: var(--color-border);
-  --md-text: #2d3139;
+  --md-text: oklch(31.25% 0.0154 264.3);
   --md-text-muted: var(--color-text-secondary);
   --md-text-faint: var(--color-text-tertiary);
   --md-heading-1: var(--color-text);
@@ -288,21 +305,21 @@ html.light {
   --md-list-marker: var(--color-text-tertiary);
   --md-quote-text: var(--color-text-secondary);
   --md-quote-border: transparent;
-  --md-quote-bg: #f4f5f7;
+  --md-quote-bg: oklch(97% 0.0029 264.5);
   --md-inline-code-text: var(--color-text);
-  --md-inline-code-bg: #f0f1f4;
+  --md-inline-code-bg: oklch(95.82% 0.0041 271.4);
   --md-inline-code-border: transparent;
   --md-selection: rgb(36 83 198 / 0.18);
   --md-active-line: rgb(21 23 28 / 0.03);
-  --md-syntax-base: #2d3139;
-  --md-syntax-comment: #6b707a;
-  --md-syntax-keyword: #2453c6;
-  --md-syntax-string: #276f21;
-  --md-syntax-number: #b45309;
-  --md-syntax-function: #1c409c;
-  --md-syntax-type: #40444d;
-  --md-syntax-variable: #2d3139;
-  --md-syntax-invalid: #b42318;
+  --md-syntax-base: oklch(31.25% 0.0154 264.3);
+  --md-syntax-comment: oklch(54.43% 0.0167 264.4);
+  --md-syntax-keyword: oklch(48.37% 0.1868 263.9);
+  --md-syntax-string: oklch(47.92% 0.133 142);
+  --md-syntax-number: oklch(55.53% 0.1455 49);
+  --md-syntax-function: oklch(40.65% 0.1558 264.3);
+  --md-syntax-type: oklch(38.64% 0.0162 266.5);
+  --md-syntax-variable: oklch(31.25% 0.0154 264.3);
+  --md-syntax-invalid: oklch(50.03% 0.1821 29.5);
 }
 
 html.light .obsidian-scrollbar {
@@ -336,6 +353,107 @@ body {
 
   :where(button):disabled {
     cursor: not-allowed;
+  }
+
+  /* outline icons follow the weight of the text beside them. Only the stock
+     1.5 heroicons stroke is touched, so an explicit strokeWidth still wins */
+  :where(svg[data-slot="icon"][stroke-width="1.5"]) {
+    stroke-width: var(--icon-stroke, 1.5);
+  }
+
+  :where(.font-normal) {
+    --icon-stroke: 1.5;
+  }
+
+  :where(.font-medium) {
+    --icon-stroke: 1.75;
+  }
+
+  :where(.font-semibold, .font-bold) {
+    --icon-stroke: 2;
+  }
+}
+
+/* horizontal scrollers fade at the edges. scroll-fade-x is the static fade
+   for carousels; scroll-fade-x-auto only fades an edge with more content past
+   it, so the first tab of a row is never dimmed before you scroll */
+.scroll-fade-x {
+  mask-image: linear-gradient(to right, transparent, black 15% 85%, transparent);
+}
+
+@property --fade-start {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 0%;
+}
+
+@property --fade-end {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 0%;
+}
+
+@supports (animation-timeline: scroll()) {
+  .scroll-fade-x-auto {
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      black var(--fade-start) calc(100% - var(--fade-end)),
+      transparent
+    );
+    animation: scroll-fade-x linear both;
+    animation-timeline: scroll(self inline);
+  }
+}
+
+@keyframes scroll-fade-x {
+  0% {
+    --fade-start: 0%;
+    --fade-end: 15%;
+  }
+  10% {
+    --fade-start: 15%;
+  }
+  90% {
+    --fade-end: 15%;
+  }
+  100% {
+    --fade-start: 15%;
+    --fade-end: 0%;
+  }
+}
+
+/* icon swaps (copy to check) cross-fade, blurring the outgoing icon.
+   both icons share one grid cell so the button never changes size */
+.icon-swap {
+  display: inline-grid;
+  place-items: center;
+}
+
+.icon-swap > * {
+  grid-area: 1 / 1;
+  transition:
+    opacity 200ms ease-out,
+    filter 200ms ease-out,
+    scale 200ms ease-out;
+}
+
+.icon-swap > :last-child,
+.icon-swap[data-swapped="true"] > :first-child {
+  opacity: 0;
+  filter: blur(4px);
+  scale: 0.5;
+}
+
+.icon-swap[data-swapped="true"] > :last-child {
+  opacity: 1;
+  filter: none;
+  scale: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .icon-swap > * {
+    transition: none;
   }
 }
 
@@ -1288,7 +1406,7 @@ html.light .glass-card-active {
   ) {
   border: 0;
   border-radius: var(--radius-radius-lg);
-  background: var(--color-surface);
+  background: var(--color-surface-overlay);
   box-shadow: var(--shadow-float);
 }
 
@@ -1898,12 +2016,14 @@ html.light .glass-card-active {
 }
 
 /* study map surfaces. Atlas-quiet: a near-solid surface, a hairline edge and
-   a faint shadow. No edge light, no glow, no gradient. */
+   a faint shadow in light mode. Dark mode drops the shadow and lifts overlays
+   and the hot card onto the overlay surface instead. No edge light, no glow,
+   no gradient. */
 :root {
   --study-glass: color-mix(in srgb, var(--color-surface) 94%, transparent);
   --study-glass-edge: var(--color-border);
   --study-glass-hi: transparent;
-  --study-glass-shadow: rgb(0 0 0 / 0.28);
+  --study-glass-shadow: transparent;
   --study-glass-caption: color-mix(in srgb, var(--color-surface) 92%, transparent);
 }
 html.light {
@@ -1919,7 +2039,7 @@ html.light {
 }
 /* only overlays pay for a real backdrop blur: the map itself pans under them every frame */
 .study-glass-blur {
-  background-color: color-mix(in srgb, var(--color-surface) 92%, transparent);
+  background-color: color-mix(in srgb, var(--color-surface-overlay) 92%, transparent);
   backdrop-filter: blur(12px);
 }
 .study-glass-caption {
@@ -2042,6 +2162,7 @@ html:not(.light) .study-card-page > div:first-child {
 }
 .study-fan-card-hot {
   border-color: var(--color-border-strong);
+  background: var(--color-surface-overlay);
   box-shadow: 0 40px 80px var(--study-glass-shadow);
 }
 .study-fan-card-dim {
