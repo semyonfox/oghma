@@ -118,7 +118,7 @@ export default function AssignmentDetails({ assignment, onClose }: { assignment:
     <Dialog open onClose={() => { if (!saving) onClose(); }} className="relative z-[70]">
       <DialogBackdrop className="fixed inset-0 bg-black/50 backdrop-blur-[1px]" />
       <div className="fixed inset-0 flex items-end justify-center sm:items-center sm:p-4">
-        <DialogPanel {...swipe} className="max-h-[90dvh] w-full overflow-y-auto rounded-t-radius-lg border border-border-subtle bg-surface shadow-xl sm:max-w-2xl sm:rounded-radius-lg">
+        <DialogPanel {...swipe} className="max-h-[90dvh] w-full overflow-y-auto rounded-t-radius-lg border border-border-subtle bg-surface-overlay shadow-xl sm:max-w-2xl sm:rounded-radius-lg">
           <div className="flex items-start justify-between gap-4 border-b border-border-subtle p-5">
             <div>
               <p className="text-xs text-text-tertiary">{assignment.course_name ?? t("Tasks")}</p>

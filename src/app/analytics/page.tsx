@@ -8,7 +8,7 @@ export default async function AnalyticsPage() {
   if (!session) redirect("/login?next=/analytics");
   if (!isAnalyticsAdmin(session.email)) notFound();
   return (
-    <main className="min-h-screen bg-background px-6 py-12 text-text">
+    <main className="min-h-dvh bg-background px-6 py-12 text-text">
       <div className="mx-auto max-w-2xl space-y-4">
         <h1 className="font-serif text-3xl font-semibold tracking-tight">Site analytics</h1>
         <p className="text-text-secondary">The previous acquisition and account-activation reports are retired. They no longer collect or read account-linked events or navigation journeys.</p>

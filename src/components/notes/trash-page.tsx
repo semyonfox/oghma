@@ -419,7 +419,7 @@ export default function TrashPage() {
       >
         <DialogBackdrop className="fixed inset-0 bg-black/55 backdrop-blur-[2px]" />
         <div className="fixed inset-0 flex items-center justify-center p-4">
-          <DialogPanel className="w-full max-w-md rounded-radius-lg border border-border bg-surface p-5 shadow-float">
+          <DialogPanel className="w-full max-w-md rounded-radius-lg border border-border bg-surface-overlay p-5 shadow-float">
             <div className="flex items-start gap-3">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-radius-md bg-error-500/10 text-error-700 dark:text-error-400">
                 <TrashIcon className="h-5 w-5" aria-hidden="true" />

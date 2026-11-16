@@ -10,6 +10,7 @@ export default {
         background: "var(--color-background)",
         surface: "var(--color-surface)",
         "surface-elevated": "var(--color-surface-elevated)",
+        "surface-overlay": "var(--color-surface-overlay)",
         border: "var(--color-border)",
         "border-subtle": "var(--color-border-subtle)",
         "border-strong": "var(--color-border-strong)",

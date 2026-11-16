@@ -83,7 +83,7 @@ export default function FirstLoginWelcome() {
       <div className="fixed inset-0 flex items-end justify-center sm:items-center sm:p-4">
         <DialogPanel
           aria-describedby={descriptionId}
-          className="w-full max-w-md rounded-t-radius-lg border border-border bg-surface p-6 shadow-float sm:rounded-radius-lg"
+          className="w-full max-w-md rounded-t-radius-lg border border-border bg-surface-overlay p-6 shadow-float sm:rounded-radius-lg"
         >
           <DialogTitle className="font-serif text-2xl font-semibold tracking-tight text-text">
             {t("Welcome to OghmaNotes")}

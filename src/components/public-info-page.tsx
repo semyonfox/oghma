@@ -42,7 +42,7 @@ export default async function PublicInfoPage({
 }: PublicInfoPageProps) {
   const { t } = await getServerI18n();
   return (
-    <div className="min-h-screen bg-background text-text">
+    <div className="min-h-dvh bg-background text-text">
       <Header />
       <main className="mx-auto max-w-4xl px-6 pb-20 pt-32 sm:pt-40 lg:px-8">
         <p className="font-mono text-xs font-medium uppercase tracking-[0.14em] text-text-tertiary">

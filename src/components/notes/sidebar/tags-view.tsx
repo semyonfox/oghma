@@ -235,7 +235,7 @@ function FileRow({
         </PopoverButton>
         <PopoverPanel
           anchor="bottom end"
-          className="z-[60] w-56 max-w-[calc(100vw-1rem)] rounded-radius-md border border-border bg-surface p-1 text-[13px] text-text shadow-float [--anchor-gap:4px] [--anchor-padding:8px]"
+          className="z-[60] w-56 max-w-[calc(100vw-1rem)] rounded-radius-lg border border-border bg-surface-overlay p-1 text-[13px] text-text shadow-float [--anchor-gap:4px] [--anchor-padding:8px]"
         >
           {({ close }) => (
             <>
@@ -496,7 +496,7 @@ function ScopeMenu({
       <PopoverPanel
         anchor="bottom start"
         role="menu"
-        className="z-[60] max-h-[60dvh] w-72 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-radius-lg border border-border bg-surface p-1 text-text shadow-float [--anchor-gap:6px] [--anchor-padding:8px]"
+        className="z-[60] max-h-[60dvh] w-72 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-radius-lg border border-border bg-surface-overlay p-1 text-text shadow-float [--anchor-gap:6px] [--anchor-padding:8px]"
       >
         {({ close }) => (
           <>
@@ -512,7 +512,7 @@ function ScopeMenu({
                   type="button"
                   aria-expanded={showFinished}
                   onClick={() => setShowFinished(!showFinished)}
-                  className="flex min-h-11 w-full items-center gap-2 rounded-radius-md px-2.5 text-left text-sm text-text-secondary hover:bg-subtle md:min-h-8 md:text-[13px]"
+                  className="flex min-h-11 w-full items-center gap-2 rounded-radius-sm px-2.5 text-left text-sm text-text-secondary hover:bg-subtle md:min-h-8 md:text-[13px]"
                 >
                   <span className="flex-1">{t("{count} finished courses", { count: finished.length })}</span>
                   <ChevronRightIcon className={`h-3.5 w-3.5 transition-transform ${showFinished ? "rotate-90" : ""}`} aria-hidden="true" />

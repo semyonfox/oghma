@@ -118,7 +118,7 @@ export default function MobileBottomNavigation({
           onFocusCapture={(event) => {
             if (event.target.matches(":focus-visible")) setExpanded(true);
           }}
-          className={`pointer-events-auto absolute bottom-[calc(12px+var(--safe-bottom))] left-1/2 flex -translate-x-1/2 items-stretch overflow-hidden rounded-full ring-1 p-1 shadow-float transition-[width,height] duration-[280ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${nativeDock ? "bg-surface/70 ring-border backdrop-blur-[8.75px]" : "bg-surface/90 ring-border"} ${expanded ? "min-h-16 w-[min(420px,calc(100%_-_28px))]" : "h-[52px] w-[clamp(228px,calc(100%_-_80px),350px)]"}`}
+          className={`pointer-events-auto absolute bottom-[calc(12px+var(--safe-bottom))] left-1/2 flex -translate-x-1/2 items-stretch overflow-hidden rounded-full ring-1 p-1 shadow-float transition-[width,height] duration-[280ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${nativeDock ? "bg-surface-overlay/70 ring-border backdrop-blur-[8.75px]" : "bg-surface-overlay/90 ring-border"} ${expanded ? "min-h-16 w-[min(420px,calc(100%_-_28px))]" : "h-[52px] w-[clamp(228px,calc(100%_-_80px),350px)]"}`}
         >
           {destinations.map(({ href, label, icon: Icon }) => {
             const active = !moreActive && pathname?.startsWith(href);

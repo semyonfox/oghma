@@ -574,7 +574,7 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
           onClick={() => setDeleteConfirmTarget(null)}
         >
           <div
-            className="bg-surface rounded-radius-xl shadow-float ring-1 ring-border p-5 w-[calc(100%-2rem)] max-w-sm space-y-4"
+            className="bg-surface-overlay rounded-radius-xl shadow-float ring-1 ring-border p-5 w-[calc(100%-2rem)] max-w-sm space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <p className="text-sm text-text-secondary">

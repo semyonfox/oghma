@@ -6,7 +6,7 @@ export default async function SyntaxGuidePage() {
   const { t } = await getServerI18n();
 
   return (
-    <div className="min-h-screen bg-app-page text-text">
+    <div className="min-h-dvh bg-app-page text-text">
       <div className="max-w-4xl mx-auto px-6 py-8">
         <div className="mb-6 flex items-center justify-between">
           <Link

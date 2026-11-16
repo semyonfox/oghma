@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import type { ThemedToken } from "shiki/core";
 import { CheckIcon, ClipboardDocumentIcon } from "@heroicons/react/24/outline";
+import { IconSwap } from "@/components/icon-swap";
 import dynamic from "next/dynamic";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { highlightCode, type HighlightedCode } from "../shiki-highlighter";
@@ -226,11 +227,11 @@ export default function CodeBlock({
             aria-label={t("Copy code")}
             title={copied ? t("Copied") : t("Copy")}
           >
-            {copied ? (
-              <CheckIcon className="h-4 w-4 text-success-400" />
-            ) : (
-              <ClipboardDocumentIcon className="h-4 w-4" />
-            )}
+            <IconSwap
+              swapped={copied}
+              from={<ClipboardDocumentIcon className="h-4 w-4" />}
+              to={<CheckIcon className="h-4 w-4 text-success-400" />}
+            />
             <span>{copied ? t("Copied") : t("Copy")}</span>
           </button>
         </div>

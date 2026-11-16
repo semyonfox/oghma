@@ -9,7 +9,7 @@ export default async function BlogPage() {
   const { t } = await getServerI18n();
 
   return (
-    <div className="bg-landing min-h-screen">
+    <div className="bg-landing min-h-dvh">
       <Header />
       <main className="pt-28 pb-24">
         <div className="mx-auto max-w-7xl px-6 lg:px-8">

@@ -49,7 +49,7 @@ function SessionComplete({
 
   return (
     <div className="flex h-app items-center justify-center bg-app-page px-4 text-text sm:px-6">
-      <div className="w-full max-w-xl rounded-radius-2xl border border-border bg-surface p-6 text-center shadow-float sm:p-10">
+      <div className="w-full max-w-xl rounded-radius-2xl border border-border bg-surface-overlay p-6 text-center shadow-float sm:p-10">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-success-100 text-success-700 dark:bg-success-500/15 dark:text-success-400">
           <CheckIcon aria-hidden="true" className="h-6 w-6" />
         </div>

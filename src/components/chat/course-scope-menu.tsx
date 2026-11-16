@@ -56,7 +56,7 @@ export default function CourseScopeMenu({ current }: { current?: Course }) {
           <button
             type="button"
             onClick={() => router.push(buildNewChatHref())}
-            className="flex w-full items-center rounded-radius-md px-2.5 py-2 text-left text-sm text-text data-focus:bg-subtle"
+            className="flex w-full items-center rounded-radius-sm px-2.5 py-2 text-left text-sm text-text data-focus:bg-subtle"
           >
             {t("All notes")}
           </button>
@@ -70,7 +70,7 @@ export default function CourseScopeMenu({ current }: { current?: Course }) {
                 onClick={() =>
                   router.push(buildNewChatHref({ folderId: course.id, folderTitle: course.title }))
                 }
-                className="flex w-full items-center gap-2 rounded-radius-md px-2.5 py-2 text-left text-sm text-text data-focus:bg-subtle"
+                className="flex w-full items-center gap-2 rounded-radius-sm px-2.5 py-2 text-left text-sm text-text data-focus:bg-subtle"
               >
                 {split.code && (
                   <span className="w-12 shrink-0 font-mono text-[11px] text-text-tertiary">{split.code}</span>

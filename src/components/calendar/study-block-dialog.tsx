@@ -129,7 +129,7 @@ export default function StudyBlockDialog({
     <Dialog open={open} onClose={onClose} className="relative z-[70]">
       <DialogBackdrop className="fixed inset-0 bg-black/50 backdrop-blur-[1px]" />
       <div className="fixed inset-0 flex items-end justify-center sm:items-center sm:p-4">
-        <DialogPanel {...swipe} className="flex max-h-[calc(100dvh-0.5rem)] w-full flex-col overflow-hidden rounded-t-radius-lg border border-border-subtle bg-surface shadow-xl sm:max-w-sm sm:rounded-radius-lg">
+        <DialogPanel {...swipe} className="flex max-h-[calc(100dvh-0.5rem)] w-full flex-col overflow-hidden rounded-t-radius-lg border border-border-subtle bg-surface-overlay shadow-xl sm:max-w-sm sm:rounded-radius-lg">
           <div className="flex h-12 shrink-0 items-center justify-between border-b border-border-subtle px-4">
             <DialogTitle className="text-sm font-medium text-text-secondary">
               {t("Add study block")}

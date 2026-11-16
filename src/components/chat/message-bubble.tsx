@@ -15,6 +15,7 @@ import { WorkLog, collectNoteActivity } from "./tool-call-pill";
 import { partitionMessageParts } from "@/lib/chat/types";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { copyText } from "@/lib/clipboard";
+import { IconSwap } from "@/components/icon-swap";
 
 const AssistantBody: FC<{
   message: Message;
@@ -188,11 +189,11 @@ const CopyMessageButton: FC<{ content: string }> = ({ content }) => {
       aria-label={copied ? t("Copied") : t("Copy message")}
       title={copied ? t("Copied") : t("Copy message")}
     >
-      {copied ? (
-        <CheckIcon className="w-3 h-3" aria-hidden="true" />
-      ) : (
-        <ClipboardDocumentIcon className="w-3 h-3" aria-hidden="true" />
-      )}
+      <IconSwap
+        swapped={copied}
+        from={<ClipboardDocumentIcon className="w-3 h-3" />}
+        to={<CheckIcon className="w-3 h-3" />}
+      />
     </button>
   );
 };
