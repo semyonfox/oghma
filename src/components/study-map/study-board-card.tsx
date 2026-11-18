@@ -2,10 +2,10 @@
 
 import { memo, useEffect, useRef, useState } from "react";
 import { useSignedUrl } from "@/components/editor/use-signed-url";
+import { pdfPageImage, rememberedPdfPage } from "./pdf-page-image";
 import { CARD_WIDTH, type FlowItem } from "@/lib/study-map/flow";
 import type { StudyMaterial } from "@/lib/study-map/types";
 
-type PdfModule = typeof import("react-pdf");
 export type PreviewKind = "image" | "pdf";
 const MAX_SVG_PREVIEW_BYTES = 5 * 1024 * 1024;
 
@@ -23,31 +23,32 @@ export function previewKind(material: StudyMaterial): PreviewKind | null {
   return null;
 }
 
-// loaded with the first preview so react-pdf stays out of the board bundle
-function loadReactPdf() {
-  return import("react-pdf");
+// currentHash follows the extracted text, so a re-imported file with new
+// figures but the same text also needs the bytes hash to look new
+function pdfVersion(material: StudyMaterial): string {
+  return `${material.contentHash ?? ""}:${material.currentHash}`;
 }
 
 function PdfPreview({
-  url,
+  material,
   pageNumber = 1,
 }: {
-  url: string;
+  material: StudyMaterial;
   pageNumber?: number;
 }) {
-  const [pdf, setPdf] = useState<PdfModule | null>(null);
+  const { noteId, title } = material;
+  const version = pdfVersion(material);
+  const [src, setSrc] = useState(
+    () => rememberedPdfPage(noteId, version, pageNumber) ?? "",
+  );
   const [failed, setFailed] = useState(false);
-  const [aspectRatio, setAspectRatio] = useState(1 / Math.SQRT2);
-  const [size, setSize] = useState({ width: 160, height: 128 });
-  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
-    void loadReactPdf().then(
-      (module) => {
-        if (cancelled) return;
-        module.pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.js";
-        setPdf(module);
+    setFailed(false);
+    void pdfPageImage(noteId, version, pageNumber).then(
+      (url) => {
+        if (!cancelled) setSrc(url);
       },
       () => {
         if (!cancelled) setFailed(true);
@@ -56,66 +57,24 @@ function PdfPreview({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [noteId, version, pageNumber]);
 
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    const measure = () => {
-      setSize({ width: container.clientWidth, height: container.clientHeight });
-    };
-    measure();
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(container);
-    return () => observer.disconnect();
-  }, []);
-
-  const width = Math.max(1, Math.min(size.width, size.height * aspectRatio));
+  if (failed) {
+    return (
+      <p className="px-3 text-center text-xs text-text-tertiary">
+        Preview unavailable. Open the original to read it.
+      </p>
+    );
+  }
+  if (!src) return <p className="text-xs text-text-tertiary">Loading PDF...</p>;
   return (
-    <div
-      ref={containerRef}
-      className="flex h-full w-full items-center justify-center overflow-hidden"
-      aria-label={`Page ${pageNumber} preview`}
-    >
-      {failed ? (
-        <p className="px-3 text-center text-xs text-text-tertiary">
-          Preview unavailable
-        </p>
-      ) : pdf ? (
-        <pdf.Document
-          file={url}
-          suspense={false}
-          loading={<p className="text-xs text-text-tertiary">Loading PDF...</p>}
-          error={
-            <p className="text-xs text-text-tertiary">Preview unavailable</p>
-          }
-          onLoadError={() => setFailed(true)}
-          className="flex items-center justify-center"
-        >
-          <pdf.Page
-            pageNumber={pageNumber}
-            suspense={false}
-            width={width}
-            devicePixelRatio={1}
-            renderAnnotationLayer={false}
-            renderTextLayer={false}
-            loading={
-              <p className="text-xs text-text-tertiary">Rendering page...</p>
-            }
-            onLoadSuccess={(page) => {
-              if (page.originalWidth > 0 && page.originalHeight > 0) {
-                setAspectRatio(page.originalWidth / page.originalHeight);
-              }
-            }}
-            onLoadError={() => setFailed(true)}
-            onRenderError={() => setFailed(true)}
-          />
-        </pdf.Document>
-      ) : (
-        <p className="text-xs text-text-tertiary">Loading PDF...</p>
-      )}
-    </div>
+    <img
+      src={src}
+      alt={`Page ${pageNumber} of ${title || "attached PDF"}`}
+      className="h-full w-full object-contain"
+      decoding="async"
+      draggable={false}
+    />
   );
 }
 
@@ -156,10 +115,9 @@ function SvgPreview({ url, title }: { url: string; title: string }) {
             chunks.push(new Uint8Array(value));
           }
         };
-        await attempt()
-          .finally(() => {
-            reader.releaseLock();
-          });
+        await attempt().finally(() => {
+          reader.releaseLock();
+        });
         if (!mounted) return;
         if (size === 0) throw new Error("SVG preview is empty");
         objectUrl = URL.createObjectURL(
@@ -167,11 +125,10 @@ function SvgPreview({ url, title }: { url: string; title: string }) {
         );
         setImageUrl(objectUrl);
       };
-      await run()
-        .catch(() => {
-          controller.abort();
-          if (mounted) setFailed(true);
-        });
+      await run().catch(() => {
+        controller.abort();
+        if (mounted) setFailed(true);
+      });
     };
     void load();
     return () => {
@@ -211,6 +168,20 @@ export function FilePreview({
   kind: PreviewKind;
   pageNumber?: number;
 }) {
+  if (kind === "pdf") {
+    // keyed so the reader never shows the previous file's page under a new title
+    return (
+      <PdfPreview
+        key={`${material.noteId}:${pdfVersion(material)}:${pageNumber ?? 1}`}
+        material={material}
+        pageNumber={pageNumber}
+      />
+    );
+  }
+  return <ImagePreview material={material} />;
+}
+
+function ImagePreview({ material }: { material: StudyMaterial }) {
   const { url, loading, error } = useSignedUrl(undefined, material.noteId);
   const [imageFailed, setImageFailed] = useState(false);
 
@@ -224,7 +195,6 @@ export function FilePreview({
       </p>
     );
   }
-  if (kind === "pdf") return <PdfPreview url={url} pageNumber={pageNumber} />;
   if (
     material.mimeType === "image/svg+xml" ||
     (!material.mimeType && /\.svg$/i.test(material.title))
@@ -417,10 +387,7 @@ export const StudyFlowCard = memo(function StudyFlowCard({
                 assignment.description?.replace(/<[^>]+>/g, " ") ?? "",
               ) || "No brief has been imported."
             : readableExcerpt(
-                (item.material?.excerpt ?? "").replace(
-                  /^\s*#\s+[^\n]*\n+/,
-                  "",
-                ),
+                (item.material?.excerpt ?? "").replace(/^\s*#\s+[^\n]*\n+/, ""),
               ) || "No preview"}
         </p>
       )}

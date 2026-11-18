@@ -15,6 +15,7 @@ import {
   waitForDraftWrites,
 } from "@/lib/notes/draft-cache";
 import { clearPdfCache } from "@/lib/notes/pdf-cache/store";
+import { clearPdfPageImages } from "@/lib/notes/pdf-cache/page-store";
 
 let resetInFlight: Promise<void> | null = null;
 let cacheClearQueue = Promise.resolve();
@@ -107,6 +108,7 @@ export async function resetWorkspaceClientState(
         // cached PDF bytes belong to the previous account too. best effort:
         // IndexedDB can be unavailable (private mode) and that must not block sign-in
         clearPdfCache().catch(() => {}),
+        clearPdfPageImages().catch(() => {}),
       ]);
     })
     .then(() => {
