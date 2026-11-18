@@ -2,6 +2,7 @@
 set -euo pipefail
 
 VLLM_PORT=${SURYA_PORT:-8001}
+export SURYA_INFERENCE_URL="http://127.0.0.1:${VLLM_PORT}/v1"
 BACKEND_PORT=${MARKER_BACKEND_PORT:-18000}
 LOG_DIR=/var/log/marker
 mkdir -p "$LOG_DIR"
@@ -31,10 +32,11 @@ if [[ "${VLLM_ENFORCE_EAGER:-true}" == "true" ]]; then
 fi
 printf 'MARKER_VLLM_STARTING eager=%s\n' "${VLLM_ENFORCE_EAGER:-true}"
 
-vllm serve datalab-to/surya-ocr-2 \
+checkpoint=$(/opt/marker-venv/bin/python -c 'from surya.settings import settings; print(settings.SURYA_MODEL_CHECKPOINT)')
+/opt/vllm-venv/bin/vllm serve "$checkpoint" \
   --host 127.0.0.1 \
   --port "$VLLM_PORT" \
-  --served-model-name datalab-to/surya-ocr-2 \
+  --served-model-name "$checkpoint" \
   --dtype "${VLLM_DTYPE:-bfloat16}" \
   --max-model-len 18000 \
   --max-num-seqs "${VLLM_MAX_NUM_SEQS:-32}" \
@@ -42,7 +44,6 @@ vllm serve datalab-to/surya-ocr-2 \
   --gpu-memory-utilization "${VLLM_GPU_MEMORY_UTILIZATION:-0.85}" \
   --enable-prefix-caching \
   --mm-processor-kwargs '{"min_pixels":3136,"max_pixels":6291456}' \
-  --speculative-config '{"method":"mtp","num_speculative_tokens":2}' \
   "${VLLM_STARTUP_ARGS[@]}" \
   > >(tee "$LOG_DIR/vllm.log") 2>&1 &
 VLLM_PID=$!

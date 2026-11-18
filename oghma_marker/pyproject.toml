@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "oghma-marker"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = ["marker-pdf>=1.10.2,<2.3"]
+
+[tool.setuptools]
+packages = ["oghma_marker"]
+package-dir = {oghma_marker = "."}

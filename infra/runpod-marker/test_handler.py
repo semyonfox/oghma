@@ -12,6 +12,8 @@ from pathlib import Path
 from unittest.mock import patch
 from urllib.error import HTTPError
 
+from oghma_marker import job
+
 
 HANDLER_PATH = Path(__file__).with_name("handler.py")
 REQUEST_ID = "11111111-1111-4111-8111-111111111111"
@@ -26,28 +28,21 @@ def load_handler_module() -> types.ModuleType:
     fake_marker_models.create_model_dict = lambda: {}
     fake_marker_models.shutdown_models = lambda _models: None
 
-    fake_server = types.ModuleType("server")
-    fake_server.bool_option = (
-        lambda value, fallback: value if isinstance(value, bool) else fallback
-    )
-    fake_server.convert_file = lambda *_args: {}
-    fake_server.positive_int_env = lambda _name, fallback: fallback
+    fake_conversion = types.ModuleType("oghma_marker.conversion")
+    fake_conversion.convert_file = lambda *_args: {}
 
     modules = {
         "runpod": fake_runpod,
         "marker": fake_marker,
         "marker.models": fake_marker_models,
-        "server": fake_server,
+        "oghma_marker.conversion": fake_conversion,
     }
     module_name = "runpod_marker_handler_test_module"
     spec = importlib.util.spec_from_file_location(module_name, HANDLER_PATH)
     if spec is None or spec.loader is None:
         raise RuntimeError("unable to load handler.py for test")
     module = importlib.util.module_from_spec(spec)
-    with (
-        patch.dict(sys.modules, modules),
-        patch.dict(os.environ, {"MARKER_ALLOWED_OBJECT_HOSTS": "objects.example"}),
-    ):
+    with patch.dict(sys.modules, modules):
         spec.loader.exec_module(module)
     return module
 
@@ -57,29 +52,11 @@ class HandlerOptionsTest(unittest.TestCase):
         self.handler = load_handler_module()
         self.handler._MODELS = object()
 
-    def test_convert_job_defaults_use_llm_to_false(self) -> None:
-        captured: list[tuple[object, ...]] = []
-
-        def fake_convert_file(*args: object) -> dict[str, object]:
-            captured.append(args)
-            return {"success": True}
-
-        self.handler.convert_file = fake_convert_file
-        self.handler.convert_job("/tmp/document.pdf", {})
-
-        self.assertEqual(captured[0][-1], False)
-
-    def test_convert_job_forwards_explicit_use_llm_true(self) -> None:
-        captured: list[tuple[object, ...]] = []
-
-        def fake_convert_file(*args: object) -> dict[str, object]:
-            captured.append(args)
-            return {"success": True}
-
-        self.handler.convert_file = fake_convert_file
-        self.handler.convert_job("/tmp/document.pdf", {"useLlm": True})
-
-        self.assertEqual(captured[0][-1], True)
+    def test_convert_job_forwards_worker_options(self) -> None:
+        options = {"mode": "vllm", "useLlm": True}
+        with patch.object(self.handler, "convert_file", return_value={"success": True}) as convert:
+            self.assertEqual(self.handler.convert_job("/tmp/document.pdf", options), {"success": True})
+        convert.assert_called_once_with(self.handler._MODELS, "/tmp/document.pdf", options)
 
 
 class HandlerContractTest(unittest.TestCase):
@@ -102,6 +79,7 @@ class HandlerContractTest(unittest.TestCase):
                 {"requestId": REQUEST_ID, "resultKey": "marker-results/other.json"}
             )
 
+    @patch.dict(os.environ, {"MARKER_ALLOWED_OBJECT_HOSTS": "objects.example"})
     def test_accepts_only_allowlisted_https_object_hosts(self) -> None:
         self.assertEqual(
             self.handler.validate_object_url(
@@ -141,6 +119,7 @@ class HandlerContractTest(unittest.TestCase):
         self.assertEqual(message, "upload failed [redacted-url]")
 
 
+@patch.dict(os.environ, {"MARKER_ALLOWED_OBJECT_HOSTS": "objects.example"})
 class MetricsAndUploadTest(unittest.TestCase):
     def setUp(self) -> None:
         self.handler = load_handler_module()
@@ -180,11 +159,10 @@ class MetricsAndUploadTest(unittest.TestCase):
                 )
 
         opener = PreconditionOpener()
-        self.handler.OBJECT_OPENER = opener
-
-        self.assertFalse(
-            self.handler.upload("https://objects.example/signed", b'{"schema_version":1}')
-        )
+        with patch.object(job, "OBJECT_OPENER", opener):
+            self.assertFalse(
+                self.handler.upload("https://objects.example/signed", b'{"schema_version":1}')
+            )
         self.assertEqual(opener.request.get_header("If-none-match"), "*")
 
     def test_warm_pool_collects_worker_ids_without_treating_ints_as_iterables(self) -> None:

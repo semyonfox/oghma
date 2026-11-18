@@ -14,26 +14,31 @@ import json
 import math
 import multiprocessing
 import os
-import re
 import subprocess
 import tempfile
 import threading
 import time
-import urllib.request
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
 from typing import Any, Mapping
-from urllib.error import HTTPError
-from urllib.parse import urlsplit
-from uuid import UUID
 
 import runpod
 from marker.models import create_model_dict, shutdown_models
 
-from server import bool_option, convert_file, positive_int_env
+from oghma_marker.conversion import convert_file
+from oghma_marker.job import (
+    allowed_object_hosts,
+    build_result_envelope,
+    download,
+    positive_int_env,
+    safe_error,
+    upload,
+    upload_suffix,
+    validate_object_url,
+    validate_request_identity,
+)
 
 
-MAX_SOURCE_BYTES = positive_int_env("MARKER_MAX_SOURCE_BYTES", 250 * 1024 * 1024)
 # The default public object ingress is a Cloudflare-proxied hostname. Leave a
 # margin below its 100 MB request ceiling for HTTP framing and provider drift.
 DEFAULT_MAX_RESULT_BYTES = 90 * 1024 * 1024
@@ -48,11 +53,6 @@ MAX_APP_SUBMIT_TO_HANDLER_MS = positive_int_env(
     "MARKER_MAX_APP_SUBMIT_TO_HANDLER_MS", 43_200_000
 )
 HANDLER_PROCESS_STARTED_UNIX_MS = round(time.time() * 1000)
-ALLOWED_OBJECT_HOSTS = {
-    host.strip().lower()
-    for host in os.getenv("MARKER_ALLOWED_OBJECT_HOSTS", "").split(",")
-    if host.strip()
-}
 _MODELS: Any = None
 _POOL: ProcessPoolExecutor | None = None
 
@@ -103,109 +103,6 @@ def sanitize_metrics(raw: Mapping[str, Any]) -> dict[str, int | float]:
         if math.isfinite(numeric) and numeric >= 0:
             cleaned[field] = round(numeric, 3)
     return cleaned
-
-
-def validate_request_identity(payload: Mapping[str, Any]) -> tuple[str, str]:
-    request_id = payload.get("requestId")
-    result_key = payload.get("resultKey")
-    if not isinstance(request_id, str):
-        raise ValueError("requestId is required")
-    try:
-        canonical_request_id = str(UUID(request_id))
-    except (TypeError, ValueError) as error:
-        raise ValueError("requestId must be a canonical UUID") from error
-    if request_id != canonical_request_id:
-        raise ValueError("requestId must be a canonical UUID")
-    expected_result_key = f"marker-results/{canonical_request_id}.json"
-    if result_key != expected_result_key:
-        raise ValueError("resultKey does not match requestId")
-    return canonical_request_id, expected_result_key
-
-
-def validate_object_url(value: Any, field: str) -> str:
-    if not isinstance(value, str) or not value:
-        raise ValueError(f"{field} is required")
-    parsed = urlsplit(value)
-    if (
-        parsed.scheme != "https"
-        or not parsed.hostname
-        or parsed.username is not None
-        or parsed.password is not None
-    ):
-        raise ValueError(f"{field} must use HTTPS")
-    if not ALLOWED_OBJECT_HOSTS:
-        raise ValueError("MARKER_ALLOWED_OBJECT_HOSTS is not configured")
-    if parsed.hostname.lower() not in ALLOWED_OBJECT_HOSTS:
-        raise ValueError(f"{field} host is not approved")
-    return value
-
-
-class ObjectRedirectHandler(urllib.request.HTTPRedirectHandler):
-    def redirect_request(
-        self,
-        request: urllib.request.Request,
-        file_pointer: Any,
-        code: int,
-        message: str,
-        headers: Any,
-        new_url: str,
-    ) -> urllib.request.Request | None:
-        validate_object_url(new_url, "redirectUrl")
-        return super().redirect_request(
-            request,
-            file_pointer,
-            code,
-            message,
-            headers,
-            new_url,
-        )
-
-
-OBJECT_OPENER = urllib.request.build_opener(ObjectRedirectHandler())
-
-
-def download(url: str, path: str) -> int:
-    total = 0
-    with OBJECT_OPENER.open(
-        urllib.request.Request(url, method="GET"),
-        timeout=positive_int_env("MARKER_TRANSFER_TIMEOUT_SECONDS", 600),
-    ) as response:
-        with open(path, "wb") as handle:
-            while chunk := response.read(1024 * 1024):
-                total += len(chunk)
-                if total > MAX_SOURCE_BYTES:
-                    raise ValueError(
-                        f"source exceeds MARKER_MAX_SOURCE_BYTES={MAX_SOURCE_BYTES}"
-                    )
-                handle.write(chunk)
-    if total == 0:
-        raise ValueError("source object is empty")
-    return total
-
-
-def upload(url: str, body: bytes) -> bool:
-    """Write once. A 412 means another worker already owns this result key."""
-
-    request = urllib.request.Request(
-        url,
-        data=body,
-        method="PUT",
-        headers={
-            "Content-Type": "application/json",
-            "If-None-Match": "*",
-        },
-    )
-    try:
-        with OBJECT_OPENER.open(
-            request,
-            timeout=positive_int_env("MARKER_TRANSFER_TIMEOUT_SECONDS", 600),
-        ) as response:
-            response.read(1024)
-        return True
-    except HTTPError as error:
-        if error.code == 412:
-            return False
-        raise
 
 
 def init_worker() -> None:
@@ -265,18 +162,7 @@ def warm_pool() -> None:
 def convert_job(path: str, options: Mapping[str, Any]) -> dict[str, Any]:
     if _MODELS is None:
         raise RuntimeError("Marker worker models are not initialized")
-    return convert_file(
-        _MODELS,
-        path,
-        options.get("pageRange"),
-        bool_option(options.get("forceOcr"), False),
-        bool_option(options.get("paginateOutput"), False),
-        "markdown",
-        str(options.get("mode", "balanced")),
-        str(options.get("ocrFallbackPolicy", "auto")),
-        str(options.get("tableOcrPolicy", "auto")),
-        bool_option(options.get("useLlm"), False),
-    )
+    return convert_file(_MODELS, path, options)
 
 
 async def run_conversion(path: str, options: Mapping[str, Any]) -> dict[str, Any]:
@@ -363,32 +249,6 @@ def app_submit_to_handler_millis(
     return elapsed if elapsed <= MAX_APP_SUBMIT_TO_HANDLER_MS else None
 
 
-def build_result_envelope(
-    converted: Mapping[str, Any], request_id: str, result_key: str
-) -> dict[str, Any]:
-    output = converted.get("output")
-    if not isinstance(output, str) or not output.strip():
-        raise ValueError("Marker output is empty")
-    return {
-        "schema_version": 1,
-        "request_id": request_id,
-        "result_key": result_key,
-        "success": True,
-        "format": "markdown",
-        "output": output,
-        "page_range": converted.get("page_range"),
-        "images": converted.get("images", {}),
-        "metadata": converted.get("metadata"),
-    }
-
-
-def safe_error(error: Exception) -> str:
-    """Avoid leaking signed object URLs through provider error logs/webhooks."""
-
-    message = str(error)
-    return re.sub(r"https?://[^\s'\"<>]+", "[redacted-url]", message)[:1_000]
-
-
 async def handler(job: dict[str, Any]) -> dict[str, Any]:
     payload = job.get("input") or {}
     if not isinstance(payload, Mapping):
@@ -400,7 +260,8 @@ async def handler(job: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(options, Mapping):
         raise ValueError("input.options must be an object")
 
-    descriptor, path = tempfile.mkstemp(prefix="marker-job-", suffix=".pdf")
+    suffix = upload_suffix(str(payload.get("filename") or "document.pdf"))
+    descriptor, path = tempfile.mkstemp(prefix="marker-job-", suffix=suffix)
     os.close(descriptor)
     handler_started = time.monotonic()
     handler_received_unix_ms = round(time.time() * 1000)
@@ -474,7 +335,7 @@ def concurrency_modifier(_current_concurrency: int) -> int:
 
 
 if __name__ == "__main__":
-    if not ALLOWED_OBJECT_HOSTS:
+    if not allowed_object_hosts():
         raise RuntimeError("MARKER_ALLOWED_OBJECT_HOSTS is required")
     try:
         warm_pool()

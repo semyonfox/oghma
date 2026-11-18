@@ -41,6 +41,7 @@ HARNESS_FILES = [
     "infra/marker/profiles/released-default.json",
     "oghma_marker/__init__.py",
     "oghma_marker/services.py",
+    "oghma_marker/pyproject.toml",
     "scripts/marker-aws-session.py",
     "scripts/marker-bench-artifacts.py",
     "scripts/marker-bench-collect.sh",
@@ -445,6 +446,9 @@ def _make_converter(config):
 
     converter_config = dict(config)
     llm_service = converter_config.pop("llm_service", None)
+    # keep the recorded profile hashes and resolve the separately installed adapter
+    if llm_service == "marker.services.openai_compatible_vision.OpenAICompatibleVisionService":
+        llm_service = "oghma_marker.services.OpenAICompatibleVisionService"
     kwargs = {"config": converter_config, "artifact_dict": ARTIFACTS}
     if llm_service:
         kwargs["llm_service"] = llm_service

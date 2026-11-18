@@ -275,8 +275,8 @@ bash scripts/build-vast-marker-image.sh
 Push only a unique, never-overwritten tag, record and scan its registry digest,
 and use that tag in the Vast template. Vast's current template field is
 documented as `repository/image:tag`, so the recorded digest is the
-verification/rollback identity rather than the template field. The source
-archive defaults to the exact Marker++ commit measured on 2026-07-24.
+verification/rollback identity rather than the template field. The build uses
+the [shared worker Dockerfile](../../infra/marker-worker/README.md).
 
 ## Funding-time provisioning
 
