@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { getCacheEntry, putCacheEntry } from "@/lib/notes/pdf-cache/store";
 import { MAX_ENTRY_BYTES, runEviction } from "@/lib/notes/pdf-cache/evict";
-import { resolveStorageKey, resolveStreamUrl } from "./file-url";
+import { resolveStorageKey, resolveStreamUrl, type Resolved } from "./file-url";
 
 interface UsePdfCacheResult {
   data: Uint8Array<ArrayBuffer> | null;
@@ -28,6 +28,52 @@ export function looksLikePdf(buffer: ArrayBuffer): boolean {
   return false;
 }
 
+/**
+ * The PDF's bytes, from IndexedDB when this browser has opened it before.
+ * Shared by the PDF viewer and the study board page previews.
+ */
+export async function loadPdfBytes(
+  sourcePath?: string,
+  fileId?: string,
+): Promise<Resolved<Uint8Array<ArrayBuffer>>> {
+  const key = await resolveStorageKey(sourcePath, fileId);
+  if ("error" in key) return key;
+  const s3Key = key.value;
+
+  // IndexedDB can be unavailable in an embedded browser. A cache failure
+  // must not prevent the authenticated network request from loading the PDF.
+  const cached = await getCacheEntry(s3Key).catch(() => undefined);
+  if (cached) return { value: new Uint8Array(cached.buffer) };
+
+  const url = await resolveStreamUrl(s3Key);
+  if ("error" in url) return url;
+
+  const res = await fetch(url.value);
+  if (!res.ok) return { error: `http-${res.status}` };
+
+  const contentType = res.headers.get("Content-Type") ?? "application/pdf";
+  const buffer = await res.arrayBuffer();
+
+  // a cached error page would be served on every later open, and an
+  // oversized file would evict most of the cache to fit itself
+  if (looksLikePdf(buffer) && buffer.byteLength <= MAX_ENTRY_BYTES) {
+    // write to cache in the background — non-fatal
+    putCacheEntry({
+      s3Key,
+      buffer,
+      size: buffer.byteLength,
+      cachedAt: Date.now(),
+      contentType,
+    })
+      .then(() => runEviction())
+      .catch(() => {});
+  }
+
+  // PDF.js transfers typed arrays to its worker. Give it a copy so the
+  // buffer retained by IndexedDB cannot be detached during the cache write.
+  return { value: new Uint8Array(buffer.slice(0)) };
+}
+
 export function usePdfCache(
   sourcePath?: string,
   fileId?: string,
@@ -42,73 +88,18 @@ export function usePdfCache(
     if (!sourcePath && !fileId) return;
 
     let cancelled = false;
+    setLoading(true);
+    setError(null);
+    setData(null);
 
-    const fail = (reason: string) => {
-      if (cancelled) return;
-      setError(reason);
-      setLoading(false);
-    };
-
-    const load = async () => {
-      setLoading(true);
-      setError(null);
-      setData(null);
-
-      const run = async () => {
-        const key = await resolveStorageKey(sourcePath, fileId);
+    void loadPdfBytes(sourcePath, fileId)
+      .catch((): Resolved<Uint8Array<ArrayBuffer>> => ({ error: "network" }))
+      .then((result) => {
         if (cancelled) return;
-        if ("error" in key) return fail(key.error);
-        const s3Key = key.value;
-
-        // IndexedDB can be unavailable in an embedded browser. A cache failure
-        // must not prevent the authenticated network request from loading the PDF.
-        const cached = await getCacheEntry(s3Key).catch(() => undefined);
-        if (cancelled) return;
-        if (cached) {
-          setData(new Uint8Array(cached.buffer));
-          setLoading(false);
-          return;
-        }
-
-        const url = await resolveStreamUrl(s3Key);
-        if (cancelled) return;
-        if ("error" in url) return fail(url.error);
-
-        const res = await fetch(url.value);
-        if (!res.ok) return fail(`http-${res.status}`);
-
-        const contentType =
-          res.headers.get("Content-Type") ?? "application/pdf";
-        const buffer = await res.arrayBuffer();
-        if (cancelled) return;
-
-        // PDF.js transfers typed arrays to its worker. Give it a copy so the
-        // buffer retained by IndexedDB cannot be detached during the cache write.
-        setData(new Uint8Array(buffer.slice(0)));
+        if ("error" in result) setError(result.error);
+        else setData(result.value);
         setLoading(false);
-
-        // a cached error page would be served on every later open, and an
-        // oversized file would evict most of the cache to fit itself
-        if (!looksLikePdf(buffer) || buffer.byteLength > MAX_ENTRY_BYTES) return;
-
-        // write to cache in the background — non-fatal
-        putCacheEntry({
-          s3Key,
-          buffer,
-          size: buffer.byteLength,
-          cachedAt: Date.now(),
-          contentType,
-        })
-          .then(() => runEviction())
-          .catch(() => {});
-      };
-      return await run()
-        .catch(() => {
-          fail("network");
-        });
-    };
-
-    void load();
+      });
     return () => {
       cancelled = true;
     };

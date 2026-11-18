@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import React, { type ReactNode } from "react";
+import React from "react";
 import {
   act,
   cleanup,
@@ -24,31 +24,17 @@ import {
   type StudyTopic,
 } from "@/lib/study-map/types";
 
-const pdfBoundary = vi.hoisted(() => ({ workerOptions: { workerSrc: "" } }));
+const pdfBoundary = vi.hoisted(() => ({
+  workerOptions: { workerSrc: "" },
+  getDocument: vi.fn(),
+  renderPage: vi.fn(),
+}));
 
 vi.mock("react-pdf", () => ({
-  pdfjs: { GlobalWorkerOptions: pdfBoundary.workerOptions },
-  Document: ({ children, file }: { children: ReactNode; file: string }) => (
-    <div data-testid="pdf-document" data-file={file}>
-      {children}
-    </div>
-  ),
-  Page: ({
-    pageNumber,
-    renderTextLayer,
-    renderAnnotationLayer,
-  }: {
-    pageNumber: number;
-    renderTextLayer: boolean;
-    renderAnnotationLayer: boolean;
-  }) => (
-    <div
-      data-testid="pdf-page"
-      data-page={pageNumber}
-      data-text-layer={renderTextLayer}
-      data-annotation-layer={renderAnnotationLayer}
-    />
-  ),
+  pdfjs: {
+    GlobalWorkerOptions: pdfBoundary.workerOptions,
+    getDocument: pdfBoundary.getDocument,
+  },
 }));
 
 const observers = new Map<Element, IntersectionObserverStub>();
@@ -203,11 +189,7 @@ function itemFor(
   return moduleItems(snapshot([current], topics), emptyBoard())[0];
 }
 
-
-function card(
-  item: FlowItem,
-  options: { compact?: boolean } = {},
-) {
+function card(item: FlowItem, options: { compact?: boolean } = {}) {
   return (
     <article aria-label={item.title} key={item.ref}>
       <StudyFlowCard
@@ -242,6 +224,23 @@ beforeEach(() => {
   vi.clearAllMocks();
   observers.clear();
   pdfBoundary.workerOptions.workerSrc = "";
+  pdfBoundary.renderPage.mockReturnValue({ promise: Promise.resolve() });
+  pdfBoundary.getDocument.mockImplementation(() => ({
+    promise: Promise.resolve({
+      getPage: async () => ({
+        getViewport: ({ scale }: { scale: number }) => ({
+          width: 600 * scale,
+          height: 800 * scale,
+        }),
+        render: pdfBoundary.renderPage,
+        cleanup: () => true,
+      }),
+    }),
+    destroy: async () => {},
+  }));
+  vi.spyOn(HTMLCanvasElement.prototype, "toBlob").mockImplementation(
+    (callback) => callback(new Blob(["page"], { type: "image/webp" })),
+  );
   vi.stubGlobal("React", React);
   vi.stubGlobal("IntersectionObserver", IntersectionObserverStub);
   createObjectUrl.mockImplementation(
@@ -414,12 +413,11 @@ describe("StudyFlowCard", () => {
   });
 
   it.each([
-    { name: "SVG image", mimeType: "image/svg+xml", pdf: false, svg: true },
-    { name: "PNG image", mimeType: "image/png", pdf: false, svg: false },
-    { name: "PDF", mimeType: "application/pdf", pdf: true, svg: false },
+    { name: "SVG image", mimeType: "image/svg+xml", svg: true },
+    { name: "PNG image", mimeType: "image/png", svg: false },
   ])(
     "loads only the visible $name card and unmounts its preview when hidden",
-    async ({ mimeType, pdf, svg }) => {
+    async ({ mimeType, svg }) => {
       const visibleItem = itemFor(
         material({ title: "Visible file", isFile: true, mimeType }),
       );
@@ -442,27 +440,13 @@ describe("StudyFlowCard", () => {
       expect(fetchBoundary).not.toHaveBeenCalled();
 
       visibility(preview(visibleCard), true);
-      if (pdf) {
-        const page = await within(visibleCard).findByTestId("pdf-page");
-        expect(screen.getAllByTestId("pdf-page")).toHaveLength(1);
-        expect(page.getAttribute("data-page")).toBe("1");
-        expect(page.getAttribute("data-text-layer")).toBe("false");
-        expect(page.getAttribute("data-annotation-layer")).toBe("false");
-        expect(
-          within(visibleCard)
-            .getByTestId("pdf-document")
-            .getAttribute("data-file"),
-        ).toBe(signedUrl);
-        expect(pdfBoundary.workerOptions.workerSrc).toBe("/pdf.worker.js");
-      } else {
-        const image = await within(visibleCard).findByRole("img", {
-          name: "Preview of Visible file",
-        });
-        expect(image.getAttribute("src")).toBe(
-          svg ? "blob:svg-preview-1" : signedUrl,
-        );
-        expect(visibleCard.querySelector("iframe, object, embed")).toBeNull();
-      }
+      const image = await within(visibleCard).findByRole("img", {
+        name: "Preview of Visible file",
+      });
+      expect(image.getAttribute("src")).toBe(
+        svg ? "blob:svg-preview-1" : signedUrl,
+      );
+      expect(visibleCard.querySelector("iframe, object, embed")).toBeNull();
       const expectedRequests = svg ? 3 : 2;
       expect(fetchBoundary).toHaveBeenCalledTimes(expectedRequests);
       expect(fetchBoundary).toHaveBeenNthCalledWith(
@@ -474,7 +458,6 @@ describe("StudyFlowCard", () => {
         "/api/upload?path=attachments%2Fsource",
       );
       expect(within(hiddenCard).queryByRole("img")).toBeNull();
-      expect(within(hiddenCard).queryByTestId("pdf-document")).toBeNull();
       if (svg) {
         const blob = createObjectUrl.mock.calls[0]?.[0];
         if (!(blob instanceof Blob))
@@ -486,7 +469,6 @@ describe("StudyFlowCard", () => {
 
       visibility(preview(visibleCard), false);
       expect(within(visibleCard).queryByRole("img")).toBeNull();
-      expect(within(visibleCard).queryByTestId("pdf-document")).toBeNull();
       expect(fetchBoundary).toHaveBeenCalledTimes(expectedRequests);
       if (svg) {
         expect(downloadSignal().aborted).toBe(true);
@@ -496,6 +478,40 @@ describe("StudyFlowCard", () => {
       }
     },
   );
+
+  it("renders a PDF card's first page once and reuses it when the card scrolls back", async () => {
+    const pdfItem = itemFor(
+      material({
+        title: "Lecture slides",
+        isFile: true,
+        mimeType: "application/pdf",
+        currentHash: "b".repeat(64),
+      }),
+    );
+    render(card(pdfItem));
+    const article = screen.getByRole("article", { name: "Lecture slides" });
+
+    visibility(preview(article), true);
+    const page = await within(article).findByRole("img", {
+      name: "Page 1 of Lecture slides",
+    });
+    expect(page.getAttribute("src")).toMatch(/^blob:/);
+    expect(pdfBoundary.workerOptions.workerSrc).toBe("/pdf.worker.js");
+    expect(pdfBoundary.renderPage).toHaveBeenCalledOnce();
+    const requests = fetchBoundary.mock.calls.length;
+    expect(requests).toBe(3);
+
+    visibility(preview(article), false);
+    expect(within(article).queryByRole("img")).toBeNull();
+    visibility(preview(article), true);
+    const again = within(article).getByRole("img", {
+      name: "Page 1 of Lecture slides",
+    });
+    expect(again.getAttribute("src")).toBe(page.getAttribute("src"));
+    expect(fetchBoundary).toHaveBeenCalledTimes(requests);
+    expect(pdfBoundary.getDocument).toHaveBeenCalledOnce();
+    expect(pdfBoundary.renderPage).toHaveBeenCalledOnce();
+  });
 
   it("replaces the SVG preview after a source edit and releases both image URLs", async () => {
     const current = material({ isFile: true, mimeType: "image/svg+xml" });
@@ -597,7 +613,15 @@ describe("StudyFlowCard", () => {
   it("shows a readable fallback when signing or the image fails", async () => {
     fetchBoundary.mockResolvedValueOnce(new Response(null, { status: 404 }));
     const view = render(
-      card(itemFor(material({ isFile: true, mimeType: "application/pdf" }))),
+      card(
+        itemFor(
+          material({
+            isFile: true,
+            mimeType: "application/pdf",
+            currentHash: "c".repeat(64),
+          }),
+        ),
+      ),
     );
     visibility(preview(screen.getByRole("article")), true);
     expect(
@@ -605,7 +629,6 @@ describe("StudyFlowCard", () => {
         "Preview unavailable. Open the original to read it.",
       ),
     ).toBeTruthy();
-    expect(screen.queryByTestId("pdf-document")).toBeNull();
     view.unmount();
 
     render(card(itemFor(material({ isFile: true, mimeType: "image/png" }))));
