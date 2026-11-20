@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 TARGET=${1:?usage: build-marker-worker-image.sh TARGET [IMAGE | --check]}
 OUTPUT=${2:-}
-export MARKER_PLUS_PLUS_COMMIT=${MARKER_PLUS_PLUS_COMMIT:-1f6ecaafc210d257901daa6bfe0c43ad3a3eaedb}
+export MARKER_PLUS_PLUS_COMMIT=${MARKER_PLUS_PLUS_COMMIT:-d9ee6167137c63f8c3851827f1cf99cc3eb7eca7}
 CUDA_VARIANT=${MARKER_CUDA_VARIANT:-cu129}
 GPU_FAMILY=${MARKER_GPU_FAMILY:-generic}
 

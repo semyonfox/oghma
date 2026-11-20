@@ -26,10 +26,11 @@ IMAGE_SELECTION_POLICIES = {"semantic", "course", "all"}
 
 
 def image_selection_policy() -> str:
-    # course keeps small uncaptioned lecture visuals (oghma#478). it needs a
-    # Marker++ build that has the policy, so it stays opt-in per environment
-    policy = os.getenv("MARKER_IMAGE_SELECTION_POLICY", "semantic").strip().lower()
-    return policy if policy in IMAGE_SELECTION_POLICIES else "semantic"
+    # course is the default on Marker++ 2.2: Surya 2.5 labels lecture diagrams as
+    # Picture, not Figure or Diagram, so semantic keeps only captioned images.
+    # measured on the canvas set: semantic kept 3 of about 66 visuals (#478)
+    policy = os.getenv("MARKER_IMAGE_SELECTION_POLICY", "course").strip().lower()
+    return policy if policy in IMAGE_SELECTION_POLICIES else "course"
 
 
 def build_converter(models: Any, options: dict[str, Any]) -> PdfConverter:
