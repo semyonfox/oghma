@@ -75,9 +75,18 @@ export async function POST(
 
   const status = summary.status;
   const completed = status === "COMPLETED";
-  if (!["COMPLETED", "FAILED", "CANCELLED", "TIMED_OUT"].includes(status)) {
-    // RunPod may issue informational statuses before a terminal webhook. Do
-    // not let one move an Oghma-owned job state.
+  const output = webhook.output;
+  const resultPending =
+    completed &&
+    output !== null &&
+    typeof output === "object" &&
+    "resultPending" in output &&
+    output.resultPending === true;
+  if (
+    resultPending ||
+    !["COMPLETED", "FAILED", "CANCELLED", "TIMED_OUT"].includes(status)
+  ) {
+    // a lost CPU reply leaves the result key under observation even after RunPod exits
     await sql`
       UPDATE app.marker_jobs
       SET provider_metrics = COALESCE(provider_metrics, '{}'::jsonb)

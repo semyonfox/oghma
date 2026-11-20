@@ -11,11 +11,11 @@ now_unix_ms() {
   date +%s%3N
 }
 
-if [[ ! "${RUNPOD_INIT_TIMEOUT:-800}" =~ ^[1-9][0-9]*$ ]]; then
-  export RUNPOD_INIT_TIMEOUT=800
-else
-  export RUNPOD_INIT_TIMEOUT
+RUNPOD_INIT_TIMEOUT=${RUNPOD_INIT_TIMEOUT:-800}
+if [[ ! "$RUNPOD_INIT_TIMEOUT" =~ ^[1-9][0-9]*$ ]]; then
+  RUNPOD_INIT_TIMEOUT=800
 fi
+export RUNPOD_INIT_TIMEOUT
 export MARKER_CONTAINER_STARTED_AT_UNIX_MS="$(now_unix_ms)"
 
 export HF_HOME="${HF_HOME:-/opt/marker-cache/huggingface}"
@@ -65,7 +65,13 @@ checkpoint=$(/opt/marker-venv/bin/python -c 'from surya.settings import settings
   --mm-processor-kwargs '{"min_pixels":3136,"max_pixels":6291456}' \
   --no-enforce-eager &
 VLLM_PID=$!
-trap 'kill "$VLLM_PID" 2>/dev/null || true' EXIT
+HANDLER_PID=
+cleanup() {
+  kill "$VLLM_PID" ${HANDLER_PID:+"$HANDLER_PID"} 2>/dev/null || true
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 deadline=$((SECONDS + RUNPOD_INIT_TIMEOUT))
 until curl -fsS "http://127.0.0.1:${SURYA_PORT}/health" >/dev/null; do
@@ -85,4 +91,28 @@ echo "surya vLLM ready on ${SURYA_PORT}"
 echo "marker-runtime event=backend_ready backend_ready_at_unix_ms=${MARKER_BACKEND_READY_AT_UNIX_MS} container_to_backend_ready_ms=${MARKER_CONTAINER_TO_BACKEND_READY_MS}"
 
 echo "marker-runtime event=serverless_handler_start handler_concurrency=${MARKER_HANDLER_CONCURRENCY}"
-exec /opt/marker-venv/bin/python /app/handler.py
+/opt/marker-venv/bin/python /app/handler.py &
+HANDLER_PID=$!
+
+exited_pid=
+status=0
+# wait -n can skip a child that already exited during the readiness handoff.
+for pid in "$VLLM_PID" "$HANDLER_PID"; do
+  if ! kill -0 "$pid" 2>/dev/null; then
+    exited_pid=$pid
+    wait "$pid" || status=$?
+    break
+  fi
+done
+if [[ -z "$exited_pid" ]]; then
+  wait -n -p exited_pid "$VLLM_PID" "$HANDLER_PID" || status=$?
+fi
+if [[ ${exited_pid:-} == "$VLLM_PID" ]]; then
+  echo "vLLM exited unexpectedly status=$status" >&2
+else
+  echo "Marker handler exited unexpectedly status=$status" >&2
+fi
+if (( status == 0 )); then
+  status=1
+fi
+exit "$status"

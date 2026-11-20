@@ -1,4 +1,4 @@
-# Model, renderer and full converter pins from Marker++ 1f6ecaa's uv.lock.
+# Keep these pins in sync with the lockfile at MARKER_PLUS_PLUS_COMMIT.
 ebooklib==0.18
 huggingface-hub==1.24.0
 indra-ocr==1.1.2

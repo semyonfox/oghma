@@ -3,7 +3,7 @@
 Build the `gpu-vast` target from the [shared Dockerfile](../marker-worker/README.md).
 
 ```bash
-VAST_MARKER_IMAGE=oghma-marker-worker:vast-1f6ecaa-cu129 bash scripts/build-vast-marker-image.sh
+VAST_MARKER_IMAGE=oghma-marker-worker:vast-2.2-cu129 bash scripts/build-vast-marker-image.sh
 ```
 
 `vast-onstart.sh` runs the pinned Vast bootstrap and supervises the local

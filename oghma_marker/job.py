@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import subprocess
@@ -14,6 +15,9 @@ from urllib.parse import urlsplit
 from uuid import UUID
 
 import httpx
+
+
+logger = logging.getLogger(__name__)
 
 
 def positive_int_env(name: str, fallback: int) -> int:
@@ -45,35 +49,58 @@ def upload_suffix(filename: str | None) -> str:
 
 def route_to_cpu(
     path: str, payload: Mapping[str, Any], options: Mapping[str, Any]
-) -> dict[str, Any] | None:
+) -> tuple[dict[str, Any] | None, bool]:
+    """Return the CPU acknowledgement and whether an unacknowledged write is possible."""
     if not bool_option(os.getenv("MARKER_CPU_ROUTE", "off")) or Path(path).suffix != ".pdf":
-        return None
+        return None, False
 
-    classification = subprocess.run(
-        ["marker_classify", path], capture_output=True, check=True, timeout=120
-    )
-    document = json.loads(classification.stdout)
-    if document["suggested_route"] != "cpu" or document["math_glyph_pages"] != 0:
-        return None
+    try:
+        classification = subprocess.run(
+            ["marker_classify", path], capture_output=True, check=True, timeout=120
+        )
+        document = json.loads(classification.stdout)
+        if document["suggested_route"] != "cpu" or document["math_glyph_pages"] != 0:
+            return None, False
+    except (OSError, subprocess.SubprocessError, ValueError, TypeError, KeyError) as error:
+        logger.warning("Marker CPU classification failed, using GPU error=%s", type(error).__name__)
+        return None, False
 
     endpoint = os.getenv("MARKER_CPU_WORKER_URL", "").strip().rstrip("/")
-    if not endpoint:
-        raise RuntimeError("MARKER_CPU_WORKER_URL is required for the CPU route")
+    token = os.getenv("MARKER_CPU_WORKER_TOKEN", "").strip()
+    if not endpoint or not token:
+        logger.warning("Marker CPU endpoint or token missing, using GPU")
+        return None, False
+
     request = {key: payload[key] for key in ("requestId", "resultKey", "sourceUrl", "resultUrl")}
     request["filename"] = "document.pdf"
     request["options"] = {**options, "mode": "no_ocr" if options.get("mode") == "no_ocr" else "fast"}
-    response = httpx.post(
-        f"{endpoint}/marker/job", json=request, timeout=600, trust_env=False,
-    )
-    response.raise_for_status()
-    result = response.json()
-    if (
-        result.get("success") is not True
-        or result.get("requestId") != request["requestId"]
-        or result.get("resultKey") != request["resultKey"]
-    ):
-        raise RuntimeError("CPU worker returned an invalid job result")
-    return result
+    try:
+        response = httpx.post(
+            f"{endpoint}/marker/job",
+            json=request,
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=600,
+            trust_env=False,
+        )
+        response.raise_for_status()
+        result = response.json()
+        if (
+            not isinstance(result, dict)
+            or result.get("success") is not True
+            or result.get("requestId") != request["requestId"]
+            or result.get("resultKey") != request["resultKey"]
+        ):
+            raise ValueError("CPU worker returned an invalid job result")
+        return result, False
+    except (httpx.HTTPError, httpx.InvalidURL, ValueError) as error:
+        # a lost CPU response can leave a result at this key. upload() gives
+        # either worker's first successful write precedence
+        logger.warning("Marker CPU worker failed, using GPU error=%s", type(error).__name__)
+        result_may_exist = not (
+            isinstance(error, (httpx.ConnectError, httpx.ConnectTimeout, httpx.InvalidURL))
+            or (isinstance(error, httpx.HTTPStatusError) and error.response.status_code < 500)
+        )
+        return None, result_may_exist
 
 
 def allowed_object_hosts() -> set[str]:

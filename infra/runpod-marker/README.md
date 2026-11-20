@@ -4,7 +4,7 @@ Build the `gpu-runpod` target from the [shared Dockerfile](../marker-worker/READ
 
 ```bash
 npm run marker:runpod:validate
-RUNPOD_MARKER_IMAGE=oghma-marker-worker:runpod-1f6ecaa-cu129 npm run marker:runpod:build
+RUNPOD_MARKER_IMAGE=oghma-marker-worker:runpod-2.2-cu129 npm run marker:runpod:build
 npm run test:marker
 ```
 

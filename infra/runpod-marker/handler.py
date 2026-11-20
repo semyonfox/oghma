@@ -269,13 +269,16 @@ async def handler(job: dict[str, Any]) -> dict[str, Any]:
     samples: list[dict[str, float]] = []
     stop = threading.Event()
     sampler: threading.Thread | None = None
+    cpu_result_may_exist = False
     try:
         download_started = time.monotonic()
         await asyncio.to_thread(download, source_url, path)
         download_ms = duration_millis(download_started)
 
         conversion_mode(options)
-        cpu_result = await asyncio.to_thread(route_to_cpu, path, payload, options)
+        cpu_result, cpu_result_may_exist = await asyncio.to_thread(
+            route_to_cpu, path, payload, options
+        )
         if cpu_result is not None:
             return cpu_result
 
@@ -325,7 +328,12 @@ async def handler(job: dict[str, Any]) -> dict[str, Any]:
             "metrics": response_metrics,
         }
     except Exception as error:
-        raise RuntimeError(safe_error(error)) from None
+        message = safe_error(error)
+        if cpu_result_may_exist:
+            # keep the app observing the immutable result key after a lost CPU reply
+            print(f"marker-runtime event=cpu_result_pending request={request_id} error={message}", flush=True)
+            return {"success": False, "resultPending": True, "requestId": request_id, "resultKey": result_key}
+        raise RuntimeError(message) from None
     finally:
         stop.set()
         if sampler and sampler.is_alive():

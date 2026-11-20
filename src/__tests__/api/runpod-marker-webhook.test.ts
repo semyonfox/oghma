@@ -166,11 +166,37 @@ describe("RunPod Marker webhook", () => {
       expect(mocks.enqueueMarkerFailureJob).not.toHaveBeenCalled();
     });
 
-    it("advances a row that is still waiting on RunPod", async () => {
+    it("keeps observing storage when the CPU result may still arrive", async () => {
+      const row = useRow("awaiting_result");
+
+      const response = await POST(
+        webhook({
+          id: "runpod_job_123",
+          status: "COMPLETED",
+          output: { success: false, resultPending: true },
+        }),
+        { params: Promise.resolve({ token: "webhook-token", callbackId }) },
+      );
+
+      expect(response.status).toBe(200);
+      expect(row.status).toBe("awaiting_result");
+      expect(mocks.enqueueMarkerCompletionJob).not.toHaveBeenCalled();
+      expect(mocks.enqueueMarkerFailureJob).not.toHaveBeenCalled();
+    });
+
+    it("queues a CPU-routed completion without handler metrics", async () => {
       const row = useRow("dispatching");
 
       const response = await POST(
-        webhook({ id: "runpod_job_123", status: "COMPLETED" }),
+        webhook({
+          id: "runpod_job_123",
+          status: "COMPLETED",
+          output: {
+            success: true,
+            requestId: callbackId,
+            resultKey: `marker-results/${callbackId}.json`,
+          },
+        }),
         { params: Promise.resolve({ token: "webhook-token", callbackId }) },
       );
 

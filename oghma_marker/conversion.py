@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import base64
 import io
+import json
+import logging
 import os
 from typing import Any, Mapping
 
 from fastapi.encoders import jsonable_encoder
-from marker.classification import classify_pdf
+from marker.classification import GPU_SCAN_FRACTION
 from marker.config.parser import ConfigParser
 from marker.converters.pdf import PdfConverter
 from marker.output import text_from_rendered
@@ -19,6 +21,7 @@ from marker.settings import settings
 from .job import bool_option, positive_int_env
 
 
+logger = logging.getLogger(__name__)
 IMAGE_SELECTION_POLICIES = {"semantic", "course", "all"}
 
 
@@ -111,24 +114,54 @@ def convert_file(
         )
 
     converter = build_converter(models, options)
+    if converter.mode != mode:
+        raise RuntimeError(f"Marker resolved {mode} to {converter.mode}")
+    print(f"marker-runtime event=conversion_start mode={mode}", flush=True)
     rendered = converter(path)
     text, _, images = text_from_rendered(rendered)
-    metadata = jsonable_encoder(getattr(rendered, "metadata", None))
-    if provider_from_filepath(path) is PdfProvider:
-        classification = classify_pdf(path)
-        metadata = {
-            **(metadata or {}),
-            "page_kinds": classification["pages"],
-            "suggested_route": classification["suggested_route"],
-        }
+    try:
+        metadata = jsonable_encoder(getattr(rendered, "metadata", None)) or {}
+        if not isinstance(metadata, dict):
+            raise TypeError("rendered metadata must be an object")
+        json.dumps(metadata, allow_nan=False)
+    except Exception as error:
+        logger.warning("Marker metadata omitted error=%s", type(error).__name__)
+        metadata = {}
+    metadata["mode"] = mode
+
+    try:
+        if provider_from_filepath(path) is PdfProvider:
+            # page_stats covers the pages Marker actually converted
+            page_stats = metadata.get("page_stats", [])
+            page_kinds = [
+                {"page_id": page["page_id"], "kind": page["kind"]}
+                for page in page_stats
+                if page.get("kind")
+            ]
+            if page_kinds and len(page_kinds) == len(page_stats):
+                scans = sum(
+                    page["kind"] in {"scan", "scan_with_text_layer", "vector_ink"}
+                    for page in page_kinds
+                )
+                metadata["suggested_route"] = (
+                    "gpu" if scans / len(page_kinds) >= GPU_SCAN_FRACTION else "cpu"
+                )
+            if page_kinds:
+                metadata["page_kinds"] = page_kinds
+    except Exception as error:
+        logger.warning("Marker page classification metadata omitted error=%s", type(error).__name__)
+    try:
+        profile = jsonable_encoder(getattr(converter, "profile_summary", None))
+        json.dumps(profile, allow_nan=False)
+    except Exception as error:
+        logger.warning("Marker profile omitted error=%s", type(error).__name__)
+        profile = None
     return {
         "format": output_format,
         "output": text,
         "page_range": raw_options.get("pageRange"),
         "images": encode_images(images),
         "metadata": metadata,
-        "profile": jsonable_encoder(
-            getattr(converter, "profile_summary", None)
-        ),
+        "profile": profile,
         "success": True,
     }

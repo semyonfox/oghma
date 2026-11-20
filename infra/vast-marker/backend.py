@@ -20,10 +20,11 @@ import time
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
 from contextlib import asynccontextmanager
+from hmac import compare_digest
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from marker.models import create_model_dict
@@ -281,7 +282,16 @@ async def run_conversion(path: str, options: dict[str, Any]) -> dict[str, Any]:
 
 
 @app.post("/marker/job")
-async def marker_job(payload: dict[str, Any]) -> JSONResponse:
+async def marker_job(
+    payload: dict[str, Any], authorization: str = Header(default="")
+) -> JSONResponse:
+    if CPU_ONLY:
+        token = os.getenv("MARKER_CPU_WORKER_TOKEN", "").strip()
+        if not token or not compare_digest(
+            authorization.encode("utf-8"), f"Bearer {token}".encode("utf-8")
+        ):
+            raise HTTPException(status_code=401, detail="invalid CPU worker token")
+
     benchmark = bool_option(payload.get("benchmark"), False)
     if benchmark:
         request_id = "vast-readiness-benchmark"
@@ -341,9 +351,12 @@ async def marker_job(payload: dict[str, Any]) -> JSONResponse:
         )
         sampler.start()
 
+    cpu_result_may_exist = False
     try:
         if not CPU_ONLY and not benchmark:
-            cpu_result = await asyncio.to_thread(route_to_cpu, path, payload, options)
+            cpu_result, cpu_result_may_exist = await asyncio.to_thread(
+                route_to_cpu, path, payload, options
+            )
             if cpu_result is not None:
                 return JSONResponse(content=cpu_result)
         converted = await run_conversion(path, options)
@@ -397,6 +410,9 @@ async def marker_job(payload: dict[str, Any]) -> JSONResponse:
             request_id,
             message,
         )
+        if cpu_result_may_exist:
+            # the Vast client observes storage after an ambiguous upstream failure
+            raise HTTPException(status_code=502, detail="CPU result may still arrive") from None
         return JSONResponse(
             status_code=500,
             content={"success": False, "error": message},

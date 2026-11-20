@@ -31,11 +31,14 @@ RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     python -c 'from importlib.metadata import version; from importlib.util import find_spec; assert version("marker-pdf") == "2.2.1+markerpp.1"; assert find_spec("torch") is None'
 
 COPY marker-worker/prefetch_models.py /app/prefetch_models.py
-RUN python /app/prefetch_models.py indra && \
-    HF_HUB_OFFLINE=1 python /app/prefetch_models.py indra && \
+COPY --chmod=644 marker-plus-plus.manifest.json /app/
+ARG MARKER_INDRA_REVISION=bd02167fdf2005a19962cc15188f8496a2c87d3b
+ENV INDRA_OCR_MODEL_DIR=/opt/marker-cache/indra
+RUN env -u INDRA_OCR_MODEL_DIR python /app/prefetch_models.py indra "$MARKER_INDRA_REVISION" "$INDRA_OCR_MODEL_DIR" && \
+    HF_HUB_OFFLINE=1 python -c 'from indra_ocr.models import model_dir; model_dir(math=True)' && \
     chmod -R a+rX /opt/marker-cache
+LABEL ie.oghmanotes.indra.revision="$MARKER_INDRA_REVISION"
 
-COPY marker-plus-plus.manifest.json /app/
 ARG MARKER_PLUS_PLUS_COMMIT
 LABEL org.opencontainers.image.revision="$MARKER_PLUS_PLUS_COMMIT"
 
@@ -92,8 +95,14 @@ RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
       find "$cubin_package" -type d -name cubins -prune -exec rm -rf '{}' +; \
     fi
 
-RUN python /app/prefetch_models.py surya && \
-    HF_HUB_OFFLINE=1 python /app/prefetch_models.py surya
+ARG MARKER_SURYA_REPO=datalab-to/surya-ocr-2.5
+ARG MARKER_SURYA_REVISION=00c843e9cae45611dca0a6dc2c9bbbf2dadaaed3
+ENV SURYA_MODEL_CHECKPOINT=/opt/marker-cache/surya
+RUN python /app/prefetch_models.py surya "$MARKER_SURYA_REVISION" "$SURYA_MODEL_CHECKPOINT" && \
+    HF_HUB_OFFLINE=1 python /app/prefetch_models.py surya "$MARKER_SURYA_REVISION" "$SURYA_MODEL_CHECKPOINT" && \
+    chmod -R a+rX /opt/marker-cache
+LABEL ie.oghmanotes.surya.checkpoint="$MARKER_SURYA_REPO" \
+      ie.oghmanotes.surya.revision="$MARKER_SURYA_REVISION"
 ENV HF_HUB_OFFLINE=1 \
     TRANSFORMERS_OFFLINE=1
 
