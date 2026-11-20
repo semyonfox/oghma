@@ -58,7 +58,7 @@ def encode_images(images: dict[str, Any]) -> dict[str, str]:
 
 
 def conversion_mode(options: Mapping[str, Any], *, cpu_only: bool = False) -> str:
-    mode = str(options.get("mode", "fast" if cpu_only else "balanced"))
+    mode = str(options.get("mode", "fast" if cpu_only else "vllm"))
     if mode not in {"no_ocr", "fast", "balanced", "vllm"}:
         raise ValueError("mode must be no_ocr, fast, balanced or vllm")
     if cpu_only and mode in {"balanced", "vllm"}:

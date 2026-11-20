@@ -56,7 +56,6 @@ config = WorkerConfig(
                         "filename": "benchmark.pdf",
                         "options": {
                             "outputFormat": "markdown",
-                            "mode": "balanced",
                             "ocrFallbackPolicy": "auto",
                             "tableOcrPolicy": "auto",
                             "useLlm": False,

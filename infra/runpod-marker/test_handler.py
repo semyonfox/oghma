@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib.util
+import json
 import os
 import sys
 import types
@@ -29,6 +30,7 @@ def load_handler_module() -> types.ModuleType:
     fake_marker_models.shutdown_models = lambda _models: None
 
     fake_conversion = types.ModuleType("oghma_marker.conversion")
+    fake_conversion.conversion_mode = lambda _options: "vllm"
     fake_conversion.convert_file = lambda *_args: {}
 
     modules = {
@@ -57,6 +59,51 @@ class HandlerOptionsTest(unittest.TestCase):
         with patch.object(self.handler, "convert_file", return_value={"success": True}) as convert:
             self.assertEqual(self.handler.convert_job("/tmp/document.pdf", options), {"success": True})
         convert.assert_called_once_with(self.handler._MODELS, "/tmp/document.pdf", options)
+
+
+class CpuRouteTest(unittest.TestCase):
+    def check_route(self, flag: str, math_glyph_pages: int, *, use_cpu: bool) -> None:
+        payload = {
+            "requestId": REQUEST_ID,
+            "resultKey": f"marker-results/{REQUEST_ID}.json",
+            "sourceUrl": "https://objects.example/source",
+            "resultUrl": "https://objects.example/result",
+        }
+        completed = {"success": True, "requestId": payload["requestId"], "resultKey": payload["resultKey"]}
+        response = job.httpx.Response(
+            200, json=completed, request=job.httpx.Request("POST", "http://cpu-worker/marker/job")
+        )
+        classification = types.SimpleNamespace(
+            stdout=json.dumps({"suggested_route": "cpu", "math_glyph_pages": math_glyph_pages})
+        )
+        with (
+            patch.dict(os.environ, {"MARKER_CPU_ROUTE": flag, "MARKER_CPU_WORKER_URL": "http://cpu-worker"}),
+            patch.object(job.subprocess, "run", return_value=classification) as classify,
+            patch.object(job.httpx, "post", return_value=response) as post,
+        ):
+            result = job.route_to_cpu("/tmp/document.pdf", payload, {"mode": "vllm"})
+
+        if use_cpu:
+            self.assertEqual(result, completed)
+            self.assertEqual(post.call_args.args, ("http://cpu-worker/marker/job",))
+            self.assertEqual(
+                post.call_args.kwargs["json"],
+                {**payload, "filename": "document.pdf", "options": {"mode": "fast"}},
+            )
+        else:
+            self.assertIsNone(result)
+            post.assert_not_called()
+        if flag == "off":
+            classify.assert_not_called()
+
+    def test_cpu_recommendation_without_maths_uses_cpu(self) -> None:
+        self.check_route("on", 0, use_cpu=True)
+
+    def test_cpu_recommendation_with_maths_stays_on_gpu(self) -> None:
+        self.check_route("on", 1, use_cpu=False)
+
+    def test_flag_off_keeps_cpu_recommendation_on_gpu(self) -> None:
+        self.check_route("off", 0, use_cpu=False)
 
 
 class HandlerContractTest(unittest.TestCase):

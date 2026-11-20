@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
+import subprocess
 import urllib.request
 from pathlib import Path
 from typing import Any, Mapping
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
 from uuid import UUID
+
+import httpx
 
 
 def positive_int_env(name: str, fallback: int) -> int:
@@ -37,6 +41,39 @@ def bool_option(value: Any, fallback: bool = False) -> bool:
 def upload_suffix(filename: str | None) -> str:
     suffix = Path(filename or "document.pdf").suffix.lower()
     return suffix if suffix and len(suffix) <= 16 else ".pdf"
+
+
+def route_to_cpu(
+    path: str, payload: Mapping[str, Any], options: Mapping[str, Any]
+) -> dict[str, Any] | None:
+    if not bool_option(os.getenv("MARKER_CPU_ROUTE", "off")) or Path(path).suffix != ".pdf":
+        return None
+
+    classification = subprocess.run(
+        ["marker_classify", path], capture_output=True, check=True, timeout=120
+    )
+    document = json.loads(classification.stdout)
+    if document["suggested_route"] != "cpu" or document["math_glyph_pages"] != 0:
+        return None
+
+    endpoint = os.getenv("MARKER_CPU_WORKER_URL", "").strip().rstrip("/")
+    if not endpoint:
+        raise RuntimeError("MARKER_CPU_WORKER_URL is required for the CPU route")
+    request = {key: payload[key] for key in ("requestId", "resultKey", "sourceUrl", "resultUrl")}
+    request["filename"] = "document.pdf"
+    request["options"] = {**options, "mode": "no_ocr" if options.get("mode") == "no_ocr" else "fast"}
+    response = httpx.post(
+        f"{endpoint}/marker/job", json=request, timeout=600, trust_env=False,
+    )
+    response.raise_for_status()
+    result = response.json()
+    if (
+        result.get("success") is not True
+        or result.get("requestId") != request["requestId"]
+        or result.get("resultKey") != request["resultKey"]
+    ):
+        raise RuntimeError("CPU worker returned an invalid job result")
+    return result
 
 
 def allowed_object_hosts() -> set[str]:

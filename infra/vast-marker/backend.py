@@ -35,6 +35,7 @@ from oghma_marker.job import (
     build_result_envelope,
     download,
     positive_int_env,
+    route_to_cpu,
     safe_error,
     upload,
     upload_suffix,
@@ -341,6 +342,10 @@ async def marker_job(payload: dict[str, Any]) -> JSONResponse:
         sampler.start()
 
     try:
+        if not CPU_ONLY and not benchmark:
+            cpu_result = await asyncio.to_thread(route_to_cpu, path, payload, options)
+            if cpu_result is not None:
+                return JSONResponse(content=cpu_result)
         converted = await run_conversion(path, options)
         result = build_result_envelope(converted, request_id, result_key)
         result["profile"] = converted["profile"]

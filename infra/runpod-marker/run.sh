@@ -57,12 +57,13 @@ checkpoint=$(/opt/marker-venv/bin/python -c 'from surya.settings import settings
   --port "$SURYA_PORT" \
   --served-model-name "$checkpoint" \
   --dtype "${VLLM_DTYPE:-bfloat16}" \
-  --max-model-len 18000 \
+  --max-model-len 24576 \
   --max-num-seqs "${VLLM_MAX_NUM_SEQS:-32}" \
   --max-num-batched-tokens "${VLLM_MAX_BATCHED_TOKENS:-8192}" \
   --gpu-memory-utilization "${VLLM_GPU_MEMORY_UTILIZATION:-0.85}" \
   --enable-prefix-caching \
-  --mm-processor-kwargs '{"min_pixels":3136,"max_pixels":6291456}' &
+  --mm-processor-kwargs '{"min_pixels":3136,"max_pixels":6291456}' \
+  --no-enforce-eager &
 VLLM_PID=$!
 trap 'kill "$VLLM_PID" 2>/dev/null || true' EXIT
 

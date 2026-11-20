@@ -75,14 +75,18 @@ RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     /usr/local/bin/python -m venv /opt/vllm-venv && \
     if [ "$MARKER_CUDA_VARIANT" = "cu13" ]; then \
       /opt/vllm-venv/bin/python -m pip install --no-compile -c /tmp/constraints-vllm.txt \
-        'https://github.com/vllm-project/vllm/releases/download/v0.20.1/vllm-0.20.1-cp38-abi3-manylinux_2_35_x86_64.whl'; \
+        --extra-index-url https://download.pytorch.org/whl/cu130 \
+        'torchcodec==0.16.0+cu130' \
+        'https://github.com/vllm-project/vllm/releases/download/v0.25.1/vllm-0.25.1-cp38-abi3-manylinux_2_28_x86_64.whl'; \
     else \
       /opt/vllm-venv/bin/python -m pip install --no-compile -c /tmp/constraints-vllm.txt \
         --extra-index-url https://download.pytorch.org/whl/cu129 \
-        'https://github.com/vllm-project/vllm/releases/download/v0.20.1/vllm-0.20.1%2Bcu129-cp38-abi3-manylinux_2_31_x86_64.whl'; \
+        'torchcodec==0.16.0+cu129' \
+        'https://github.com/vllm-project/vllm/releases/download/v0.25.1/vllm-0.25.1%2Bcu129-cp38-abi3-manylinux_2_28_x86_64.whl'; \
     fi && \
     /opt/vllm-venv/bin/python -m pip check && \
-    /opt/vllm-venv/bin/python -c 'import os, torch, vllm; expected = "13.0" if os.environ["MARKER_CUDA_VARIANT"] == "cu13" else "12.9"; assert torch.version.cuda == expected, torch.version.cuda; assert vllm.__version__ == "0.20.1"; assert torch.__file__.startswith("/opt/vllm-venv/")' && \
+    /opt/vllm-venv/bin/python -c 'import vllm.entrypoints.cli.serve' && \
+    /opt/vllm-venv/bin/python -c 'import os, torch, vllm; expected = "13.0" if os.environ["MARKER_CUDA_VARIANT"] == "cu13" else "12.9"; assert torch.version.cuda == expected, torch.version.cuda; assert vllm.__version__.split("+", 1)[0] == "0.25.1"; assert torch.__file__.startswith("/opt/vllm-venv/")' && \
     cubin_package=/opt/vllm-venv/lib/python3.12/site-packages/flashinfer_cubin && \
     if [ "$MARKER_GPU_FAMILY" = "nonblackwell" ] && [ -d "$cubin_package" ]; then \
       find "$cubin_package" -type d -name cubins -prune -exec rm -rf '{}' +; \

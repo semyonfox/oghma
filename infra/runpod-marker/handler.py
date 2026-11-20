@@ -25,12 +25,13 @@ from typing import Any, Mapping
 import runpod
 from marker.models import create_model_dict, shutdown_models
 
-from oghma_marker.conversion import convert_file
+from oghma_marker.conversion import conversion_mode, convert_file
 from oghma_marker.job import (
     allowed_object_hosts,
     build_result_envelope,
     download,
     positive_int_env,
+    route_to_cpu,
     safe_error,
     upload,
     upload_suffix,
@@ -272,6 +273,11 @@ async def handler(job: dict[str, Any]) -> dict[str, Any]:
         download_started = time.monotonic()
         await asyncio.to_thread(download, source_url, path)
         download_ms = duration_millis(download_started)
+
+        conversion_mode(options)
+        cpu_result = await asyncio.to_thread(route_to_cpu, path, payload, options)
+        if cpu_result is not None:
+            return cpu_result
 
         if TELEMETRY_INTERVAL_SECONDS > 0:
             sampler = threading.Thread(target=sample_gpu, args=(stop, samples), daemon=True)
