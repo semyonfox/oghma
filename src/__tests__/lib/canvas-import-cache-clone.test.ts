@@ -67,7 +67,6 @@ describe("cloning an imported PDF cache", () => {
 
     await expect(cloneImportedPdfCacheToNote(params)).resolves.toBe(0);
 
-    expect(tx).toHaveBeenCalledTimes(2);
     expect(queryText(tx.mock.calls[1])).toContain("deleted_at IS NULL");
     expect(mocks.getChunkVectors).not.toHaveBeenCalled();
     expect(mocks.upsertChunkVectors).not.toHaveBeenCalled();

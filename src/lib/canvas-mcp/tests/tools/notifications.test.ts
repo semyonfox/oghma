@@ -13,31 +13,18 @@ function fakeCanvas(overrides: Partial<CanvasClient>): CanvasClient {
 }
 
 describe("notification tools", () => {
-    it("canvas_list_activity_stream calls collectPaginated", async () => {
+    it("canvas_list_activity_stream passes only_active_courses filter", async () => {
         const collect = vi.fn().mockResolvedValue([{ id: 1, type: "Announcement", title: "Welcome" }]);
         const tool = findTool("canvas_list_activity_stream");
         const result = await tool.handler(
-            {},
-            { canvas: fakeCanvas({ collectPaginated: collect }) },
-        );
-        expect(collect).toHaveBeenCalledWith(
-            "/api/v1/users/self/activity_stream",
-            expect.objectContaining({ per_page: 100 }),
-        );
-        expect(result.content[0].text).toContain("Welcome");
-    });
-
-    it("canvas_list_activity_stream passes only_active_courses filter", async () => {
-        const collect = vi.fn().mockResolvedValue([]);
-        const tool = findTool("canvas_list_activity_stream");
-        await tool.handler(
             { only_active_courses: true },
             { canvas: fakeCanvas({ collectPaginated: collect }) },
         );
         expect(collect).toHaveBeenCalledWith(
             "/api/v1/users/self/activity_stream",
-            expect.objectContaining({ only_active_courses: true }),
+            expect.objectContaining({ per_page: 100, only_active_courses: true }),
         );
+        expect(result.content[0].text).toContain("Welcome");
     });
 
     it("canvas_get_activity_stream_summary calls get for summary endpoint", async () => {

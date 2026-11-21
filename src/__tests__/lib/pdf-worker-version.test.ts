@@ -1,14 +1,31 @@
-import { readFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { expect, it } from "vitest";
 
-it("ships the PDF worker matching React-PDF's PDF.js dependency", () => {
+it("opens a PDF through the worker shipped with the app", async () => {
   const require = createRequire(import.meta.url);
   const pdfRequire = createRequire(require.resolve("react-pdf"));
-  const installed: { version: string } = JSON.parse(
-    readFileSync(pdfRequire.resolve("pdfjs-dist/package.json"), "utf8"),
+  const pdfModule = pathToFileURL(
+    pdfRequire.resolve("pdfjs-dist/legacy/build/pdf.mjs"),
+  ).href;
+  const { getDocument, GlobalWorkerOptions }: Pick<
+    typeof import("react-pdf").pdfjs,
+    "getDocument" | "GlobalWorkerOptions"
+  > = await import(/* @vite-ignore */ pdfModule);
+  const data = new Uint8Array(
+    await readFile("scripts/e2e/fixtures/sample-paper.pdf"),
   );
-  const worker = readFileSync(resolve("public/pdf.worker.js"), "utf8");
-  expect(worker).toContain(`pdfjsVersion = ${installed.version}`);
+
+  // pdf.js uses its in-process worker in node but still checks the worker version
+  GlobalWorkerOptions.workerSrc = pathToFileURL(
+    resolve("public/pdf.worker.js"),
+  ).href;
+  const task = getDocument({ data });
+  try {
+    expect((await task.promise).numPages).toBeGreaterThan(0);
+  } finally {
+    await task.destroy();
+  }
 });

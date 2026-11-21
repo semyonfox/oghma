@@ -15,7 +15,6 @@ vi.mock("@/database/pgsql", () => ({ default: mocks.sql }));
 import {
   extractionBundleTitle,
   findOrCreateExtractionBundle,
-  moveNoteToExtractionBundle,
 } from "@/lib/notes/extraction-bundle";
 
 function queryText(call: unknown[]): string {
@@ -85,60 +84,4 @@ describe("extraction bundles", () => {
     );
   });
 
-  it("reuses a source note's existing matching parent folder", async () => {
-    mocks.tx
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        {
-          parent_id: "bundle-1",
-          parent_title: "Lecture 03",
-          parent_is_folder: true,
-        },
-      ]);
-
-    await expect(
-      moveNoteToExtractionBundle("user-1", "pdf-note-1", "Lecture 03.pdf"),
-    ).resolves.toBe("bundle-1");
-
-    expect(
-      mocks.tx.mock.calls.some((call: unknown[]) =>
-        queryText(call).includes("INSERT INTO app.notes"),
-      ),
-    ).toBe(false);
-    expect(
-      mocks.tx.mock.calls.some((call: unknown[]) =>
-        queryText(call).includes("UPDATE app.tree_items"),
-      ),
-    ).toBe(false);
-  });
-
-  it("creates a bundle and reparents a standalone uploaded PDF", async () => {
-    mocks.tx
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        {
-          parent_id: null,
-          parent_title: null,
-          parent_is_folder: null,
-        },
-      ])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([createdFolderRow()])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([]);
-
-    const bundleId = await moveNoteToExtractionBundle(
-      "user-1",
-      "pdf-note-1",
-      "Lecture 03.pdf",
-    );
-
-    expect(bundleId).toMatch(/^[0-9a-f-]{36}$/i);
-    // PostgreSQL cannot lock the nullable parent side of this outer join.
-    expect(queryText(mocks.tx.mock.calls[1])).toContain("FOR UPDATE OF t");
-    expect(queryText(mocks.tx.mock.calls[6])).toContain(
-      "UPDATE app.tree_items",
-    );
-  });
 });

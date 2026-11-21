@@ -193,30 +193,17 @@ describe("submission tools", () => {
         expect(result.content[0].text).toContain("Well done!");
     });
 
-    it("canvas_list_section_submissions calls collectPaginated on section submissions endpoint", async () => {
+    it("canvas_list_section_submissions filters by assignment_ids and workflow_state", async () => {
         const collect = vi.fn().mockResolvedValue([{ id: 801, user_id: 42, workflow_state: "graded" }]);
         const tool = findTool("canvas_list_section_submissions");
         const result = await tool.handler(
-            { section_id: 99 },
-            { canvas: fakeCanvas({ collectPaginated: collect }) },
-        );
-        expect(collect).toHaveBeenCalledWith(
-            "/api/v1/sections/99/students/submissions",
-            expect.objectContaining({ per_page: 100 }),
-        );
-        expect(result.content[0].text).toContain("graded");
-    });
-
-    it("canvas_list_section_submissions filters by assignment_ids and workflow_state", async () => {
-        const collect = vi.fn().mockResolvedValue([]);
-        const tool = findTool("canvas_list_section_submissions");
-        await tool.handler(
             { section_id: 99, assignment_ids: [10, 11], workflow_state: "submitted" },
             { canvas: fakeCanvas({ collectPaginated: collect }) },
         );
         expect(collect).toHaveBeenCalledWith(
             "/api/v1/sections/99/students/submissions",
-            expect.objectContaining({ assignment_ids: [10, 11], workflow_state: "submitted" }),
+            expect.objectContaining({ per_page: 100, assignment_ids: [10, 11], workflow_state: "submitted" }),
         );
+        expect(result.content[0].text).toContain("graded");
     });
 });

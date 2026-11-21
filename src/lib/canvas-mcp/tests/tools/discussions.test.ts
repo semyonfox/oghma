@@ -13,24 +13,10 @@ function fakeCanvas(overrides: Partial<CanvasClient>): CanvasClient {
 }
 
 describe("discussion tools", () => {
-    it("canvas_list_discussion_topics calls collectPaginated for a course", async () => {
+    it("canvas_list_discussion_topics passes optional filters", async () => {
         const collect = vi.fn().mockResolvedValue([{ id: 1, title: "Week 1 Discussion" }]);
         const tool = findTool("canvas_list_discussion_topics");
         const result = await tool.handler(
-            { course_id: 10 },
-            { canvas: fakeCanvas({ collectPaginated: collect }) },
-        );
-        expect(collect).toHaveBeenCalledWith(
-            "/api/v1/courses/10/discussion_topics",
-            expect.objectContaining({ per_page: 100 }),
-        );
-        expect(result.content[0].text).toContain("Week 1 Discussion");
-    });
-
-    it("canvas_list_discussion_topics passes optional filters", async () => {
-        const collect = vi.fn().mockResolvedValue([]);
-        const tool = findTool("canvas_list_discussion_topics");
-        await tool.handler(
             { course_id: 10, search_term: "ethics", include: ["sections"] },
             { canvas: fakeCanvas({ collectPaginated: collect }) },
         );
@@ -42,6 +28,7 @@ describe("discussion tools", () => {
                 include: ["sections"],
             }),
         );
+        expect(result.content[0].text).toContain("Week 1 Discussion");
     });
 
     it("canvas_get_discussion_topic calls get for a topic", async () => {

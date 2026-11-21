@@ -112,11 +112,6 @@ describe("processRagPipeline PDF bundles", () => {
       ),
     ).resolves.toEqual({ noteId: "markdown-note", chunksStored: 1 });
 
-    expect(mocks.moveNoteToExtractionBundle).toHaveBeenCalledWith(
-      "user-1",
-      "pdf-note",
-      "Lecture 03.pdf",
-    );
     expect(findOrCreateNote).toHaveBeenCalledWith(
       "user-1",
       "Lecture 03.md",

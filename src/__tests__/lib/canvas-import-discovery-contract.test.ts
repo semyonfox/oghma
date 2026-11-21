@@ -175,11 +175,10 @@ describe("Trash during nested module discovery", () => {
       return { data: [], forbidden: false } as never;
     });
     await expect(processDiscoverJob("11111111-1111-4111-8111-111111111111")).resolves.toBe(true);
-    expect(findOrCreateFolder).toHaveBeenCalledWith(expect.any(String), expect.any(String), null, expect.objectContaining({ canvasCourseId: "56274" }));
     expect(findOrCreateFolder).toHaveBeenCalledWith(expect.any(String), "Week two", "active-course", expect.objectContaining({ canvasModuleId: "2", canvasModulePosition: 2 }));
     const inserts = vi.mocked(sql).mock.calls.filter(([parts]) => Array.from(parts).join("").includes("INSERT INTO app.canvas_imports"));
     expect(inserts).toHaveLength(2);
-    expect(dispatchFairCanvasFiles).toHaveBeenCalled();
+    // files start dispatching while discovery is still walking modules
     const transitionIndex = vi.mocked(sql).mock.calls.findIndex(([parts]) =>
       Array.from(parts).join("").includes("SET status = 'processing', expected_total"));
     expect(transitionIndex).toBeGreaterThan(-1);
@@ -233,8 +232,6 @@ describe("partial Canvas discovery", () => {
     expect(inserts.filter((call) => call.includes("error"))).toHaveLength(3);
     expect(inserts.some((call) => call.includes("Missing.pdf") && call.includes("9"))).toBe(true);
     expect(inserts.some((call) => call.includes("Keep.pdf") && call.includes("pending"))).toBe(true);
-    expect(canvas.getAssignments).toHaveBeenCalledWith("42");
-    expect(canvas.getCourseFiles).toHaveBeenCalledWith("43");
     expect(dispatchFairCanvasFiles).toHaveBeenCalled();
     expect(checkAndCompleteJob).toHaveBeenCalledWith(jobId, userId);
     expect(vi.mocked(sql).mock.calls.some(([parts]) => Array.from(parts).join("").includes("Parent discovery failed"))).toBe(false);
@@ -247,7 +244,6 @@ describe("partial Canvas discovery", () => {
 
     await expect(processDiscoverJob(jobId)).resolves.toBe(true);
     expect(checkAndCompleteJob).toHaveBeenCalledWith(jobId, userId);
-    expect(canvas.getCourseFiles).toHaveBeenCalledTimes(2);
     expect(vi.mocked(sql).mock.calls.filter(([parts]) => Array.from(parts).join("").includes("INSERT INTO app.canvas_imports"))).toHaveLength(6);
   });
 
@@ -271,9 +267,16 @@ describe("partial Canvas discovery", () => {
       : { data: { id: "10", display_name: "Keep.pdf", content_type: "application/pdf" }, forbidden: false });
     await expect(processDiscoverJob(jobId)).resolves.toBe(true);
     const inserts = vi.mocked(sql).mock.calls.filter(([parts]) => Array.from(parts).join("").includes("INSERT INTO app.canvas_imports"));
-    expect(inserts.some((call) => call.includes("File 9") && call.includes("error"))).toBe(true);
-    expect(inserts.some((call) => call.includes("Keep.pdf") && call.includes("pending"))).toBe(true);
+    expect(inserts).toHaveLength(2);
+    expect(inserts).toContainEqual(expect.arrayContaining(["9", "File 9", "error"]));
+    expect(inserts).toContainEqual(expect.arrayContaining([
+      "10", "Keep.pdf", "pending", `canvas/${userId}/42/assignments/7`,
+    ]));
+    expect(canvas.getAssignment).toHaveBeenCalledWith("42", "7");
+    expect(canvas.getFile).toHaveBeenCalledWith("42", "10");
     expect(canvas.getModules).not.toHaveBeenCalled();
+    expect(canvas.getAssignments).not.toHaveBeenCalled();
+    expect(canvas.getCourseFiles).not.toHaveBeenCalled();
   });
 
   it("keeps an expired connection as a parent failure instead of reporting successful discovery", async () => {

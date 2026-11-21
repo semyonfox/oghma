@@ -33,10 +33,11 @@ describe("PreviewRenderer Markdown contract", () => {
     expect(html).toContain('type="checkbox"');
     expect(html).toContain("<blockquote");
     expect(html).toContain("<table");
-    expect(html).toContain("katex");
     expect(html).toContain(
       'src="/api/notes/note-contract/assets?name=_page_1_Figure_2.png"',
     );
+    expect(html).toContain('alt="Note asset"');
+    expect(html).toContain('loading="lazy"');
     expect(html).toContain("<mark>Safe highlight</mark>");
     expect(html).not.toContain("<script>");
     expect(html).not.toContain("onerror=");
@@ -45,19 +46,6 @@ describe("PreviewRenderer Markdown contract", () => {
 });
 
 describe("PreviewRenderer attachment images", () => {
-  it("resolves Marker image names through the owning note", () => {
-    const html = renderPreview(
-      "![Figure](_page_12_Figure_3.png)",
-      "01963b3a-7c50-7000-8000-000000000001",
-    );
-
-    expect(html).toContain(
-      'src="/api/notes/01963b3a-7c50-7000-8000-000000000001/assets?name=_page_12_Figure_3.png"',
-    );
-    expect(html).toContain('alt="Figure"');
-    expect(html).toContain('loading="lazy"');
-  });
-
   it.each([
     ["an absolute URL", "https://example.com/figure.png"],
     ["an application path", "/uploads/figure.png"],

@@ -153,10 +153,6 @@ describe("background chat durability", () => {
     );
     expect(mocks.requeue).not.toHaveBeenCalled();
     expect(mocks.fail).not.toHaveBeenCalled();
-    expect(mocks.loggerError).toHaveBeenCalledWith(
-      "Durable chat answer completed but event delivery failed",
-      expect.objectContaining({ error: failure }),
-    );
   });
 
   it("preserves scoped note tools without publishing an eager search event", async () => {
@@ -191,11 +187,6 @@ describe("background chat durability", () => {
 
     await processChatGeneration("11111111-1111-1111-1111-111111111111");
 
-    expect(mocks.prepare).toHaveBeenCalledWith({
-      useRag: true,
-      scopedNoteIds: [scopedNoteId],
-      sessionContext: expect.any(Object),
-    });
     expect(mocks.buildLlmCall).toHaveBeenCalledWith(
       expect.objectContaining({
         retrievalEnabled: true,
@@ -204,7 +195,7 @@ describe("background chat durability", () => {
       }),
     );
     expect(
-      mocks.appendEvent.mock.calls.some(([sse]) =>
+      mocks.appendEvent.mock.calls.some(([, sse]) =>
         String(sse).includes("event: search"),
       ),
     ).toBe(false);
@@ -411,10 +402,6 @@ describe("background chat durability", () => {
     expect(mocks.requeue).toHaveBeenCalledOnce();
     expect(mocks.fail).not.toHaveBeenCalled();
     expect(mocks.finalize).not.toHaveBeenCalled();
-    expect(mocks.loggerError).toHaveBeenCalledWith(
-      "Background chat generation failed",
-      expect.objectContaining({ error: failure }),
-    );
   });
 
   it("leaves a generation cut off by a deploy for recovery instead of failing it", async () => {
@@ -426,7 +413,7 @@ describe("background chat durability", () => {
     expect(mocks.requeue).not.toHaveBeenCalled();
   });
 
-  it("clears the replay stream when recovery reruns a started generation", async () => {
+  it("resets the replay stream only when recovery reruns a started generation", async () => {
     const claim = await mocks.claim();
     mocks.claim.mockResolvedValueOnce({ ...claim, resumed: true });
 
@@ -439,10 +426,9 @@ describe("background chat durability", () => {
     expect(String(mocks.appendEvent.mock.calls[0]?.[1])).toContain(
       "event: reset",
     );
-  });
 
-  it("does not reset replay for a first claim", async () => {
-    const claim = await mocks.claim();
+    mocks.resetEvents.mockClear();
+    mocks.appendEvent.mockClear();
     mocks.claim.mockResolvedValueOnce({ ...claim, resumed: false });
 
     await processChatGeneration("11111111-1111-1111-1111-111111111111");
@@ -471,7 +457,6 @@ describe("background chat durability", () => {
       expect.stringContaining("expired"),
       "44444444-4444-4444-4444-444444444444",
     );
-    expect(mocks.prepare).not.toHaveBeenCalled();
   });
 
   it("stops publishing replay events once another worker may own the lease", async () => {

@@ -7,6 +7,7 @@ import {
 } from "@/lib/notes/draft-cache";
 
 const cache = vi.hoisted(() => new Map<string, NoteDraft>());
+const beforeDraftWrite = vi.hoisted(() => vi.fn<() => Promise<void>>());
 
 vi.mock("@/lib/notes/cache", () => ({
   uiCache: {
@@ -29,7 +30,11 @@ vi.mock("@/lib/notes/cache", () => ({
       return { ...other };
     },
     setItem: async (key: string, draft: NoteDraft) => {
+      await beforeDraftWrite();
       cache.set(key, { ...draft });
+    },
+    removeItem: async (key: string) => {
+      cache.delete(key);
     },
     removeItemIf: async (
       key: string,
@@ -55,6 +60,7 @@ const noteId = "draft-test-note";
 describe("pane draft recovery", () => {
   beforeEach(() => {
     cache.clear();
+    beforeDraftWrite.mockReset();
   });
 
   afterEach(() => {
@@ -198,4 +204,30 @@ describe("pane draft recovery", () => {
     await clearDraft(noteId, rewrittenDraft, "A");
     expect(await readDraft(noteId, "A")).toBeNull();
   });
+
+  it.each([false, true])(
+    "orders a pending draft write before a clear, with a subsequent edit=%s",
+    async (editAgain) => {
+      const writingStarted = Promise.withResolvers<void>();
+      const releaseWrite = Promise.withResolvers<void>();
+      beforeDraftWrite.mockImplementationOnce(() => {
+        writingStarted.resolve();
+        return releaseWrite.promise;
+      });
+
+      const writing = writeDraft(noteId, "Saved text");
+      await writingStarted.promise;
+      const clearing = clearDraft(noteId);
+      const editing = editAgain ? writeDraft(noteId, "New edit") : undefined;
+      releaseWrite.resolve();
+      const [, , newestDraft] = await Promise.all([writing, clearing, editing]);
+
+      if (editAgain) {
+        expect(newestDraft).toMatchObject({ content: "New edit" });
+        expect(await readDraft(noteId)).toEqual(newestDraft);
+      } else {
+        expect(await readDraft(noteId)).toBeNull();
+      }
+    },
+  );
 });

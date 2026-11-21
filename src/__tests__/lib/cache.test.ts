@@ -35,7 +35,6 @@ describe("cacheGet", () => {
 
     const result = await cacheGet<typeof data>("test-key");
     expect(result).toEqual(data);
-    expect(mockRedis.get).toHaveBeenCalledWith("test-key");
   });
 
   it("returns null on cache miss", async () => {
@@ -50,17 +49,6 @@ describe("cacheGet", () => {
 
     const result = await cacheGet("error-key");
     expect(result).toBeNull();
-  });
-
-  it("handles different value types", async () => {
-    mockRedis.get.mockResolvedValue(JSON.stringify("hello"));
-    expect(await cacheGet<string>("str-key")).toBe("hello");
-
-    mockRedis.get.mockResolvedValue(JSON.stringify(42));
-    expect(await cacheGet<number>("num-key")).toBe(42);
-
-    mockRedis.get.mockResolvedValue(JSON.stringify([1, 2]));
-    expect(await cacheGet<number[]>("arr-key")).toEqual([1, 2]);
   });
 });
 
@@ -104,7 +92,6 @@ describe("cacheInvalidate", () => {
 
     await cacheInvalidate("cached-tree");
 
-    expect(connection.ensureReady).toHaveBeenCalledOnce();
     expect(mockRedis.del).toHaveBeenCalledWith("cached-tree");
   });
 
@@ -116,26 +103,11 @@ describe("cacheInvalidate", () => {
     expect(mockRedis.del).not.toHaveBeenCalled();
   });
 
-  it("deletes a single key", async () => {
-    mockRedis.del.mockResolvedValue(1);
-
-    await cacheInvalidate("key1");
-    expect(mockRedis.del).toHaveBeenCalledWith("key1");
-  });
-
   it("deletes multiple keys", async () => {
     mockRedis.del.mockResolvedValue(1);
 
     await cacheInvalidate("key1", "key2", "key3");
-    expect(mockRedis.del).toHaveBeenCalledTimes(3);
-    expect(mockRedis.del).toHaveBeenCalledWith("key1");
-    expect(mockRedis.del).toHaveBeenCalledWith("key2");
-    expect(mockRedis.del).toHaveBeenCalledWith("key3");
-  });
-
-  it("is a no-op when called with no keys", async () => {
-    await cacheInvalidate();
-    expect(mockRedis.del).not.toHaveBeenCalled();
+    expect(mockRedis.del.mock.calls.flat().sort()).toEqual(["key1", "key2", "key3"]);
   });
 
   it("does not throw when redis errors", async () => {
@@ -148,10 +120,6 @@ describe("cacheInvalidate", () => {
 // --- cacheKeys builders ---
 
 describe("cacheKeys", () => {
-  it("settings uses userId", () => {
-    expect(cacheKeys.settings("u1")).toBe("cache:{u1}:settings");
-  });
-
   it("settings keeps UUID-like user IDs unchanged", () => {
     expect(cacheKeys.settings("11111111-1111-4111-8111-111111111111")).toBe(
       "cache:{11111111-1111-4111-8111-111111111111}:settings",

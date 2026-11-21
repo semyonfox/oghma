@@ -28,12 +28,8 @@ function progress(overrides: Partial<ClassificationProgress> = {}): Classificati
 }
 
 describe("smoothedGapMs", () => {
-  it("weights the latest gap at 0.3 against the previous average", () => {
-    // gaps of 10s, 20s, 40s: 10 -> 0.3*20+0.7*10 = 13 -> 0.3*40+0.7*13 = 21.1
-    expect(smoothedGapMs([at(0), at(10), at(30), at(70)])).toBeCloseTo(21_100);
-  });
-
-  it("orders completions by time whatever order they arrive in", () => {
+  it("sorts unsorted completions before weighting recent gaps", () => {
+    // 10s, 20s and 40s gaps, each new gap weighted at 0.3
     expect(smoothedGapMs([at(70), at(0), at(30), at(10)])).toBeCloseTo(21_100);
   });
 
@@ -74,11 +70,7 @@ describe("stabiliseEta", () => {
 
   it("ignores a rise that a second poll doesn't confirm", () => {
     const first = stabiliseEta({ shownMs: 300_000, riseSeen: false }, 400_000);
-    expect(stabiliseEta(first, 320_000)).toEqual({ shownMs: 300_000, riseSeen: false });
-  });
-
-  it("ignores small rises entirely", () => {
-    expect(stabiliseEta({ shownMs: 300_000, riseSeen: true }, 360_000)).toEqual({
+    expect(stabiliseEta(first, 360_000)).toEqual({
       shownMs: 300_000,
       riseSeen: false,
     });

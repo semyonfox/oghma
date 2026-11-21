@@ -1,59 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-type TestRouteHandler = (
-  request: NextRequest,
-  context: unknown,
-) => Promise<Response>;
-
 const mocks = vi.hoisted(() => {
-  class ApiError extends Error {
-    constructor(
-      public statusCode: number,
-      public userMessage: string,
-    ) {
-      super(userMessage);
-    }
-  }
   class TreeCycleError extends Error {}
   class TreeParentError extends Error {}
   class TreeItemUnavailableError extends Error {}
   class TreeMoveConflictError extends Error {}
 
   return {
-    ApiError,
     TreeCycleError,
     TreeParentError,
     TreeItemUnavailableError,
     TreeMoveConflictError,
     moveNoteInTree: vi.fn(),
-    parseJsonObject: vi.fn((request: Request) => request.json()),
-    requireAuth: vi.fn(),
-    requireValidId: vi.fn((value: string) => value),
+    validateSession: vi.fn(),
     updateTreeItem: vi.fn(),
   };
 });
 
-vi.mock("@/lib/api-error", () => ({
-  ApiError: mocks.ApiError,
-  parseJsonObject: mocks.parseJsonObject,
-  requireAuth: mocks.requireAuth,
-  requireValidId: mocks.requireValidId,
-  withErrorHandler:
-    (handler: TestRouteHandler) =>
-    async (request: NextRequest, context?: unknown) => {
-      try {
-        return await handler(request, context);
-      } catch (error) {
-        if (error instanceof mocks.ApiError) {
-          return Response.json(
-            { error: error.userMessage },
-            { status: error.statusCode },
-          );
-        }
-        throw error;
-      }
-    },
+vi.mock("@/lib/auth/session", () => ({
+  validateSession: mocks.validateSession,
+  validateSessionLite: vi.fn(),
 }));
 vi.mock("@/lib/notes/storage/pg-tree", () => ({
   moveNoteInTree: mocks.moveNoteInTree,
@@ -65,7 +32,6 @@ vi.mock("@/lib/notes/storage/pg-tree", () => ({
 }));
 
 import { POST } from "@/app/api/tree/route";
-import { parseTreeMutation } from "@/lib/notes/tree-mutation";
 
 const USER_ID = "11111111-1111-1111-1111-111111111111";
 const NOTE_ID = "22222222-2222-2222-2222-222222222222";
@@ -82,7 +48,7 @@ function post(body: unknown) {
 describe("tree mutation boundary", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.requireAuth.mockResolvedValue({ user_id: USER_ID });
+    mocks.validateSession.mockResolvedValue({ user_id: USER_ID });
   });
 
   it.each([
@@ -93,14 +59,12 @@ describe("tree mutation boundary", () => {
       action: "move",
       data: { noteId: NOTE_ID, expectedParentId: null, parentId: 1 },
     },
-  ])("rejects malformed mutations before storage work", (body) => {
-    try {
-      parseTreeMutation(body);
-      throw new Error("Expected tree mutation parsing to fail");
-    } catch (error) {
-      expect(error).toBeInstanceOf(mocks.ApiError);
-      expect(error).toMatchObject({ statusCode: 400 });
-    }
+  ])("rejects malformed mutations before storage work", async (body) => {
+    const response = await POST(post(body));
+
+    expect(response.status).toBe(400);
+    expect(mocks.updateTreeItem).not.toHaveBeenCalled();
+    expect(mocks.moveNoteInTree).not.toHaveBeenCalled();
   });
 
   it("persists expansion state", async () => {

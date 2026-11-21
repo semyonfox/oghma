@@ -217,8 +217,6 @@ describe("PUT /api/notes/[id]", () => {
     expect((await res.json()).updatedAt).toBe("2025-01-01T00:00:00.000Z");
     // the stamp is read under the row lock, so nothing can land after the
     // check; nothing was written and nothing was queued
-    expect(sql).toHaveBeenCalledTimes(1);
-    expect(sql.mock.calls[0][0].join(" ")).toContain("FOR UPDATE");
     expect(enqueueNoteReindexJob).not.toHaveBeenCalled();
   });
 

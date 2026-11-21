@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { useState } from "react";
 import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -60,13 +61,35 @@ const setWidth = (width: number) => {
 beforeEach(() => setWidth(390));
 afterEach(cleanup);
 
+function ClosablePanel({ panel }: { panel: (onClose: () => void) => ReactElement }) {
+  const [open, setOpen] = useState(true);
+  return open ? panel(() => setOpen(false)) : null;
+}
+
+function ClosableSheet() {
+  const [open, setOpen] = useState(true);
+  return (
+    <MobileSheet open={open} onClose={() => setOpen(false)} title="More">
+      <button type="button">Settings</button>
+    </MobileSheet>
+  );
+}
+
+it("exposes a named mobile sheet and closes it from its close control", async () => {
+  render(<ClosableSheet />);
+
+  const sheet = screen.getByRole("dialog", { name: "More" });
+  expect(within(sheet).getByRole("button", { name: "Settings" })).toBeTruthy();
+  fireEvent.click(within(sheet).getByRole("button", { name: "Close" }));
+  await waitFor(() => expect(screen.queryByRole("dialog", { name: "More" })).toBeNull());
+});
+
 describe("swipe-to-dismiss wiring", () => {
   it.each(panels)("closes the %s", (_name, renderPanel, dx, dy) => {
-    const close = vi.fn();
-    render(renderPanel(close));
+    render(<ClosablePanel panel={renderPanel} />);
     const [title] = within(screen.getByRole("dialog")).getAllByRole("heading");
     swipe(title, dx, dy);
-    expect(close).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it.each([
@@ -74,12 +97,11 @@ describe("swipe-to-dismiss wiring", () => {
     ["right", 90],
   ] as const)("keeps the %s side drawer swiping sideways on tablets", (side, dx) => {
     setWidth(800);
-    const close = vi.fn();
-    render(<MobileDrawer open side={side} onClose={close} title="History"><p>Body</p></MobileDrawer>);
+    render(<ClosablePanel panel={(onClose) => <MobileDrawer open side={side} onClose={onClose} title="History"><p>Body</p></MobileDrawer>} />);
     const [title] = within(screen.getByRole("dialog")).getAllByRole("heading");
     swipe(title, 0, 90);
-    expect(close).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeTruthy();
     swipe(title, dx, 0);
-    expect(close).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });
