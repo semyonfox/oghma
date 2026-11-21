@@ -74,20 +74,6 @@ describe("RunPod Marker webhook", () => {
     expect(serializedSqlValues).toContain("conversionMs");
   });
 
-  it("does not queue a duplicate terminal callback after completion is durable", async () => {
-    mocks.sql
-      .mockResolvedValueOnce([{ ...markerJob, status: "completed" }])
-      .mockResolvedValueOnce([]);
-
-    const response = await POST(
-      webhook({ id: "runpod_job_123", status: "COMPLETED" }),
-      { params: Promise.resolve({ token: "webhook-token", callbackId }) },
-    );
-
-    expect(response.status).toBe(200);
-    expect(mocks.enqueueMarkerCompletionJob).not.toHaveBeenCalled();
-  });
-
   it("rejects a callback that does not match the durable RunPod job", async () => {
     mocks.sql.mockResolvedValueOnce([markerJob]);
 
@@ -137,7 +123,7 @@ describe("RunPod Marker webhook", () => {
       return row;
     }
 
-    it.each(["completing", "completion_queued", "completion_enqueue_failed"])(
+    it.each(["completed", "completing", "completion_queued", "completion_enqueue_failed"])(
       "does not requeue a completion that is already %s",
       async (status) => {
         const row = useRow(status);

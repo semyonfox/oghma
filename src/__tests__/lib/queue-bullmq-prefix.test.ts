@@ -26,6 +26,16 @@ vi.mock("ioredis", () => ({
   default: redisConstructor,
 }));
 
+const message = {
+  noteId: "00000000-0000-4000-8000-000000000001",
+  userId: "00000000-0000-4000-8000-000000000002",
+  s3Key: "uploads/lecture.pdf",
+  filename: "lecture.pdf",
+  mimeType: "application/pdf",
+  parentFolderId: null,
+  attempt: 0,
+};
+
 describe("BullMQ queue prefixing", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -35,21 +45,37 @@ describe("BullMQ queue prefixing", () => {
     redisConstructor.mockClear();
   });
 
-  it("puts delayed extraction retries on the shared Canvas queue", async () => {
+  it.each([
+    [0, 30],
+    [1, 120],
+    [2, 480],
+    [3, 900],
+    [99, 900],
+  ])("publishes attempt %i on the Canvas queue with a %i second delay", async (attempt, delay) => {
     vi.stubEnv("QUEUE_PREFIX", "oghma-dev");
 
-    const { enqueueExtractRetryJob } = await import("@/lib/queue");
-    await enqueueExtractRetryJob({ noteId: "note-1" }, 120);
+    const { enqueueExtractionRetry } = await import("@/lib/canvas/extraction-retry");
+    await expect(
+      enqueueExtractionRetry({ ...message, attempt }),
+    ).resolves.toEqual({ delaySeconds: delay });
 
-    expect(queueConstructor).toHaveBeenCalledTimes(1);
-    expect(queueConstructor).toHaveBeenCalledWith(
+    expect(queueConstructor).toHaveBeenCalledExactlyOnceWith(
       "oghma-dev-canvas-import",
       expect.objectContaining({ connection: expect.anything() }),
     );
-    expect(queueAdd).toHaveBeenCalledWith(
+    expect(queueAdd).toHaveBeenCalledExactlyOnceWith(
       "extract-retry",
-      { type: "extract-retry", noteId: "note-1" },
-      expect.objectContaining({ delay: 120_000 }),
+      { type: "extract-retry", ...message, attempt: attempt + 1 },
+      expect.objectContaining({ delay: delay * 1000 }),
+    );
+  });
+
+  it("propagates extraction retry publication failures", async () => {
+    queueAdd.mockRejectedValueOnce(new Error("queue unavailable"));
+    const { enqueueExtractionRetry } = await import("@/lib/canvas/extraction-retry");
+
+    await expect(enqueueExtractionRetry(message)).rejects.toThrow(
+      "queue unavailable",
     );
   });
 

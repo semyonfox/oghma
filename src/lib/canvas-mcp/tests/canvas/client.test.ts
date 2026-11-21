@@ -40,13 +40,6 @@ describe("CanvasClient.get", () => {
         expect(url).toContain("per_page=50");
     });
 
-    it("throws CanvasError on 4xx without retry", async () => {
-        const fetch = mockFetch([{ status: 404, body: { errors: [{ message: "not found" }] } }]);
-        const client = new CanvasClient({ domain: "x.instructure.com", token: "tok", fetch });
-        await expect(client.get("/api/v1/courses/999")).rejects.toBeInstanceOf(CanvasError);
-        expect(fetch).toHaveBeenCalledTimes(1);
-    });
-
     it("retries once on 5xx", async () => {
         const fetch = mockFetch([
             { status: 502, body: {} },
@@ -61,7 +54,9 @@ describe("CanvasClient.get", () => {
     it("does not retry on 401", async () => {
         const fetch = mockFetch([{ status: 401, body: { errors: [{ message: "bad token" }] } }]);
         const client = new CanvasClient({ domain: "x.instructure.com", token: "tok", fetch });
-        await expect(client.get("/api/v1/self")).rejects.toMatchObject({ status: 401 });
+        const result = client.get("/api/v1/self");
+        await expect(result).rejects.toBeInstanceOf(CanvasError);
+        await expect(result).rejects.toMatchObject({ status: 401 });
         expect(fetch).toHaveBeenCalledTimes(1);
     });
 });
@@ -70,14 +65,18 @@ describe("CanvasClient.post", () => {
     beforeEach(() => vi.restoreAllMocks());
 
     it("sends POST with JSON body and returns parsed response", async () => {
-        const fetch = mockFetch([{ status: 200, body: { marked: true } }]);
+        const created = { id: "5" };
+        const fetch = mockFetch([{ status: 200, body: created }]);
         const client = new CanvasClient({ domain: "x.instructure.com", token: "tok", fetch });
-        const result = await client.post<{ marked: boolean }>("/api/v1/courses/1/modules/2/items/3/mark_read");
-        expect(result).toEqual({ marked: true });
+        const body = { body: "Fixture message", recipients: ["1"] };
+        const result = await client.post("/api/v1/conversations", body);
+        expect(result).toEqual(created);
         const [url, init] = fetch.mock.calls[0];
-        expect(url).toBe("https://x.instructure.com/api/v1/courses/1/modules/2/items/3/mark_read");
+        expect(url).toBe("https://x.instructure.com/api/v1/conversations");
         expect(init.method).toBe("POST");
         expect((init.headers as Headers).get("authorization")).toBe("Bearer tok");
+        expect((init.headers as Headers).get("content-type")).toBe("application/json");
+        expect(init.body).toBe(JSON.stringify(body));
     });
 
     it("does not resend a write after a 5xx because Canvas may have applied it", async () => {

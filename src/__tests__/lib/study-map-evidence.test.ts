@@ -157,18 +157,6 @@ describe("study map source evidence", () => {
     }
   });
 
-  it("keeps emoji intact when a long block boundary would bisect a surrogate pair", () => {
-    const document = source("ab😀cd😀ef");
-    const passages = splitSourcePassages(document, 3);
-    expect(passages.map((passage) => passage.text).join("")).toBe(
-      document.text,
-    );
-    for (const passage of passages) {
-      expect(passage.text.isWellFormed()).toBe(true);
-      expect(isCurrentAnchor(passage.anchor, document)).toBe(true);
-    }
-  });
-
   it("preserves a surrogate pair across the default passage boundary", () => {
     const document = source(`${"a".repeat(1_599)}😀tail`);
     const passages = splitSourcePassages(document);

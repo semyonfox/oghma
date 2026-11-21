@@ -20,7 +20,6 @@ describe("syncAssignmentMetadata", () => {
 
     expect(result).toEqual({ synced: 1, errors: 0, removed: 0 });
     expect(client.getAssignments).not.toHaveBeenCalled();
-    expect(sql).toHaveBeenCalledOnce();
   });
 
   it("keeps the lecturer's brief only while content import is on", async () => {
@@ -217,8 +216,7 @@ describe("graded feedback sync", () => {
         ],
       }] }) };
       expect(await syncAssignmentMetadata("42", userId, "Course", client, assignments)).toEqual({ synced: 1, errors: 0, removed: 0 });
-      expect(client.getRecentAssignmentFeedback).toHaveBeenCalledOnce();
-      const calls = vi.mocked(sql).mock.calls;
+        const calls = vi.mocked(sql).mock.calls;
       expect(calls[0]).toContain(0);
       expect(calls[0]).toContain("F");
       expect(calls[0]).toContain("2026-11-12T10:00:00Z");

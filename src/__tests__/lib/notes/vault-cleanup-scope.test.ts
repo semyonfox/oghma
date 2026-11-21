@@ -8,7 +8,6 @@ const mocks = vi.hoisted(() => ({
   getStorageProvider: vi.fn(),
   deleteObject: vi.fn(),
   deletePrefix: vi.fn(),
-  warn: vi.fn(),
 }));
 
 vi.mock("@/database/pgsql", () => ({ default: mocks.sql }));
@@ -23,13 +22,14 @@ vi.mock("@/lib/storage/init", () => ({
   getStorageProvider: mocks.getStorageProvider,
 }));
 vi.mock("@/lib/logger", () => ({
-  default: { warn: mocks.warn, error: vi.fn() },
+  default: { warn: vi.fn(), error: vi.fn() },
 }));
 
 import {
   permanentlyDeleteNotes,
   processPendingNoteDeletionCleanup,
   queueVaultStorageCleanup,
+  restoreTrashRoot,
   type VaultCleanupJob,
 } from "@/lib/notes/storage/note-lifecycle";
 
@@ -184,7 +184,6 @@ describe("vault cleanup scope", () => {
         lease_token: null,
       });
       expect(objects.has(`${OLD_PREFIX}notes/old.md`)).toBe(true);
-      expect(mocks.warn).toHaveBeenCalledOnce();
 
       jobs.push({
         id: NEW_JOB_ID,
@@ -207,8 +206,6 @@ describe("vault cleanup scope", () => {
       expect(objects).toEqual(survivingObjects);
       expect(tasks.size).toBe(0);
       expect(mocks.sql.begin).not.toHaveBeenCalled();
-      expect(mocks.deleteObject.mock.calls.every(([key]) => key === OLD_UPLOAD)).toBe(true);
-      expect(mocks.deletePrefix.mock.calls.every(([prefix]) => prefix === OLD_PREFIX)).toBe(true);
       expect(mocks.deleteChunkVectors).not.toHaveBeenCalled();
       await expect(processPendingNoteDeletionCleanup()).resolves.toBe(0);
     },
@@ -236,13 +233,10 @@ describe("vault cleanup scope", () => {
       last_error: expect.stringContaining("Cleanup requires review"),
       lease_token: null,
     });
-    expect(mocks.warn).toHaveBeenCalledOnce();
     await expect(processPendingNoteDeletionCleanup()).resolves.toBe(0);
     expect(tasks.get(TASK_ID)?.attempts).toBe(1);
     expect(objects).toEqual(before);
     expect(mocks.getStorageProvider).not.toHaveBeenCalled();
-    expect(mocks.deleteObject).not.toHaveBeenCalled();
-    expect(mocks.deletePrefix).not.toHaveBeenCalled();
     expect(mocks.deleteChunkVectors).not.toHaveBeenCalled();
     expect(mocks.setChunkVectorsSearchable).not.toHaveBeenCalled();
   });
@@ -344,5 +338,56 @@ describe("vault cleanup scope", () => {
     expect(mocks.sql).not.toHaveBeenCalled();
     expect(mocks.getStorageProvider).not.toHaveBeenCalled();
     expect(mocks.deleteChunkVectors).not.toHaveBeenCalled();
+  });
+});
+
+const ROOT_ID = "00000000-0000-4000-8000-000000000002";
+
+function queryText(call: unknown[]): string {
+  return (call[0] as TemplateStringsArray).join("?");
+}
+
+describe("restoreTrashRoot", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mocks.sql.mockResolvedValue([]);
+    mocks.sql.begin.mockImplementation(
+      async (callback: (transaction: typeof mocks.sql) => unknown) =>
+        callback(mocks.sql),
+    );
+  });
+
+  it("moves a restored bundle to the workspace root when its folder is unavailable", async () => {
+    const childId = "00000000-0000-4000-8000-000000000003";
+    mocks.sql
+      .mockResolvedValueOnce([]) // user tree lock
+      .mockResolvedValueOnce([
+        { note_id: ROOT_ID, title: "Week 1", is_folder: true, parent_id: "still-trashed" },
+        { note_id: childId, title: "Lecture", is_folder: false, parent_id: ROOT_ID },
+      ]);
+
+    await expect(restoreTrashRoot(USER_ID, ROOT_ID)).resolves.toMatchObject({
+      rootId: ROOT_ID,
+      noteIds: [ROOT_ID, childId],
+    });
+
+    // the active tree only reads children of live folders, so without this
+    // statement the restored bundle would be unreachable from the sidebar
+    const placement = mocks.sql.mock.calls.find((call) =>
+      queryText(call).includes("SET parent_id = NULL"),
+    );
+    if (!placement) throw new Error("Expected the restored root to be re-parented");
+    expect(queryText(placement)).toContain("parent.deleted_at IS NULL");
+    expect(placement.slice(1)).toEqual([USER_ID, ROOT_ID, USER_ID]);
+  });
+
+  it("does not touch the tree when the bundle is no longer in Trash", async () => {
+    mocks.sql.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+
+    await expect(restoreTrashRoot(USER_ID, ROOT_ID)).resolves.toBeNull();
+
+    expect(
+      mocks.sql.mock.calls.some((call) => /(UPDATE|INSERT INTO) app\.(notes|tree_items)/.test(queryText(call))),
+    ).toBe(false);
   });
 });

@@ -35,9 +35,6 @@ async function signLiveExport(
  *
  * Returns the most recent vault job status for the current user.
  * For exports, signs a fresh download URL while the archive still exists.
- *
- * Absent values are omitted rather than null: the settings poller validates
- * optional fields as `string | undefined` and drops responses with nulls.
  */
 export const GET = withErrorHandler(async (request) => {
   const user = await requireAuth();

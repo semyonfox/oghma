@@ -29,6 +29,7 @@ vi.mock("@/lib/notes/workspace-invalidation", () => ({
 import { publishWorkspaceInvalidation } from "@/lib/notes/workspace-invalidation";
 
 import useNoteStore from "@/lib/notes/state/note";
+import useSyncStatusStore from "@/lib/notes/state/sync-status";
 import noteCache from "@/lib/notes/cache/note";
 
 const NOTE_ID = "0198f4ec-4f16-7000-8000-000000000001";
@@ -96,6 +97,44 @@ describe("note save/fetch coordination", () => {
       generation: 0,
       sessionReady: true,
     });
+  });
+
+  it("marks synced and caches the canonical response after saving", async () => {
+    memory.set(NOTE_ID, note({ content: "Original body" }));
+    const saved = note({ content: "Stored body" });
+    const api = noteApi({ mutate: async () => saved });
+    useNoteStore.getState().setDependencies(api, treeStore(), vi.fn());
+    useSyncStatusStore.getState().markModified(NOTE_ID);
+
+    await useNoteStore.getState().mutateNote(NOTE_ID, { content: "Edited body" });
+
+    expect(useSyncStatusStore.getState().getStatus(NOTE_ID)).toBe("synced");
+    expect(memory.get(NOTE_ID)).toEqual(saved);
+  });
+
+  it("keeps the note modified when the API rejects", async () => {
+    const original = note({ content: "Stored body" });
+    memory.set(NOTE_ID, original);
+    const api = noteApi({
+      mutate: async () => { throw new Error("offline"); },
+    });
+    useNoteStore.getState().setDependencies(api, treeStore(), vi.fn());
+    useSyncStatusStore.getState().markModified(NOTE_ID);
+
+    await expect(
+      useNoteStore.getState().mutateNote(NOTE_ID, { content: "unsaved" }),
+    ).rejects.toThrow("offline");
+    expect(useSyncStatusStore.getState().getStatus(NOTE_ID)).toBe("modified");
+    expect(memory.get(NOTE_ID)).toEqual(original);
+  });
+
+  it("rejects a save before the note API is ready", async () => {
+    useNoteStore.setState({ noteAPI: null });
+
+    await expect(
+      useNoteStore.getState().mutateNote(NOTE_ID, { content: "unsaved" }),
+    ).rejects.toThrow("Note save unavailable");
+    expect(memory.has(NOTE_ID)).toBe(false);
   });
 
   it("still returns a committed save's stamp when a forced fetch moved the write version", async () => {
@@ -209,6 +248,7 @@ describe("note save/fetch coordination", () => {
     const original = note({ content: "before" });
     memory.set(NOTE_ID, original);
     useNoteStore.setState({ note: original });
+    useSyncStatusStore.getState().markModified(NOTE_ID);
     useNoteStore.getState().setDependencies(
       noteApi({ mutate: vi.fn().mockResolvedValue(undefined) }),
       treeStore(),
@@ -221,6 +261,7 @@ describe("note save/fetch coordination", () => {
 
     expect(memory.get(NOTE_ID)).toEqual(original);
     expect(useNoteStore.getState().note).toEqual(original);
+    expect(useSyncStatusStore.getState().getStatus(NOTE_ID)).toBe("modified");
   });
 
   it("reports an earlier failed save even when another pane has saved successfully", async () => {

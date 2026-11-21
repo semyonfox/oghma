@@ -1,47 +1,50 @@
 // @vitest-environment jsdom
 
-import React from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   pathname: "/",
-  renderDeferredModal: vi.fn(),
+  push: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => mocks.pathname,
+  useRouter: () => ({ push: mocks.push }),
 }));
 
-vi.mock("next/dynamic", () => ({
-  default: () => () => {
-    mocks.renderDeferredModal();
-    return React.createElement("div", { "data-testid": "global-search-modal" });
-  },
-}));
+vi.mock("next/dynamic", async () => {
+  const { default: Modal } = await import("@/components/search/global-search-modal");
+  return { default: () => Modal };
+});
 
+import { withI18n } from "@/__tests__/test-utils/i18n";
 import GlobalSearchRoot from "@/components/search/global-search-root";
 import { isGlobalSearchRoute } from "@/lib/global-search/routes";
 import useGlobalSearchStore from "@/lib/global-search/state";
 
 describe("global search route boundary", () => {
+  const scrollIntoView = HTMLElement.prototype.scrollIntoView;
+
   beforeEach(() => {
     mocks.pathname = "/";
-    mocks.renderDeferredModal.mockClear();
+    HTMLElement.prototype.scrollIntoView = () => {};
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({})));
     useGlobalSearchStore.getState().close();
+  });
+
+  afterEach(() => {
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    vi.unstubAllGlobals();
   });
 
   it("recognizes only the existing workspace path prefixes", () => {
     expect(isGlobalSearchRoute("/notes/note-1")).toBe(true);
     expect(isGlobalSearchRoute("/quiz/session/session-1")).toBe(true);
     expect(isGlobalSearchRoute("/settings#ai")).toBe(true);
+    expect(isGlobalSearchRoute("/study-map/topic-1")).toBe(true);
     expect(isGlobalSearchRoute("/about")).toBe(false);
     expect(isGlobalSearchRoute(null)).toBe(false);
-  });
-
-  it("covers the study map, which renders the navigation Search button", () => {
-    expect(isGlobalSearchRoute("/study-map")).toBe(true);
-    expect(isGlobalSearchRoute("/study-map/topic-1")).toBe(true);
   });
 
   it("matches whole path segments only", () => {
@@ -49,43 +52,33 @@ describe("global search route boundary", () => {
     expect(isGlobalSearchRoute("/chatroom")).toBe(false);
   });
 
-  it("keeps search open when the navigation opens it on the study map", () => {
+  it("keeps search open when the navigation opens it on the study map", async () => {
     mocks.pathname = "/study-map";
 
-    render(React.createElement(GlobalSearchRoot));
+    render(withI18n(<GlobalSearchRoot />));
     act(() => useGlobalSearchStore.getState().open());
 
-    expect(useGlobalSearchStore.getState().visible).toBe(true);
-    expect(screen.getByTestId("global-search-modal")).toBeTruthy();
+    await screen.findByRole("dialog");
   });
 
-  it("does not render the deferred modal on a public route", () => {
-    render(React.createElement(GlobalSearchRoot));
-
-    expect(screen.queryByTestId("global-search-modal")).toBeNull();
-    expect(mocks.renderDeferredModal).not.toHaveBeenCalled();
-  });
-
-  it("loads the deferred modal only after the workspace shortcut opens search", () => {
+  it("opens the search dialog from the workspace shortcut", async () => {
     mocks.pathname = "/notes";
 
-    render(React.createElement(GlobalSearchRoot));
+    render(withI18n(<GlobalSearchRoot />));
 
-    expect(screen.queryByTestId("global-search-modal")).toBeNull();
-    expect(mocks.renderDeferredModal).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).toBeNull();
 
     fireEvent.keyDown(document, { key: "k", metaKey: true });
 
-    expect(screen.getByTestId("global-search-modal")).toBeTruthy();
-    expect(mocks.renderDeferredModal).toHaveBeenCalledOnce();
+    await screen.findByRole("dialog");
   });
 
   it("does not open search from the shortcut on a public route", () => {
     mocks.pathname = "/about";
 
-    render(React.createElement(GlobalSearchRoot));
-    fireEvent.keyDown(document, { key: "k", ctrlKey: true });
-
-    expect(useGlobalSearchStore.getState().visible).toBe(false);
+    render(withI18n(<GlobalSearchRoot />));
+    expect(fireEvent.keyDown(document, { key: "k", ctrlKey: true })).toBe(true);
+    act(() => useGlobalSearchStore.getState().open());
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });

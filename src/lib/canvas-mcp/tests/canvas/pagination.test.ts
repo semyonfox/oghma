@@ -31,16 +31,6 @@ describe("CanvasClient.getPaginated", () => {
     }
   });
 
-  it("collectPaginated returns flat array", async () => {
-    const fetch = vi
-      .fn()
-      .mockResolvedValueOnce(page(["a"], "https://x.instructure.com/api/v1/y?page=2"))
-      .mockResolvedValueOnce(page(["b"]));
-    const client = new CanvasClient({ domain: "x.instructure.com", token: "t", fetch });
-    const all = await client.collectPaginated<string>("/api/v1/y");
-    expect(all).toEqual(["a", "b"]);
-  });
-
   it("rejects a cross-origin Link before sending the bearer token", async () => {
     const fetch = vi.fn().mockResolvedValueOnce(
       page([1], "https://other.example.edu/api/v1/things?page=2"),
@@ -56,11 +46,11 @@ describe("CanvasClient.getPaginated", () => {
   it("follows same-origin links when the stored domain differs only in case", async () => {
     const fetch = vi
       .fn()
-      .mockResolvedValueOnce(page([1], "https://x.instructure.com/api/v1/things?page=2"))
-      .mockResolvedValueOnce(page([2]));
+      .mockResolvedValueOnce(page([1, 2], "https://x.instructure.com/api/v1/things?page=2"))
+      .mockResolvedValueOnce(page([3]));
     const client = new CanvasClient({ domain: "X.Instructure.com", token: "t", fetch });
 
-    await expect(client.collectPaginated<number>("/api/v1/things")).resolves.toEqual([1, 2]);
+    await expect(client.collectPaginated<number>("/api/v1/things")).resolves.toEqual([1, 2, 3]);
   });
 
   it("stops after maxPages so one call cannot walk an unbounded list", async () => {

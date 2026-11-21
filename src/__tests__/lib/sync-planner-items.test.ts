@@ -18,11 +18,14 @@ describe("syncCanvasPlannerItems", () => {
     const client = makeClient({ data: [{ plannable_type: "discussion_topic", plannable_id: 99, plannable: { id: 99, title: "Discussion", todo_date: "2026-02-01T10:00:00Z" } }], forbidden: false });
     const result = await syncCanvasPlannerItems({ userId: USER_ID, canvasDomain: "canvas.example", canvasUserId: 7, client, startDate: "2026-01-01T00:00:00.000Z", endDate: "2026-03-01T00:00:00.000Z" });
     expect(result).toEqual({ synced: 1, tombstoned: 0, errors: 0, partial: false });
-    expect(client.getPlannerItems).toHaveBeenCalledWith("2026-01-01T00:00:00.000Z", "2026-03-01T00:00:00.000Z");
-    expect(vi.mocked(sql).mock.calls.length).toBe(2);
-    const query = vi.mocked(sql).mock.calls[1][0];
-    expect(String.raw({ raw: query })).toContain("UPDATE app.canvas_planner_items");
-    expect(String.raw({ raw: query })).toContain("deleted_at = NOW()");
+    const updates = vi.mocked(sql).mock.calls.map(([query, ...values]) => ({
+      text: String.raw({ raw: query }),
+      values,
+    }));
+    expect(updates).toContainEqual({
+      text: expect.stringContaining("deleted_at = NOW()"),
+      values: expect.arrayContaining([USER_ID, "canvas.example"]),
+    });
   });
 
   it("stores an item Canvas reports as deleted as hidden rather than active", async () => {

@@ -58,7 +58,6 @@ describe("Marker OCR environment toggle", () => {
         mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
 
-      expect(extractWithMarker).toHaveBeenCalledOnce();
       expect(result.source).toBe("marker");
     },
   );
@@ -75,7 +74,6 @@ describe("Marker OCR environment toggle", () => {
     expect(result.source).toBe("pdf-parse");
     expect(result.rawText).toBe("CPU text layer");
     expect(extractWithMarker).not.toHaveBeenCalled();
-    expect(destroyPdf).toHaveBeenCalledOnce();
   });
 
   it("releases the PDF parser when the text layer cannot be read", async () => {

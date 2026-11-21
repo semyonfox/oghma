@@ -1,41 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { simulateReadableStream } from "ai";
+import { MockLanguageModelV3 } from "ai/test";
+import type { LanguageModelV3StreamPart } from "@ai-sdk/provider";
 
 const mocks = vi.hoisted(() => ({
-  requireAuth: vi.fn(),
+  validateSession: vi.fn(),
   checkRateLimit: vi.fn(),
   normalizeScope: vi.fn(),
+  buildLlmCall: vi.fn(),
+  persistMessage: vi.fn(),
+  markFailed: vi.fn(),
   createChatGeneration: vi.fn(),
   enqueueChatGeneration: vi.fn(),
 }));
 
-vi.mock("@/lib/api-error", async () => {
-  const { NextResponse } = await import("next/server");
-  return {
-  requireAuth: mocks.requireAuth,
-  tracedError: (message: string, status: number) =>
-    NextResponse.json({ error: message, traceId: "trace-test" }, { status }),
-  parseJsonObject: async (request: Request) => {
-    const body = await request.json();
-    if (!body || typeof body !== "object" || Array.isArray(body)) {
-      throw new Error("invalid body");
-    }
-    return body as Record<string, unknown>;
-  },
-  withErrorHandler:
-    (handler: (request: NextRequest) => Promise<Response>) =>
-    async (request: NextRequest) => {
-      try {
-        return await handler(request);
-      } catch {
-        return NextResponse.json(
-          { error: "Invalid JSON body", traceId: "trace-test" },
-          { status: 400 },
-        );
-      }
-    },
-  };
-});
+vi.mock("@/lib/auth/session", () => ({
+  validateSession: mocks.validateSession,
+  validateSessionLite: vi.fn(),
+}));
 vi.mock("@/lib/rate-limiter", () => ({
   checkRateLimit: mocks.checkRateLimit,
 }));
@@ -58,6 +41,16 @@ vi.mock("@/lib/chat/generation-store", () => ({
   createChatGeneration: mocks.createChatGeneration,
   failChatGeneration: vi.fn(),
 }));
+vi.mock("@/lib/metrics", () => ({
+  Metrics: { llmError: vi.fn(), llmLatency: vi.fn() },
+}));
+vi.mock("@/lib/chat/build-stream", () => ({
+  buildLlmCall: mocks.buildLlmCall,
+}));
+vi.mock("@/lib/chat/session", () => ({
+  persistMessage: mocks.persistMessage,
+  markChatGenerationFailed: mocks.markFailed,
+}));
 vi.mock("@/lib/queue", () => ({
   enqueueChatGeneration: mocks.enqueueChatGeneration,
 }));
@@ -75,7 +68,7 @@ function chatRequest(body: string) {
 describe("POST /api/chat request contract", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.requireAuth.mockResolvedValue({
+    mocks.validateSession.mockResolvedValue({
       user_id: "123e4567-e89b-42d3-a456-426614174000",
       email: "user@example.com",
     });
@@ -122,6 +115,8 @@ describe("POST /api/chat request contract", () => {
     );
 
     expect(response.status).toBe(202);
+    // createChatGeneration writes the user message with the queued generation,
+    // so the scope step must not write it a second time
     expect(mocks.normalizeScope).toHaveBeenCalledWith(
       expect.any(String),
       expect.any(Object),
@@ -131,5 +126,100 @@ describe("POST /api/chat request contract", () => {
       [],
       { persistUserMessage: false },
     );
+    expect(await response.json()).toEqual({
+      generationId: "123e4567-e89b-42d3-a456-426614174002",
+      sessionId: "123e4567-e89b-42d3-a456-426614174001",
+    });
+  });
+});
+
+const inlineSessionId = "33333333-3333-3333-3333-333333333333";
+
+function failingModel(chunks: LanguageModelV3StreamPart[]) {
+  return new MockLanguageModelV3({
+    doStream: async () => ({
+      stream: simulateReadableStream<LanguageModelV3StreamPart>({ chunks }),
+    }),
+  });
+}
+
+function useModel(model: MockLanguageModelV3) {
+  mocks.buildLlmCall.mockResolvedValue({
+    model,
+    llmAvailable: true,
+    canvasMcpClient: null,
+    maxToolSteps: 3,
+    llmCallOptions: {
+      instructions: "system",
+      messages: [{ role: "user", content: "hello" }],
+      maxOutputTokens: 256,
+      tools: {},
+    },
+  });
+}
+
+describe("inline chat delivery for API clients", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.validateSession.mockResolvedValue({
+      user_id: "22222222-2222-2222-2222-222222222222",
+      email: "user@example.com",
+    });
+    mocks.checkRateLimit.mockResolvedValue(null);
+    mocks.normalizeScope.mockResolvedValue({
+      sessionId: inlineSessionId,
+      sessionContext: {
+        scope: { notes: [], folders: [] },
+        recentAccesses: [],
+        lastFolder: null,
+      },
+      scopedNoteIds: null,
+      scopedInputNoteIds: [],
+      history: [],
+    });
+    mocks.persistMessage.mockResolvedValue(undefined);
+    mocks.markFailed.mockResolvedValue(undefined);
+  });
+
+  it("does not leave the session generating when the provider fails before output", async () => {
+    useModel(
+      failingModel([
+        { type: "stream-start", warnings: [] },
+        { type: "error", error: new Error("provider down") },
+      ]),
+    );
+
+    const response = await POST(chatRequest(JSON.stringify({ message: "hello", stream: true })));
+    const body = await response.text();
+
+    expect(body).toContain("event: error");
+    expect(mocks.persistMessage).not.toHaveBeenCalled();
+    expect(mocks.markFailed).toHaveBeenCalledWith(inlineSessionId);
+  });
+
+  it("saves streamed partial output and reports the interruption", async () => {
+    useModel(
+      failingModel([
+        { type: "stream-start", warnings: [] },
+        { type: "text-start", id: "t" },
+        { type: "text-delta", id: "t", delta: "Partial" },
+        { type: "error", error: new Error("connection reset") },
+      ]),
+    );
+
+    const response = await POST(chatRequest(JSON.stringify({ message: "hello", stream: true })));
+    const body = await response.text();
+
+    expect(body).toContain('"text":"Partial"');
+    expect(body).toContain("Partial output was saved");
+    expect(mocks.persistMessage).toHaveBeenCalledWith(
+      inlineSessionId,
+      "assistant",
+      "Partial",
+      expect.objectContaining({
+        metadata: expect.objectContaining({ partial: true }),
+      }),
+    );
+    expect(mocks.markFailed).toHaveBeenCalledWith(inlineSessionId);
   });
 });

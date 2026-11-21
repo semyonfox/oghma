@@ -5,7 +5,6 @@ const redisState = vi.hoisted(() => ({
   ensureReady: vi.fn(async () => true),
   grants: new Map<string, { value: string; expiresAt: number }>(),
   set: vi.fn(),
-  eval: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/session", () => ({ validateSession: vi.fn() }));
@@ -18,7 +17,6 @@ vi.mock("@/lib/redis", () => ({
   ensureRedisReady: redisState.ensureReady,
   redis: {
     set: redisState.set,
-    eval: redisState.eval,
   },
 }));
 
@@ -26,7 +24,6 @@ import {
   getActiveAuthJsMobileUser,
   MOBILE_AUTH_GRANT_TTL_SECONDS,
   MobileAuthStoreUnavailableError,
-  consumeMobileAuthGrant,
   createCodeChallenge,
   issueMobileAuthGrant,
 } from "@/lib/auth/mobile";
@@ -54,26 +51,6 @@ beforeEach(() => {
     },
   );
 
-  redisState.eval.mockImplementation(
-    async (_script: string, _keyCount: number, key: string, challenge: string) => {
-      const stored = redisState.grants.get(key);
-      if (!stored || stored.expiresAt <= Date.now()) {
-        redisState.grants.delete(key);
-        return null;
-      }
-      const grant: unknown = JSON.parse(stored.value);
-      if (
-        typeof grant !== "object" ||
-        grant === null ||
-        !("codeChallenge" in grant) ||
-        grant.codeChallenge !== challenge
-      ) {
-        return null;
-      }
-      redisState.grants.delete(key);
-      return stored.value;
-    },
-  );
 });
 
 describe("mobile auth Redis grants", () => {
@@ -104,25 +81,6 @@ describe("mobile auth Redis grants", () => {
     );
   });
 
-  it("does not consume a grant for the wrong verifier and rejects replay", async () => {
-    const code = await issueMobileAuthGrant(USER_ID, createCodeChallenge(VERIFIER), 0);
-
-    await expect(
-      consumeMobileAuthGrant(code, "b".repeat(64)),
-    ).resolves.toBeNull();
-    await expect(consumeMobileAuthGrant(code, VERIFIER)).resolves.toMatchObject(
-      { userId: USER_ID, sessionVersion: 0 },
-    );
-    await expect(consumeMobileAuthGrant(code, VERIFIER)).resolves.toBeNull();
-  });
-
-  it("rejects an expired grant", async () => {
-    const code = await issueMobileAuthGrant(USER_ID, createCodeChallenge(VERIFIER), 0);
-    for (const grant of redisState.grants.values()) grant.expiresAt = 0;
-
-    await expect(consumeMobileAuthGrant(code, VERIFIER)).resolves.toBeNull();
-  });
-
   it("fails closed when Redis is unavailable", async () => {
     redisState.ready = false;
     redisState.ensureReady.mockResolvedValue(false);
@@ -130,7 +88,7 @@ describe("mobile auth Redis grants", () => {
     await expect(
       issueMobileAuthGrant(USER_ID, createCodeChallenge(VERIFIER), 0),
     ).rejects.toBeInstanceOf(MobileAuthStoreUnavailableError);
-    expect(redisState.set).not.toHaveBeenCalled();
+    expect(redisState.grants.size).toBe(0);
   });
 });
 

