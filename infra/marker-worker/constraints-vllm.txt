@@ -1,0 +1,13 @@
+# Inference-sensitive versions resolved with the vLLM 0.25.1 CUDA 12.9 wheel.
+# The Dockerfile pins TorchCodec per CUDA variant because PyPI defaults to CUDA 13.
+fastapi==0.136.3
+huggingface-hub==2.4.0
+numpy==2.3.5
+opencv-python-headless==5.1.0.95
+pillow==13.0.0
+pydantic==2.14.4
+quack-kernels==0.5.0
+safetensors==0.8.0
+tokenizers==0.23.3
+transformers==5.23.0
+uvicorn==0.54.0

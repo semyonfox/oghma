@@ -414,7 +414,7 @@ async function completeWithResult(
 function markerOptions(): Record<string, unknown> {
   return {
     outputFormat: "markdown",
-    mode: process.env.MARKER_MODE ?? "balanced",
+    mode: process.env.MARKER_MODE ?? "vllm",
     pageRange: process.env.MARKER_PAGE_RANGE?.trim() || null,
     ocrFallbackPolicy: process.env.MARKER_OCR_FALLBACK_POLICY ?? "auto",
     tableOcrPolicy: process.env.MARKER_TABLE_OCR_POLICY ?? "auto",

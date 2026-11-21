@@ -83,7 +83,7 @@ runbook.
 | Recovery | Worker DB poll re-enqueues stale dispatch, completion, and failure continuations |
 | Operator view | `npm run marker:serverless:status` |
 | Emergency pause | `MARKER_SERVERLESS_DISPATCH_ENABLED=false` |
-| Image selection | `MARKER_IMAGE_SELECTION_POLICY` on the GPU backend: `semantic` (default), `course` or `all`. `course` keeps small uncaptioned lecture visuals and needs a Marker++ build with [marker-plus-plus#37](https://github.com/semyonfox/marker-plus-plus/pull/37). Measure it on visual-heavy PDFs before turning it on (#478) |
+| Image selection | `MARKER_IMAGE_SELECTION_POLICY` on the GPU backend: `course` (default), `semantic` or `all`. Surya 2.5 labels lecture diagrams as Picture, so `semantic` keeps only captioned images on Marker++ 2.2. `course` keeps unique visuals and skips small and repeated furniture. It was measured on the lecture benchmark before becoming the default (#478) |
 
 The result object key is generated once and is immutable. Oghma makes at most
 one application-originated routed-worker request for a durable job. A lost or
@@ -275,8 +275,8 @@ bash scripts/build-vast-marker-image.sh
 Push only a unique, never-overwritten tag, record and scan its registry digest,
 and use that tag in the Vast template. Vast's current template field is
 documented as `repository/image:tag`, so the recorded digest is the
-verification/rollback identity rather than the template field. The source
-archive defaults to the exact Marker++ commit measured on 2026-07-24.
+verification/rollback identity rather than the template field. The build uses
+the [shared worker Dockerfile](../../infra/marker-worker/README.md).
 
 ## Funding-time provisioning
 

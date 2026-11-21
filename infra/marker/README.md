@@ -16,8 +16,8 @@ API that `src/lib/marker/ocr.ts` calls when `MARKER_API_URL` is set.
 files (`pip install -r requirements-dev.txt && pytest infra/marker`); they are
 not part of `npm run test:marker`.
 
-The paid serverless GPU path does not use this server. It lives in
-[`../runpod-marker/`](../runpod-marker/) and [`../vast-marker/`](../vast-marker/).
+The [Marker++ worker images](../marker-worker/) serve the signed-object job API
+for RunPod, Vast and the standalone CPU worker.
 
 ## July 2026 benchmark harness
 

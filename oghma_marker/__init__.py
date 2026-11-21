@@ -1,2 +1,2 @@
-"""Repository-owned Marker benchmark integrations."""
+"""OghmaNotes Marker++ integrations."""
 
