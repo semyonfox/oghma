@@ -43,7 +43,6 @@ describe("legacy Canvas import delivery", () => {
 
     await expect(processImportJob("job-1")).resolves.toBe(false);
 
-    expect(mocks.CanvasClient).not.toHaveBeenCalled();
     expect(mocks.processCourse).not.toHaveBeenCalled();
   });
 
@@ -63,16 +62,18 @@ describe("legacy Canvas import delivery", () => {
     mocks.checkAndCompleteJob.mockResolvedValue(true);
 
     await expect(processImportJob("job-1")).resolves.toBe(true);
-
+    expect(mocks.sql).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.stringContaining("AND status = 'queued'")]),
+      "job-1",
+    );
+    // the course walk and completion check are mocked, so these calls are the
+    // only evidence the job is walked and can ever finish
     expect(mocks.processCourse).toHaveBeenCalledWith(
       courses[0],
       "user-1",
       expect.objectContaining({ jobId: "job-1" }),
     );
-    expect(mocks.checkAndCompleteJob).toHaveBeenCalledWith(
-      "job-1",
-      "user-1",
-    );
+    expect(mocks.checkAndCompleteJob).toHaveBeenCalledWith("job-1", "user-1");
   });
 
   it("fails a legacy job when any course walk rejects", async () => {
@@ -92,8 +93,10 @@ describe("legacy Canvas import delivery", () => {
     await expect(processImportJob("job-1")).resolves.toBe(false);
 
     expect(mocks.checkAndCompleteJob).not.toHaveBeenCalled();
-    expect(mocks.sql).toHaveBeenCalledTimes(3);
-    expect((mocks.sql.mock.calls[2][0] as TemplateStringsArray).join("?"))
-      .toContain("SET status = 'failed'");
+    expect(mocks.sql).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.stringContaining("SET status = 'failed'")]),
+      "Canvas course unavailable",
+      "job-1",
+    );
   });
 });

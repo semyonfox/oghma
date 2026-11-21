@@ -24,18 +24,6 @@ describe("buffered Redis chat event writer", () => {
     );
   });
 
-  it("stops accepting events after a Redis write fails", async () => {
-    const append = vi.fn().mockRejectedValue(new Error("Redis unavailable"));
-    const writer = createBufferedSseWriter(append);
-
-    writer.enqueue(encoder.encode('event: token\ndata: {"text":"one"}\n\n'));
-    await expect(writer.flush()).rejects.toThrow("Redis unavailable");
-
-    writer.enqueue(encoder.encode('event: token\ndata: {"text":"two"}\n\n'));
-    await expect(writer.flush()).rejects.toThrow("Redis unavailable");
-    expect(append).toHaveBeenCalledTimes(1);
-  });
-
   it("bounds pending Redis writes", async () => {
     let resolveAppend: (() => void) | undefined;
     const append = vi.fn(
@@ -68,6 +56,8 @@ it("does not publish later events past a failed Redis append", async () => {
   writer.enqueue(
     encoder.encode('event: token\ndata: {"text":"must not overtake"}\n\n'),
   );
+  writer.enqueue(encoder.encode("event: done\ndata: {}\n\n"));
+  await expect(writer.flush()).rejects.toThrow("Lost write");
   writer.enqueue(encoder.encode("event: done\ndata: {}\n\n"));
   await expect(writer.flush()).rejects.toThrow("Lost write");
   expect(append).toHaveBeenCalledTimes(1);

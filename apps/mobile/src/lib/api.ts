@@ -6,8 +6,6 @@ import {
   apiHeaders,
   profileSchema,
   sessionCookie,
-  EventDecoder,
-  type StreamEvent,
 } from "./contracts";
 
 export const origin = apiOrigin(
@@ -141,35 +139,4 @@ export async function clearStoredSessionCookie(
   await SecureStore.deleteItemAsync(sessionKey);
   if (cookie === expected) cookie = null;
   return true;
-}
-
-export async function readStream(
-  id: string,
-  signal: AbortSignal,
-  onEvent: (event: StreamEvent) => void,
-) {
-  // Replay from the start on reconnect. The caller resets its transient text;
-  // persisted history remains authoritative after completion.
-  const response = await request(
-    `/api/chat/generations/${encodeURIComponent(id)}/stream`,
-    { signal, headers: { Accept: "text/event-stream" } },
-  );
-  const reader = response.body?.getReader();
-  if (!reader)
-    throw new Error(
-      "Streaming is unavailable. Reopen the conversation to retrieve the answer.",
-    );
-  const decoder = new TextDecoder();
-  const events = new EventDecoder();
-  try {
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      for (const event of events.push(decoder.decode(value, { stream: true })))
-        onEvent(event);
-    }
-  } finally {
-    await reader.cancel().catch(() => {});
-    reader.releaseLock();
-  }
 }

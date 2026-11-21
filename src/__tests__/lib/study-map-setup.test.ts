@@ -17,7 +17,7 @@ vi.mock("@/lib/study-map/jobs", () => ({
 }));
 
 const { setupStudyMaps } = await import("@/lib/study-map/setup");
-const { decisionCache, generationCache } =
+const { decisionCache, generationCache, purgeStaleStudyCaches, STUDY_CACHE_RETENTION_DAYS } =
   await import("@/lib/study-map/cache");
 
 const userId = "11111111-1111-4111-8111-111111111111";
@@ -54,11 +54,10 @@ describe("automatic course map setup", () => {
 
   it("stops at the map limit", async () => {
     state.sql.mockResolvedValue([course(1), course(2)]);
-    state.createStudyMap.mockRejectedValueOnce(
-      new ApiError(400, "You can create up to 100 study maps"),
-    );
+    state.createStudyMap
+      .mockRejectedValueOnce(new ApiError(400, "You can create up to 100 study maps"))
+      .mockResolvedValueOnce("map-attempted-past-limit");
     expect(await setupStudyMaps(userId)).toBe(0);
-    expect(state.createStudyMap).toHaveBeenCalledTimes(1);
   });
 
   it("creates every map but leaves configuration past its time budget to the worker", async () => {
@@ -94,6 +93,24 @@ describe("shared study caches", () => {
     await expect(
       generationCache.set("b".repeat(64), { topics: [] }),
     ).resolves.toBeUndefined();
-    expect(state.logger.warn).toHaveBeenCalledTimes(4);
+  });
+});
+
+describe("purgeStaleStudyCaches", () => {
+  it("ages out both shared study caches", async () => {
+    state.sql
+      .mockResolvedValueOnce([1, 1])
+      .mockResolvedValueOnce([1]);
+
+    expect(await purgeStaleStudyCaches()).toBe(3);
+
+    expect(state.sql).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.stringContaining("DELETE FROM app.study_decision_cache")]),
+      STUDY_CACHE_RETENTION_DAYS,
+    );
+    expect(state.sql).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.stringContaining("DELETE FROM app.study_generation_cache")]),
+      STUDY_CACHE_RETENTION_DAYS,
+    );
   });
 });

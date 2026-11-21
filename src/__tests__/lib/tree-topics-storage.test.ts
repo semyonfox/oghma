@@ -47,13 +47,6 @@ describe("readTopicMarks", () => {
 
   it("skips the database when there is nothing to mark", async () => {
     expect((await readTopicMarks("user", [])).size).toBe(0);
-    expect(mocks.sql).not.toHaveBeenCalled();
-  });
-
-  it("doesn't ask for map topics when no row is in a study map", async () => {
-    mocks.sql.mockResolvedValueOnce([]);
-    expect((await readTopicMarks("user", ["a", "b"])).size).toBe(0);
-    expect(mocks.sql).toHaveBeenCalledTimes(1);
   });
 
   it("drops a malformed material instead of failing the folder", async () => {

@@ -1,23 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-const mocks = vi.hoisted(() => ({
-  buildSystemPrompt: vi.fn(() => "rag prompt"),
-  buildPlainSystemPrompt: vi.fn(() => "plain prompt"),
-}));
-
-vi.mock("@/lib/chat/system-prompt", () => ({
-  buildSystemPrompt: mocks.buildSystemPrompt,
-  buildPlainSystemPrompt: mocks.buildPlainSystemPrompt,
-}));
+import { describe, expect, it } from "vitest";
 
 import { createEmptyChatSessionContext } from "@/lib/chat/session";
 import { prepareChatGeneration } from "@/lib/chat/prepare-generation";
 
 describe("prepareChatGeneration", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it("does no eager retrieval work when note tools are disabled", async () => {
     const prepared = await prepareChatGeneration({
       useRag: false,
@@ -25,7 +11,7 @@ describe("prepareChatGeneration", () => {
       sessionContext: createEmptyChatSessionContext(),
     });
 
-    expect(prepared.systemPrompt).toBe("plain prompt");
+    expect(prepared.systemPrompt).not.toMatch(/getChunks|readNote/);
     expect(prepared.initialParts).toEqual([]);
   });
 
@@ -36,7 +22,8 @@ describe("prepareChatGeneration", () => {
       sessionContext: createEmptyChatSessionContext(),
     });
 
-    expect(prepared.systemPrompt).toBe("rag prompt");
+    expect(prepared.systemPrompt).toMatch(/getChunks/);
+    expect(prepared.systemPrompt).toMatch(/readNote/);
     expect(prepared.initialParts).toEqual([]);
     expect(prepared.uniqueSources).toEqual([]);
     expect(prepared.retrieval).toMatchObject({
@@ -45,6 +32,5 @@ describe("prepareChatGeneration", () => {
       semanticHits: [],
       usedFiles: [],
     });
-    expect(mocks.buildSystemPrompt).toHaveBeenCalledOnce();
   });
 });

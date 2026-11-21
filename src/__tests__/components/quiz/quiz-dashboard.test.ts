@@ -1,21 +1,10 @@
 // @vitest-environment jsdom
 
 import React from "react";
-import { act } from "react";
-import { createRoot } from "react-dom/client";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-const reactGlobals = globalThis as typeof globalThis & {
-  IS_REACT_ACT_ENVIRONMENT?: boolean;
-};
-reactGlobals.IS_REACT_ACT_ENVIRONMENT = true;
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/components/quiz/exam-strip", () => ({ default: () => null }));
-
-type CourseListProps = { courses: unknown[] };
-type CourseVisibilityProps = {
-  onToggleCourse: (course: unknown, isActive: boolean) => Promise<void>;
-};
 
 const mocks = vi.hoisted(() => {
   const startSession = vi.fn();
@@ -49,8 +38,6 @@ const mocks = vi.hoisted(() => {
       timeZone = value;
     },
     quizStoreState,
-    lastCourseListProps: null as CourseListProps | null,
-    lastManagerProps: null as CourseVisibilityProps | null,
   };
 });
 
@@ -93,25 +80,6 @@ vi.mock("sonner", () => ({
   },
 }));
 
-vi.mock("@/components/quiz/stats-row", () => ({
-  default: () => null,
-}));
-
-vi.mock("@/components/quiz/course-list", () => ({
-  default: (props: CourseListProps) => {
-    mocks.lastCourseListProps = props;
-    return React.createElement("div");
-  },
-}));
-
-vi.mock("@/components/course-visibility/course-visibility-manager", () => ({
-  CourseVisibilityDialog: (props: CourseVisibilityProps) => {
-    mocks.lastManagerProps = props;
-    return React.createElement("div");
-  },
-  mergeCourseVisibilityItems: (items: unknown[]) => items,
-}));
-
 import QuizDashboard from "@/components/quiz/quiz-dashboard";
 
 const initialDashboard = {
@@ -143,87 +111,71 @@ function okJson(body: unknown) {
   };
 }
 
-async function renderDashboard() {
-  const container = document.createElement("div");
-  document.body.appendChild(container);
-  const root = createRoot(container);
-
-  await act(async () => {
-    root.render(
-      React.createElement(QuizDashboard, {
-        initialDashboard,
-        initialCourses,
-      }),
-    );
-  });
-
-  return { container, root };
+function renderDashboard() {
+  return render(React.createElement(QuizDashboard, {
+    initialDashboard,
+    initialCourses,
+  }));
 }
+
+afterEach(() => vi.unstubAllGlobals());
 
 describe("QuizDashboard archive refresh", () => {
   beforeEach(() => {
-    document.body.innerHTML = "";
     vi.clearAllMocks();
     mocks.showArchived = false;
     mocks.timeZone = "UTC";
-    mocks.lastCourseListProps = null;
-    mocks.lastManagerProps = null;
   });
 
   it("refetches server-backed quiz data after archiving a course", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(okJson({ dueCount: 1, totalCards: 2, mastery: 50, reviewedToday: 1, weekAccuracy: 50, currentStreak: 3, longestStreak: 4, hasContent: true }))
-      .mockResolvedValueOnce(okJson({ courses: [{ courseId: "42", courseName: "Course A", totalCards: 3, dueCount: 1, mastery: 33, isActive: false }] }));
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("fetch", vi.fn(async (path: string) => {
+      if (path === "/api/quiz/dashboard?tz=UTC") {
+        return Response.json({ ...initialDashboard, reviewedToday: 4 });
+      }
+      if (path === "/api/quiz/dashboard/courses") {
+        return Response.json({ courses: [{ ...initialCourses[0], isActive: false }] });
+      }
+      throw new Error(`Unexpected request: ${path}`);
+    }));
+    renderDashboard();
+    expect(screen.getByText("Course A")).toBeTruthy();
 
-    await renderDashboard();
-
-    await act(async () => {
-      await mocks.lastManagerProps!.onToggleCourse(
-        { courseId: "42", courseName: "Course A", isActive: true },
-        false,
-      );
-    });
-
+    fireEvent.click(screen.getByRole("button", { name: "Manage" }));
+    const manager = screen.getByRole("dialog");
+    fireEvent.click(within(manager).getByRole("button", { name: "Active" }));
+    await within(manager).findByRole("button", { name: "Archived" });
     expect(mocks.archiveCourse).toHaveBeenCalledWith("42", "Course A");
-    expect(mocks.fetchSettings).toHaveBeenCalledTimes(2);
-    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/quiz/dashboard?tz=UTC");
-    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/quiz/dashboard/courses");
-    expect(mocks.lastCourseListProps!.courses).toEqual([
-      {
-        courseId: "42",
-        courseName: "Course A",
-        totalCards: 3,
-        dueCount: 1,
-        mastery: 33,
-        isActive: false,
-      },
-    ]);
+
+    fireEvent.click(within(manager).getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.queryByText("Course A")).toBeNull();
+    expect(screen.getByText("quiz.stats.reviewed_today").parentElement?.textContent).toContain("4");
   });
 
   it("requests archived quiz courses from the server when the toggle is enabled", async () => {
     mocks.showArchived = true;
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(okJson({ dueCount: 2, totalCards: 5, mastery: 40, reviewedToday: 1, weekAccuracy: 50, currentStreak: 3, longestStreak: 4, hasContent: true }))
-      .mockResolvedValueOnce(okJson({ courses: [] }));
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("fetch", vi.fn(async (path: string) => {
+      if (path === "/api/quiz/dashboard?tz=UTC") return Response.json(initialDashboard);
+      if (path === "/api/quiz/dashboard/courses?includeArchived=1") {
+        return Response.json({
+          courses: [{ ...initialCourses[0], courseName: "Archived course", isActive: false }],
+        });
+      }
+      throw new Error(`Unexpected request: ${path}`);
+    }));
 
-    await renderDashboard();
+    renderDashboard();
 
-    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/quiz/dashboard?tz=UTC");
-    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/quiz/dashboard/courses?includeArchived=1");
+    expect(await screen.findByText("Archived course")).toBeTruthy();
   });
 
   it("renders server-provided dashboard data without an initial browser fetch", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
-    const { container } = await renderDashboard();
+    renderDashboard();
 
-    expect(container.textContent).toContain("quiz.title");
-    expect(mocks.lastCourseListProps!.courses).toEqual(initialCourses);
+    expect(screen.getByText("Course A")).toBeTruthy();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -234,9 +186,9 @@ describe("QuizDashboard archive refresh", () => {
       .mockResolvedValueOnce(okJson({ ...initialDashboard, reviewedToday: 4 }));
     vi.stubGlobal("fetch", fetchMock);
 
-    await renderDashboard();
+    renderDashboard();
 
-    expect(fetchMock).toHaveBeenCalledOnce();
+    await waitFor(() => expect(screen.getByText("quiz.stats.reviewed_today").parentElement?.textContent).toContain("4"));
     expect(fetchMock).toHaveBeenCalledWith("/api/quiz/dashboard?tz=America%2FNew_York");
   });
 });

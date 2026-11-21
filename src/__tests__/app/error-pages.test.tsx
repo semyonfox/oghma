@@ -14,9 +14,13 @@ vi.mock("@/lib/auth/session", () => ({
 }));
 vi.mock("next/navigation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/navigation")>()),
+  usePathname: () => "/",
   useRouter: () => ({ back: vi.fn() }),
 }));
 
+import I18nProvider from "@/lib/i18n/provider";
+import { Locale } from "@/locales";
+import NotFoundContent from "@/app/not-found-content";
 import AppError from "@/app/error";
 import NotFound from "@/app/not-found";
 
@@ -46,7 +50,8 @@ describe("not-found page", () => {
 
     const page = await NotFound();
 
-    expect(page.props.homeUrl).toBe("/notes");
+    render(page);
+    expect(screen.getByRole("link", { name: "Go home" }).getAttribute("href")).toBe("/notes");
   });
 
   it("still renders when session validation is unavailable", async () => {
@@ -54,6 +59,23 @@ describe("not-found page", () => {
 
     const page = await NotFound();
 
-    expect(page.props.homeUrl).toBe("/");
+    render(page);
+    expect(screen.getByRole("heading", { name: "Page not found" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Go home" }).getAttribute("href")).toBe("/");
+  });
+
+  it("keeps the root layout's locale when the provider is there", () => {
+    render(
+      <I18nProvider
+        locale={Locale.GA}
+        lngDict={{ "error.page_not_found": "Níor aimsíodh an leathanach" }}
+      >
+        <NotFoundContent homeUrl="/" />
+      </I18nProvider>,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Níor aimsíodh an leathanach" }),
+    ).toBeTruthy();
   });
 });

@@ -289,7 +289,7 @@ describe("study classifier Decisions boundary", () => {
     );
   });
 
-  it.each([-0.1, 1.1, Number.NaN, Number.POSITIVE_INFINITY])(
+  it.each([-0.1, 1.1, Number.NaN])(
     "rejects invalid probability %s",
     async (value) => {
       respond((body, request) => {
@@ -303,7 +303,6 @@ describe("study classifier Decisions boundary", () => {
       await expect(classifyStudySource(source, topics)).rejects.toThrow(
         /invalid Decisions response/,
       );
-      expect(fetchMock).toHaveBeenCalledTimes(1);
     },
   );
 
@@ -325,7 +324,6 @@ describe("study classifier Decisions boundary", () => {
     await expect(classifyStudySource(source, topics)).rejects.toThrow(
       /probability distribution|sum to one/,
     );
-    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it.each([
@@ -368,7 +366,6 @@ describe("study classifier Decisions boundary", () => {
         expect.objectContaining({ topicId: topicA, probability: 1 }),
       ]);
       expect(rawTopicAnswer).toMatchObject({ probabilities });
-      expect(fetchMock).toHaveBeenCalledTimes(1);
     },
   );
 

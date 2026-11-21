@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from "react";
-import { fireEvent, render, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -10,16 +10,11 @@ const mocks = vi.hoisted(() => ({
     error: vi.fn(),
     info: vi.fn(),
   },
-  usePollingJob: vi.fn(),
 }));
 
 vi.mock("@/lib/notes/hooks/use-i18n", () => ({
   __esModule: true,
   default: () => ({ t: (key: string) => key }),
-}));
-
-vi.mock("@/lib/hooks/use-polling-job", () => ({
-  usePollingJob: mocks.usePollingJob,
 }));
 
 vi.mock("sonner", () => ({ toast: mocks.toast }));
@@ -74,6 +69,33 @@ function requestUrl(input: RequestInfo | URL) {
   return typeof input === "string" ? input : input.toString();
 }
 
+function replyWithImportStatus({
+  cancelRequested = false,
+  completesOnPoll = false,
+} = {}) {
+  let polled = false;
+  fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+    if (requestUrl(input) !== "/api/vault/status?type=vault-import") {
+      return jsonResponse({});
+    }
+    const complete = polled && completesOnPoll;
+    polled = true;
+    return jsonResponse({
+      job: {
+        jobId: "job-1",
+        type: "vault-import",
+        status: complete ? "complete" : "processing",
+        createdAt: "2026-10-06T00:00:00Z",
+        startedAt: null,
+        completedAt: null,
+        expectedTotal: complete ? 3 : null,
+        cancelRequested,
+      },
+      progress: { completed: 3, total: complete ? 3 : 0 },
+    });
+  });
+}
+
 function setSelectedFile(input: HTMLInputElement, file: File) {
   Object.defineProperty(input, "value", {
     configurable: true,
@@ -96,7 +118,7 @@ describe("DataExportSection", () => {
         const url = requestUrl(input);
         if (url === "/api/calendar/token") return jsonResponse({ token: null });
         if (url.startsWith("/api/vault/status")) {
-          return jsonResponse({ job: null, downloadUrl: null, progress: null });
+          return jsonResponse({});
         }
         if (url === "/api/vault/import" && init?.method === "POST") {
           return jsonResponse({
@@ -138,7 +160,7 @@ describe("DataExportSection", () => {
         if (init?.method === "POST") token = "regenerated-test-token";
         return jsonResponse({ token });
       }
-      return jsonResponse({ job: null });
+      return jsonResponse({});
     });
     const open = vi.spyOn(window, "open").mockImplementation(() => null);
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
@@ -225,16 +247,19 @@ describe("DataExportSection", () => {
     expect(FakeXMLHttpRequest.instances).toHaveLength(0);
   });
 
-  it("keeps a useful error when the upload service returns a non-JSON failure", async () => {
+  it.each([
+    { response: () => new Response("upstream unavailable", { status: 502 }), message: "Failed to get upload URL" },
+    { response: () => jsonResponse({ error: "Upload is too large" }, 413), message: "Upload is too large" },
+  ])("shows the vault upload error $message", async ({ response, message }) => {
     fetchMock.mockImplementation(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = requestUrl(input);
         if (url === "/api/calendar/token") return jsonResponse({ token: null });
         if (url.startsWith("/api/vault/status")) {
-          return jsonResponse({ job: null, downloadUrl: null, progress: null });
+          return jsonResponse({});
         }
         if (url === "/api/vault/import" && init?.method === "POST") {
-          return new Response("upstream unavailable", { status: 502 });
+          return response();
         }
         throw new Error(`Unexpected fetch: ${init?.method || "GET"} ${url}`);
       },
@@ -249,13 +274,37 @@ describe("DataExportSection", () => {
       new File(["zip"], "Backup.zip", { type: "application/zip" }),
     );
 
-    await waitFor(() => {
-      expect(mocks.toast.error).toHaveBeenCalledWith(
-        "Failed to get upload URL",
-      );
-    });
+    expect(await screen.findByText(message)).toBeTruthy();
     expect(input.value).toBe("");
+  });
 
+  it("follows a running import through to completion", async () => {
+    vi.useFakeTimers();
+    replyWithImportStatus({ completesOnPoll: true });
+
+    try {
+      await act(async () => {
+        render(React.createElement(DataExportSection));
+      });
+      expect(screen.getByText("Processing 3 files...")).toBeTruthy();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3000);
+      });
+      expect(screen.getByText(/Import complete!/)).toBeTruthy();
+      expect(screen.queryByText("Processing 3 files...")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("restores an outstanding cancel request after returning to settings", async () => {
+    replyWithImportStatus({ cancelRequested: true });
+
+    render(React.createElement(DataExportSection));
+
+    const button = await screen.findByRole("button", { name: "Cancelling..." });
+    expect(button.hasAttribute("disabled")).toBe(true);
   });
 
   it("keeps a persisted vault failure visible after returning to settings", async () => {
@@ -270,7 +319,7 @@ describe("DataExportSection", () => {
           });
         }
         if (url === "/api/vault/status?type=vault-export") {
-          return jsonResponse({ job: null, downloadUrl: null, progress: null });
+          return jsonResponse({});
         }
         throw new Error(`Unexpected fetch: ${init?.method || "GET"} ${url}`);
       },

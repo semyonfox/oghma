@@ -3,22 +3,8 @@
 import React from "react";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
+import { within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
-type CourseVisibilityItem = {
-  courseId: string;
-  courseName: string;
-  isActive: boolean;
-  contextText: string | null;
-  hasDueItems: boolean;
-};
-
-type CourseVisibilityManagerProps = {
-  items: CourseVisibilityItem[];
-  onToggleCourse: (item: CourseVisibilityItem, active: boolean) => Promise<void>;
-  onRestoreAll: (items: CourseVisibilityItem[]) => Promise<void>;
-  inline: boolean;
-};
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
@@ -43,7 +29,6 @@ const mocks = vi.hoisted(() => {
       generation: 1,
     },
     toastError: vi.fn(),
-    lastManagerProps: null as CourseVisibilityManagerProps | null,
   };
 });
 
@@ -116,15 +101,6 @@ vi.mock("@/lib/native-app", () => ({
   useNativeAppBridge: () => null,
 }));
 
-vi.mock("@/components/settings/account-section", () => ({
-  default: ({ formState }: { formState: { firstName: string; lastName: string } }) =>
-    React.createElement(
-      "section",
-      { id: "account", "data-name": `${formState.firstName}|${formState.lastName}` },
-      "Personal Information",
-    ),
-}));
-
 vi.mock("@/components/settings/editor-theme-section", () => ({
   default: () =>
     React.createElement("section", { id: "editor" }, "Editor & Theme"),
@@ -150,25 +126,6 @@ vi.mock("@/components/settings/data-export-section", () => ({
 vi.mock("@/components/settings/danger-section", () => ({
   default: () =>
     React.createElement("section", { id: "danger" }, "Danger Zone"),
-}));
-
-vi.mock("@/components/course-visibility/course-visibility-manager", () => ({
-  default: (props: CourseVisibilityManagerProps) => {
-    mocks.lastManagerProps = props;
-    return React.createElement(
-      "section",
-      { id: "course-visibility" },
-      "Course visibility controls",
-    );
-  },
-  mergeCourseVisibilityItems: (sources: CourseVisibilityItem[]) =>
-    sources.map((source) => ({
-      courseId: source.courseId,
-      courseName: source.courseName,
-      isActive: source.isActive ?? true,
-      contextText: source.contextText ?? null,
-      hasDueItems: source.hasDueItems,
-    })),
 }));
 
 import SettingsPage from "@/app/settings/page";
@@ -197,7 +154,6 @@ describe("SettingsPage", () => {
     document.body.innerHTML = "";
     window.history.replaceState(null, "", "/settings");
     vi.clearAllMocks();
-    mocks.lastManagerProps = null;
     mocks.treeState.ownerUserId = "user-1";
     mocks.treeState.generation = 1;
     mocks.logout.mockResolvedValue(okJson({}));
@@ -218,6 +174,8 @@ describe("SettingsPage", () => {
           );
         }
 
+        if (url === "/api/auth/avatar") return Promise.resolve(okJson({ avatarUrl: null }));
+
         if (url === "/api/settings") {
           return Promise.resolve(
             okJson({
@@ -235,8 +193,16 @@ describe("SettingsPage", () => {
                 {
                   courseId: "7",
                   courseName: "Algorithms",
+                  isActive: true,
                   dueCount: 2,
                   totalCards: 10,
+                },
+                {
+                  courseId: "8",
+                  courseName: "Databases",
+                  isActive: false,
+                  dueCount: 0,
+                  totalCards: 4,
                 },
               ],
             }),
@@ -258,43 +224,39 @@ describe("SettingsPage", () => {
     });
   });
 
-  it("keeps the existing settings sections while adding course visibility controls", async () => {
+  it("lists courses under Active or Archived from the API's isActive flag", async () => {
+    const { container } = await renderSettingsPage();
+    const view = within(container);
+    expect(await view.findByText("Algorithms")).toBeTruthy();
+    expect(view.getByText("2 due · 10 cards")).toBeTruthy();
+    const sectionOf = (name: string) => {
+      const section = view.getByText(name).closest("section");
+      if (!section) throw new Error(`Expected a section for ${name}`);
+      return within(section);
+    };
+    expect(sectionOf("Algorithms").getAllByText("Active")).toHaveLength(2);
+    expect(sectionOf("Algorithms").queryByText("Databases")).toBeNull();
+    expect(sectionOf("Databases").getAllByText("Archived")).toHaveLength(2);
+  });
+
+  it("renders every settings section, including export and account deletion", async () => {
     const { container } = await renderSettingsPage();
 
     await vi.waitFor(() => {
-      expect(mocks.setSettings).toHaveBeenCalledTimes(1);
-      expect(mocks.fetchSettings).toHaveBeenCalledTimes(1);
-      expect(mocks.lastManagerProps).not.toBeNull();
+      for (const id of ["account", "editor", "password", "canvas", "ai", "data", "danger"]) {
+        expect(container.querySelector(`#${id}`), id).not.toBeNull();
+      }
     });
-
-    expect(container.textContent).toContain("Personal Information");
-    expect(container.textContent).toContain("Editor & Theme");
-    expect(container.textContent).toContain("Password");
-    expect(container.textContent).toContain("Canvas");
-    expect(container.textContent).toContain("AI Settings");
-    expect(container.textContent).toContain("Data & Export");
-    expect(container.textContent).toContain("Danger Zone");
-    expect(container.textContent).toContain("Course visibility");
-    expect(container.textContent).toContain("Course visibility controls");
-    expect(mocks.lastManagerProps?.items).toEqual([
-      {
-        courseId: "7",
-        courseName: "Algorithms",
-        isActive: true,
-        contextText: "2 due · 10 cards",
-        hasDueItems: true,
-      },
-    ]);
   });
 
   it("prefills the name fields from the account display name", async () => {
     const { container } = await renderSettingsPage();
 
-    await vi.waitFor(() => {
-      expect(
-        container.querySelector("#account")?.getAttribute("data-name"),
-      ).toBe("Jane|van Doe");
-    });
+    const view = within(container);
+    const firstName = await view.findByRole("textbox", { name: "First name" });
+    const lastName = view.getByRole("textbox", { name: "Last name" });
+    expect(firstName).toHaveProperty("value", "Jane");
+    expect(lastName).toHaveProperty("value", "van Doe");
   });
 
   it("opens the Canvas section from the URL hash after it loads", async () => {

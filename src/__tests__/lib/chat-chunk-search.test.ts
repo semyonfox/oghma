@@ -53,6 +53,7 @@ describe("searchChatChunks", () => {
       scopedNoteIds: ["11111111-1111-1111-1111-111111111111"],
     });
 
+    expect(embedText).not.toHaveBeenCalled();
     expect(results).toEqual([
       {
         noteId: "11111111-1111-1111-1111-111111111111",
@@ -62,31 +63,6 @@ describe("searchChatChunks", () => {
         source: "exact-note",
       },
     ]);
-  });
-
-  it("applies folder scope to exact search and note fallback queries", async () => {
-    const scopedNoteIds = ["33333333-3333-3333-3333-333333333333"];
-
-    vi.mocked(sql)
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        {
-          note_id: scopedNoteIds[0],
-          title: "Lecture 2",
-          snippet: "TCP/IP maps cleanly onto the lower OSI layers.",
-        },
-      ]);
-
-    await searchChatChunks({
-      userId: "44444444-4444-4444-4444-444444444444",
-      query: "TCP/IP",
-      mode: "exact",
-      scopedNoteIds,
-    });
-
-    expect(vi.mocked(sql).mock.calls).toHaveLength(2);
-    expect(vi.mocked(sql).mock.calls[0]).toContainEqual(scopedNoteIds);
-    expect(vi.mocked(sql).mock.calls[1]).toContainEqual(scopedNoteIds);
   });
 
   it.each(["semantic", "exact", "both"] as const)(
@@ -150,28 +126,6 @@ describe("searchChatChunks", () => {
       }
     },
   );
-
-  it("does not require embeddings for exact-only search", async () => {
-    vi.mocked(sql)
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        {
-          note_id: "55555555-5555-5555-5555-555555555555",
-          title: "Lecture 3",
-          snippet: "Switching works at layer 2.",
-        },
-      ]);
-
-    const results = await searchChatChunks({
-      userId: "66666666-6666-6666-6666-666666666666",
-      query: "switching",
-      mode: "exact",
-    });
-
-    expect(embedText).not.toHaveBeenCalled();
-    expect(results).toHaveLength(1);
-    expect(results[0]?.source).toBe("exact-note");
-  });
 
   it("skips note fallback duplicates when exact chunk hits already exist", async () => {
     vi.mocked(sql)

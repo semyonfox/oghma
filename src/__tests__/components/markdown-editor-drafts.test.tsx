@@ -308,6 +308,10 @@ describe("markdown editor recovery ownership", () => {
       target: { value: "saving" },
     });
     await savePane("A");
+    expect(mocks.mutateNote).toHaveBeenCalledExactlyOnceWith(file.fileId, {
+      content: "saving",
+      expectedUpdatedAt: "2026-01-01T00:00:00Z",
+    });
     fireEvent.change(view.getByRole("textbox"), { target: { value: "newer" } });
     await act(async () => {
       save.resolve();
@@ -317,6 +321,7 @@ describe("markdown editor recovery ownership", () => {
         ([key]) => !key.endsWith(":B"),
       )?.[1].state,
     ).toBe("dirty");
+    expect(view.getByRole("textbox")).toHaveProperty("value", "newer");
     view.unmount();
     expect((await readDraft(file.fileId, "A"))?.content).toBe("newer");
   });

@@ -92,7 +92,7 @@ describe("CanvasProgressPanel", () => {
   });
 
   it("reports a terminal run with failures as failed", () => {
-    const { container } = render(
+    render(
       <CanvasProgressPanel
         isImporting={false}
         isDiscovering={false}
@@ -113,7 +113,6 @@ describe("CanvasProgressPanel", () => {
     );
 
     expect(screen.getByText("Import failed")).toBeTruthy();
-    expect(container.querySelector(".bg-error-500")).toBeTruthy();
     expect(
       screen
         .getByText("This file could not be imported.")
@@ -121,22 +120,7 @@ describe("CanvasProgressPanel", () => {
     ).toBe("Storage upload failed for lecture.pdf");
   });
 
-  it("does not label a partially successful run as failed", () => {
-    render(
-      <CanvasProgressPanel
-        isImporting={false}
-        isDiscovering={false}
-        isSyncing={false}
-        progress={{ percent: 100, completed: 4, total: 5 }}
-        importSummary={{ imported: 4, forbidden: 0, failed: 1, skipped: 0 }}
-        recentLogs={[]}
-        markerColdStarting={false}
-        estimatedSecsRemaining={null}
-      />,
-    );
 
-    expect(screen.getByText("Completed with issues")).toBeTruthy();
-  });
 });
 
 
@@ -162,11 +146,24 @@ it("shows an inaccessible-only run as finished with readable section errors", ()
   expect(screen.queryByText("Import failed")).toBeNull();
 });
 
-it("does not present a stopped parent as a download stuck at 99 percent", () => {
-  render(<CanvasProgressPanel isImporting={false} isDiscovering={false} isSyncing={false}
-    terminalStatus="failed" progress={{ percent: 99, completed: 4, total: 5 }}
-    importSummary={{ imported: 4, forbidden: 0, failed: 1, skipped: 0 }}
-    recentLogs={[]} markerColdStarting={false} estimatedSecsRemaining={null} />);
+it("distinguishes a partial success from a failed parent with identical counts", () => {
+  const panel = (terminalStatus?: "failed") => (
+    <CanvasProgressPanel
+      isImporting={false}
+      isDiscovering={false}
+      isSyncing={false}
+      terminalStatus={terminalStatus}
+      progress={{ percent: 99, completed: 4, total: 5 }}
+      importSummary={{ imported: 4, forbidden: 0, failed: 1, skipped: 0 }}
+      recentLogs={[]}
+      markerColdStarting={false}
+      estimatedSecsRemaining={null}
+    />
+  );
+  const { rerender } = render(panel());
+  expect(screen.getByText("Completed with issues")).toBeTruthy();
+
+  rerender(panel("failed"));
   expect(screen.getByText("Import failed")).toBeTruthy();
   expect(screen.queryByText("99%")).toBeNull();
 });

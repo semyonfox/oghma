@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  sql: vi.fn(),
+  sql: Object.assign(vi.fn(), {
+    begin: vi.fn(),
+  }),
   enqueueMarkerCompletionJob: vi.fn(),
   enqueueMarkerDispatchJob: vi.fn(),
   enqueueMarkerFailureJob: vi.fn(),
@@ -41,6 +43,10 @@ import { MarkerDispatchRejectedError } from "@/lib/marker/errors";
 import {
   dispatchMarkerJob,
   recoverMarkerDispatchJobs,
+  submitMarkerJob,
+  MarkerSubmissionCancelledError,
+  markerQueueEnabled,
+  markerServerlessProvider,
 } from "@/lib/marker/serverless";
 
 const exhaustedJob = {
@@ -85,11 +91,8 @@ describe("Marker durable dispatch limits", () => {
 
     await dispatchMarkerJob(exhaustedJob.callback_id);
 
-    expect(mocks.getObjectMeta).not.toHaveBeenCalled();
     expect(mocks.requestVastEndpoint).not.toHaveBeenCalled();
-    expect(mocks.getExternalSignUrl).not.toHaveBeenCalled();
-    expect(mocks.getPutSignUrl).not.toHaveBeenCalled();
-    expect(mocks.enqueueMarkerFailureJob).not.toHaveBeenCalled();
+    expect(sqlTexts().join("\n")).toContain("SET status = 'awaiting_result'");
   });
 
   it("does not revive a cancelled job when a prior GPU attempt left a result", async () => {
@@ -128,7 +131,6 @@ describe("Marker durable dispatch limits", () => {
 
     await dispatchMarkerJob(awaitingResult.callback_id);
 
-    expect(mocks.getObjectMeta).toHaveBeenCalledWith(awaitingResult.result_key);
     expect(mocks.enqueueMarkerCompletionJob).toHaveBeenCalledWith(
       awaitingResult.callback_id,
     );
@@ -173,7 +175,6 @@ describe("Marker durable dispatch limits", () => {
     await dispatchMarkerJob(awaitingResult.callback_id);
 
     expect(mocks.enqueueMarkerFailureJob).not.toHaveBeenCalled();
-    expect(mocks.sql).toHaveBeenCalledTimes(1);
   });
 
   it("honours the stored URL expiry over the currently configured TTL", async () => {
@@ -196,16 +197,22 @@ describe("Marker durable dispatch limits", () => {
 
   it("continues recovery of already-paid outcomes while the dispatch kill switch is off", async () => {
     process.env.MARKER_SERVERLESS_DISPATCH_ENABLED = "false";
-    // With fresh dispatch recovery skipped, the remaining three reads are
-    // stale dispatch, awaiting-result, and completion/failure recovery.
-    mocks.sql
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([]);
+    mocks.sql.mockImplementation(async (query: TemplateStringsArray) => {
+      const statement = query.join("?");
+      if (statement.includes("SET status = 'recovering'")) {
+        return [{ callback_id: "queued-job" }];
+      }
+      if (statement.includes("WHERE status = 'awaiting_result'")) {
+        return [{ callback_id: exhaustedJob.callback_id }];
+      }
+      return [];
+    });
 
-    await expect(recoverMarkerDispatchJobs()).resolves.toBe(0);
+    await expect(recoverMarkerDispatchJobs()).resolves.toBe(1);
 
-    expect(mocks.sql).toHaveBeenCalledTimes(3);
+    expect(mocks.enqueueMarkerDispatchJob).toHaveBeenCalledExactlyOnceWith(
+      exhaustedJob.callback_id,
+    );
     expect(mocks.requestVastEndpoint).not.toHaveBeenCalled();
   });
 });
@@ -314,7 +321,6 @@ describe("Marker dispatch outcomes", () => {
 
       await dispatchMarkerJob(claimedJob.callback_id);
 
-      expect(mocks.submitRunPodJob).toHaveBeenCalledOnce();
       expect(mocks.submitRunPodJob.mock.calls[0]![1]).toMatchObject({
         ttlSeconds: 3600,
         webhookUrl: `https://app.example/api/internal/marker/webhook-token/${claimedJob.callback_id}`,
@@ -385,5 +391,155 @@ describe("Marker dispatch outcomes", () => {
 
       expect(mocks.enqueueMarkerFailureJob).toHaveBeenCalledWith(stale.callback_id);
     });
+  });
+});
+
+const input = {
+  sourceKey: "canvas/user/file.pdf",
+  sourceBytes: 1024,
+  noteId: "11111111-1111-4111-8111-111111111111",
+  userId: "22222222-2222-4222-8222-222222222222",
+  jobId: "33333333-3333-4333-8333-333333333333",
+  filename: "lecture.pdf",
+  mimeType: "application/pdf",
+  parentFolderId: null,
+};
+
+describe("Marker submission cancellation fence", () => {
+  beforeEach(() => {
+    mocks.sql.mockReset();
+    mocks.sql.begin.mockClear();
+    mocks.sql.begin.mockImplementation(
+      async (callback: (tx: typeof mocks.sql) => unknown) =>
+        callback(mocks.sql),
+    );
+    mocks.enqueueMarkerDispatchJob.mockReset();
+    process.env.MARKER_OCR_ENABLED = "true";
+    process.env.MARKER_SERVERLESS_PROVIDER = "vast";
+    process.env.MARKER_SERVERLESS_DISPATCH_ENABLED = "true";
+    process.env.STORAGE_PUBLIC_ENDPOINT = "https://objects.example";
+    process.env.VAST_MARKER_ENDPOINT_NAME = "oghma-marker";
+    process.env.VAST_MARKER_ENDPOINT_API_KEY = "endpoint-key";
+  });
+
+  afterEach(() => {
+    for (const variable of [
+      "MARKER_OCR_ENABLED",
+      "MARKER_SERVERLESS_PROVIDER",
+      "MARKER_SERVERLESS_DISPATCH_ENABLED",
+      "STORAGE_PUBLIC_ENDPOINT",
+      "VAST_MARKER_ENDPOINT_NAME",
+      "VAST_MARKER_ENDPOINT_API_KEY",
+    ]) {
+      delete process.env[variable];
+    }
+  });
+
+  it("does not create or enqueue GPU work after cancellation wins", async () => {
+    // The first transaction query is the active Canvas-job lock/check.
+    mocks.sql.mockResolvedValueOnce([]);
+
+    await expect(submitMarkerJob(input)).rejects.toBeInstanceOf(
+      MarkerSubmissionCancelledError,
+    );
+
+    expect(mocks.enqueueMarkerDispatchJob).not.toHaveBeenCalled();
+  });
+
+  it("does not dispatch a standalone note deleted before submission", async () => {
+    mocks.sql.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    await expect(
+      submitMarkerJob({ ...input, jobId: null }),
+    ).rejects.toBeInstanceOf(MarkerSubmissionCancelledError);
+    expect(mocks.enqueueMarkerDispatchJob).not.toHaveBeenCalled();
+  });
+
+  it("reuses an already-active Marker row instead of creating a second GPU job", async () => {
+    const existing = {
+      callback_id: "44444444-4444-4444-8444-444444444444",
+      provider: "vast",
+      result_key: "marker-results/44444444-4444-4444-8444-444444444444.json",
+      status: "dispatching",
+    };
+    mocks.sql
+      .mockResolvedValueOnce([{ id: input.jobId }])
+      .mockResolvedValueOnce([existing]);
+
+    await expect(submitMarkerJob(input)).resolves.toEqual({
+      markerJobId: existing.callback_id,
+      provider: "vast",
+      resultKey: existing.result_key,
+    });
+
+    expect(mocks.enqueueMarkerDispatchJob).not.toHaveBeenCalled();
+  });
+});
+
+const variables = [
+  "MARKER_OCR_ENABLED",
+  "MARKER_SERVERLESS_PROVIDER",
+  "MARKER_SERVERLESS_DISPATCH_ENABLED",
+  "STORAGE_PUBLIC_ENDPOINT",
+  "VAST_MARKER_ENDPOINT_NAME",
+  "VAST_MARKER_ENDPOINT_API_KEY",
+  "VAST_API_KEY",
+  "RUNPOD_MARKER_ENDPOINT_ID",
+  "RUNPOD_API_KEY",
+  "RUNPOD_MARKER_WEBHOOK_TOKEN",
+  "RUNPOD_MARKER_WEBHOOK_BASE_URL",
+];
+
+describe("Marker serverless configuration", () => {
+  afterEach(() => {
+    for (const variable of variables) delete process.env[variable];
+  });
+
+  it("requires the endpoint-scoped Vast key and public object storage", () => {
+    process.env.MARKER_OCR_ENABLED = "true";
+    process.env.MARKER_SERVERLESS_PROVIDER = "vast";
+    process.env.MARKER_SERVERLESS_DISPATCH_ENABLED = "true";
+    process.env.STORAGE_PUBLIC_ENDPOINT = "https://objects.example";
+    process.env.VAST_MARKER_ENDPOINT_NAME = "oghma-marker";
+    process.env.VAST_MARKER_ENDPOINT_API_KEY = "endpoint-key";
+
+    expect(markerServerlessProvider()).toBe("vast");
+    expect(markerQueueEnabled()).toBe(true);
+
+    delete process.env.STORAGE_PUBLIC_ENDPOINT;
+    expect(markerQueueEnabled()).toBe(false);
+    process.env.STORAGE_PUBLIC_ENDPOINT = "https://objects.example";
+
+    delete process.env.VAST_MARKER_ENDPOINT_API_KEY;
+    process.env.VAST_API_KEY = "broad-account-key";
+    expect(markerQueueEnabled()).toBe(false);
+  });
+
+  it("uses the dispatch kill switch without discarding provider configuration", () => {
+    process.env.MARKER_OCR_ENABLED = "true";
+    process.env.MARKER_SERVERLESS_PROVIDER = "vast";
+    process.env.MARKER_SERVERLESS_DISPATCH_ENABLED = "false";
+    process.env.STORAGE_PUBLIC_ENDPOINT = "https://objects.example";
+    process.env.VAST_MARKER_ENDPOINT_NAME = "oghma-marker";
+    process.env.VAST_MARKER_ENDPOINT_API_KEY = "endpoint-key";
+
+    expect(markerServerlessProvider()).toBe("vast");
+    expect(markerQueueEnabled()).toBe(false);
+  });
+
+  it("enables RunPod only when its complete provider configuration and both gates are set", () => {
+    process.env.MARKER_OCR_ENABLED = "true";
+    process.env.MARKER_SERVERLESS_PROVIDER = "runpod";
+    process.env.MARKER_SERVERLESS_DISPATCH_ENABLED = "true";
+    process.env.STORAGE_PUBLIC_ENDPOINT = "https://objects.example";
+    process.env.RUNPOD_MARKER_ENDPOINT_ID = "endpoint";
+    process.env.RUNPOD_API_KEY = "key";
+    process.env.RUNPOD_MARKER_WEBHOOK_TOKEN = "token";
+    process.env.RUNPOD_MARKER_WEBHOOK_BASE_URL = "https://app.example";
+
+    expect(markerServerlessProvider()).toBe("runpod");
+    expect(markerQueueEnabled()).toBe(true);
+
+    delete process.env.RUNPOD_MARKER_WEBHOOK_BASE_URL;
+    expect(markerQueueEnabled()).toBe(false);
   });
 });

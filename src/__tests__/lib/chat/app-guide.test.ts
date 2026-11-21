@@ -1,5 +1,3 @@
-import fs from "node:fs";
-import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
   APP_GUIDE_TOPIC_IDS,
@@ -10,7 +8,8 @@ import {
   renderGettingStartedNote,
 } from "@/lib/chat/app-guide";
 import { createChatTools } from "@/lib/chat/build-stream";
-import { Locale } from "@/locales";
+import { loadLocaleData } from "@/lib/i18n/locale-data";
+import { Locale, supportedLocales } from "@/locales";
 
 describe("app guide", () => {
   it("defines complete, unique topics with internal routes", () => {
@@ -66,23 +65,11 @@ describe("app guide", () => {
     expect(note).not.toContain("## Fun fact");
   });
 
-  it("has non-empty translations for every suggested app-help prompt", () => {
-    const localeDirectory = path.join(process.cwd(), "src/locales");
-    const localeFiles = fs
-      .readdirSync(localeDirectory)
-      .filter(
-        (fileName) =>
-          fileName.endsWith(".json") &&
-          fileName !== "STRINGS_MAPPING_EN_FR.json",
-      );
-
-    for (const fileName of localeFiles) {
-      const locale = JSON.parse(
-        fs.readFileSync(path.join(localeDirectory, fileName), "utf8"),
-      ) as Record<string, unknown>;
-
+  it("has non-empty translations for every suggested app-help prompt", async () => {
+    for (const locale of supportedLocales) {
+      const { dict } = await loadLocaleData(locale);
       for (const prompt of SUGGESTED_APP_HELP_PROMPTS) {
-        expect(locale[prompt], `${fileName}: ${prompt}`).toEqual(
+        expect(dict[prompt], `${locale}: ${prompt}`).toEqual(
           expect.stringMatching(/\S/),
         );
       }

@@ -13,27 +13,10 @@ function fakeCanvas(overrides: Partial<CanvasClient>): CanvasClient {
 }
 
 describe("announcement tools", () => {
-    it("canvas_list_announcements calls collectPaginated with context_codes", async () => {
+    it("canvas_list_announcements passes optional date filters and active_only", async () => {
         const collect = vi.fn().mockResolvedValue([{ id: 1, title: "Welcome!" }]);
         const tool = findTool("canvas_list_announcements");
         const result = await tool.handler(
-            { context_codes: ["course_123"] },
-            { canvas: fakeCanvas({ collectPaginated: collect }) },
-        );
-        expect(collect).toHaveBeenCalledWith(
-            "/api/v1/announcements",
-            expect.objectContaining({
-                per_page: 100,
-                context_codes: ["course_123"],
-            }),
-        );
-        expect(result.content[0].text).toContain("Welcome!");
-    });
-
-    it("canvas_list_announcements passes optional date filters and active_only", async () => {
-        const collect = vi.fn().mockResolvedValue([]);
-        const tool = findTool("canvas_list_announcements");
-        await tool.handler(
             {
                 context_codes: ["course_456"],
                 start_date: "2024-09-01",
@@ -45,12 +28,14 @@ describe("announcement tools", () => {
         expect(collect).toHaveBeenCalledWith(
             "/api/v1/announcements",
             expect.objectContaining({
+                per_page: 100,
                 context_codes: ["course_456"],
                 start_date: "2024-09-01",
                 end_date: "2024-12-31",
                 active_only: true,
             }),
         );
+        expect(result.content[0].text).toContain("Welcome!");
     });
 
     it("canvas_list_course_announcements calls collectPaginated for the course", async () => {

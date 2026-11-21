@@ -17,12 +17,6 @@ vi.mock("next-auth/providers/google", () => ({
 vi.mock("next-auth/providers/github", () => ({
   default: vi.fn(() => ({ id: "github" })),
 }));
-vi.mock("next-auth/providers/credentials", () => ({
-  default: vi.fn((config: Record<string, unknown>) => ({
-    ...config,
-    id: "credentials",
-  })),
-}));
 vi.mock("@/database/pgsql", () => ({ default: mocks.sql }));
 vi.mock("@/lib/logger", () => ({
   default: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
@@ -55,29 +49,26 @@ const baseUser = {
   is_active: true,
   deleted_at: null,
   email_verified: true,
+  session_version: 3,
 };
 let account = { ...baseUser };
 
-async function authorizeCredentials(email: string, submittedPassword: string) {
+async function authorizeCredentials(email: string, submittedPassword: string): Promise<unknown> {
   vi.resetModules();
-  vi.stubEnv("ENABLE_CREDENTIALS_AUTH", "true");
+  vi.stubEnv("ENABLE_CREDENTIALS_AUTH", undefined);
   const { authConfig } = await import("@/auth.config");
   const provider = authConfig.providers.find(
     (entry) =>
-      entry &&
-      typeof entry === "object" &&
-      "id" in entry &&
-      entry.id === "credentials",
+      typeof entry !== "function" && entry.type === "credentials" && entry.id === "credentials",
   );
-  if (
-    !provider ||
-    typeof provider !== "object" ||
-    !("authorize" in provider) ||
-    typeof provider.authorize !== "function"
-  ) {
-    throw new Error("Credentials provider with authorize callback is required");
+  if (!provider || typeof provider === "function" || provider.type !== "credentials") {
+    throw new Error("Credentials provider is required");
   }
-  return provider.authorize(
+  const authorize = provider.options?.authorize ?? provider.authorize;
+  if (typeof authorize !== "function") {
+    throw new Error("Credentials provider must have an authorize callback");
+  }
+  return authorize(
     { email, password: submittedPassword },
     new Request("http://localhost/api/auth/callback/credentials", {
       headers: { "x-forwarded-for": "203.0.113.7" },
@@ -111,17 +102,8 @@ beforeEach(() => {
   mocks.checkRateLimit.mockResolvedValue(null);
   mocks.clearFailedAttempts.mockResolvedValue(undefined);
   mocks.sql.mockImplementation(
-    async (parts: TemplateStringsArray, ...values: unknown[]) => {
-      const query = parts.join(" ");
-      const email = values[0];
-      if (email !== account.email || !account.is_active || account.deleted_at) {
-        return [];
-      }
-      if (query.includes("email_verified = true") && !account.email_verified) {
-        return [];
-      }
-      return [account];
-    },
+    async (_parts: TemplateStringsArray, email: unknown) =>
+      email === account.email ? [account] : [],
   );
 });
 
@@ -133,13 +115,23 @@ describe("Auth.js credentials authorize", () => {
   it("rejects an unverified password account", async () => {
     account.email_verified = false;
     await expect(authorizeCredentials(account.email, password)).resolves.toBeNull();
+    expect(mocks.clearFailedAttempts).not.toHaveBeenCalled();
   });
 
-  it("accepts a verified account with the right password", async () => {
-    await expect(authorizeCredentials(account.email, password)).resolves.toMatchObject({
+  it("authenticates a verified account and uses its normalized address for the shared budget", async () => {
+    await expect(authorizeCredentials(account.email.toUpperCase(), password)).resolves.toMatchObject({
       id: account.user_id,
       email: account.email,
+      session_version: account.session_version,
     });
+    expect(mocks.reserveLoginAttempt).toHaveBeenCalledWith(account.email, "203.0.113.7");
+    expect(mocks.clearFailedAttempts).toHaveBeenCalledWith(account.email, "203.0.113.7");
+  });
+
+  it("rejects an oversized password before reserving an attempt or querying the account", async () => {
+    await expect(authorizeCredentials(account.email, "x".repeat(129))).resolves.toBeNull();
+    expect(mocks.reserveLoginAttempt).not.toHaveBeenCalled();
+    expect(mocks.sql).not.toHaveBeenCalled();
   });
 
   // the attempt is reserved against the shared budget before the account is read,
@@ -177,11 +169,6 @@ describe("Auth.js credentials authorize", () => {
     expect(mocks.checkRateLimit).toHaveBeenCalledWith("login", "203.0.113.7");
     expect(mocks.reserveLoginAttempt).not.toHaveBeenCalled();
     expect(mocks.sql).not.toHaveBeenCalled();
-  });
-
-  it("clears failed attempts after valid credentials", async () => {
-    await authorizeCredentials(account.email, password);
-    expect(mocks.clearFailedAttempts).toHaveBeenCalledWith(account.email, "203.0.113.7");
   });
 });
 

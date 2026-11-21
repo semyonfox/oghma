@@ -13,14 +13,17 @@ describe("unlessCanvasPaused", () => {
   afterEach(() => vi.unstubAllEnvs());
 
   it("skips canvas worker work while paused and runs it once switched on", async () => {
-    const work = vi.fn(async (_jobId: string) => true);
-    const gated = unlessCanvasPaused(work);
+    vi.stubEnv("CANVAS_CONTENT_IMPORT", undefined);
+    const completed: string[] = [];
+    const gated = unlessCanvasPaused(async (jobId: string) => {
+      completed.push(jobId);
+    });
 
-    await gated("job-1");
-    expect(work).not.toHaveBeenCalled();
+    await gated("job-paused");
+    expect(completed).toEqual([]);
 
     vi.stubEnv("CANVAS_CONTENT_IMPORT", "on");
-    await gated("job-1");
-    expect(work).toHaveBeenCalledWith("job-1");
+    await gated("job-running");
+    expect(completed).toEqual(["job-running"]);
   });
 });

@@ -15,20 +15,8 @@ describe('generateSecureToken', () => {
 });
 
 describe('hashToken', () => {
-    it('returns a 64-character hex string', () => {
-        const hash = hashToken('abc123');
-        expect(hash).toMatch(/^[a-f0-9]{64}$/);
-    });
-
-    it('returns the same hash for the same input', () => {
-        const a = hashToken('test-token');
-        const b = hashToken('test-token');
-        expect(a).toBe(b);
-    });
-
-    it('returns different hashes for different inputs', () => {
-        const a = hashToken('token-a');
-        const b = hashToken('token-b');
-        expect(a).not.toBe(b);
+    it('matches the SHA-256 digest used for stored tokens', () => {
+        expect(hashToken('abc')).toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+        expect(hashToken('hello')).toBe('2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824');
     });
 });

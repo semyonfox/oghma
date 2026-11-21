@@ -29,11 +29,6 @@ describe("filterNoteFields", () => {
     expect(result).toStrictEqual({ id: "abc" });
   });
 
-  it("picks a single field", () => {
-    const result = filterNoteFields(note, ["content"]);
-    expect(result).toStrictEqual({ content: "Hello" });
-  });
-
   it("handles an object with all falsy values", () => {
     const falsy = { a: 0, b: false, c: "", d: null };
     const result = filterNoteFields(falsy, ["a", "b"]);

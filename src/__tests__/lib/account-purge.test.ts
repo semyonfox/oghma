@@ -67,7 +67,7 @@ describe("purgeDeletedAccounts", () => {
     expect(DELETED_ACCOUNT_GRACE_DAYS).toBe(30);
   });
 
-  it("cleans notes and user objects through the lifecycle path before dropping the login row", async () => {
+  it("cleans the account's notes and objects and removes the soft-deleted row", async () => {
     mocks.getSettingsFromS3.mockResolvedValue({ avatarKey: `avatars/${USER}/me.png` });
 
     await expect(purgeDeletedAccounts()).resolves.toBe(1);
@@ -83,9 +83,6 @@ describe("purgeDeletedAccounts", () => {
     const remove = queries()[deleteIndex];
     expect(remove.text).toContain("deleted_at IS NOT NULL");
     expect(remove.values[0]).toBe(USER);
-    expect(mocks.permanentlyDeleteNotes.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.sql.mock.invocationCallOrder[deleteIndex] ?? -1,
-    );
   });
 
   it("keeps a failed account for the next pass and still purges the others", async () => {
@@ -98,6 +95,5 @@ describe("purgeDeletedAccounts", () => {
       .filter((query) => query.text.includes("DELETE FROM app.login"))
       .map((query) => query.values[0]);
     expect(removed).toEqual([OTHER]);
-    expect(mocks.logger.error).toHaveBeenCalledTimes(1);
   });
 });

@@ -85,3 +85,32 @@ describe("inspector tags", () => {
     expect(mocks.mutateNote).not.toHaveBeenCalled();
   });
 });
+
+describe("inspector keyboard recovery", () => {
+  it("keeps Tasks in the tab order and supports arrows, Home and End", () => {
+    useLayoutStore.setState({
+      paneA: { fileId: "", fileType: "note" },
+      paneB: null,
+      activePane: "A",
+      rightPanelOpen: true,
+      rightPanelTab: "tasks",
+    });
+    render(<NoteInspectorPanel presentation="drawer" />);
+    const tasks = screen.getByRole("tab", { name: "Global Tasks" });
+    const meta = screen.getByRole("tab", { name: "Meta" });
+    expect(tasks.tabIndex).toBe(0);
+    expect(meta.tabIndex).toBe(-1);
+    tasks.focus();
+    fireEvent.keyDown(tasks, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(meta);
+    expect(meta.getAttribute("aria-selected")).toBe("true");
+    fireEvent.keyDown(meta, { key: "End" });
+    expect(document.activeElement).toBe(tasks);
+    fireEvent.keyDown(tasks, { key: "ArrowLeft" });
+    expect(document.activeElement).toBe(
+      screen.getByRole("tab", { name: "AI" }),
+    );
+    fireEvent.keyDown(document.activeElement!, { key: "Home" });
+    expect(document.activeElement).toBe(meta);
+  });
+});
