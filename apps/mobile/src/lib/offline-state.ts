@@ -32,6 +32,13 @@ interface Storage {
   write(value: string): Promise<void>;
 }
 
+export class UnreadableOfflineLibraryError extends Error {
+  constructor() {
+    super("Offline notes could not be read. Remove downloaded notes to start again.");
+    this.name = "UnreadableOfflineLibraryError";
+  }
+}
+
 /** Serialise storage writes so a late save cannot undo sign-out or removal. */
 export class OfflineLibrary {
   private storage: Storage;
@@ -62,12 +69,17 @@ export class OfflineLibrary {
   private async load() {
     if (this.loaded) return;
     const raw = await this.storage.read();
-    if (raw) {
-      if (raw.length > 500_000)
-        throw new Error(
-          "Offline library is too large. Remove downloaded notes to start again.",
-        );
-      this.library = librarySchema.parse(JSON.parse(raw));
+    if (raw !== null) {
+      if (raw.length > 500_000) throw new UnreadableOfflineLibraryError();
+      let decoded: unknown;
+      try {
+        decoded = JSON.parse(raw);
+      } catch {
+        throw new UnreadableOfflineLibraryError();
+      }
+      const result = librarySchema.safeParse(decoded);
+      if (!result.success) throw new UnreadableOfflineLibraryError();
+      this.library = result.data;
     }
     this.loaded = true;
   }

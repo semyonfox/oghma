@@ -58,6 +58,7 @@ interface CalendarState {
 
 let timeBlockFetchSequence = 0;
 let reviewDateFetchSequence = 0;
+const pendingCompletion = new Set<string>();
 
 function anchorIso(dateKey: string): string {
   const date = parseLocalDateKey(dateKey);
@@ -190,16 +191,18 @@ const useCalendarStore = create<CalendarState>()(
       },
 
       toggleTimeBlockCompleted: async (id) => {
+        if (pendingCompletion.has(id)) return true;
         const block = get().timeBlocks.find((item) => item.id === id);
         if (!block) return false;
         const completed = !block.completed;
-        set((state) => ({
-          timeBlocks: state.timeBlocks.map((item) =>
-            item.id === id ? { ...item, completed } : item,
-          ),
-        }));
-
+        pendingCompletion.add(id);
         try {
+          set((state) => ({
+            timeBlocks: state.timeBlocks.map((item) =>
+              item.id === id ? { ...item, completed } : item,
+            ),
+          }));
+
           const res = await fetch(`/api/time-blocks/${id}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
@@ -208,11 +211,13 @@ const useCalendarStore = create<CalendarState>()(
           if (res.ok) return true;
         } catch {
           // revert below
+        } finally {
+          pendingCompletion.delete(id);
         }
 
         set((state) => ({
           timeBlocks: state.timeBlocks.map((item) =>
-            item.id === id ? { ...item, completed: !completed } : item,
+            item.id === id ? { ...item, completed: block.completed } : item,
           ),
         }));
         return false;

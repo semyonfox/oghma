@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useImperativeHandle, useRef, useState, type Ref } from "react";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { ManualCardDialog } from "@/components/notes/manual-note-cards";
 import { createPortal } from "react-dom";
@@ -25,6 +25,7 @@ import { isPdfFile, uploadFileBeside } from "@/lib/notes/utils/upload-beside";
 import { toast } from "sonner";
 
 interface MilkdownWriteEditorProps {
+  flushRef?: Ref<() => void>;
   value: string;
   onChange: (value: string, programmaticUpdate?: boolean) => void;
   onSave?: () => void;
@@ -404,6 +405,7 @@ function insertUploadedLink(
 }
 
 export default function MilkdownWriteEditor({
+  flushRef,
   value,
   onChange,
   onSave,
@@ -441,6 +443,16 @@ export default function MilkdownWriteEditor({
   const [expandedMermaid, setExpandedMermaid] = useState<string | null>(null);
   const [mermaidPortals, setMermaidPortals] = useState<MermaidPortal[]>([]);
   const preview = usePortalStore((state) => state.preview);
+  const publishCurrentMarkdown = (published?: string) => {
+    const markdown = published ?? crepeRef.current?.getMarkdown();
+    if (markdown === undefined || markdown === lastDocumentMarkdownRef.current) return;
+    // the debounced listener can lag behind an immediate save or blur
+    lastDocumentMarkdownRef.current = markdown;
+    const full = joinFrontmatter(frontmatterRef.current, markdown);
+    lastLocallyEmittedValueRef.current = full;
+    onChange(full, false);
+  };
+
   // Milkdown callbacks registered once at mount reach the latest props through
   // these effect events
   const openPicker = useEffectEvent((from: number, to: number) => {
@@ -450,10 +462,9 @@ export default function MilkdownWriteEditor({
     setPickerOpen(true);
   });
   const openSelectedCard = useEffectEvent(() => makeCard());
-  const emitMarkdown = useEffectEvent((markdown: string) => {
-    onChange(markdown, false);
+  const publishIfCurrent = useEffectEvent((markdown: string) => {
+    if (markdown === crepeRef.current?.getMarkdown()) publishCurrentMarkdown(markdown);
   });
-  // the editor instance owns its initial value; later values use replaceAll below
   const readMountOptions = useEffectEvent(() => ({
     defaultValue: splitFrontmatter(value).body,
     placeholderText: placeholder,
@@ -587,11 +598,7 @@ export default function MilkdownWriteEditor({
       listener.markdownUpdated((_ctx, markdown) => {
         // Milkdown may normalize Markdown while mounting or rendering content.
         // Only a change from the rendered document represents a new edit.
-        if (!crepeRef.current || markdown !== crepeRef.current.getMarkdown() || markdown === lastDocumentMarkdownRef.current) return;
-        lastDocumentMarkdownRef.current = markdown;
-        const full = joinFrontmatter(frontmatterRef.current, markdown);
-        lastLocallyEmittedValueRef.current = full;
-        emitMarkdown(full);
+        publishIfCurrent(markdown);
       });
     });
 
@@ -723,22 +730,11 @@ export default function MilkdownWriteEditor({
     }
   };
 
-  const publishCurrentMarkdown = () => {
-    const crepe = crepeRef.current;
-    if (!crepe) return;
-    const markdown = crepe.getMarkdown();
-    if (markdown === lastDocumentMarkdownRef.current) return;
-    // the debounced listener can lag behind an immediate save or blur
-    lastDocumentMarkdownRef.current = markdown;
-    const full = joinFrontmatter(frontmatterRef.current, markdown);
-    lastLocallyEmittedValueRef.current = full;
-    onChange(full, false);
-  };
-
+  useImperativeHandle(flushRef, () => publishCurrentMarkdown);
   return (
     <div
       className="oghma-milkdown-editor mobile-dock-clearance relative h-full min-h-0 overflow-auto bg-app-page"
-      onBlurCapture={publishCurrentMarkdown}
+      onBlurCapture={() => publishCurrentMarkdown()}
       onKeyDownCapture={(event) => {
         if (event.target instanceof Element && rootRef.current?.contains(event.target) && (event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "k" && !cardDraft) {
           event.preventDefault();

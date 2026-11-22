@@ -95,6 +95,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
   const editorSize = useSettingsStore((s) => s.settings?.editorsize);
   const setSettings = useSettingsStore((s) => s.setSettings);
   const currentFileId = useRef(file.fileId);
+  const flushWriteEditor = useRef<() => void>(null);
   const { t } = useI18n();
   const isDirtyRef = useRef(false);
   // the version of the body local edits started from
@@ -268,6 +269,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
         return;
       }
       if (!cancelled && result && currentFileId.current === stale) {
+        flushWriteEditor.current?.();
         const content = result.content ?? "";
         if (!restoredDraft && editRevision.current === 0) {
           baseContent.current = content;
@@ -327,6 +329,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
       if (!detail || typeof detail !== "object" || !("fileId" in detail) || detail.fileId !== file.fileId) return;
       const content = "content" in detail && typeof detail.content === "string" ? detail.content : undefined;
       const updatedAt = "updatedAt" in detail && typeof detail.updatedAt === "string" ? detail.updatedAt : undefined;
+      if (content !== undefined) flushWriteEditor.current?.();
       if (content === savingContent.current || content === baseContent.current) {
         if (content !== undefined) baseContent.current = content;
         baseUpdatedAt.current = updatedAt;
@@ -561,6 +564,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
         {loaded ? (
           <div className="h-full min-h-0 w-full">
             <MilkdownWriteEditor
+              flushRef={flushWriteEditor}
               value={displayContent}
               onChange={(val, programmaticUpdate) => {
                 if (val === localContentRef.current) return;

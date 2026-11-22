@@ -19,9 +19,9 @@ const PASSWORD_REQUIREMENTS = [
   },
   {
     id: "maximumLength",
-    label: "No more than 128 characters",
-    error: "Password must be 128 characters or fewer",
-    check: (password: string) => password.length <= 128,
+    label: "No more than 72 UTF-8 bytes",
+    error: "Password must be 72 UTF-8 bytes or fewer",
+    check: (password: string) => new TextEncoder().encode(password).byteLength <= 72,
   },
   {
     id: "uppercase",

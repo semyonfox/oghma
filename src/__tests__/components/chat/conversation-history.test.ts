@@ -29,6 +29,8 @@ describe("ConversationHistory", () => {
         conversations,
         activeId: null,
         loaded: true,
+        loadFailed: false,
+        onRetry: vi.fn(),
         t: (key) => key,
         onNewConversation: vi.fn(),
         onSelectConversation: vi.fn(),

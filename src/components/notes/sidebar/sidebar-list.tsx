@@ -188,11 +188,11 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
     if (file.isFile && file.noteId) {
       // a PDF and its note open together, the way a document row does in the tree
       setPaneA({ fileId: file.noteId, fileType: "note", title: `${file.title}.md` });
-      if (isDesktop === true) setPaneB({ fileId: file.id, fileType: "pdf", title: file.title });
+      if (isDesktop === true) setPaneB({ fileId: file.id, fileType: file.fileType ?? "pdf", title: file.title });
     } else {
       setPaneA({
         fileId: file.id,
-        fileType: file.isFile ? inferFileType(file.title, file.mimeType) : "note",
+        fileType: file.fileType ?? inferFileType(file.title, file.mimeType),
         title: file.title,
       });
     }

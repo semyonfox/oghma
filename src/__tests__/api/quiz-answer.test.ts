@@ -92,7 +92,12 @@ function query(strings: TemplateStringsArray): string {
 
 function txQuery(strings: TemplateStringsArray, ...values: unknown[]): unknown[] {
   const text = query(strings);
-  if (text.includes("FROM app.quiz_sessions")) return db.session ? [db.session] : [];
+  if (text.includes("FROM app.quiz_sessions")) {
+    if (!db.session) return [];
+    return text.includes("completed_at")
+      ? [{ ...db.session, completed_at: db.completedAt ? new Date() : null }]
+      : [db.session];
+  }
   if (text.includes("FROM app.quiz_reviews")) return [...db.reviews];
   if (text.includes("FROM app.quiz_cards qc")) return db.card ? [db.card] : [];
   if (text.includes("UPDATE app.quiz_cards")) {
@@ -235,6 +240,23 @@ describe("POST /api/quiz/sessions/[id]/answer", () => {
   it("returns 409 when every card in the session has been answered", async () => {
     seed({ answered: 5, total: 5 });
     expect((await answer({ cardId: CARD_ID })).status).toBe(409);
+  });
+
+  it("rejects new answers after early completion and replays recorded answers", async () => {
+    const first = await answer({ cardId: CARD_ID, userAnswer: "O(n log n)" });
+    expect(first.status).toBe(200);
+    db.completedAt = true;
+
+    expect((await answer({ cardId: NEXT_CARD_ID })).status).toBe(409);
+    const replay = await answer({ cardId: CARD_ID });
+    expect(replay.status).toBe(200);
+    expect(await replay.json()).toMatchObject({
+      duplicate: true,
+      wasCorrect: true,
+      nextQuestion: null,
+    });
+    expect(db.reviews).toEqual([{ card_id: CARD_ID, was_correct: true }]);
+    expect(db.cardUpdates).toBe(1);
   });
 
   it("returns 404 when the card no longer exists", async () => {

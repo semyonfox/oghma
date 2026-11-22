@@ -183,6 +183,8 @@ export default function ChatPageClient() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(routeSessionId);
   const [loaded, setLoaded] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const sessionRequest = useRef(0);
   const [mountKey, setMountKey] = useState(0);
   const [selectedNotes, setSelectedNotes] = useState<ContextItem[]>([]);
   const [selectedFolders, setSelectedFolders] = useState<ContextItem[]>([]);
@@ -279,8 +281,13 @@ export default function ChatPageClient() {
   };
 
   const loadSessions = async () => {
+    const request = ++sessionRequest.current;
+    setLoadFailed(false);
+    setLoaded(false);
     const sessions = await fetchConversations();
+    if (request !== sessionRequest.current) return;
     if (sessions) setConversations(sessions);
+    setLoadFailed(sessions === null);
     setLoaded(true);
   };
 
@@ -453,6 +460,8 @@ export default function ChatPageClient() {
     conversations,
     activeId,
     loaded,
+    loadFailed,
+    onRetry: () => void loadSessions(),
     t,
     onNewConversation: newConversation,
     onSelectConversation: selectConversation,
