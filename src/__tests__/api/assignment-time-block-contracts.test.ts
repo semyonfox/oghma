@@ -7,7 +7,11 @@ const mocks = vi.hoisted(() => ({
   queryResults: [] as unknown[][],
 }));
 
-vi.mock("@/database/pgsql", () => ({ default: mocks.sql }));
+vi.mock("@/database/pgsql", () => ({
+  default: Object.assign(mocks.sql, {
+    begin: (run: (tx: typeof mocks.sql) => unknown) => run(mocks.sql),
+  }),
+}));
 vi.mock("@/lib/auth/session", () => ({
   validateSession: mocks.validateSession,
   validateSessionLite: vi.fn(),
