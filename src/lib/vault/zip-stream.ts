@@ -280,7 +280,8 @@ async function readLocalHeader(reader: ZipRangeReader, entry: ZipEntry, nextOffs
   const extraLength = header.readUInt16LE(28);
   if (
     header.readUInt32LE(0) !== 0x04034b50 ||
-    header.readUInt16LE(6) !== entry.flags ||
+    // writers disagree on bits like the data descriptor and utf-8 name between headers
+    (header.readUInt16LE(6) & UNSUPPORTED_FLAGS) !== 0 ||
     header.readUInt16LE(8) !== entry.method ||
     nameLength !== entry.nameLength ||
     entry.compressed > nextOffset - reader.offset - nameLength - extraLength
