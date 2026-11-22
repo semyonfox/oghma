@@ -152,6 +152,7 @@ function MergedPdfNoteBody({
           <FilePreview material={material} kind="pdf" />
         </div>
         <NoteText
+          key={item.textVersionId}
           noteId={item.textVersionId!}
           fallback={material.excerpt}
           clamp
@@ -188,6 +189,7 @@ function MergedPdfNoteBody({
       </div>
       {tab === "note" ? (
         <NoteText
+          key={item.textVersionId}
           noteId={item.textVersionId!}
           fallback={material.excerpt}
           clamp={false}
@@ -245,6 +247,7 @@ export function ItemBody({ item, full }: { item: FlowItem; full: boolean }) {
     );
   return (
     <NoteText
+      key={item.textVersionId ?? material.noteId}
       noteId={item.textVersionId ?? material.noteId}
       fallback={material.excerpt}
       clamp={!full}

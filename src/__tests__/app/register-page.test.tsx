@@ -67,7 +67,7 @@ describe("registration password feedback", () => {
     render(<RegisterPage />);
 
     expect(
-      screen.getByText("No more than 128 characters").parentElement?.textContent,
+      screen.getByText("No more than 72 UTF-8 bytes").parentElement?.textContent,
     ).toContain("○");
   });
 
