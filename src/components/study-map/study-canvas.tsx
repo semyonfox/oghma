@@ -20,7 +20,8 @@ import {
   requestJson,
   snapshotSchema,
 } from "./study-client";
-import StudyFlow, { type FlowModule } from "./study-flow";
+import StudyFlow from "./study-flow";
+import type { FlowModule } from "./study-flow-model";
 import { clearNoteCache, secondarySmall } from "./study-flow-panels";
 import { Toast } from "./study-chrome";
 
