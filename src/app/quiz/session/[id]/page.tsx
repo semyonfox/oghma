@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useEffectEvent } from "react";
+import { useEffect, useLayoutEffect, useState, useRef, useEffectEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import useQuizStore from "@/lib/notes/state/quiz";
 import useI18n from "@/lib/notes/hooks/use-i18n";
@@ -111,13 +111,13 @@ function QuestionView({
   sessionId,
   fatigueWarning,
   onAnswered,
-  onComplete,
+  isCurrentQuestion,
 }: {
   question: QuizSessionQuestion;
   sessionId: string;
   fatigueWarning: boolean;
   onAnswered: (data: QuizAnswerResponse) => void;
-  onComplete: () => void;
+  isCurrentQuestion: () => boolean;
 }) {
   const { t } = useI18n();
   const [answered, setAnswered] = useState(false);
@@ -143,7 +143,7 @@ function QuestionView({
   };
 
   const handleContinue = async () => {
-    if (!lastAnswer || submittingRef.current) return;
+    if (!lastAnswer || submittingRef.current || !isCurrentQuestion()) return;
     submittingRef.current = true;
     setSubmitting(true);
     setSubmitFailed(false);
@@ -162,7 +162,8 @@ function QuestionView({
         }),
       });
       if (!res.ok) throw new Error(`answer failed with ${res.status}`);
-      const data = (await res.json()) as QuizAnswerResponse;
+      const data: QuizAnswerResponse = await res.json();
+      if (!isCurrentQuestion()) return;
 
       if (data.isLeech) setIsLeech(true);
       // streak confetti — fires once when the round threshold is crossed
@@ -174,7 +175,6 @@ function QuestionView({
       }
 
       onAnswered(data);
-      if (!data.nextQuestion) onComplete();
     };
     await run()
       .catch(() => {
@@ -251,19 +251,29 @@ function QuestionView({
   );
 }
 
-async function fetchCardQuestion(
-  cardId: string,
+async function findNextQuestion(
+  cardIds: string[],
+  start: number,
+  signal: AbortSignal,
 ): Promise<QuizSessionQuestion | null> {
-  const res = await fetch(`/api/quiz/cards/${cardId}`);
-  if (!res.ok) return null;
-  const data = (await res.json()) as QuizCardResponse;
-  return data.question ?? null;
+  for (const cardId of cardIds.slice(start)) {
+    const res = await fetch(`/api/quiz/cards/${cardId}`, { signal });
+    if (res.status === 404) continue;
+    if (!res.ok) throw new Error(`card lookup failed with ${res.status}`);
+    const data: QuizCardResponse = await res.json();
+    if (data.question?.card_id !== cardId) throw new Error("Invalid quiz card");
+    return data.question;
+  }
+  return null;
 }
 
 export default function QuizSessionPage() {
-  const params = useParams<{ id: string }>();
+  const { id } = useParams<{ id: string }>();
+  return <QuizSession key={id} sessionId={id} />;
+}
+
+function QuizSession({ sessionId }: { sessionId: string }) {
   const router = useRouter();
-  const sessionId = params.id;
   const {
     sessionId: storedSessionId,
     cardIds,
@@ -283,7 +293,27 @@ export default function QuizSessionPage() {
   } = useQuizStore();
   const { t } = useI18n();
 
-  const isCurrentSession = storedSessionId === sessionId && cardIds.length > 0;
+  const [lookupFailed, setLookupFailed] = useState(false);
+  const [retryAttempt, setRetryAttempt] = useState(0);
+  const lifetime = useRef<AbortController | null>(null);
+  const skipPending = useRef(false);
+
+  useLayoutEffect(() => {
+    const controller = new AbortController();
+    lifetime.current = controller;
+    return () => controller.abort();
+  }, []);
+
+  const isCurrentSession = storedSessionId === sessionId;
+  const isCurrentQuestion = () => {
+    const active = useQuizStore.getState();
+    return Boolean(lifetime.current && !lifetime.current.signal.aborted) &&
+      active.sessionId === sessionId &&
+      active.cardIds === cardIds &&
+      active.currentIndex === currentIndex &&
+      active.currentQuestion === currentQuestion &&
+      !active.sessionCompleted;
+  };
 
   const finishSession = () => {
     completeSession();
@@ -293,94 +323,121 @@ export default function QuizSessionPage() {
     );
   };
 
-  // load from the server on refresh, or when the store still holds a
-  // different session (back/forward navigation never calls endSession)
+  // load from the server on refresh or browser history navigation
   useEffect(() => {
     if (isCurrentSession) return;
-    let cancelled = false;
-    fetch(`/api/quiz/sessions/${sessionId}`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-      .then((data: QuizSessionResumeResponse) => {
-        if (cancelled) return;
-        if (!Array.isArray(data.cardIds) || data.cardIds.length === 0) {
-          startSession(sessionId, [], null);
-          completeSession();
-          return;
-        }
-        startSession(sessionId, data.cardIds, data.question, {
-          currentIndex: data.currentIndex,
-          answered: data.answeredCount,
-          correct: data.correct_count,
-        });
-        if (data.completed) completeSession();
-      })
-      .catch(() => {
-        if (cancelled) return;
-        // session gone or not ours — show the empty summary with a way back
+    const controller = new AbortController();
+    const { signal } = controller;
+    const loadSession = async () => {
+      const response = await fetch(`/api/quiz/sessions/${sessionId}`, { signal });
+      if (signal.aborted || lifetime.current?.signal.aborted) return;
+      if (response.status === 404) {
         startSession(sessionId, [], null);
         completeSession();
+        return;
+      }
+      if (!response.ok) throw new Error(`session lookup failed with ${response.status}`);
+      const data: QuizSessionResumeResponse = await response.json();
+      if (signal.aborted || lifetime.current?.signal.aborted) return;
+      startSession(sessionId, data.cardIds, data.question, {
+        currentIndex: data.currentIndex,
+        answered: data.answeredCount,
+        correct: data.correct_count,
       });
-    return () => {
-      cancelled = true;
+      if (data.completed) completeSession();
     };
-  }, [isCurrentSession, sessionId, startSession, completeSession]);
+    void loadSession().catch(() => {
+      if (!signal.aborted && !lifetime.current?.signal.aborted) setLookupFailed(true);
+    });
+    return () => controller.abort();
+  }, [isCurrentSession, retryAttempt, sessionId, startSession, completeSession]);
 
-  // the store has card IDs but no question (e.g. first question lookup failed)
-  const finishFromEffect = useEffectEvent(finishSession);
+  const applyLookup = (question: QuizSessionQuestion | null) => {
+    if (!isCurrentQuestion()) return;
+    if (question) showQuestion(question);
+    else finishSession();
+  };
+
+  // a newly started session can have card IDs before the first question loads
+  const applyFallback = useEffectEvent((
+    question: QuizSessionQuestion | null,
+    expectedCards: string[],
+    expectedIndex: number,
+  ) => {
+    if (cardIds === expectedCards && currentIndex === expectedIndex && !currentQuestion) {
+      applyLookup(question);
+    }
+  });
   useEffect(() => {
     if (!isCurrentSession || currentQuestion || sessionCompleted) return;
-    const cardId = cardIds[currentIndex];
-    if (!cardId) {
-      finishFromEffect();
-      return;
-    }
-    fetchCardQuestion(cardId)
+    const controller = new AbortController();
+    const { signal } = controller;
+    void findNextQuestion(cardIds, currentIndex, signal)
       .then((question) => {
-        if (question) showQuestion(question);
-        else finishFromEffect();
+        if (!signal.aborted) applyFallback(question, cardIds, currentIndex);
       })
-      .catch(() => finishFromEffect());
-  }, [
-    isCurrentSession,
-    cardIds,
-    currentQuestion,
-    currentIndex,
-    sessionCompleted,
-    showQuestion,
-  ]);
+      .catch(() => {
+        if (!signal.aborted && !lifetime.current?.signal.aborted) setLookupFailed(true);
+      });
+    return () => controller.abort();
+  }, [isCurrentSession, cardIds, currentQuestion, currentIndex, sessionCompleted, retryAttempt]);
 
   const handleAnswered = (data: QuizAnswerResponse) => {
+    setLookupFailed(false);
     setProgress(data.sessionProgress);
     if (data.fatigueWarning) setFatigueWarning(true);
     if (data.nextQuestion) showQuestion(data.nextQuestion);
+    else finishSession();
   };
 
-  // move on without recording a review; cards removed since the session
-  // started are skipped over
   const handleSkip = async () => {
-    for (let index = currentIndex + 1; index < cardIds.length; index++) {
-      try {
-        const question = await fetchCardQuestion(cardIds[index]);
-        if (question) {
-          showQuestion(question);
-          return;
-        }
-      } catch {
-        break;
-      }
-    }
-    finishSession();
+    const signal = lifetime.current?.signal;
+    if (!signal || skipPending.current || !isCurrentQuestion()) return;
+    skipPending.current = true;
+    setLookupFailed(false);
+    await findNextQuestion(cardIds, currentIndex + 1, signal)
+      .then(applyLookup)
+      .catch(() => {
+        if (isCurrentQuestion()) setLookupFailed(true);
+      })
+      .finally(() => {
+        skipPending.current = false;
+      });
   };
+
+  const leave = () => {
+    lifetime.current?.abort();
+    endSession();
+    router.push("/quiz");
+  };
+
+  const lookupError = lookupFailed && (
+    <div className="flex items-center gap-3 p-3">
+      <p role="alert" className="text-sm text-text-secondary">
+        {t("quiz.session.load_failed")}
+      </p>
+      <button
+        type="button"
+        className="min-h-11 rounded-radius-lg border border-border px-3 text-sm"
+        onClick={() => {
+          if (currentQuestion && isCurrentSession) void handleSkip();
+          else {
+            setLookupFailed(false);
+            setRetryAttempt((attempt) => attempt + 1);
+          }
+        }}
+      >
+        {t("Retry")}
+      </button>
+    </div>
+  );
 
   if (sessionCompleted && storedSessionId === sessionId) {
     return (
       <SessionComplete
         progress={sessionProgress}
         elapsed={Math.max(0, sessionEndTime - sessionStartTime)}
-        onBack={() => {
-          endSession();
-          router.push("/quiz");
-        }}
+        onBack={leave}
       />
     );
   }
@@ -388,9 +445,11 @@ export default function QuizSessionPage() {
   if (!isCurrentSession || !currentQuestion) {
     return (
       <div className="flex h-app items-center justify-center bg-app-page">
-        <div className="text-text-tertiary text-sm">
-          {t("quiz.session.loading")}
-        </div>
+        {lookupFailed ? lookupError : (
+          <div className="text-text-tertiary text-sm">
+            {t("quiz.session.loading")}
+          </div>
+        )}
       </div>
     );
   }
@@ -400,20 +459,18 @@ export default function QuizSessionPage() {
       <ProgressBar
         current={currentIndex}
         total={cardIds.length}
-        onBack={() => {
-          endSession();
-          router.push("/quiz");
-        }}
+        onBack={leave}
         onSkip={handleSkip}
       />
 
+      {lookupError}
       <QuestionView
         key={currentQuestion.card_id}
         question={currentQuestion}
         sessionId={sessionId}
         fatigueWarning={fatigueWarning}
         onAnswered={handleAnswered}
-        onComplete={finishSession}
+        isCurrentQuestion={isCurrentQuestion}
       />
     </div>
   );

@@ -46,6 +46,7 @@ const answerSchema = z.object({
 
 interface SessionRow {
   card_ids: string[] | null;
+  completed_at: Date | string | null;
   total_questions: number;
   correct_count: number;
 }
@@ -73,6 +74,7 @@ type AnswerOutcome =
   | {
       ok: true;
       duplicate: boolean;
+      completed: boolean;
       wasCorrect: boolean;
       lapses: number;
       answered: number;
@@ -101,7 +103,7 @@ async function recordAnswer(
   clientRating?: 1 | 2 | 3 | 4,
 ): Promise<AnswerOutcome> {
   const [session] = await tx<SessionRow[]>`
-    SELECT card_ids, total_questions, correct_count
+    SELECT card_ids, total_questions, correct_count, completed_at
     FROM app.quiz_sessions
     WHERE id = ${sessionId}::uuid AND user_id = ${userId}::uuid
     FOR UPDATE
@@ -123,6 +125,7 @@ async function recordAnswer(
     return {
       ok: true,
       duplicate: true,
+      completed: session.completed_at !== null,
       wasCorrect: previous.was_correct,
       lapses: 0,
       answered: reviews.length,
@@ -133,7 +136,7 @@ async function recordAnswer(
       },
     };
   }
-  if (reviews.length >= session.total_questions) {
+  if (session.completed_at || reviews.length >= session.total_questions) {
     return { ok: false, message: "Session already completed", status: 409 };
   }
 
@@ -218,6 +221,7 @@ async function recordAnswer(
   return {
     ok: true,
     duplicate: false,
+    completed: answered >= session.total_questions,
     wasCorrect,
     lapses: next.lapses,
     answered,
@@ -282,11 +286,13 @@ export const POST = withErrorHandler(
           timeZone,
         );
 
-    const next = await findSessionQuestionFrom(
-      userId,
-      outcome.cardIds,
-      outcome.cardIds.indexOf(cardId) + 1,
-    );
+    const next = outcome.completed
+      ? null
+      : await findSessionQuestionFrom(
+          userId,
+          outcome.cardIds,
+          outcome.cardIds.indexOf(cardId) + 1,
+        );
 
     const wrongCount = outcome.answered - outcome.stats.correct_count;
     const body: QuizAnswerResponse = {
