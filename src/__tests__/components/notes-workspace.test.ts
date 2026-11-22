@@ -64,7 +64,10 @@ vi.mock("@/components/notes/note-tree-panel", () => ({
   default: () => React.createElement("div", null, "Library content"),
 }));
 vi.mock("@/components/editor/split-editor-pane", () => ({
-  default: () => React.createElement("div", null, "Editor content"),
+  default: ({ primaryLoading }: { primaryLoading?: boolean }) =>
+    primaryLoading
+      ? React.createElement("div", { role: "status" }, "Loading note")
+      : React.createElement("div", null, "Editor content"),
 }));
 vi.mock("@/components/notes/note-inspector-panel", () => ({
   default: () => null,
@@ -74,7 +77,7 @@ vi.mock("@/components/notes/trash-page", () => ({
 }));
 
 import NotesWorkspace from "@/components/notes/notes-workspace";
-import useLayoutStore from "@/lib/notes/state/layout";
+import useLayoutStore, { type FileSpec } from "@/lib/notes/state/layout";
 
 const oldId = "550e8400-e29b-41d4-a716-446655440000";
 const newId = "67e55044-10b1-426f-9247-bb680e5fe0c8";
@@ -160,6 +163,53 @@ describe("NotesWorkspace note route synchronization", () => {
       "/api/notes/550e8400-e29b-41d4-a716-446655440000",
       { signal: expect.any(AbortSignal) },
     );
+  });
+
+  it("blocks the old primary editor during Back and Forward", async () => {
+    useLayoutStore.getState().setPaneA({ fileId: oldId, fileType: "note" });
+    const { rerender } = render(React.createElement(NotesWorkspace));
+    expect(await screen.findByText("Editor content")).toBeTruthy();
+
+    for (const id of [newId, oldId]) {
+      const reply = Promise.withResolvers<Response>();
+      vi.mocked(fetch).mockReturnValueOnce(reply.promise);
+      mocks.pathname = `/notes/${id}`;
+      rerender(React.createElement(NotesWorkspace));
+      expect(screen.getByRole("status").textContent).toBe("Loading note");
+      expect(screen.queryByText("Editor content")).toBeNull();
+
+      await act(async () => reply.resolve(Response.json({ id, title: "History route" })));
+      expect(useLayoutStore.getState().paneA.fileId).toBe(id);
+      expect(screen.getByText("Editor content")).toBeTruthy();
+    }
+  });
+
+  it("does not fetch or block when a tree click sets the primary pane first", () => {
+    useLayoutStore.getState().setPaneA({ fileId: oldId, fileType: "note" });
+    const { rerender } = render(React.createElement(NotesWorkspace));
+    act(() => useLayoutStore.getState().setPaneA({ fileId: newId, fileType: "note" }));
+    expect(screen.getByText("Editor content")).toBeTruthy();
+    expect(fetch).not.toHaveBeenCalled();
+
+    mocks.pathname = `/notes/${newId}`;
+    rerender(React.createElement(NotesWorkspace));
+    expect(screen.getByText("Editor content")).toBeTruthy();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("keeps a split-pane swap even when the pathname stays on the old primary note", () => {
+    const primary = { fileId: oldId, fileType: "note" } satisfies FileSpec;
+    const secondary = { fileId: newId, fileType: "note" } satisfies FileSpec;
+    useLayoutStore.getState().setPaneA(primary);
+    useLayoutStore.getState().setPaneB(secondary);
+    render(React.createElement(NotesWorkspace));
+
+    act(() => useLayoutStore.getState().placeFileInPane(secondary, "A", "B"));
+
+    expect(useLayoutStore.getState().paneA.fileId).toBe(newId);
+    expect(useLayoutStore.getState().paneB?.fileId).toBe(oldId);
+    expect(screen.getByText("Editor content")).toBeTruthy();
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it("ignores a previous route response after navigating to another note", async () => {

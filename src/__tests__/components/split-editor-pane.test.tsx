@@ -21,6 +21,10 @@ vi.mock("@/lib/hooks/use-media-query", () => ({
   default: () => mocks.isDesktop,
 }));
 
+vi.mock("@/lib/notes/hooks/use-i18n", () => ({
+  default: () => ({ t: (key: string) => key }),
+}));
+
 vi.mock("@/lib/notes/state/layout", () => ({
   __esModule: true,
   default: (selector: (state: typeof layoutState) => unknown) =>
@@ -64,6 +68,22 @@ describe("SplitEditorPane responsive rendering", () => {
     expect(screen.getByTestId("pane-A")).toBeTruthy();
     expect(screen.getByTestId("pane-B")).toBeTruthy();
     expect(screen.getByTestId("separator")).toBeTruthy();
+  });
+
+  it("makes only the old primary editor inert while the route loads", () => {
+    const { rerender } = render(<SplitEditorPane />);
+    const primary = screen.getByTestId("pane-A");
+    const secondary = screen.getByTestId("pane-B");
+
+    rerender(<SplitEditorPane primaryLoading />);
+    expect(screen.getByRole("status").textContent).toBe("Loading...");
+    expect(primary.closest("[inert]")).toBeTruthy();
+    expect(secondary.closest("[inert]")).toBeNull();
+
+    rerender(<SplitEditorPane />);
+    expect(screen.getByTestId("pane-A")).toBe(primary);
+    expect(primary.closest("[inert]")).toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
   });
 
   it("mounts only pane A on mobile without clearing pane B", async () => {

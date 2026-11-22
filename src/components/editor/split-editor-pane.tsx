@@ -8,9 +8,11 @@ import {
 } from "react-resizable-panels";
 import useMediaQuery from "@/lib/hooks/use-media-query";
 import useLayoutStore from "@/lib/notes/state/layout";
+import useI18n from "@/lib/notes/hooks/use-i18n";
 import EditorPane from "./editor-pane";
 
-const SplitEditorPane: FC = () => {
+const SplitEditorPane: FC<{ primaryLoading?: boolean }> = ({ primaryLoading = false }) => {
+  const { t } = useI18n();
   const isDesktop = useMediaQuery("(min-width: 1024px)");
   const paneA = useLayoutStore((s) => s.paneA);
   const paneB = useLayoutStore((s) => s.paneB);
@@ -42,13 +44,20 @@ const SplitEditorPane: FC = () => {
           minSize={20}
           className="flex min-w-0"
         >
-          <div className="h-full w-full">
-            <EditorPane
-              pane="A"
-              file={paneA}
-              splitInteractionsEnabled={isDesktop === true}
-              hasSecondaryPane={showSecondaryPane}
-            />
+          <div className="relative h-full w-full">
+            <div className={primaryLoading ? "invisible h-full" : "h-full"} inert={primaryLoading}>
+              <EditorPane
+                pane="A"
+                file={paneA}
+                splitInteractionsEnabled={isDesktop === true}
+                hasSecondaryPane={showSecondaryPane}
+              />
+            </div>
+            {primaryLoading && (
+              <div role="status" className="absolute inset-0 flex items-center justify-center text-sm text-text-tertiary">
+                {t("Loading...")}
+              </div>
+            )}
           </div>
         </Panel>
 

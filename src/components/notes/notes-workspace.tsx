@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import {
@@ -61,7 +61,7 @@ export default function NotesWorkspace({
   const setPaneA = useLayoutStore((s) => s.setPaneA);
   const paneAFileId = useLayoutStore((s) => s.paneA.fileId);
   const treeGeneration = useNoteTreeStore((s) => s.generation);
-  const routeRequestRef = useRef(0);
+  const [handledRoute, setHandledRoute] = useState<string>();
   const treeWidthRef = useRef(treeWidth);
   const rightPanelWidthRef = useRef(rightPanelWidth);
   const isTrashView = view === "trash";
@@ -79,48 +79,66 @@ export default function NotesWorkspace({
   }, [hasInspectorSpace, setRightPanelOpen]);
   const showMobileLibrary = !isTrashView && pathname === "/notes";
 
-  useEffect(() => {
-    const requestId = ++routeRequestRef.current;
+  const routeKey = `${treeGeneration}:${pathname ?? ""}`;
+  const route = resolveNoteRoute(pathname);
+  const primaryLoading = route.type === "load" &&
+    handledRoute !== routeKey &&
+    route.noteId !== paneAFileId;
+
+  useLayoutEffect(() => {
     if (!noteDependenciesReady) return;
     const route = resolveNoteRoute(pathname);
-    if (route.type === "ignore") return;
-
-    if (route.type === "redirect") {
-      console.warn("note_route_invalid");
-      router.replace("/notes");
+    if (route.type !== "load") {
+      setHandledRoute(routeKey);
+      if (route.type === "redirect") {
+        console.warn("note_route_invalid");
+        router.replace("/notes");
+      }
       return;
     }
 
+    // pane-first navigation and split-pane moves must not reopen the old route
+    const initialPaneId = useLayoutStore.getState().paneA.fileId;
     const fileId = route.noteId;
-    if (fileId === paneAFileId) return;
+    if (fileId === initialPaneId) {
+      setHandledRoute(routeKey);
+      return;
+    }
 
     const controller = new AbortController();
-    const requestGeneration = treeGeneration;
     const requestIsCurrent = () =>
       !controller.signal.aborted &&
-      routeRequestRef.current === requestId &&
-      useNoteTreeStore.getState().generation === requestGeneration;
+      useNoteTreeStore.getState().generation === treeGeneration;
+    const canApplyRoute = () => {
+      if (!requestIsCurrent()) return false;
+      if (useLayoutStore.getState().paneA.fileId === initialPaneId) return true;
+      setHandledRoute(routeKey);
+      return false;
+    };
     void fetch(`/api/notes/${fileId}`, { signal: controller.signal })
       .then(async (response) => {
         if (response.status === 404) {
-          if (requestIsCurrent()) router.replace("/notes");
-          return null;
+          if (canApplyRoute()) router.replace("/notes");
+          return;
         }
         if (!response.ok)
           throw new Error(`note fetch failed: ${response.status}`);
         const note = await response.json();
-        if (requestIsCurrent() && note) {
+        if (!note || note.id !== fileId.toLowerCase()) throw new Error("Invalid note response");
+        if (canApplyRoute()) {
           setPaneA(buildFileSpec(note));
+          setHandledRoute(routeKey);
         }
       })
       .catch(() => {
-        if (!requestIsCurrent()) return;
+        if (!canApplyRoute()) return;
         console.error("note_load_failed");
         setPaneA({ fileId, fileType: "note", title: fileId });
+        setHandledRoute(routeKey);
       });
 
     return () => controller.abort();
-  }, [noteDependenciesReady, pathname, paneAFileId, router, setPaneA, treeGeneration]);
+  }, [noteDependenciesReady, pathname, routeKey, router, setPaneA, treeGeneration]);
 
   const initLoaded = useNoteTreeStore((s) => s.initLoaded);
   useEffect(() => {
@@ -239,7 +257,7 @@ export default function NotesWorkspace({
                 ) : isTrashView ? (
                   <TrashPage />
                 ) : (
-                  <SplitEditorPane />
+                  <SplitEditorPane primaryLoading={primaryLoading} />
                 )}
               </main>
             </Panel>
@@ -291,7 +309,7 @@ export default function NotesWorkspace({
             ) : showMobileLibrary ? (
               <MobileLibrary />
             ) : (
-              <SplitEditorPane />
+              <SplitEditorPane primaryLoading={primaryLoading} />
             )}
           </main>
         )}
