@@ -329,7 +329,7 @@ export default function MobileLibrary() {
     } else {
       setPaneA({
         fileId: file.id,
-        fileType: file.isFile ? inferFileType(file.title, file.mimeType) : "note",
+        fileType: file.fileType ?? inferFileType(file.title, file.mimeType),
         title: file.title,
       });
     }

@@ -24,9 +24,19 @@ const fileTypeCases: ReadonlyArray<
 ];
 
 describe("file type inference", () => {
-  it.each(fileTypeCases)("maps %s to %s", (title, expected) => {
-    expect(inferFileType(title)).toBe(expected);
+  it.each(fileTypeCases)("maps %s to %s with file metadata", (title, expected) => {
+    expect(inferFileType(title, "application/octet-stream")).toBe(expected);
   });
+
+  it.each(["lecture.pdf", "clip.mp4", "diagram.png"])(
+    "opens a Markdown note named %s in the editor",
+    (title) => {
+      expect(buildFileSpec({ title, content: "# Revision" })).toMatchObject({
+        fileType: "note",
+        sourcePath: "# Revision",
+      });
+    },
+  );
 
   it.each([
     ["application/pdf", "pdf"],
@@ -88,7 +98,7 @@ describe("file specs", () => {
       }).sourcePath,
     ).toBe("uploads/slides.pdf");
     expect(
-      buildFileSpec({ id: "pdf-2", title: "slides.pdf", content: "fallback" })
+      buildFileSpec({ id: "pdf-2", title: "slides.pdf", mimeType: "application/pdf", content: "fallback" })
         .sourcePath,
     ).toBe("fallback");
   });

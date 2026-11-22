@@ -13,6 +13,7 @@ export const tagsViewFileSchema = z.object({
   /** the top-level folder it sits in */
   rootId: z.string(),
   isFile: z.boolean(),
+  fileType: z.enum(["note", "pdf", "image", "video", "text", "attachment"]).optional(),
   mimeType: z.string().nullable(),
   main: z.boolean(),
   suggested: z.boolean(),

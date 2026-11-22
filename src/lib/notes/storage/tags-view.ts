@@ -75,12 +75,11 @@ interface Document {
 function documentsFor(rows: readonly ScopeNoteRow[]): Document[] {
   const byId = new Map(rows.map((row) => [row.note_id, row]));
   const files = rows.filter((row) => !row.is_folder);
-  const isBinary = (row: ScopeNoteRow) =>
-    Boolean(row.s3_key) && inferFileType(row.title, row.mime_type, row.s3_key) !== "note";
+  const typeOf = (row: ScopeNoteRow) => inferFileType(row.title, row.mime_type, row.s3_key);
   const pairedNote = new Map<string, ScopeNoteRow>();
   for (const row of files) {
     const source = row.extracted_from_note_id ? byId.get(row.extracted_from_note_id) : undefined;
-    if (source && !source.is_folder && isBinary(source) && !isBinary(row) && !pairedNote.has(source.note_id)) {
+    if (source && !source.is_folder && typeOf(source) !== "note" && typeOf(row) === "note" && !pairedNote.has(source.note_id)) {
       pairedNote.set(source.note_id, row);
     }
   }
@@ -102,7 +101,8 @@ function documentsFor(rows: readonly ScopeNoteRow[]): Document[] {
   return files.flatMap((row) => {
     if (absorbed.has(row.note_id)) return [];
     const note = pairedNote.get(row.note_id);
-    const binary = isBinary(row);
+    const fileType = typeOf(row);
+    const binary = fileType !== "note";
     const rawTitle = row.title ?? "";
     const title = binary ? stripExtension(rawTitle) : rawTitle.replace(/\.md$/i, "");
     return [{
@@ -116,6 +116,7 @@ function documentsFor(rows: readonly ScopeNoteRow[]): Document[] {
         path: pathOf(row, title),
         rootId: row.root_id,
         isFile: binary,
+        fileType,
         mimeType: row.mime_type,
         main: false,
         suggested: false,
