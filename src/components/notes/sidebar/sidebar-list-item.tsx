@@ -44,11 +44,15 @@ const SidebarListItem: FC<{
   };
 
   const handleClickItem = (e: React.MouseEvent) => {
-    // folders toggle; files navigate through the Link
+    // folders toggle; files navigate through the Link. setting the pane first
+    // keeps the url-led loading state for history moves only
     if (isFolder) {
       e.preventDefault();
       onToggle();
+      return;
     }
+    setPaneA(buildFileSpec(item));
+    setActivePane("A");
   };
 
   const handleDoubleClick = (e: React.MouseEvent) => {

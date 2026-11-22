@@ -308,7 +308,9 @@ async function inflateEntry(
       write(chunk);
     }
   };
-  if (entry.method === 8) {
+  // some writers mark empty files as deflate with no data at all, which zlib
+  // rejects, so those read like a stored entry and the size check still applies
+  if (entry.method === 8 && entry.compressed > 0) {
     const inflate = createInflateRaw();
     try {
       await pipeline(compressed, inflate, consume);
