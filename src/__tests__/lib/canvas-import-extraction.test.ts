@@ -16,8 +16,8 @@ vi.mock("@/lib/queue", () => ({
 import { enqueueExtractRetryJob } from "@/lib/queue";
 
 vi.mock("@/lib/canvas/credentials", () => ({ markCanvasTokenInvalid: vi.fn() }));
+const sqlMock = vi.hoisted(() => vi.fn<(...args: unknown[]) => Promise<unknown[]>>());
 vi.mock("@/database/pgsql", () => {
-  const sqlMock = vi.fn();
   sqlMock.mockResolvedValue([]);
   Object.assign(sqlMock, { begin: vi.fn(
     async (callback: (tx: typeof sqlMock) => unknown) => callback(sqlMock),
@@ -250,12 +250,16 @@ describe("processDirectExtraction", () => {
     { attempt: 2, expectedStatus: "failed" },
   ])("records $expectedStatus on a storage read error at attempt $attempt", async ({ attempt, expectedStatus }) => {
     const error = new Error("storage temporarily unavailable");
-    const getObjectAndMeta = vi.fn().mockRejectedValue(error);
-    vi.mocked(getStorageProvider).mockReturnValue({ getObjectAndMeta } as never);
-    vi.mocked(sql)
-      .mockResolvedValueOnce([{ status: "pending" }] as never)
-      .mockResolvedValueOnce([{ id: "ingestion-job-123" }] as never)
-      .mockResolvedValueOnce([] as never);
+    const storage = new StoreS3({
+      bucket: "synthetic",
+      accessKey: "synthetic",
+      secretKey: "synthetic",
+    });
+    vi.spyOn(storage, "getObjectAndMeta").mockRejectedValue(error);
+    vi.mocked(getStorageProvider).mockReturnValue(storage);
+    sqlMock
+      .mockResolvedValueOnce([{ status: "pending" }])
+      .mockResolvedValueOnce([{ id: "ingestion-job-123" }]);
 
     const result = processDirectExtraction({
       noteId: "note-123",
@@ -269,10 +273,9 @@ describe("processDirectExtraction", () => {
     } else {
       await expect(result).resolves.toBeUndefined();
     }
-    const update = vi.mocked(sql).mock.calls.find(
-      (call) => call.includes(expectedStatus) && queryText(call).includes("UPDATE app.ingestion_jobs"),
-    );
-    expect(update).toBeDefined();
+    expect(sqlMock.mock.calls.some((call) =>
+      call.includes(expectedStatus) && queryText(call).includes("UPDATE app.ingestion_jobs"),
+    )).toBe(true);
     expect(processRagPipeline).not.toHaveBeenCalled();
   });
 

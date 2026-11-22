@@ -31,7 +31,7 @@ import { buildFileSpec, inferFileType } from "@/lib/notes/utils/file-spec";
 import { NOTE_PINNED } from "@/lib/notes/types/meta";
 import { ROOT_ID, type TreeItemModel, type TreeModel } from "@/lib/notes/types/tree";
 import { foldFinishedCourses } from "@/lib/notes/tree-topics";
-import { tagsViewSchema, type TagsViewCourse, type TagsViewFile } from "@/lib/notes/tags-view";
+import { tagsViewPrimaryFile, tagsViewSchema, type TagsViewCourse, type TagsViewFile } from "@/lib/notes/tags-view";
 import {
   branchRecency,
   orderOutline,
@@ -323,17 +323,9 @@ export default function MobileLibrary() {
     );
   };
   const openTopicFile = (file: TagsViewFile) => {
-    const { setPaneA } = useLayoutStore.getState();
-    if (file.isFile && file.noteId) {
-      setPaneA({ fileId: file.noteId, fileType: "note", title: `${file.title}.md` });
-    } else {
-      setPaneA({
-        fileId: file.id,
-        fileType: file.fileType ?? inferFileType(file.title, file.mimeType),
-        title: file.title,
-      });
-    }
-    openNote(file.isFile && file.noteId ? file.noteId : file.id, []);
+    const primary = tagsViewPrimaryFile(file);
+    useLayoutStore.getState().setPaneA(primary);
+    openNote(primary.fileId, []);
   };
 
   const meta = (time: number) =>

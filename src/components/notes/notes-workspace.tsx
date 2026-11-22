@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
+import { z } from "zod";
 import {
   Group as PanelGroup,
   Panel,
@@ -39,6 +40,14 @@ const TrashPage = dynamic(() => import("@/components/notes/trash-page"));
 interface NotesWorkspaceProps {
   view?: "notes" | "trash";
 }
+
+const routeNoteSchema = z.object({
+  id: z.string(),
+  title: z.string().nullish(),
+  content: z.string().nullish(),
+  s3Key: z.string().nullish(),
+  mimeType: z.string().nullish(),
+});
 
 let narrowPanelChecked = false;
 
@@ -123,8 +132,8 @@ export default function NotesWorkspace({
         }
         if (!response.ok)
           throw new Error(`note fetch failed: ${response.status}`);
-        const note = await response.json();
-        if (!note || note.id !== fileId.toLowerCase()) throw new Error("Invalid note response");
+        const note = routeNoteSchema.parse(await response.json());
+        if (note.id !== fileId.toLowerCase()) throw new Error("Invalid note response");
         if (canApplyRoute()) {
           setPaneA(buildFileSpec(note));
           setHandledRoute(routeKey);

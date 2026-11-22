@@ -6,9 +6,6 @@ import { Readable } from "node:stream";
 import { processVaultZipStream, type VaultZipSource } from "@/lib/vault/zip-stream";
 
 vi.mock("@/database/pgsql", () => ({ default: vi.fn() }));
-vi.mock("@/lib/marketing/events", () => ({
-  recordActivationMilestone: vi.fn(),
-}));
 function source(bytes: Uint8Array): VaultZipSource {
   return {
     size: bytes.length,

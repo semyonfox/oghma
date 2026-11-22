@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import * as boundedBody from "@/lib/http/bounded-body";
 
 const mocks = vi.hoisted(() => ({
   sql: vi.fn(),
@@ -44,17 +43,12 @@ describe("RunPod Marker webhook", () => {
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
     delete process.env.RUNPOD_MARKER_WEBHOOK_TOKEN;
   });
 
   it("returns 413 before looking up the callback when its body exceeds the limit", async () => {
-    const readBody = boundedBody.readBoundedBody;
-    vi.spyOn(boundedBody, "readBoundedBody")
-      .mockImplementationOnce((request) => readBody(request, 8));
-
     const response = await POST(
-      webhook({ id: "runpod_job_123", status: "COMPLETED" }),
+      webhook({ output: "x".repeat(1024 * 1024) }),
       { params: Promise.resolve({ token: "webhook-token", callbackId }) },
     );
 

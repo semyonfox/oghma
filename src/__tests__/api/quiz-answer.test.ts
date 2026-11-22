@@ -93,10 +93,9 @@ function query(strings: TemplateStringsArray): string {
 function txQuery(strings: TemplateStringsArray, ...values: unknown[]): unknown[] {
   const text = query(strings);
   if (text.includes("FROM app.quiz_sessions")) {
-    if (!db.session) return [];
-    return text.includes("completed_at")
+    return db.session
       ? [{ ...db.session, completed_at: db.completedAt ? new Date() : null }]
-      : [db.session];
+      : [];
   }
   if (text.includes("FROM app.quiz_reviews")) return [...db.reviews];
   if (text.includes("FROM app.quiz_cards qc")) return db.card ? [db.card] : [];

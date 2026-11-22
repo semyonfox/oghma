@@ -154,14 +154,14 @@ export class StoreS3 extends StoreProvider {
    * the Next.js server so browsers never receive internal HTTP presigned URLs.
    */
   async getObjectStream(path: string, range?: ObjectByteRange): Promise<ObjectStream> {
-    const rangeHeader = range && `bytes=${range.start}-${range.endExclusive - 1}`;
+    const requestedBytes = range && `${range.start}-${range.endExclusive - 1}`;
     let result: GetObjectCommandOutput;
     try {
       result = await this.client.send(
         new GetObjectCommand({
           Bucket: this.config.bucket,
           Key: this.getPath(path),
-          Range: rangeHeader,
+          Range: requestedBytes && `bytes=${requestedBytes}`,
         })
       );
     } catch (error) {
@@ -174,7 +174,7 @@ export class StoreS3 extends StoreProvider {
       throw new Error('Storage returned a non-stream object body');
     }
     if (range && (
-      !result.ContentRange?.startsWith(`bytes ${range.start}-${range.endExclusive - 1}/`) ||
+      !result.ContentRange?.startsWith(`bytes ${requestedBytes}/`) ||
       result.ContentLength !== range.endExclusive - range.start
     )) {
       result.Body.destroy();

@@ -41,7 +41,7 @@ describe("buildExportPathMap", () => {
   it("never loads note bodies up front", async () => {
     await exportPaths([]);
     const [strings] = vi.mocked(sql).mock.calls[0];
-    expect((strings as unknown as string[]).join("")).not.toMatch(/\bn\.content\s*(?:,|FROM)/i);
+    expect(Array.from(strings).join("")).not.toMatch(/\bn\.content\s*(?:,|FROM)/i);
   });
 
   it("gives same-titled siblings distinct paths, case-insensitively", async () => {

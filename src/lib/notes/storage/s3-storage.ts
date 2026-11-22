@@ -1,6 +1,3 @@
-// S3-backed settings storage
-// Uses the storage provider which handles path prefixing
-// NOTE: Legacy note/tree storage migrated to PostgreSQL
 import { getStorageProvider } from "@/lib/storage/init";
 import { cacheGet, cacheSet, cacheInvalidate, cacheKeys } from "@/lib/cache";
 import type { StoredSettings } from "@/lib/notes/types/settings";

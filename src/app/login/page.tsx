@@ -104,9 +104,7 @@ export default function LoginPage() {
       const destination = authReturnPath(new URLSearchParams(window.location.search).get("next"));
       await login(email, pwd, rememberMe);
 
-      // Keep a guarded hard-navigation fallback for browsers where the client
-      // router stalls. Clear it when the login page unmounts so it cannot yank
-      // a user back to /notes after they have already navigated elsewhere.
+      // fall back to hard navigation if the client router stalls on sign-in
       redirectFallbackRef.current = window.setTimeout(() => {
         redirectFallbackRef.current = null;
         if (window.location.pathname === "/login") {

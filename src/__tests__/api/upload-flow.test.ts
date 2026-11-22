@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import type { StoreProvider } from "@/lib/storage/base";
 
 const {
   queries,
   sqlMock,
   beginMock,
-  objects,
   storage,
   getStorageProvider,
   insertNoteWithTree,
@@ -13,7 +13,6 @@ const {
 } =
   vi.hoisted(() => {
     const queries: string[] = [];
-    const objects = new Map<string, Buffer>();
     const sqlMock = vi.fn(
       async (strings: TemplateStringsArray, ..._values: unknown[]): Promise<Record<string, unknown>[]> => {
         queries.push(strings.join("?").replace(/\s+/g, " ").trim());
@@ -27,15 +26,10 @@ const {
       queries,
       sqlMock,
       beginMock,
-      objects,
       getStorageProvider: vi.fn(),
       storage: {
-        putObject: vi.fn(async (path: string, buffer: Buffer, _options?: { contentType?: string }) => {
-          objects.set(path, Buffer.from(buffer));
-        }),
-        deleteObject: vi.fn(async (path: string) => {
-          objects.delete(path);
-        }),
+        putObject: vi.fn<StoreProvider["putObject"]>(async () => {}),
+        deleteObject: vi.fn<StoreProvider["deleteObject"]>(async () => {}),
       },
       insertNoteWithTree: vi.fn(),
       enqueueCanvasJob: vi.fn(),
@@ -83,7 +77,6 @@ const pdf = (name: string) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
-  objects.clear();
   getStorageProvider.mockReturnValue(storage);
   queries.length = 0;
   sqlMock.mockImplementation(async (strings: TemplateStringsArray) => {

@@ -1,6 +1,5 @@
 /**
- * The central directory supplies offsets and compressed sizes. Read the file
- * data in offset order so a nested ZIP signature can never start an entry.
+ * use central directory offsets so embedded ZIP signatures never start entries
  */
 
 import { closeSync, mkdtempSync, openSync, writeSync } from "node:fs";
@@ -47,7 +46,7 @@ const VAULT_ZIP_LIMITS = {
   maxPendingEntries: 512,
 };
 
-export type VaultZipLimits = typeof VAULT_ZIP_LIMITS;
+type VaultZipLimits = typeof VAULT_ZIP_LIMITS;
 
 export interface VaultZipSource {
   size: number;
@@ -325,7 +324,6 @@ async function inflateEntry(
   if (size !== entry.uncompressed || crc !== entry.crc) throw damagedZip();
 }
 
-/** Read indexed members without retaining the archive or a backlog of buffers. */
 export async function processVaultZipStream(
   source: VaultZipSource,
   processEntry: (entryPath: string, buffer: Buffer) => Promise<void>,

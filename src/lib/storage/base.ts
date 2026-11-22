@@ -129,7 +129,7 @@ export abstract class StoreProvider {
    */
   abstract getObjectAndMeta(path: string): Promise<ObjectMetadata>;
 
-  /** Stream an object or an exact byte range without buffering it in memory. */
+  /** stream an object or an exact byte range without buffering it in memory */
   abstract getObjectStream(path: string, range?: ObjectByteRange): Promise<ObjectStream>;
 
   /**

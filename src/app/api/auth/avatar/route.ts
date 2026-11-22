@@ -113,7 +113,6 @@ export async function POST(request: NextRequest) {
     const storage = getStorageProvider();
     await storage.putObject(avatarKey, buffer, { contentType: detectedMime });
 
-    // persist key in settings JSON (merge with existing settings)
     await saveSettingsToS3(userId, { ...currentSettings, avatarKey });
 
     if (previousAvatarKey && previousAvatarKey !== avatarKey) {

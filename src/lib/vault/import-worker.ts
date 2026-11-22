@@ -39,8 +39,6 @@ import {
 } from "./jobs";
 import { sendVaultImportCompleteEmail } from "../email";
 
-export { processVaultZipStream } from "./zip-stream";
-
 const PROCESSABLE_EXTS = new Set([
   "pdf",
   "docx",

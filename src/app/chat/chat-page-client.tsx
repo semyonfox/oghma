@@ -140,7 +140,6 @@ function routeScopeFrom(searchParams: URLSearchParams) {
   };
 }
 
-// null keeps the current list: a network error just means the user starts a new chat
 async function fetchConversations(): Promise<Conversation[] | null> {
   try {
     const res = await fetch("/api/chat/sessions");
@@ -182,8 +181,7 @@ export default function ChatPageClient() {
   const pendingNavRef = useRef<PendingChatNavigation | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(routeSessionId);
-  const [loaded, setLoaded] = useState(false);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadState, setLoadState] = useState<ConversationHistoryProps["loadState"]>("loading");
   const sessionRequest = useRef(0);
   const [mountKey, setMountKey] = useState(0);
   const [selectedNotes, setSelectedNotes] = useState<ContextItem[]>([]);
@@ -282,13 +280,11 @@ export default function ChatPageClient() {
 
   const loadSessions = async () => {
     const request = ++sessionRequest.current;
-    setLoadFailed(false);
-    setLoaded(false);
+    setLoadState("loading");
     const sessions = await fetchConversations();
     if (request !== sessionRequest.current) return;
     if (sessions) setConversations(sessions);
-    setLoadFailed(sessions === null);
-    setLoaded(true);
+    setLoadState(sessions === null ? "failed" : "loaded");
   };
 
   const loadSessionsOnMount = useEffectEvent(() => void loadSessions());
@@ -459,8 +455,7 @@ export default function ChatPageClient() {
   const historyProps: Omit<ConversationHistoryProps, "showHeader"> = {
     conversations,
     activeId,
-    loaded,
-    loadFailed,
+    loadState,
     onRetry: () => void loadSessions(),
     t,
     onNewConversation: newConversation,

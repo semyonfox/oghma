@@ -48,7 +48,6 @@ export const PATCH = withErrorHandler(async (
       pomodoroCount = pomodoroCountForRange(start, end);
     }
 
-    // Verify a newly linked assignment belongs to the caller.
     if (assignment_id) {
       const [owned] = await tx`
         SELECT 1 FROM app.assignments

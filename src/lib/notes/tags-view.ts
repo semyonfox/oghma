@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { documentKindSchema, type DocumentKind } from "@/lib/study-map/types";
+import type { FileSpec } from "@/lib/notes/state/layout";
+import { inferFileType } from "@/lib/notes/utils/file-spec";
 
 // one document in the Tags view. a PDF and the note extracted from it share a row
 export const tagsViewFileSchema = z.object({
@@ -23,6 +25,17 @@ export const tagsViewFileSchema = z.object({
   editedAt: z.string().nullable(),
 });
 export type TagsViewFile = z.infer<typeof tagsViewFileSchema>;
+
+export function tagsViewPrimaryFile(file: TagsViewFile): FileSpec {
+  if (file.isFile && file.noteId) {
+    return { fileId: file.noteId, fileType: "note", title: `${file.title}.md` };
+  }
+  return {
+    fileId: file.id,
+    fileType: file.fileType ?? inferFileType(file.title, file.mimeType),
+    title: file.title,
+  };
+}
 
 /** Q1: a file with topics waiting for a decision */
 export const tagsViewReviewSchema = tagsViewFileSchema.extend({
