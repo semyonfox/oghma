@@ -363,12 +363,15 @@ async function streamAndProcessZip(
   processEntry: (entryPath: string, buffer: Buffer) => Promise<void>,
   isCancelled: () => boolean,
 ): Promise<number> {
-  const { body: readable } = await getStorageProvider().getObjectStream(s3Key);
-  try {
-    return await processVaultZipStream(readable, processEntry, {}, isCancelled);
-  } finally {
-    readable.destroy();
-  }
+  const storage = getStorageProvider();
+  const { contentLength } = (await storage.getObjectMeta(s3Key)) ?? {};
+  if (contentLength === undefined) throw new Error("Vault archive size is unavailable");
+  return processVaultZipStream({
+    size: contentLength,
+    openRange: async (start, endExclusive) => (
+      await storage.getObjectStream(s3Key, { start, endExclusive })
+    ).body,
+  }, processEntry, {}, isCancelled);
 }
 
 async function seedQuizFromImport(userId: string, jobId: string): Promise<void> {

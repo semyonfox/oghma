@@ -3,6 +3,7 @@
 
 import {
   type ExternalSignOptions,
+  type ObjectByteRange,
   ObjectOptions,
   ObjectMetadata,
   ObjectNotFoundError,
@@ -152,13 +153,15 @@ export class StoreS3 extends StoreProvider {
    * Stream an object directly without buffering — used to proxy content through
    * the Next.js server so browsers never receive internal HTTP presigned URLs.
    */
-  async getObjectStream(path: string): Promise<ObjectStream> {
+  async getObjectStream(path: string, range?: ObjectByteRange): Promise<ObjectStream> {
+    const rangeHeader = range && `bytes=${range.start}-${range.endExclusive - 1}`;
     let result: GetObjectCommandOutput;
     try {
       result = await this.client.send(
         new GetObjectCommand({
           Bucket: this.config.bucket,
           Key: this.getPath(path),
+          Range: rangeHeader,
         })
       );
     } catch (error) {
@@ -169,6 +172,13 @@ export class StoreS3 extends StoreProvider {
     // this module was bundled for a runtime that cannot proxy the stream
     if (!(result.Body instanceof Readable)) {
       throw new Error('Storage returned a non-stream object body');
+    }
+    if (range && (
+      !result.ContentRange?.startsWith(`bytes ${range.start}-${range.endExclusive - 1}/`) ||
+      result.ContentLength !== range.endExclusive - range.start
+    )) {
+      result.Body.destroy();
+      throw new Error('Storage did not return the requested byte range');
     }
     return {
       body: result.Body,

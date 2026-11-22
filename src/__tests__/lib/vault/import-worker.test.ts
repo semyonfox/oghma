@@ -6,6 +6,7 @@ import type { CreateNoteWithTreeInput } from "@/lib/notes/storage/create-note";
 const mocks = vi.hoisted(() => ({
   sql: Object.assign(vi.fn(), { begin: vi.fn() }),
   storage: {
+    getObjectMeta: vi.fn(),
     getObjectStream: vi.fn(),
     putObject: vi.fn(),
     deleteObject: vi.fn(),
@@ -72,7 +73,10 @@ function buildZip(files: Array<[string, string]>): Uint8Array {
 }
 
 function serveZip(bytes: Uint8Array) {
-  mocks.storage.getObjectStream.mockResolvedValue({ body: Readable.from([Buffer.from(bytes)]) });
+  mocks.storage.getObjectMeta.mockResolvedValue({ contentLength: bytes.length });
+  mocks.storage.getObjectStream.mockImplementation(async (_key, { start, endExclusive }) => ({
+    body: Readable.from([Buffer.from(bytes.subarray(start, endExclusive))]),
+  }));
 }
 
 function run() {
@@ -126,7 +130,10 @@ describe("processVaultImport", () => {
     await run();
 
     // the provider applies the storage prefix, so the worker passes the bare key
-    expect(mocks.storage.getObjectStream).toHaveBeenCalledWith(`vault-uploads/${USER}/u/vault.zip`);
+    expect(mocks.storage.getObjectStream).toHaveBeenCalledWith(
+      `vault-uploads/${USER}/u/vault.zip`,
+      expect.objectContaining({ start: 0, endExclusive: expect.any(Number) }),
+    );
     const keys = mocks.storage.putObject.mock.calls.map(([key]) => String(key));
     expect(keys).toHaveLength(2);
     expect(new Set(keys).size).toBe(2);
@@ -184,7 +191,7 @@ describe("processVaultImport", () => {
   });
 
   it("shows archive problems to the user verbatim", async () => {
-    serveZip(strToU8("definitely not a zip"));
+    serveZip(strToU8("definitely not a zip file, even with enough bytes"));
 
     await expect(run()).rejects.toThrow("Uploaded object is not a ZIP file");
 
@@ -193,7 +200,8 @@ describe("processVaultImport", () => {
   });
 
   it("hides internal error text from the user-visible job error", async () => {
-    mocks.storage.getObjectStream.mockRejectedValue(new Error("getaddrinfo ENOTFOUND rustfs.internal"));
+    serveZip(buildZip([["a.md", "a"]]));
+    mocks.storage.getObjectStream.mockRejectedValueOnce(new Error("getaddrinfo ENOTFOUND rustfs.internal"));
 
     await expect(run()).rejects.toThrow("ENOTFOUND");
 

@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Readable } from "node:stream";
 import { randomBytes } from "node:crypto";
-import { unzipSync, strFromU8 } from "fflate";
+import { readFile } from "node:fs/promises";
+import { unzipSync, strFromU8, zipSync } from "fflate";
 import type { ExportEntry } from "@/lib/vault/tree-builder";
 
 const mocks = vi.hoisted(() => ({
@@ -27,7 +28,8 @@ vi.mock("@/lib/vault/artifacts", async (importOriginal) => ({
   signVaultExportDownload: mocks.signVaultExportDownload,
   vaultStorageLocation: (path: string) => ({ bucket: "test", key: `oghma/${path}` }),
 }));
-vi.mock("@/lib/vault/tree-builder", () => ({
+vi.mock("@/lib/vault/tree-builder", async (original) => ({
+  ...await original<typeof import("@/lib/vault/tree-builder")>(),
   buildExportPathMap: mocks.buildExportPathMap,
 }));
 vi.mock("@/lib/email", () => ({
@@ -47,6 +49,7 @@ vi.mock("@aws-sdk/client-s3", () => {
 });
 
 import { processVaultExport } from "@/lib/vault/export-worker";
+import { processVaultZipStream } from "@/lib/vault/zip-stream";
 
 type Heartbeat = { cancel_requested_at: string | null } | null;
 
@@ -171,6 +174,33 @@ describe("processVaultExport", () => {
     await processVaultExport({ jobId: "job-1", userId: "user-1" });
 
     expect(strFromU8(archive()["notes.md"])).toBe("# edited in the app");
+  });
+
+  it("restores an exported Office package with compressed images byte for byte", async () => {
+    const image = await readFile(new URL("../../../../public/notes-workspace-ultrawide.png", import.meta.url));
+    const slides = Buffer.from(zipSync({
+      "[Content_Types].xml": Buffer.from('<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>'),
+      "ppt/presentation.xml": Buffer.from("<presentation/>"),
+      "ppt/media/image1.png": image,
+      "ppt/media/image2.png": image,
+    }, { level: 1 }));
+    const chunks: Buffer[] = [];
+    for (let i = 0; i < slides.length; i += 64 * 1024) {
+      chunks.push(slides.subarray(i, i + 64 * 1024));
+    }
+    objects.set("oghma/files/slides.pptx", chunks);
+    entries([{ path: "Slides.pptx", source: { kind: "object", s3Key: "files/slides.pptx" } }]);
+    await processVaultExport({ jobId: "job-1", userId: "user-1" });
+
+    const restored = new Map<string, Buffer>();
+    const exported = Buffer.concat(parts);
+    await processVaultZipStream({
+      size: exported.length,
+      openRange: async (start, end) => Readable.from([exported.subarray(start, end)]),
+    }, async (name, bytes) => {
+      restored.set(name, bytes);
+    });
+    expect(restored).toEqual(new Map([["Slides.pptx", slides]]));
   });
 
   it("fails the job rather than publishing an archive with unreadable files", async () => {

@@ -15,18 +15,6 @@ const IGNORED_SEGMENTS = new Set([
   ".obsidian",
 ]);
 const IGNORED_FILENAMES = new Set([".DS_Store", "Thumbs.db", "desktop.ini"]);
-// OOXML internals of a .docx/.pptx/.xlsx. They only appear at the archive root
-// when a stored Office file's own entries leak through the streaming reader,
-// so a user's "Crossword/" or "notes/word/" folder must still import
-const OOXML_ROOT_PREFIXES = [
-  "[Content_Types].xml",
-  "_rels/",
-  "docProps/",
-  "customXml/",
-  "ppt/",
-  "word/",
-  "xl/",
-];
 
 const MAX_PATH_DEPTH = 32;
 const MAX_SEGMENT_LENGTH = 255;
@@ -96,9 +84,6 @@ async function assertActiveParent(
  */
 export function shouldIgnore(entryPath: string): boolean {
   const normalized = entryPath.replace(/\\/g, "/");
-  if (OOXML_ROOT_PREFIXES.some((prefix) => normalized.startsWith(prefix))) {
-    return true;
-  }
   const segments = normalized.split("/");
   const filename = segments.at(-1) ?? "";
   return (
