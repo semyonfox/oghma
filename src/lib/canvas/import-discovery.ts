@@ -43,10 +43,10 @@ import {
   resolveMimeType,
   fetchResource,
   recordCanvasResourceIssue,
-  isJobCancelled,
-  downloadAndStoreFile,
   checkAndCompleteJob,
 } from "./import-extraction";
+import { isJobCancelled } from "./import-status";
+import { downloadAndStoreFile } from "./import-file";
 
 // Canvas penalizes concurrent requests. Discovery deliberately defaults to a
 // single in-flight request per import; an operator can raise it only after

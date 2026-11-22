@@ -486,7 +486,7 @@ function TagEditorPanel({
       className={`fixed z-[10000] flex flex-col border border-border bg-surface-overlay text-text shadow-float ${
         isDesktop
           ? "max-h-[70dvh] w-80 rounded-radius-lg"
-          : "inset-x-0 bottom-0 max-h-[85dvh] rounded-t-radius-xl pb-[env(safe-area-inset-bottom)]"
+          : "inset-x-0 bottom-0 max-h-[85dvh] rounded-t-radius-xl pb-[var(--safe-bottom)]"
       }`}
       style={isDesktop && position ? { left: position.x, top: position.y } : undefined}
     >

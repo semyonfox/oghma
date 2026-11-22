@@ -1,6 +1,6 @@
 # Review and security fix plan, November 2026
 
-> **Status:** Target (plan), implemented on branch `fix/review-2026-11` and not yet merged. Written 2026-11-12 from a review of `049cc6b2` (origin/dev). Move it to `docs/history/` once the work lands.
+> **Status:** History. Written 2026-11-12 from a review of `049cc6b2` (origin/dev) and shipped as #719 on branch `fix/review-2026-11`. The deferred items below were not part of that work.
 >
 > **Source of truth for:** what the November 2026 review found, what the fix branch takes, and what it leaves for later
 

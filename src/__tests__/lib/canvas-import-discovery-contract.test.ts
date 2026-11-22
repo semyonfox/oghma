@@ -37,9 +37,15 @@ vi.mock("@/lib/canvas/import-extraction", () => ({
   resolveMimeType: vi.fn().mockReturnValue("application/pdf"),
   fetchResource: vi.fn(),
   recordCanvasResourceIssue: vi.fn(),
-  isJobCancelled: vi.fn().mockResolvedValue(false),
-  downloadAndStoreFile: vi.fn(),
   checkAndCompleteJob: vi.fn().mockResolvedValue(true),
+}));
+
+vi.mock("@/lib/canvas/import-status", () => ({
+  isJobCancelled: vi.fn().mockResolvedValue(false),
+}));
+
+vi.mock("@/lib/canvas/import-file", () => ({
+  downloadAndStoreFile: vi.fn(),
 }));
 
 vi.mock("@/lib/crypto.ts", () => ({

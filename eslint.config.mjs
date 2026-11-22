@@ -15,6 +15,23 @@ const reactCompilerRules = {
   "react-hooks/set-state-in-effect": "off",
 };
 
+// files already past the cap, held at their size on 2026-11-22 so they can only
+// shrink. lower or delete an entry when a file is split
+const oversizedFiles = {
+  "src/components/study-map/study-flow.tsx": 1267,
+  "src/components/study-map/study-exams.tsx": 1166,
+  "src/lib/public/agent-openapi.ts": 1124,
+  "src/lib/marker/serverless.ts": 893,
+  "src/lib/study-map/generation.ts": 876,
+  "src/lib/canvas/import-discovery.ts": 874,
+  "src/lib/study-map/repository.ts": 874,
+  "src/lib/study-map/flow.ts": 868,
+  "src/components/editor/milkdown-write-editor.tsx": 843,
+  "src/components/notes/mobile-library.tsx": 824,
+  "src/components/study-map/study-inspector.tsx": 816,
+  "src/lib/notes/storage/note-lifecycle.ts": 809,
+};
+
 export default [
   {
     ignores: [
@@ -93,11 +110,32 @@ export default [
           selector: "CallExpression[callee.object.name='logger'][callee.property.name=/^(error|warn|info|debug)$/][arguments.0.type!='Literal']",
           message: "Log a fixed string message and pass context as metadata, e.g. logger.error(\"import failed\", { jobId, error }).",
         },
+        {
+          // the Android WebView reports no bottom inset, so the shell injects its
+          // own and --safe-bottom takes whichever is larger
+          selector: "Literal[value=/safe-area-inset-bottom/], TemplateElement[value.raw=/safe-area-inset-bottom/]",
+          message: "Use var(--safe-bottom), which includes the Android shell's gesture-bar inset.",
+        },
       ],
       "no-console": "off",
       ...reactCompilerRules,
     },
   },
+  {
+    // big files are where agents and reviewers lose the thread, so new code
+    // splits along a seam before it gets here. tests are left out on purpose
+    files: ["src/**/*.{ts,tsx}", "apps/**/*.{ts,tsx}"],
+    ignores: ["src/__tests__/**", "**/*.test.{ts,tsx}"],
+    rules: {
+      "max-lines": ["error", { max: 800, skipBlankLines: true, skipComments: true }],
+    },
+  },
+  ...Object.entries(oversizedFiles).map(([file, max]) => ({
+    files: [file],
+    rules: {
+      "max-lines": ["error", { max, skipBlankLines: true, skipComments: true }],
+    },
+  })),
   {
     // the Expo app does not run React Compiler, so its try/finally is fine
     files: ["apps/mobile/**/*.{ts,tsx}"],

@@ -20,9 +20,13 @@ vi.mock("@/lib/canvas/import-discovery", () => ({
 vi.mock("@/lib/canvas/import-extraction", () => ({
   checkAndCompleteJob: mocks.checkAndCompleteJob,
   processCanvasFile: vi.fn(),
+}));
+vi.mock("@/lib/canvas/import-direct-extraction", () => ({
   processDirectExtraction: vi.fn(),
   processExtractionRetry: vi.fn(),
   recoverPendingExtractionRetries: vi.fn(),
+}));
+vi.mock("@/lib/canvas/import-marker-complete", () => ({
   processMarkerComplete: vi.fn(),
   processMarkerFailed: vi.fn(),
 }));

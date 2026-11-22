@@ -21,7 +21,9 @@ These records preserve decisions and provenance. They are not current runbooks, 
 | [April import optimisation](import-optimization-2026-04-01.md) | Dated AWS-era deployment evidence retained after the live stack changed |
 | [Canvas export CLI handoff](canvas-export-cli-handoff.md) | Unbuilt, scoped CLI design based on the in-app exporter |
 | [March project report](project-report-2026-03-30.md) | University-project evidence report frozen in time |
-| [`SRS.tex`](../SRS.tex) / [`SRS.pdf`](../SRS.pdf) | Formal university requirements artifact from the earlier AWS-hosted phase |
+| [`SRS.tex`](coursework/SRS.tex) / [`SRS.pdf`](coursework/SRS.pdf) | Formal university requirements artifact from the earlier AWS-hosted phase |
+| [CT216 report](coursework/report.tex) ([PDF](coursework/report.pdf)) | Submitted university project report, with its [screenshots](coursework/screenshots/) and July 2026 [Mermaid diagrams](coursework/diagrams/) |
+| [November 2026 review fix plan](2026-11-12-review-fix-plan.md) | Findings of the November 2026 code and security review, shipped in #719. Its deferred items and access matrix are still useful context |
 
 For current information, return to the [documentation index](../README.md).
 
