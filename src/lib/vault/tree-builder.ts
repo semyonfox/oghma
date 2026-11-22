@@ -230,6 +230,8 @@ interface ExportTreeRow {
   parent_id: string | null;
   title: string | null;
   s3_key: string | null;
+  mime_type: string | null;
+  has_body: boolean;
   is_folder: boolean;
 }
 
@@ -243,6 +245,7 @@ export interface ExportEntry {
 }
 
 const TEXT_EXTENSIONS = new Set(["md", "markdown", "txt"]);
+const TEXT_MIME_TYPES = new Set(["text/markdown", "text/x-markdown", "text/plain"]);
 
 function extensionOf(name: string): string | null {
   const match = /\.([A-Za-z0-9]{1,10})$/.exec(name);
@@ -270,13 +273,17 @@ function exportFilename(row: ExportTreeRow, source: ExportSource): string {
 }
 
 /**
- * Editable notes export what the editor shows. Imported .md/.txt files keep
- * their original upload as s3_key, but edits only ever land in content.
+ * Edited text lives in the note body. Uploads with an empty body still need
+ * their original object, including text files awaiting extraction.
  */
 function exportSource(row: ExportTreeRow): ExportSource {
-  const ext = extensionOf(row.title ?? "");
-  if (row.s3_key && !(ext && TEXT_EXTENSIONS.has(ext))) {
-    return { kind: "object", s3Key: row.s3_key };
+  if (row.s3_key) {
+    const ext = extensionOf(row.s3_key);
+    const mime = row.mime_type?.split(";")[0].trim().toLowerCase();
+    const isText = mime && mime !== "application/octet-stream"
+      ? TEXT_MIME_TYPES.has(mime)
+      : ext !== null && TEXT_EXTENSIONS.has(ext);
+    if (!isText || !row.has_body) return { kind: "object", s3Key: row.s3_key };
   }
   return { kind: "content", noteId: row.note_id };
 }
@@ -301,9 +308,11 @@ function claimName(used: Set<string>, name: string): string {
  */
 export async function buildExportPathMap(userId: string): Promise<ExportEntry[]> {
   const rows = await sql<ExportTreeRow[]>`
-    SELECT t.note_id, t.parent_id, n.title, n.s3_key, n.is_folder
+    SELECT t.note_id, t.parent_id, n.title, n.s3_key, n.is_folder, a.mime_type,
+           COALESCE(octet_length(n.content) > 0, false) AS has_body
     FROM app.tree_items t
     JOIN app.notes n ON n.note_id = t.note_id AND n.user_id = t.user_id
+    LEFT JOIN app.attachments a ON a.note_id = n.note_id AND a.user_id = n.user_id AND a.s3_key = n.s3_key
     WHERE t.user_id = ${userId}::uuid
       AND n.deleted_at IS NULL
     ORDER BY n.title, n.created_at, n.note_id
