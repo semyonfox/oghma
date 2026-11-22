@@ -112,6 +112,12 @@ export default [
           selector: "CallExpression[callee.object.name='logger'][callee.property.name=/^(error|warn|info|debug)$/][arguments.0.type!='Literal']",
           message: "Log a fixed string message and pass context as metadata, e.g. logger.error(\"import failed\", { jobId, error }).",
         },
+        {
+          // the Android WebView reports no bottom inset, so the shell injects its
+          // own and --safe-bottom takes whichever is larger
+          selector: "Literal[value=/safe-area-inset-bottom/], TemplateElement[value.raw=/safe-area-inset-bottom/]",
+          message: "Use var(--safe-bottom), which includes the Android shell's gesture-bar inset.",
+        },
       ],
       "no-console": "off",
       ...reactCompilerRules,

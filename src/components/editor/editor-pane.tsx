@@ -428,7 +428,7 @@ const EditorPane: FC<EditorPaneProps> = ({
       </div>
 
       {/* phone action bar from the Atlas mockup */}
-      <div className={`${keyboardOpen ? "hidden" : "flex"} shrink-0 items-center justify-end gap-2 border-t border-border-subtle bg-sidebar px-4 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 lg:hidden`}>
+      <div className={`${keyboardOpen ? "hidden" : "flex"} shrink-0 items-center justify-end gap-2 border-t border-border-subtle bg-sidebar px-4 pb-[calc(0.5rem+var(--safe-bottom))] pt-2 lg:hidden`}>
         {sourceFile && (
           <button
             type="button"
