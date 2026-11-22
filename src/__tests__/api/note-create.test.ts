@@ -87,7 +87,7 @@ describe("POST /api/notes creation contract", () => {
       updatedAt: CREATED_AT.toISOString(),
     });
     expect(mocks.sql).not.toHaveBeenCalled();
-    expect(mocks.replaceNoteLinks).toHaveBeenCalledExactlyOnceWith(USER_ID, NOTE_ID, "# Lecture");
+    expect(mocks.replaceNoteLinks).toHaveBeenCalledExactlyOnceWith(USER_ID, NOTE_ID);
   });
 
   it.each([
