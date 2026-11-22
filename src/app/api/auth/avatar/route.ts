@@ -31,8 +31,11 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const settings = await getSettingsFromS3(userId);
-    const { avatarKey } = settings;
+    const settings = await getSettingsFromS3(userId).catch((error) => {
+      logger.warn("avatar settings read failed", { error });
+      return null;
+    });
+    const avatarKey = settings?.avatarKey;
 
     if (!avatarKey) {
       return NextResponse.json({ avatarUrl: null });
@@ -103,14 +106,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const currentSettings = await getSettingsFromS3(userId, { fresh: true });
+    const { avatarKey: previousAvatarKey } = currentSettings;
     const timestamp = Date.now();
     const avatarKey = `avatars/${userId}/${timestamp}.${ext}`;
     const storage = getStorageProvider();
     await storage.putObject(avatarKey, buffer, { contentType: detectedMime });
 
     // persist key in settings JSON (merge with existing settings)
-    const currentSettings = await getSettingsFromS3(userId);
-    const { avatarKey: previousAvatarKey } = currentSettings;
     await saveSettingsToS3(userId, { ...currentSettings, avatarKey });
 
     if (previousAvatarKey && previousAvatarKey !== avatarKey) {

@@ -15,7 +15,11 @@ export async function GET() {
     const userId = await getAuthenticatedUserId();
     if (!userId) return new NextResponse(null, { status: 401 });
 
-    const { avatarKey } = await getSettingsFromS3(userId);
+    const settings = await getSettingsFromS3(userId).catch((error) => {
+      logger.warn("avatar settings read failed", { error });
+      return null;
+    });
+    const avatarKey = settings?.avatarKey;
     if (!avatarKey) return new NextResponse(null, { status: 404 });
 
     // one round trip: a missing object is a 404, any other storage failure a 500

@@ -11,6 +11,7 @@ import {
   getSettingsFromS3,
   saveSettingsToS3,
 } from "@/lib/notes/storage/s3-storage";
+import logger from "@/lib/logger";
 import { getLlmModel } from "@/lib/ai-config";
 import { normalizeEditorSize } from "@/lib/notes/editor-width";
 import { LOCALE_COOKIE_NAME, normalizeLocale } from "@/locales";
@@ -46,7 +47,10 @@ export const GET = withErrorHandler(async () => {
     const user = await requireAuth();
 
     // Fetch user's settings from S3
-    const userSettings = await getSettingsFromS3(user.user_id);
+    const userSettings = await getSettingsFromS3(user.user_id).catch((error) => {
+      logger.warn("settings read failed", { error });
+      return null;
+    });
 
     // Merge with defaults
     const mergedSettings = {
@@ -56,6 +60,7 @@ export const GET = withErrorHandler(async () => {
     };
 
     const response = NextResponse.json(mergedSettings);
+    if (!userSettings) return response;
     // mirror the account theme into a cookie so it applies pre-paint on any
     // device once settings have loaded once (read by the theme init script)
     const theme = settingsUpdateSchema.shape.theme.safeParse(mergedSettings.theme);
@@ -84,7 +89,7 @@ export const POST = withErrorHandler(async (request) => {
     if (normalizedLocale) sanitized.locale = normalizedLocale;
 
     // Fetch current settings and merge
-    const currentSettings = await getSettingsFromS3(user.user_id);
+    const currentSettings = await getSettingsFromS3(user.user_id, { fresh: true });
     const { ai_model: _ignoredAiModel, ...persistedSettings } = currentSettings;
     const updatedSettings = { ...persistedSettings, ...sanitized };
 

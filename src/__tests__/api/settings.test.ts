@@ -44,6 +44,16 @@ afterEach(() => {
 });
 
 describe("GET /api/settings", () => {
+  it("returns defaults without changing cookies when storage is unavailable", async () => {
+    vi.mocked(getSettingsFromS3).mockRejectedValueOnce(new Error("storage unavailable"));
+
+    const response = await GET(new NextRequest("http://localhost/api/settings"));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ theme: "system" });
+    expect(response.cookies.getAll()).toEqual([]);
+  });
+
   it("includes the server-managed AI model without requiring it in stored settings", async () => {
     const request = new NextRequest("http://localhost/api/settings");
 
