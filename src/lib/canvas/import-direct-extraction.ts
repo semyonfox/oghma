@@ -6,7 +6,7 @@ import {
   CANVAS_CLAIM_SECONDS,
 } from "./execution";
 import sql from "../../database/pgsql";
-import { enqueueExtractRetryJob } from "../queue.ts";
+import { enqueueExtractRetryJob, getCanvasQueueAttemptLimit } from "../queue.ts";
 import { getStorageProvider } from "../storage/init.ts";
 import logger from "../logger.ts";
 import { type ExtractionRetryMessage } from "./extraction-retry.ts";
@@ -41,7 +41,11 @@ export interface DirectExtractionMessage {
 
 // ── Direct extraction (from /api/upload) ────────────────────────────────────
 
-export async function processDirectExtraction(msg: DirectExtractionMessage) {
+export async function processDirectExtraction(
+  msg: DirectExtractionMessage,
+  attempt = 0,
+  maxAttempts = getCanvasQueueAttemptLimit(),
+) {
   const { noteId, userId, s3Key, mimeType, filename } = msg;
   logger.info("direct extraction started");
 
@@ -56,7 +60,7 @@ export async function processDirectExtraction(msg: DirectExtractionMessage) {
     return;
   }
 
-  const claimed = await sql`
+  const claimed = await sql<{ id: string }[]>`
     UPDATE app.ingestion_jobs
     SET status = 'processing', updated_at = NOW()
     WHERE note_id = ${noteId}::uuid
@@ -76,9 +80,23 @@ export async function processDirectExtraction(msg: DirectExtractionMessage) {
     return;
   }
 
-  const storage = getStorageProvider();
-  const objectData = await storage.getObjectAndMeta(s3Key);
-  const buffer = objectData?.buffer;
+  let buffer: Buffer | undefined;
+  try {
+    ({ buffer } = await getStorageProvider().getObjectAndMeta(s3Key));
+  } catch (error) {
+    const willRetry = attempt + 1 < maxAttempts;
+    await sql`
+      UPDATE app.ingestion_jobs
+      SET status = ${willRetry ? "pending" : "failed"},
+          error = 'Failed to read file from storage', updated_at = NOW()
+      WHERE id = ANY(${claimed.map(({ id }) => id)}::uuid[])
+        AND status = 'processing'
+    `;
+    if (willRetry) throw error;
+    logger.error("direct extraction failed: storage read error", { error });
+    return;
+  }
+
   if (!buffer) {
     await sql`
       UPDATE app.ingestion_jobs

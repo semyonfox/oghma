@@ -117,6 +117,15 @@ describe("Canvas job dispatch", () => {
     expect(target.processDirectExtraction).not.toHaveBeenCalled();
   });
 
+  it("passes the provider's attempt count and limit to direct extraction", async () => {
+    const target = handlers();
+    const data = { noteId: "note-1", userId: "user-1", s3Key: "file.pdf", mimeType: "application/pdf" };
+
+    await expect(dispatchCanvasJob({ name: "extract", data, attemptsMade: 2, opts: { attempts: 5 } }, target))
+      .resolves.toBe(true);
+    expect(target.processDirectExtraction).toHaveBeenCalledWith(data, 2, 5);
+  });
+
   it("passes a validated extraction retry generation to its handler", async () => {
     const target = handlers();
     const data = {
