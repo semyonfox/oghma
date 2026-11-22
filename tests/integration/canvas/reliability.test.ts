@@ -7,7 +7,15 @@ import { startCanvasRun, canonicalCanvasCourses } from "@/lib/canvas/import-runs
 import { cancelActiveCanvasImportJobs } from "@/lib/canvas/cancel-import-jobs";
 import { withCanvasExecution, withCanvasPublication, CanvasClaimLostError } from "@/lib/canvas/execution";
 import { recoverCanvasExecutions } from "@/lib/canvas/execution-recovery";
-import { processCanvasExtract, processCanvasFile, processExtractionRetry, recoverPendingCanvasExtracts, fetchResource, recordCanvasResourceIssue, checkAndCompleteJob } from "@/lib/canvas/import-extraction";
+import {
+  processCanvasExtract,
+  processCanvasFile,
+  recoverPendingCanvasExtracts,
+  fetchResource,
+  recordCanvasResourceIssue,
+  checkAndCompleteJob,
+} from "@/lib/canvas/import-extraction";
+import { processExtractionRetry } from "@/lib/canvas/import-direct-extraction";
 import { stageCanvasExtractionRetry } from "@/lib/canvas/extraction-retry";
 import { dispatchFairCanvasFiles } from "@/lib/canvas/import-scheduler";
 import { findCanvasTrashConflicts, CanvasTrashConflictError } from "@/lib/canvas/trash-conflicts";

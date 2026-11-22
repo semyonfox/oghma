@@ -50,7 +50,6 @@ Status means:
 | [Performance](engineering/performance.md) | Current | Repeatable performance-audit workflow and evidence rules |
 | [Demo flow](engineering/demo-flow.md) | Current | Product walkthrough without duplicating architecture |
 | [Canvas data emergency plan](engineering/canvas-data-emergency-plan.md) | Target (contingency, not built) | Options for reducing or stopping retention of Canvas content |
-| [Review fix plan, November 2026](engineering/review-fix-plan-2026-11.md) | Target (plan) | Merged findings of the November 2026 code and security review, the fix order, the deferred items and the access matrix |
 
 ## Operations
 
@@ -89,7 +88,7 @@ Dated evidence. Recheck volatile provider facts before acting.
 | [Payment processor decision](decisions/2026-06-11-payment-processor.md) | Current decision | Accepted Stripe Managed Payments ADR and reopen conditions |
 | [Canvas import cost study](research/2026-06-14-canvas-import-costs.md) | History (dated research) | Aggregate workload and cost-model inputs |
 | [First-user usability sessions](research/2026-11-13-first-user-sessions.md) | Target | Session kit for the first real-student sessions (#402) |
-| [`SRS.tex`](SRS.tex) / [`SRS.pdf`](SRS.pdf) | History | University requirements artefact from the AWS-hosted phase. It still describes 1-hour presigned file URLs and ElastiCache rate limiting, neither of which is current |
+| [`SRS.tex`](history/coursework/SRS.tex) / [`SRS.pdf`](history/coursework/SRS.pdf) | History | University requirements artefact from the AWS-hosted phase. It still describes 1-hour presigned file URLs and ElastiCache rate limiting, neither of which is current |
 
 ## History
 

@@ -10,7 +10,7 @@
 
 import sql from "../src/database/pgsql.ts";
 import { closeQueues } from "../src/lib/queue.ts";
-import { recoverPendingExtractionRetries } from "../src/lib/canvas/import-extraction.ts";
+import { recoverPendingExtractionRetries } from "../src/lib/canvas/import-direct-extraction.ts";
 
 interface StatusCountRow {
   status: string;

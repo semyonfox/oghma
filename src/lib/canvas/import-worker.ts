@@ -108,13 +108,6 @@ export async function processImportJob(jobId: string): Promise<boolean> {
 // ── Public handlers consumed by worker-entry.ts ─────────────────────────────
 
 export { processDiscoverJob } from "./import-discovery";
-export {
-  processCanvasFile,
-  processCanvasExtract,
-  recoverPendingCanvasExtracts,
-  processDirectExtraction,
-  processExtractionRetry,
-  recoverPendingExtractionRetries,
-  processMarkerComplete,
-  processMarkerFailed,
-} from "./import-extraction";
+export { processCanvasFile, processCanvasExtract, recoverPendingCanvasExtracts } from "./import-extraction";
+export { processDirectExtraction, processExtractionRetry, recoverPendingExtractionRetries } from "./import-direct-extraction";
+export { processMarkerComplete, processMarkerFailed } from "./import-marker-complete";

@@ -103,16 +103,14 @@ import { getStorageProvider } from "@/lib/storage/init";
 import { processRagPipeline } from "@/lib/canvas/import-embedding";
 import { CanvasClient } from "@/lib/canvas/client";
 import {
-  processDirectExtraction,
-  processExtractionRetry,
-  recoverPendingExtractionRetries,
   fetchResource,
   processCanvasFile,
   processCanvasExtract,
   recoverPendingCanvasExtracts,
-  processMarkerComplete,
-  downloadAndStoreFile,
 } from "@/lib/canvas/import-extraction";
+import { downloadAndStoreFile } from "@/lib/canvas/import-file";
+import { processDirectExtraction, processExtractionRetry, recoverPendingExtractionRetries } from "@/lib/canvas/import-direct-extraction";
+import { processMarkerComplete } from "@/lib/canvas/import-marker-complete";
 
 function queryText(call: readonly unknown[]): string {
   const template = call[0];

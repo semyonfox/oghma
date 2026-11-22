@@ -83,7 +83,7 @@ runbook.
 | Recovery | Worker DB poll re-enqueues stale dispatch, completion, and failure continuations |
 | Operator view | `npm run marker:serverless:status` |
 | Emergency pause | `MARKER_SERVERLESS_DISPATCH_ENABLED=false` |
-| Image selection | `MARKER_IMAGE_SELECTION_POLICY` on the GPU backend: `semantic` (default), `course` or `all`. `course` keeps small uncaptioned lecture visuals and needs a Marker++ build with [marker-plus-plus#37](https://github.com/semyonfox/marker-plus-plus/pull/37). Measure it on visual-heavy PDFs before turning it on (#478) |
+| Image selection | `MARKER_IMAGE_SELECTION_POLICY` on the GPU backend: `course` (default), `semantic` or `all`. Surya 2.5 labels lecture diagrams as Picture, so `semantic` keeps only captioned images on Marker++ 2.2. `course` keeps unique visuals and skips small and repeated furniture. It was measured on the lecture benchmark before becoming the default (#478) |
 
 The result object key is generated once and is immutable. Oghma makes at most
 one application-originated routed-worker request for a durable job. A lost or
@@ -275,8 +275,8 @@ bash scripts/build-vast-marker-image.sh
 Push only a unique, never-overwritten tag, record and scan its registry digest,
 and use that tag in the Vast template. Vast's current template field is
 documented as `repository/image:tag`, so the recorded digest is the
-verification/rollback identity rather than the template field. The source
-archive defaults to the exact Marker++ commit measured on 2026-07-24.
+verification/rollback identity rather than the template field. The build uses
+the [shared worker Dockerfile](../../infra/marker-worker/README.md).
 
 ## Funding-time provisioning
 
@@ -493,14 +493,16 @@ workergroup back at the previous template hash.
 
 | Date | Template | Image tag | Registry digest | Marker++ |
 |---|---|---|---|---|
-| 2026-10-07 | 755280, hash `14396662fb1fce5308df15b87358d090` | `vast-d31ecd22-cu129-eager-20261007` | index `sha256:2b2e89f226303c6f5ec0f50a800953ef1e6aa09cbfde20b90c0bc16312b660f7` | `d31ecd2` |
-| 2026-11-06 | 793626, hash `f77c7e0b486de5c1f7cf1842e2873583` | `vast-1a6df297-cu129-eager-20261106` | `sha256:ae03cee85b32a4e9cc46f7a4c47368e944d47af58bbd56217936e35648ce6332` | `1a6df29` |
+| 2026-11-18 | 807755, hash `ab85cba18a887ec637fb72ba70f3aecd` | `vast-d28268cf-cu129-eager-20261118` | `sha256:c20f3ec15f583e006835b913084e4d87480c89fc0f4e7985952fa2af3ad32352` | `d28268c` |
+| 2026-11-22 | 811995, hash `ba4b8d9cc5e9c8488da981291602ff2c` | `vast-d9ee6167-cu129-stockpins-20261121` | `sha256:c114c6bc0a2009a50caca36b753e6b1f26db00d9b39d5a30e1dc067b577c4e99` | `d9ee616` |
 
-The 2026-11-06 image is built from the tracked Dockerfile with
-`MARKER_GPU_FAMILY=nonblackwell`. It carries Pillow 13 through
-`install-marker.py`, which applies Marker++'s uv override that pip cannot. The
-2026-10-07 image was patched by hand on top of an earlier tag. Its scripts
-match the tracked ones but its `backend.py` predates the broken pool reset.
+The 2026-11-22 image is live and the 2026-11-18 image is the rollback. Both
+are built from the tracked Dockerfile with `MARKER_GPU_FAMILY=nonblackwell`.
+The 2026-11-22 image pins its vLLM env to the stock `vllm/vllm-openai:v0.25.1`
+versions in `constraints-vllm.txt`. An earlier build with transformers 5.23,
+tokenizers 0.23 and huggingface-hub 2.4 failed vLLM startup profiling with
+`Failed to apply Qwen3VLProcessor` on the GPU, which a CPU run did not catch.
+It runs on a 40 GB disk where the 2026-11-18 image needs 80 GB.
 
 Switch the workergroup with the full live offer query. The current vastai CLI
 sends `verified=True rentable=True rented=False` when `--search_params` is
@@ -508,8 +510,8 @@ omitted, which replaces the RTX 3090 filter and price cap:
 
 ```bash
 vastai update workergroup 54215 --endpoint_id 39931 \
-  --template_hash <TEMPLATE_HASH> --gpu_ram 24 --launch_args '--disk 80' -n \
-  --search_params "verified=true rentable=true rented=false reliability>=0.98 cpu_arch=amd64 cpu_cores_effective>=8 cpu_ram>=32 num_gpus=1 gpu_name=RTX_3090 gpu_ram>=24 cuda_max_good>=12.9 disk_bw>=500 disk_space>=80 allocated_storage=80 inet_down>=500 inet_up>=100 inet_down_cost<=0.005 inet_up_cost<=0.005 storage_cost<=0.4 dph_total<=0.3"
+  --template_hash <TEMPLATE_HASH> --gpu_ram 24 --launch_args '--disk 40' -n \
+  --search_params "verified=true rentable=true rented=false reliability>=0.98 cpu_arch=amd64 cpu_cores_effective>=8 cpu_ram>=32 num_gpus=1 gpu_name=RTX_3090 gpu_ram>=24 cuda_max_good>=12.9 disk_bw>=500 disk_space>=40 allocated_storage=40 inet_down>=500 inet_up>=100 inet_down_cost<=0.005 inet_up_cost<=0.005 storage_cost<=0.4 dph_total<=0.3"
 ```
 
 Known Vast behaviour from the 2026-11-06 switch:
