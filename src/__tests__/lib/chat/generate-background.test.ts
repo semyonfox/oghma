@@ -111,7 +111,6 @@ describe("background chat durability", () => {
           },
           useRag: false,
           thinkingMode: "off",
-          requestOrigin: "http://localhost",
           respectPrivacySignal: false,
         },
       },
@@ -194,6 +193,7 @@ describe("background chat durability", () => {
         scopedInputNoteIds: [scopedNoteId],
       }),
     );
+    expect(mocks.buildLlmCall.mock.calls[0]?.[0]).not.toHaveProperty("requestOrigin");
     expect(
       mocks.appendEvent.mock.calls.some(([, sse]) =>
         String(sse).includes("event: search"),

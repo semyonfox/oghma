@@ -74,6 +74,6 @@ test.describe("public smoke", () => {
 
   test("protected notes page redirects anonymous users", async ({ page }) => {
     await page.goto("/notes");
-    await expect(page).toHaveURL(/\/login$/);
+    await expect(page).toHaveURL(/\/login\?next=%2Fnotes$/);
   });
 });

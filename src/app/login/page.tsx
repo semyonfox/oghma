@@ -20,6 +20,7 @@ import {
 } from "@/components/auth/auth-styles";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import AuthShowcase from "@/components/auth/auth-showcase";
+import { authReturnPath } from "@/lib/auth/return-path";
 import {
   buildOAuthSignInOptions,
   isOAuthProviderConfigured,
@@ -100,18 +101,17 @@ export default function LoginPage() {
     setErrMsg("");
     setLoading(true);
     try {
-      const _response = await login(email, pwd, rememberMe);
+      const destination = authReturnPath(new URLSearchParams(window.location.search).get("next"));
+      await login(email, pwd, rememberMe);
 
-      // Keep a guarded hard-navigation fallback for browsers where the client
-      // router stalls. Clear it when the login page unmounts so it cannot yank
-      // a user back to /notes after they have already navigated elsewhere.
+      // fall back to hard navigation if the client router stalls on sign-in
       redirectFallbackRef.current = window.setTimeout(() => {
         redirectFallbackRef.current = null;
         if (window.location.pathname === "/login") {
-          window.location.replace("/notes");
+          window.location.replace(destination);
         }
       }, 1000);
-      router.replace("/notes");
+      router.replace(destination);
     } catch (err: unknown) {
       const authError = typeof err === "object" && err !== null ? err as { status?: number; data?: { requiresVerification?: boolean; email?: string } } : {};
       // check if the error is a verification-required response
@@ -135,7 +135,8 @@ export default function LoginPage() {
     }
 
     if (!postNativeOAuth(provider)) {
-      signIn(provider, buildOAuthSignInOptions("/notes"));
+      const destination = authReturnPath(new URLSearchParams(window.location.search).get("next"));
+      void signIn(provider, buildOAuthSignInOptions(destination));
     }
   };
 

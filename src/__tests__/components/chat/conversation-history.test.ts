@@ -28,7 +28,8 @@ describe("ConversationHistory", () => {
       React.createElement(ConversationHistory, {
         conversations,
         activeId: null,
-        loaded: true,
+        loadState: "loaded",
+        onRetry: vi.fn(),
         t: (key) => key,
         onNewConversation: vi.fn(),
         onSelectConversation: vi.fn(),

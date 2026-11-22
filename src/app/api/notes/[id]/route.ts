@@ -196,7 +196,7 @@ export const PUT = withErrorHandler(async (request: NextRequest, { params }: Not
 
   if (body.content !== undefined && body.content !== previous.content) {
     try {
-      await replaceNoteLinks(user.user_id, noteId, body.content);
+      await replaceNoteLinks(user.user_id, noteId);
     } catch (linkErr) {
       logger.error("note link index update failed", { noteId, error: linkErr });
     }

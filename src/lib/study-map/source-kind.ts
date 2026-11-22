@@ -5,7 +5,8 @@ export function isStudyBinary(note: {
   mime_type: string | null;
   s3_key: string | null;
 }): boolean {
-  if (inferFileType(note.title, note.mime_type) !== "note") return true;
+  const type = inferFileType(note.title, note.mime_type, note.s3_key);
+  if (type === "pdf" || type === "image" || type === "video") return true;
   if (!note.s3_key) return false;
   const mime = note.mime_type?.split(";", 1)[0].trim().toLowerCase();
   if (

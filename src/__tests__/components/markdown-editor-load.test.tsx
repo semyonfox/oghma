@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useImperativeHandle, useRef, type Ref } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -28,11 +29,24 @@ vi.mock("@/lib/notes/cache", () => ({
   noteCacheInstance: { getItem: async (id: string) => mocks.notes.get(id) },
 }));
 vi.mock("next/dynamic", () => ({
-  default: () => function WritingSurface({ value, onChange }: {
+  default: () => function WritingSurface({ value, onChange, flushRef }: {
     value: string;
     onChange: (value: string, programmatic?: boolean) => void;
+    flushRef?: Ref<() => void>;
   }) {
-    return <textarea aria-label="Note" value={value} onChange={(event) => onChange(event.target.value)} />;
+    const pending = useRef<string | null>(null);
+    useImperativeHandle(flushRef, () => () => {
+      if (pending.current === null) return;
+      const content = pending.current;
+      pending.current = null;
+      onChange(content);
+    }, [onChange]);
+    return <textarea
+      aria-label="Note"
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      onKeyDown={(event) => { pending.current = event.key; }}
+    />;
   },
 }));
 
@@ -161,7 +175,7 @@ it("early cached edits keep their base and block a fresh conflicting load", asyn
   let resolve!: (note: { content: string; updatedAt: string }) => void;
   mocks.fetchNote.mockReturnValueOnce(new Promise((done) => { resolve = done; }));
   await open();
-  fireEvent.change(screen.getByLabelText("Note"), { target: { value: "edited cache" } });
+  fireEvent.keyDown(screen.getByLabelText("Note"), { key: "edited cache" });
   await act(async () => { resolve({ content: "theirs", updatedAt: FRESH }); });
   fireEvent.blur(screen.getByLabelText("Note"), { relatedTarget: document.body });
   expect(mocks.mutateNote).not.toHaveBeenCalled();

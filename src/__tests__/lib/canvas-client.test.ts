@@ -292,6 +292,24 @@ describe("CanvasClient string-ID requests", () => {
     expect(result.error).toBe("Canvas API pagination exceeded 100 pages");
   });
 
+  it("reports a page size failure without retrying or discarding earlier pages", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('[{"id":"1"}]', {
+        headers: { Link: '<https://example.instructure.com/api/v1/courses?page=2>; rel="next"' },
+      }))
+      .mockResolvedValue(new Response(null, {
+        headers: { "content-length": String(16 * 1024 * 1024 + 1) },
+      }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect(await new CanvasClient("example.instructure.com", "token").getCourses()).toEqual({
+      data: [{ id: "1" }],
+      forbidden: false,
+      error: "Canvas API response exceeded its page size limit",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("enumerates self enrollments with the complete non-deleted state contract", async () => {
     const nextUrl =
       "https://example.instructure.com/api/v1/users/self/enrollments?opaque=next";

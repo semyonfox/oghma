@@ -1,7 +1,6 @@
 // upload API route - handles file uploads for note attachments
 import { NextRequest, NextResponse } from "next/server";
 import { Readable } from "stream";
-import type postgres from "postgres";
 import { checkRateLimit } from "@/lib/rate-limiter";
 import { getStorageProvider } from "@/lib/storage/init";
 import { ObjectNotFoundError } from "@/lib/storage/base";
@@ -58,7 +57,7 @@ const INLINE_MIME_TYPES: ReadonlySet<string> = new Set([
   "application/vnd.ms-powerpoint",
 ]);
 
-// multipart framing and the noteId field on top of the file itself
+// multipart framing and form fields on top of the file itself
 const MULTIPART_OVERHEAD_BYTES = 64 * 1024;
 
 class NoteUnavailableError extends Error {}
@@ -90,13 +89,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   if (limited) return limited;
 
   const formData = await readUploadForm(request);
+  if (formData.has("noteId")) return tracedError("noteId is no longer supported", 400);
   const file = formData.get("file");
-  const rawNoteId = formData.get("noteId");
-  if (rawNoteId !== null && typeof rawNoteId !== "string") return tracedError("Invalid noteId", 400);
   // a new file can be placed in the same folder as an open note, which is
   // how a PDF dropped into a note lands next to it
   const besideNoteId = formData.get("besideNoteId");
-  if (besideNoteId !== null && (typeof besideNoteId !== "string" || !isValidUUID(besideNoteId) || rawNoteId)) {
+  if (besideNoteId !== null && (typeof besideNoteId !== "string" || !isValidUUID(besideNoteId))) {
     return tracedError("Invalid besideNoteId", 400);
   }
   if (!(file instanceof File)) return tracedError("No file provided", 400);
@@ -122,22 +120,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     return tracedError("Could not determine an allowed file type", 400);
   }
 
-  const createdNewNote = !rawNoteId;
-  const noteId = rawNoteId || generateUUID();
-  if (!createdNewNote) {
-    if (!isValidUUID(noteId)) return tracedError("Invalid noteId format", 400);
-    // cheap pre-check so a bad noteId never costs a storage write; the insert
-    // below re-checks inside the transaction
-    const exists = await sql`
-      SELECT 1 FROM app.notes
-      WHERE note_id = ${noteId}::uuid
-        AND user_id = ${userId}::uuid
-        AND deleted_at IS NULL
-      LIMIT 1
-    `;
-    if (!exists.length) return tracedError("Note not found", 404);
-  }
-
+  const noteId = generateUUID();
   const title = displayFileName(file.name);
   const fileName = storageFileName(file.name);
   const attachmentId = generateUUID();
@@ -154,43 +137,35 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   // the object goes first so a crash can only leave an unreferenced object,
   // never a note or attachment row that points at nothing
-  let parentId: string | null = null;
   try {
-    await (sql as postgres.Sql).begin(async (tx) => {
-      if (createdNewNote) {
-        if (besideNoteId) {
-          const [sibling] = await tx<{ parent_id: string | null }[]>`
-            SELECT t.parent_id
-            FROM app.tree_items t
-            JOIN app.notes n ON n.note_id = t.note_id AND n.user_id = t.user_id
-            WHERE t.note_id = ${besideNoteId}::uuid
-              AND t.user_id = ${userId}::uuid
-              AND n.deleted_at IS NULL
-          `;
-          if (!sibling) throw new NoteUnavailableError();
-          parentId = sibling.parent_id;
-        }
-        await insertNoteWithTree(tx, {
-          noteId,
-          userId,
-          title,
-          content: "",
-          isFolder: false,
-          s3Key: storagePath,
-          parentId,
-        });
+    await sql.begin(async (tx) => {
+      let parentId: string | null = null;
+      if (besideNoteId) {
+        const [sibling] = await tx<{ parent_id: string | null }[]>`
+          SELECT t.parent_id
+          FROM app.tree_items t
+          JOIN app.notes n ON n.note_id = t.note_id AND n.user_id = t.user_id
+          WHERE t.note_id = ${besideNoteId}::uuid
+            AND t.user_id = ${userId}::uuid
+            AND n.deleted_at IS NULL
+        `;
+        if (!sibling) throw new NoteUnavailableError();
+        parentId = sibling.parent_id;
       }
-      const inserted = await tx`
+      await insertNoteWithTree(tx, {
+        noteId,
+        userId,
+        title,
+        content: "",
+        isFolder: false,
+        s3Key: storagePath,
+        parentId,
+      });
+      await tx`
         INSERT INTO app.attachments (id, note_id, user_id, filename, s3_key, mime_type, file_size)
-        SELECT ${attachmentId}::uuid, note.note_id, note.user_id,
-               ${fileName}, ${storagePath}, ${mimeType}, ${file.size}
-        FROM app.notes note
-        WHERE note.note_id = ${noteId}::uuid
-          AND note.user_id = ${userId}::uuid
-          AND note.deleted_at IS NULL
-        RETURNING id
+        VALUES (${attachmentId}::uuid, ${noteId}::uuid, ${userId}::uuid,
+                ${fileName}, ${storagePath}, ${mimeType}, ${file.size})
       `;
-      if (!inserted.length) throw new NoteUnavailableError();
       if (extractable) {
         // the job row lets the client poll /api/ingestion-status
         await tx`
@@ -212,10 +187,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     }
     logger.warn("failed to record attachment in database", { error: dbError });
     return tracedError("Failed to save file metadata", 500);
-  }
-
-  if (createdNewNote) {
-    // the new note is durable now, so clear the cached root branch before returning it
   }
 
   // extraction runs in the worker so the response stays fast regardless of
@@ -267,7 +238,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     type: mimeType,
     ingestionStatus,
     attachmentId,
-    createdNewNote,
+    createdNewNote: true,
   });
 });
 

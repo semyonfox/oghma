@@ -22,7 +22,8 @@ export interface ConversationHistoryConversation {
 export interface ConversationHistoryProps {
   conversations: ConversationHistoryConversation[];
   activeId: string | null;
-  loaded: boolean;
+  loadState: "loading" | "loaded" | "failed";
+  onRetry: () => void;
   t: (key: string, params?: Record<string, unknown>) => string;
   onNewConversation: () => void;
   onSelectConversation: (id: string) => void;
@@ -73,7 +74,8 @@ function relativeDate(
 export function ConversationHistory({
   conversations,
   activeId,
-  loaded,
+  loadState,
+  onRetry,
   t,
   onNewConversation,
   onSelectConversation,
@@ -314,7 +316,19 @@ export function ConversationHistory({
             </section>
           );
         })}
-        {loaded && conversations.length === 0 && (
+        {loadState === "failed" && (
+          <div className="shrink-0 px-3 py-2 text-center text-xs text-text-secondary">
+            <p role="alert">{t("chat.history_load_failed")}</p>
+            <button
+              type="button"
+              onClick={onRetry}
+              className="min-h-11 px-3 font-medium text-text underline"
+            >
+              {t("Retry")}
+            </button>
+          </div>
+        )}
+        {loadState === "loaded" && conversations.length === 0 && (
           <p className="py-4 text-center text-xs text-text-tertiary">
             {t("chat.no_conversations")}
           </p>

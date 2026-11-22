@@ -7,19 +7,15 @@ import logger from "@/lib/logger";
 function normalizeOrigin(value: string | null | undefined): string | null {
   if (!value) return null;
   try {
-    return new URL(value).origin;
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.origin : null;
   } catch {
     return null;
   }
 }
 
-export function resolveAppOrigin(input: {
-  requestOrigin?: string | null;
-  referer?: string | null;
-}): string | null {
+function resolveAppOrigin(): string | null {
   return (
-    normalizeOrigin(input.requestOrigin) ||
-    normalizeOrigin(input.referer) ||
     normalizeOrigin(process.env.APP_BASE_URL) ||
     normalizeOrigin(process.env.NEXTAUTH_URL)
   );
@@ -73,12 +69,12 @@ function capToolResults(tools: ToolSet): ToolSet {
 
 export async function createCanvasMcpTools(args: {
   userId: string;
-  appOrigin: string | null;
 }): Promise<{
   client: MCPClient | null;
   tools: ToolSet;
 }> {
-  if (!args.appOrigin) {
+  const appOrigin = resolveAppOrigin();
+  if (!appOrigin) {
     logger.warn("Canvas MCP disabled: app origin unavailable", {
       userId: args.userId,
     });
@@ -88,7 +84,7 @@ export async function createCanvasMcpTools(args: {
   const client = await createMCPClient({
     transport: {
       type: "http",
-      url: `${args.appOrigin}/api/mcp/canvas`,
+      url: `${appOrigin}/api/mcp/canvas`,
       headers: {
         Authorization: `Bearer ${createInternalMcpToken(args.userId)}`,
       },

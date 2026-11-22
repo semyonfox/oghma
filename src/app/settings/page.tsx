@@ -358,7 +358,6 @@ export default function SettingsPage() {
     let continuationOwner = mutationOwner;
     let continuationGeneration = mutationGeneration;
     setIsSigningOut(true);
-    postNativeOfflineAccount(null);
     const run = async () => {
       const response = await fetch("/api/auth/logout", {
         method: "POST",
@@ -372,6 +371,7 @@ export default function SettingsPage() {
         setIsSigningOut(false);
         return;
       }
+      postNativeOfflineAccount(null);
       const clearing = resetWorkspaceClientState(null);
       const resetGeneration = useNoteTreeStore.getState().generation;
       continuationOwner = null;

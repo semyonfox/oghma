@@ -188,7 +188,7 @@ interface MatrixRow {
 async function uploadAttachment() {
   const form = new FormData();
   form.set("file", new File(["fixture"], "fixture.txt", { type: "text/plain" }));
-  form.set("noteId", noteId);
+  form.set("besideNoteId", noteId);
   return upload(new NextRequest("http://localhost/api/upload", { method: "POST", headers: { origin: "http://localhost" }, body: form }));
 }
 const rows: MatrixRow[] = [

@@ -10,11 +10,22 @@ interface Row {
   parent_id: string | null;
   title: string | null;
   s3_key: string | null;
+  mime_type: string | null;
+  has_body: boolean;
   is_folder: boolean;
 }
 
 function row(note_id: string, title: string | null, overrides: Partial<Row> = {}): Row {
-  return { note_id, parent_id: null, title, s3_key: null, is_folder: false, ...overrides };
+  return {
+    note_id,
+    parent_id: null,
+    title,
+    s3_key: null,
+    mime_type: null,
+    has_body: true,
+    is_folder: false,
+    ...overrides,
+  };
 }
 
 async function exportPaths(rows: Row[]) {
@@ -30,7 +41,7 @@ describe("buildExportPathMap", () => {
   it("never loads note bodies up front", async () => {
     await exportPaths([]);
     const [strings] = vi.mocked(sql).mock.calls[0];
-    expect((strings as unknown as string[]).join("")).not.toContain("content");
+    expect(Array.from(strings).join("")).not.toMatch(/\bn\.content\s*(?:,|FROM)/i);
   });
 
   it("gives same-titled siblings distinct paths, case-insensitively", async () => {
@@ -80,13 +91,17 @@ describe("buildExportPathMap", () => {
 
   it("exports edited text from content even when the original upload is kept", async () => {
     const entries = await exportPaths([
-      row("md", "notes.md", { s3_key: "vault/u/j/k/notes.md" }),
-      row("pdf", "slides.pdf", { s3_key: "vault/u/j/k/slides.pdf" }),
+      row("md", "Notes", { s3_key: "vault/u/j/k/notes.md" }),
+      row("pdf", "slides.md", { s3_key: "vault/u/j/k/slides.pdf" }),
+      row("txt", "Checklist", { s3_key: "notes/n/checklist", mime_type: "text/plain" }),
+      row("empty", "Draft.md", { s3_key: "notes/n/draft.md", has_body: false }),
     ]);
 
     expect(entries).toEqual([
-      { path: "notes.md", source: { kind: "content", noteId: "md" } },
-      { path: "slides.pdf", source: { kind: "object", s3Key: "vault/u/j/k/slides.pdf" } },
+      { path: "Notes.md", source: { kind: "content", noteId: "md" } },
+      { path: "slides.md.pdf", source: { kind: "object", s3Key: "vault/u/j/k/slides.pdf" } },
+      { path: "Checklist.md", source: { kind: "content", noteId: "txt" } },
+      { path: "Draft.md", source: { kind: "object", s3Key: "notes/n/draft.md" } },
     ]);
   });
 

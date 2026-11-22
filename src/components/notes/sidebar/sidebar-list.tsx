@@ -34,7 +34,7 @@ import { ROOT_ID } from "@/lib/notes/types/tree";
 import { applyTreeView, topLevelAncestor } from "@/lib/notes/tree-view";
 import { canvasSaysFinished, isFinishedCourse, nextFinishedOverride } from "@/lib/notes/tree-topics";
 import useTagEditorStore, { type TagTarget } from "@/lib/notes/state/tag-editor";
-import type { TagsViewFile } from "@/lib/notes/tags-view";
+import { tagsViewPrimaryFile, type TagsViewFile } from "@/lib/notes/tags-view";
 import { useCanvasImportNotification } from "@/components/canvas/canvas-import-notifications";
 import { summarySchema } from "@/components/study-map/study-client";
 import { toast } from "sonner";
@@ -185,20 +185,13 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
 
   const openTagsViewFile = (file: TagsViewFile) => {
     const { setPaneA, setPaneB, setActivePane } = useLayoutStore.getState();
-    if (file.isFile && file.noteId) {
-      // a PDF and its note open together, the way a document row does in the tree
-      setPaneA({ fileId: file.noteId, fileType: "note", title: `${file.title}.md` });
-      if (isDesktop === true) setPaneB({ fileId: file.id, fileType: "pdf", title: file.title });
-    } else {
-      setPaneA({
-        fileId: file.id,
-        fileType: file.isFile ? inferFileType(file.title, file.mimeType) : "note",
-        title: file.title,
-      });
+    const primary = tagsViewPrimaryFile(file);
+    setPaneA(primary);
+    if (isDesktop === true && file.isFile && file.noteId) {
+      setPaneB({ fileId: file.id, fileType: file.fileType ?? "pdf", title: file.title });
     }
     setActivePane("A");
-    const target = file.isFile && file.noteId ? file.noteId : file.id;
-    router.push(pathname?.startsWith("/notes") ? `/notes/${target}` : `/${target}`);
+    router.push(pathname?.startsWith("/notes") ? `/notes/${primary.fileId}` : `/${primary.fileId}`);
     onOpenNote?.();
   };
 

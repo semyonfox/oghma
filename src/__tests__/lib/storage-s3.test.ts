@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Readable } from "node:stream";
 
 const { send } = vi.hoisted(() => ({ send: vi.fn() }));
 
@@ -169,6 +170,19 @@ describe("StoreS3", () => {
 
     send.mockRejectedValueOnce(new Error("socket hang up"));
     await expect(storage.getObjectStream("live.pdf")).rejects.toThrow("socket hang up");
+  });
+
+  it("requests the exact byte range and rejects a full-object response", async () => {
+    const range = { start: 15, endExclusive: 25 };
+    const partial = Readable.from([Buffer.alloc(10)]);
+    send.mockResolvedValueOnce({ Body: partial, ContentLength: 10, ContentRange: "bytes 15-24/100" });
+    await expect(storage.getObjectStream("vault.zip", range)).resolves.toMatchObject({ body: partial });
+    expect(send.mock.calls[0]?.[0].input).toMatchObject({ Range: "bytes=15-24" });
+
+    const full = Readable.from([Buffer.alloc(100)]);
+    send.mockResolvedValueOnce({ Body: full, ContentLength: 100 });
+    await expect(storage.getObjectStream("vault.zip", range)).rejects.toThrow("requested byte range");
+    expect(full.destroyed).toBe(true);
   });
 
   it("returns object bytes without decoding binary content to a string", async () => {

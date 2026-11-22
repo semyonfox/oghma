@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { OfflineLibrary, offlineSnapshotSchema } from "./offline-state.ts";
+import { OfflineLibrary, UnreadableOfflineLibraryError, offlineSnapshotSchema } from "./offline-state.ts";
 
 const ownerId = "550e8400-e29b-41d4-a716-446655440000";
 const otherOwner = "550e8400-e29b-41d4-a716-446655440001";
@@ -151,11 +151,13 @@ test("removing a copy persists without needing the online note", async () => {
 
 test("corrupt libraries can be cleared and snapshots reject paths and oversized content", async () => {
   const storage = memoryStorage();
-  await storage.write("not JSON");
-  const library = new OfflineLibrary(storage);
-  await assert.rejects(library.read());
-  await library.clear();
-  assert.deepEqual(await library.read(), []);
+  for (const malformed of ["", "not JSON", '{"version":2}', "a".repeat(500_001)]) {
+    await storage.write(malformed);
+    const library = new OfflineLibrary(storage);
+    await assert.rejects(library.read(), UnreadableOfflineLibraryError);
+    await library.clear();
+    assert.deepEqual(await library.read(), []);
+  }
   for (const invalid of [
     { ...note, id: "../../private" },
     { ...note, content: "a".repeat(200_001) },
@@ -165,4 +167,22 @@ test("corrupt libraries can be cleared and snapshots reject paths and oversized 
       false,
     );
   }
+});
+
+
+test("a transient storage read can be retried without clearing downloads", async () => {
+  const storage = memoryStorage();
+  const library = new OfflineLibrary(storage);
+  await library.setAccount(ownerId);
+  await library.save({ ownerId, note });
+
+  const failure = new Error("Storage temporarily unavailable");
+  let fail = true;
+  const reopened = new OfflineLibrary({
+    ...storage,
+    read: () => fail ? Promise.reject(failure) : storage.read(),
+  });
+  await assert.rejects(reopened.read(), (error) => error === failure);
+  fail = false;
+  assert.deepEqual(await reopened.read(), [note]);
 });

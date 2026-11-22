@@ -10,7 +10,6 @@ import { canvasContentEnabled } from "@/lib/canvas/content-policy";
 
 export async function getOptionalCanvasTooling(args: {
   userId: string;
-  appOrigin: string | null;
 }): Promise<{
   client: MCPClient | null;
   tools: ToolSet;
@@ -19,7 +18,10 @@ export async function getOptionalCanvasTooling(args: {
   if (!canvasContentEnabled()) {
     return { client: null, tools: {}, instruction: "" };
   }
-  const settings = await getSettingsFromS3(args.userId);
+  const settings = await getSettingsFromS3(args.userId).catch((error) => {
+    logger.warn("Canvas tooling settings read failed", { error });
+    return null;
+  });
   if (!settings?.ai_canvas_access) {
     return { client: null, tools: {}, instruction: "" };
   }

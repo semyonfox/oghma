@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { authReturnPath } from "@/lib/auth/return-path";
 
 const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || "http://localhost:3000")
   .split(",")
@@ -70,9 +71,11 @@ export async function proxy(request: NextRequest) {
     const isAuthPage = pathname === "/login" || pathname === "/register";
     if (!isAuthenticated && !isAuthPage) {
         // fetch callers expect the same 401 JSON the routes return, not a login page
+        const loginUrl = new URL("/login", request.url);
+        loginUrl.searchParams.set("next", authReturnPath(pathname + request.nextUrl.search));
         const response = pathname.startsWith("/api/")
             ? NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-            : NextResponse.redirect(new URL("/login", request.url));
+            : NextResponse.redirect(loginUrl);
         Object.entries(corsHeaders).forEach(([key, value]) => response.headers.set(key, value));
         return response;
     }

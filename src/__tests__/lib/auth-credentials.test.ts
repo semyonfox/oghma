@@ -28,12 +28,20 @@ describe("auth credential validation", () => {
     ).toEqual({ isValid: true, errors: {} });
   });
 
+  it("applies bcrypt's 72-byte boundary only to new passwords", () => {
+    const email = "student@example.com";
+    const atLimit = `Aa1a${"é".repeat(34)}`;
+    expect(validateAuthCredentials(email, atLimit, true).isValid).toBe(true);
+    expect(validateAuthCredentials(email, `${atLimit}a`, true).isValid).toBe(false);
+    expect(validateAuthCredentials(email, `${atLimit}a`, false).isValid).toBe(true);
+  });
+
   it.each([
     ["Short1", "at least 8 characters"],
     ["alllowercase1", "uppercase letter"],
     ["ALLUPPERCASE1", "lowercase letter"],
     ["NoNumbersHere", "number"],
-    [`A1${"a".repeat(127)}`, "128 characters or fewer"],
+    [`A1${"a".repeat(71)}`, "72 UTF-8 bytes or fewer"],
   ])("rejects signup password policy violations", (password, message) => {
     const result = validateAuthCredentials(
       "student@example.com",

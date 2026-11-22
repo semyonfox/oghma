@@ -16,8 +16,8 @@ vi.mock("@/lib/queue", () => ({
 import { enqueueExtractRetryJob } from "@/lib/queue";
 
 vi.mock("@/lib/canvas/credentials", () => ({ markCanvasTokenInvalid: vi.fn() }));
+const sqlMock = vi.hoisted(() => vi.fn<(...args: unknown[]) => Promise<unknown[]>>());
 vi.mock("@/database/pgsql", () => {
-  const sqlMock = vi.fn();
   sqlMock.mockResolvedValue([]);
   Object.assign(sqlMock, { begin: vi.fn(
     async (callback: (tx: typeof sqlMock) => unknown) => callback(sqlMock),
@@ -243,6 +243,40 @@ describe("Canvas extraction stage", () => {
 describe("processDirectExtraction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it.each([
+    { attempt: 0, expectedStatus: "pending" },
+    { attempt: 2, expectedStatus: "failed" },
+  ])("records $expectedStatus on a storage read error at attempt $attempt", async ({ attempt, expectedStatus }) => {
+    const error = new Error("storage temporarily unavailable");
+    const storage = new StoreS3({
+      bucket: "synthetic",
+      accessKey: "synthetic",
+      secretKey: "synthetic",
+    });
+    vi.spyOn(storage, "getObjectAndMeta").mockRejectedValue(error);
+    vi.mocked(getStorageProvider).mockReturnValue(storage);
+    sqlMock
+      .mockResolvedValueOnce([{ status: "pending" }])
+      .mockResolvedValueOnce([{ id: "ingestion-job-123" }]);
+
+    const result = processDirectExtraction({
+      noteId: "note-123",
+      userId: "user-123",
+      s3Key: "notes/note-123/lecture.pdf",
+      mimeType: "application/pdf",
+    }, attempt);
+
+    if (expectedStatus === "pending") {
+      await expect(result).rejects.toBe(error);
+    } else {
+      await expect(result).resolves.toBeUndefined();
+    }
+    expect(sqlMock.mock.calls.some((call) =>
+      call.includes(expectedStatus) && queryText(call).includes("UPDATE app.ingestion_jobs"),
+    )).toBe(true);
+    expect(processRagPipeline).not.toHaveBeenCalled();
   });
 
   it("passes the original binary object buffer to PDF extraction", async () => {

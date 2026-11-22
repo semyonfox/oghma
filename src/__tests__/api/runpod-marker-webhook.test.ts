@@ -46,6 +46,16 @@ describe("RunPod Marker webhook", () => {
     delete process.env.RUNPOD_MARKER_WEBHOOK_TOKEN;
   });
 
+  it("returns 413 before looking up the callback when its body exceeds the limit", async () => {
+    const response = await POST(
+      webhook({ output: "x".repeat(1024 * 1024) }),
+      { params: Promise.resolve({ token: "webhook-token", callbackId }) },
+    );
+
+    expect(response.status).toBe(413);
+    expect(mocks.sql).not.toHaveBeenCalled();
+  });
+
   it("queues completion without persisting RunPod output or signed URLs", async () => {
     mocks.sql
       .mockResolvedValueOnce([markerJob])

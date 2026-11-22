@@ -25,8 +25,11 @@ it("treats a chunked Auth.js session as signed in", async () => {
 });
 
 it("ignores unrelated and empty cookies", async () => {
-  const response = await visit("/notes", "session=; authjs.csrf-token=abc");
-  expect(response.headers.get("location")).toBe("https://example.test/login");
+  const response = await visit("/notes/my-note?mode=read", "session=; authjs.csrf-token=abc");
+  const location = new URL(response.headers.get("location") ?? "");
+  expect(location.origin).toBe("https://example.test");
+  expect(location.pathname).toBe("/login");
+  expect(location.searchParams.get("next")).toBe("/notes/my-note?mode=read");
 });
 
 it("answers signed-out API calls with 401 JSON instead of the login page", async () => {

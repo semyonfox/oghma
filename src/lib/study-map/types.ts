@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { canvasIdForBigintColumn } from "@/lib/canvas/id";
 import type { Assignment } from "@/lib/notes/state/assignments";
 
 export const documentKinds = [
@@ -334,7 +335,23 @@ export const mapCreateSchema = z.object({
   name: z.string().trim().min(1).max(160),
   academicYear: z.string().trim().min(1).max(40),
   rootNoteId: z.uuid().nullable().default(null),
-  canvasCourseId: z.string().regex(/^\d+$/).max(30).nullable().default(null),
+  canvasCourseId: z
+    .string()
+    .regex(/^\d+$/)
+    .max(30)
+    .transform((value, context) => {
+      try {
+        return canvasIdForBigintColumn(value.replace(/^0+/, "") || "0", "Canvas course ID");
+      } catch (error) {
+        context.addIssue({
+          code: "custom",
+          message: error instanceof Error ? error.message : "Invalid Canvas course ID",
+        });
+        return z.NEVER;
+      }
+    })
+    .nullable()
+    .default(null),
   syllabusNoteId: z.uuid().nullable().default(null),
 });
 export const mapUpdateSchema = mapCreateSchema.extend({

@@ -129,8 +129,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       useRag,
       thinkingMode,
       clientDateTime,
-      requestOrigin: request.nextUrl.origin,
-      referer: request.headers.get("referer") ?? undefined,
       respectPrivacySignal: hasPrivacySignal(request),
     });
     try {
@@ -269,8 +267,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 thinkingMode,
                 retrievalEnabled: useRag,
                 clientDateTime,
-                requestOrigin: request.nextUrl.origin,
-                referer: request.headers.get("referer"),
               });
 
               sendMeta(
@@ -644,8 +640,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       thinkingMode,
       retrievalEnabled: useRag,
       clientDateTime,
-      requestOrigin: request.nextUrl.origin,
-      referer: request.headers.get("referer"),
     });
 
   if (!model) {

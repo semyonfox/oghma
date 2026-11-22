@@ -44,7 +44,6 @@ describe("chat generation JSON round trip", () => {
           scopedInputNoteIds: [],
           history: [],
         },
-        requestOrigin: "http://localhost",
         respectPrivacySignal: false,
       });
       const claim = await claimChatGeneration(generationId);

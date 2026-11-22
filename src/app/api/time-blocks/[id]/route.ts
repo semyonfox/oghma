@@ -33,48 +33,50 @@ export const PATCH = withErrorHandler(async (
   if (!validation.success) return validation.response;
   const { starts_at, ends_at, assignment_id, title, completed } = validation.data;
 
-  let pomodoroCount: number | undefined;
-  if (starts_at || ends_at) {
-    const [existing] = (await sql`
-      SELECT starts_at, ends_at FROM app.time_blocks
-      WHERE id = ${id}::uuid AND user_id = ${user.user_id}::uuid
-    `) as StoredTimeRange[];
-    if (!existing) return tracedError('Not found', 404);
-    const start = new Date(starts_at ?? existing.starts_at);
-    const end = new Date(ends_at ?? existing.ends_at);
-    assertValidTimeBlockSpan(start, end);
-    pomodoroCount = pomodoroCountForRange(start, end);
-  }
-
-  // Verify a newly linked assignment belongs to the caller.
-  if (assignment_id) {
-    const [owned] = await sql`
-      SELECT 1 FROM app.assignments
-      WHERE id = ${assignment_id}::uuid AND user_id = ${user.user_id}::uuid
-    `;
-    if (!owned) {
-      return tracedError('assignment_id does not belong to you', 403);
+  return sql.begin(async (tx) => {
+    let pomodoroCount: number | undefined;
+    if (starts_at || ends_at) {
+      const [existing] = await tx<StoredTimeRange[]>`
+        SELECT starts_at, ends_at FROM app.time_blocks
+        WHERE id = ${id}::uuid AND user_id = ${user.user_id}::uuid
+        FOR UPDATE
+      `;
+      if (!existing) return tracedError('Not found', 404);
+      const start = new Date(starts_at ?? existing.starts_at);
+      const end = new Date(ends_at ?? existing.ends_at);
+      assertValidTimeBlockSpan(start, end);
+      pomodoroCount = pomodoroCountForRange(start, end);
     }
-  }
 
-  const updates: Record<string, unknown> = {};
-  if (starts_at !== undefined) updates.starts_at = starts_at;
-  if (ends_at !== undefined) updates.ends_at = ends_at;
-  if (assignment_id !== undefined) updates.assignment_id = assignment_id;
-  if (title !== undefined) updates.title = title;
-  if (pomodoroCount !== undefined) updates.pomodoro_count = pomodoroCount;
-  if (completed !== undefined) updates.completed = completed;
-  updates.updated_at = new Date();
+    if (assignment_id) {
+      const [owned] = await tx`
+        SELECT 1 FROM app.assignments
+        WHERE id = ${assignment_id}::uuid AND user_id = ${user.user_id}::uuid
+      `;
+      if (!owned) {
+        return tracedError('assignment_id does not belong to you', 403);
+      }
+    }
 
-  const result = await sql`
-    UPDATE app.time_blocks SET ${sql(updates, ...Object.keys(updates))}
-    WHERE id = ${id}::uuid AND user_id = ${user.user_id}::uuid
-    RETURNING id, user_id, assignment_id, title, starts_at, ends_at,
-              pomodoro_count, completed, created_at, updated_at
-  `;
+    const updates: Record<string, unknown> = {};
+    if (starts_at !== undefined) updates.starts_at = starts_at;
+    if (ends_at !== undefined) updates.ends_at = ends_at;
+    if (assignment_id !== undefined) updates.assignment_id = assignment_id;
+    if (title !== undefined) updates.title = title;
+    if (pomodoroCount !== undefined) updates.pomodoro_count = pomodoroCount;
+    if (completed !== undefined) updates.completed = completed;
+    updates.updated_at = new Date();
 
-  if (result.length === 0) return tracedError('Not found', 404);
-  return NextResponse.json(result[0]);
+    const result = await tx`
+      UPDATE app.time_blocks SET ${tx(updates, ...Object.keys(updates))}
+      WHERE id = ${id}::uuid AND user_id = ${user.user_id}::uuid
+      RETURNING id, user_id, assignment_id, title, starts_at, ends_at,
+                pomodoro_count, completed, created_at, updated_at
+    `;
+
+    if (result.length === 0) return tracedError('Not found', 404);
+    return NextResponse.json(result[0]);
+  });
 });
 
 /**

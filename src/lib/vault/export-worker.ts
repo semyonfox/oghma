@@ -196,8 +196,6 @@ async function writeZipEntry(
   entry: ExportEntry,
   chunks: AsyncIterable<Uint8Array>,
 ): Promise<void> {
-  // always deflate (even level 1) so stored Office files cannot leak their own
-  // inner zip entries when the archive is re-imported by the streaming reader
   const zipEntry = new ZipDeflate(entry.path, { level: isTextPath(entry.path) ? 6 : 1 });
   zip.add(zipEntry);
   try {

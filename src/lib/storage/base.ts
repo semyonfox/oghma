@@ -57,6 +57,11 @@ export interface ObjectStream {
   readonly contentLength?: number;
 }
 
+export interface ObjectByteRange {
+  readonly start: number;
+  readonly endExclusive: number;
+}
+
 /**
  * Abstract base class for storage providers
  * Handles path prefixing and defines the storage interface.
@@ -124,8 +129,8 @@ export abstract class StoreProvider {
    */
   abstract getObjectAndMeta(path: string): Promise<ObjectMetadata>;
 
-  /** Stream an object without buffering it in memory. */
-  abstract getObjectStream(path: string): Promise<ObjectStream>;
+  /** stream an object or an exact byte range without buffering it in memory */
+  abstract getObjectStream(path: string, range?: ObjectByteRange): Promise<ObjectStream>;
 
   /**
    * Store an object with optional metadata and headers

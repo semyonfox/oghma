@@ -47,6 +47,7 @@ export function inferFileType(
   s3Key?: string | null,
 ): FileType {
   const normalizedMimeType = mimeType?.split(';')[0].trim().toLowerCase();
+  if (!s3Key && !normalizedMimeType) return 'note';
   if (normalizedMimeType === 'application/pdf') return 'pdf';
   if (normalizedMimeType?.startsWith('image/')) return 'image';
   if (normalizedMimeType?.startsWith('video/')) return 'video';

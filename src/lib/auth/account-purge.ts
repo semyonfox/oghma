@@ -29,6 +29,7 @@ export async function purgeDeletedAccounts(): Promise<number> {
   let purged = 0;
   for (const { user_id: userId } of expired) {
     try {
+      const { avatarKey } = await getSettingsFromS3(userId, { fresh: true });
       const notes = await sql<NoteIdRow[]>`
         SELECT note_id FROM app.notes WHERE user_id = ${userId}::uuid
       `;
@@ -38,7 +39,9 @@ export async function purgeDeletedAccounts(): Promise<number> {
           notes.map((row) => row.note_id),
         );
       }
-      await deleteUserObjects(userId);
+      const storage = getStorageProvider();
+      if (avatarKey) await storage.deleteObject(avatarKey);
+      await storage.deleteObject(settingsObjectKey(userId));
       await sql`
         DELETE FROM app.login
         WHERE user_id = ${userId}::uuid AND deleted_at IS NOT NULL
@@ -50,12 +53,4 @@ export async function purgeDeletedAccounts(): Promise<number> {
     }
   }
   return purged;
-}
-
-// settings and the avatar are the only per-user objects outside the note tree
-async function deleteUserObjects(userId: string): Promise<void> {
-  const storage = getStorageProvider();
-  const { avatarKey } = await getSettingsFromS3(userId);
-  if (avatarKey) await storage.deleteObject(avatarKey);
-  await storage.deleteObject(settingsObjectKey(userId));
 }

@@ -81,6 +81,27 @@ describe("calendar store", () => {
     expect(store.getState().loading).toBe(false);
   });
 
+  it("ignores a second completion tap while the first is pending", async () => {
+    const pending = deferred<ReturnType<typeof response>>();
+    const fetchMock = vi.fn().mockReturnValueOnce(pending.promise)
+      .mockResolvedValue(response({}, false));
+    vi.stubGlobal("fetch", fetchMock);
+    const store = await loadStore();
+    store.setState({ timeBlocks: [{
+      id: "block", assignment_id: null, title: "Revision",
+      starts_at: "2026-10-06T09:00:00Z", ends_at: "2026-10-06T10:00:00Z",
+      pomodoro_count: 2, completed: false,
+    }] });
+
+    const first = store.getState().toggleTimeBlockCompleted("block");
+    const second = store.getState().toggleTimeBlockCompleted("block");
+    expect(store.getState().timeBlocks[0].completed).toBe(true);
+    pending.resolve(response({}, false));
+    expect(await Promise.all([first, second])).toEqual([false, true]);
+    expect(store.getState().timeBlocks[0].completed).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps existing data visible when refresh fails", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response({}, false)));
     const store = await loadStore();
