@@ -23,6 +23,7 @@ import Markdown from "react-native-markdown-display";
 import { origin } from "../lib/api";
 import {
   OfflineLibrary,
+  UnreadableOfflineLibraryError,
   type OfflineNote,
   type OfflineSnapshot,
 } from "../lib/offline-state";
@@ -36,7 +37,9 @@ interface OfflineActions {
   save(snapshot: OfflineSnapshot): void;
 }
 
-type Notice = { kind: "success" | "error"; text: string };
+type Notice =
+  | { kind: "success"; text: string }
+  | { kind: "error"; text: string; retryableRead: boolean };
 
 const Context = createContext<OfflineActions | null>(null);
 
@@ -65,16 +68,20 @@ export function OfflineNotesProvider({ children }: { children: ReactNode }) {
   const [query, setQuery] = useState("");
   const [notice, setNotice] = useState<Notice | null>(null);
   const [busy, setBusy] = useState(false);
+  const [unreadable, setUnreadable] = useState(false);
 
   const perform = useCallback(
-    async (operation: () => Promise<unknown>, success?: string) => {
+    async (operation: () => Promise<unknown>, success?: string, retryableRead = false) => {
       setBusy(true);
       setNotice(null);
       try {
         await operation();
+        setUnreadable(false);
         if (success) setNotice({ kind: "success", text: success });
       } catch (error) {
-        setNotice({ kind: "error", text: message(error) });
+        const invalidLibrary = error instanceof UnreadableOfflineLibraryError;
+        if (invalidLibrary) setUnreadable(true);
+        setNotice({ kind: "error", text: message(error), retryableRead: retryableRead && !invalidLibrary });
       } finally {
         setNotes([...library.notes]);
         setBusy(false);
@@ -87,12 +94,15 @@ export function OfflineNotesProvider({ children }: { children: ReactNode }) {
     setSelected(null);
     setNotice(null);
   }, []);
+  const readLibrary = useCallback(() => {
+    void perform(() => library.read(), undefined, true);
+  }, [library, perform]);
   const open = useCallback(() => {
     setSelected(null);
     setQuery("");
     setVisible(true);
-    void perform(() => library.read());
-  }, [library, perform]);
+    readLibrary();
+  }, [readLibrary]);
   const actions = useMemo<OfflineActions>(
     () => ({
       open,
@@ -202,7 +212,7 @@ export function OfflineNotesProvider({ children }: { children: ReactNode }) {
                 label="Remove downloaded copy"
                 onPress={removeSelected}
               />
-            ) : notes.length ? (
+            ) : notes.length || unreadable ? (
               <IconButton
                 disabled={busy}
                 name="trash-outline"
@@ -214,7 +224,7 @@ export function OfflineNotesProvider({ children }: { children: ReactNode }) {
           </View>
           {notice?.kind === "error" ? (
             <View style={{ paddingHorizontal: 20, paddingTop: 12 }}>
-              <ErrorBox message={notice.text} />
+              <ErrorBox message={notice.text} retry={notice.retryableRead && !busy ? readLibrary : undefined} />
             </View>
           ) : notice ? (
             <View
