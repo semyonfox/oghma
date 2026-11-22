@@ -18,9 +18,7 @@ const reactCompilerRules = {
 // files already past the cap, held at their size on 2026-11-22 so they can only
 // shrink. lower or delete an entry when a file is split
 const oversizedFiles = {
-  "src/components/study-map/study-flow.tsx": 3211,
-  "src/lib/canvas/import-extraction.ts": 2065,
-  "src/components/study-map/study-workspace.tsx": 1968,
+  "src/components/study-map/study-flow.tsx": 1267,
   "src/components/study-map/study-exams.tsx": 1166,
   "src/lib/public/agent-openapi.ts": 1124,
   "src/lib/marker/serverless.ts": 893,
