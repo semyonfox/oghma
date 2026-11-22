@@ -64,10 +64,14 @@ CMD ["python", "-m", "uvicorn", "backend:app", "--host", "0.0.0.0", "--port", "1
 FROM worker-base AS gpu-base
 ARG MARKER_CUDA_VARIANT=cu129
 ARG MARKER_GPU_FAMILY=generic
+# flashinfer ships no prebuilt sampling kernel for pre-blackwell gpus, so vllm
+# 0.25's default flashinfer sampler jit-compiles one at warmup and dies without
+# nvcc. the torch sampler avoids the cuda toolkit
 ENV SURYA_INFERENCE_BACKEND=vllm \
     SURYA_INFERENCE_URL=http://127.0.0.1:8001/v1 \
     VLLM_DTYPE=bfloat16 \
-    VLLM_NO_USAGE_STATS=1
+    VLLM_NO_USAGE_STATS=1 \
+    VLLM_USE_FLASHINFER_SAMPLER=0
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       curl gcc g++ libc6-dev openssl \
