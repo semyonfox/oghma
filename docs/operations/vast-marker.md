@@ -451,6 +451,9 @@ Reading the errors:
 - `timed out after ...ms, last router state: ...` means the router kept
   answering without a worker. The state is Vast's own text, usually the worker
   counts while a cold worker loads, which takes about 10 minutes on a fresh host.
+  `loading workers: 1` for the whole window means the pull stalled or the
+  backend is crash-looping. `loading workers: 0` with a worker counted means it
+  is stopped on a GPU someone else rented. See the image record below.
 - `Vast worker transport failed` is ambiguous. The worker may still upload the
   result, and the result observation path will complete the job. The worker
   call has no undici headers or body timeout, so this no longer fires on long
@@ -495,14 +498,28 @@ workergroup back at the previous template hash.
 |---|---|---|---|---|
 | 2026-11-18 | 807755, hash `ab85cba18a887ec637fb72ba70f3aecd` | `vast-d28268cf-cu129-eager-20261118` | `sha256:c20f3ec15f583e006835b913084e4d87480c89fc0f4e7985952fa2af3ad32352` | `d28268c` |
 | 2026-11-22 | 811995, hash `ba4b8d9cc5e9c8488da981291602ff2c` | `vast-d9ee6167-cu129-stockpins-20261121` | `sha256:c114c6bc0a2009a50caca36b753e6b1f26db00d9b39d5a30e1dc067b577c4e99` | `d9ee616` |
+| 2026-11-22 | 813009, hash `c38281b29c9e419e4cae463d388cf46a` | `vast-d9ee6167-cu129-torchsampler-20261122` | `sha256:719dbf257e26b61d66d90643bd4d7fe31570212f8c4dc9fdcabfb6a1dcb24537` | `d9ee616` |
 
-The 2026-11-22 image is live and the 2026-11-18 image is the rollback. Both
-are built from the tracked Dockerfile with `MARKER_GPU_FAMILY=nonblackwell`.
-The 2026-11-22 image pins its vLLM env to the stock `vllm/vllm-openai:v0.25.1`
+The torchsampler image is live on a 40 GB disk. The 2026-11-18 image is the
+rollback and needs `--disk 80` with `disk_space>=80`. All three are built from
+the tracked Dockerfile with `MARKER_GPU_FAMILY=nonblackwell`. The stockpins
+image must not be used.
+
+The stockpins image pins its vLLM env to the stock `vllm/vllm-openai:v0.25.1`
 versions in `constraints-vllm.txt`. An earlier build with transformers 5.23,
 tokenizers 0.23 and huggingface-hub 2.4 failed vLLM startup profiling with
 `Failed to apply Qwen3VLProcessor` on the GPU, which a CPU run did not catch.
-It runs on a 40 GB disk where the 2026-11-18 image needs 80 GB.
+On a 3090 the stockpins image then crash-looped at warmup with `Could not find
+nvcc and default cuda_home='/usr/local/cuda' doesn't exist`. vLLM 0.25 samples
+with FlashInfer by default, FlashInfer has no prebuilt sampling kernel below
+Blackwell, and its JIT build needs the CUDA toolkit the image does not ship.
+The Vast router only showed a worker stuck in loading. The torchsampler image
+sets `VLLM_USE_FLASHINFER_SAMPLER=0` and is otherwise the same build. The
+stripped `flashinfer_cubin` files are Blackwell only (sm100, sm103), so keeping
+them does not help. To see vLLM's own error, rent one plain instance on the
+image with `--entrypoint bash` and run the `vllm serve` line from
+`start-backend.sh` in the foreground. The serverless entrypoint sends vLLM's
+output to a file inside the worker.
 
 Switch the workergroup with the full live offer query. The current vastai CLI
 sends `verified=True rentable=True rented=False` when `--search_params` is
@@ -530,6 +547,18 @@ Known Vast behaviour from the 2026-11-06 switch:
   template and query, delete 49902 (its failed create held the endpoint's only
   slot), and set the endpoint to `cold_workers 1`. Vast created a worker
   straight away. It took 39 minutes to load the image the first time.
+
+Known Vast behaviour from 2026-11-22:
+
+- A stopped worker whose GPU is rented by someone else turns `unavail` in
+  `vastai get endpt-workers 39931`. The engine still counts it and did not
+  replace it within 18 minutes, so the next job hit the 20 minute timeout. The
+  `oghma-vast-watchdog` user timer on `server` (in
+  `server-stacks/oghma/vast-watchdog`) destroys `unavail` workers every
+  2 minutes so the next request recruits a fresh host.
+- Fresh hosts pulled the 8 GB image in 4 to 7 minutes, but 2 of 6 hosts sat in
+  loading with no progress until Vast gave up after about 41 minutes. Destroy a
+  worker that shows no pull progress for 15 minutes.
 
 ## Research boundary
 
