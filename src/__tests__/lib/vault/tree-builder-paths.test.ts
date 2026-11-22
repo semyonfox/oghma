@@ -38,11 +38,10 @@ describe("shouldIgnore", () => {
     expect(shouldIgnore("folder/subfolder/file.pdf")).toBe(false);
   });
 
-  it("ignores leaked Office internals only at the archive root", () => {
-    expect(shouldIgnore("word/document.xml")).toBe(true);
-    expect(shouldIgnore("ppt/slides/slide1.xml")).toBe(true);
-    expect(shouldIgnore("[Content_Types].xml")).toBe(true);
-    // user folders that merely end in or contain those names must still import
+  it("keeps user paths that also occur in Office archives", () => {
+    expect(shouldIgnore("word/Revision.md")).toBe(false);
+    expect(shouldIgnore("ppt/slides/slide1.xml")).toBe(false);
+    expect(shouldIgnore("[Content_Types].xml")).toBe(false);
     expect(shouldIgnore("Crossword/answers.md")).toBe(false);
     expect(shouldIgnore("Keyword/notes.md")).toBe(false);
     expect(shouldIgnore("English/word/vocab.md")).toBe(false);

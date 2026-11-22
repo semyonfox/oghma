@@ -32,6 +32,7 @@ export interface CanvasJob {
   name?: string;
   id?: string;
   attemptsMade?: number;
+  opts?: { attempts?: number };
   timestamp?: number;
 }
 
@@ -49,7 +50,7 @@ export interface CanvasJobHandlers {
     userId: string;
   }) => Promise<unknown>;
   processImportJob: (jobId: string) => Promise<unknown>;
-  processDirectExtraction: (data: DirectExtractionJobData) => Promise<unknown>;
+  processDirectExtraction: (data: DirectExtractionJobData, attempt: number, maxAttempts?: number) => Promise<unknown>;
   processExtractionRetry: (data: ExtractionRetryJobData) => Promise<unknown>;
   processMarkerComplete: (data: CanvasJobData) => Promise<unknown>;
   processMarkerFailed: (data: CanvasJobData) => Promise<unknown>;
@@ -184,7 +185,7 @@ export async function dispatchCanvasJob(
       await handlers.processImportJob(requireJobString(data(), "jobId"));
       return true;
     case "extract":
-      await handlers.processDirectExtraction(directExtractionData(data()));
+      await handlers.processDirectExtraction(directExtractionData(data()), jobAttempt(job), job.opts?.attempts);
       return true;
     case "extract-retry":
       await handlers.processExtractionRetry(extractionRetryData(data()));

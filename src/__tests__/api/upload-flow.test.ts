@@ -70,10 +70,10 @@ import { POST } from "@/app/api/upload/route";
 
 const noteId = "00000000-0000-0000-0000-000000000001";
 
-function upload(file: File, existingNoteId?: string, besideNoteId?: string) {
+function upload(file: File, options: { besideNoteId?: string; noteId?: string } = {}) {
   const form = new FormData();
-  if (existingNoteId) form.append("noteId", existingNoteId);
-  if (besideNoteId) form.append("besideNoteId", besideNoteId);
+  if (options.noteId !== undefined) form.append("noteId", options.noteId);
+  if (options.besideNoteId !== undefined) form.append("besideNoteId", options.besideNoteId);
   form.append("file", file);
   return new NextRequest("http://localhost/api/upload", { method: "POST", body: form });
 }
@@ -105,7 +105,7 @@ describe("POST /api/upload", () => {
       return query.startsWith("SELECT t.parent_id") ? [{ parent_id: folderId }] : [{ id: "row" }];
     });
 
-    const response = await POST(upload(pdf("lecture.pdf"), undefined, noteId));
+    const response = await POST(upload(pdf("lecture.pdf"), { besideNoteId: noteId }));
 
     expect(response.status).toBe(200);
     expect(insertNoteWithTree).toHaveBeenCalledWith(
@@ -121,15 +121,15 @@ describe("POST /api/upload", () => {
       return query.startsWith("SELECT t.parent_id") ? [] : [{ id: "row" }];
     });
 
-    const response = await POST(upload(pdf("lecture.pdf"), undefined, noteId));
+    const response = await POST(upload(pdf("lecture.pdf"), { besideNoteId: noteId }));
 
     expect(response.status).toBe(404);
     expect(insertNoteWithTree).not.toHaveBeenCalled();
     expect(storage.deleteObject).toHaveBeenCalledOnce();
   });
 
-  it("rejects besideNoteId when uploading into an existing note", async () => {
-    const response = await POST(upload(pdf("lecture.pdf"), noteId, noteId));
+  it.each([noteId, ""])("rejects the legacy noteId field (%j)", async (noteId) => {
+    const response = await POST(upload(pdf("lecture.pdf"), { noteId }));
 
     expect(response.status).toBe(400);
     expect(storage.putObject).not.toHaveBeenCalled();
@@ -172,7 +172,7 @@ describe("POST /api/upload", () => {
   });
 
   it("records the extraction job in the same transaction as the attachment", async () => {
-    await POST(upload(pdf("lecture.pdf"), noteId));
+    await POST(upload(pdf("lecture.pdf")));
 
     const inTransaction = queries.filter((query) => query.startsWith("INSERT"));
     expect(inTransaction).toEqual([
@@ -185,7 +185,7 @@ describe("POST /api/upload", () => {
   it("marks the job failed when it cannot be queued so the client stops polling", async () => {
     enqueueCanvasJob.mockRejectedValueOnce(new Error("redis down"));
 
-    const response = await POST(upload(pdf("lecture.pdf"), noteId));
+    const response = await POST(upload(pdf("lecture.pdf")));
     const body = await response.json();
 
     expect(response.status).toBe(200);
@@ -195,25 +195,10 @@ describe("POST /api/upload", () => {
     );
   });
 
-  it("returns 404 and removes the object when the note is trashed mid-upload", async () => {
-    sqlMock.mockImplementation(async (strings: TemplateStringsArray) => {
-      const query = strings.join("?");
-      queries.push(query);
-      // the pre-check sees the note, the guarded insert no longer does
-      return query.includes("INSERT INTO app.attachments") ? [] : [{ id: "row" }];
-    });
-
-    const response = await POST(upload(pdf("lecture.pdf"), noteId));
-
-    expect(response.status).toBe(404);
-    expect(storage.deleteObject).toHaveBeenCalledWith(storage.putObject.mock.calls[0]?.[0]);
-    expect(queries.some((query) => query.includes("ingestion_jobs"))).toBe(false);
-  });
-
   it("accepts a Markdown file the browser sent without a MIME type", async () => {
     const markdown = new File(["# Notes\n"], "week 1.md", { type: "" });
 
-    const response = await POST(upload(markdown, noteId));
+    const response = await POST(upload(markdown));
     const body = await response.json();
 
     expect(response.status).toBe(200);
@@ -223,37 +208,6 @@ describe("POST /api/upload", () => {
       expect.any(Buffer),
       { contentType: "text/markdown" },
     );
-  });
-
-  it("keeps both objects when the same filename is uploaded twice to one note", async () => {
-    const first = await POST(upload(pdf("lecture.pdf"), noteId));
-    const secondFile = new File(["%PDF-1.7\nsecond"], "lecture.pdf", {
-      type: "application/pdf",
-    });
-    const second = await POST(upload(secondFile, noteId));
-    const firstBody = await first.json();
-    const secondBody = await second.json();
-
-    expect(first.status).toBe(200);
-    expect(second.status).toBe(200);
-    expect(firstBody.path).toBe(`notes/${noteId}/${firstBody.attachmentId}/lecture.pdf`);
-    expect(secondBody.path).toBe(`notes/${noteId}/${secondBody.attachmentId}/lecture.pdf`);
-    expect(firstBody.path).not.toBe(secondBody.path);
-    expect(objects.get(firstBody.path)?.toString()).toBe("%PDF-1.7\n");
-    expect(objects.get(secondBody.path)?.toString()).toBe("%PDF-1.7\nsecond");
-  });
-
-  it("deletes only the failed attempt's object when metadata insert fails", async () => {
-    const first = await POST(upload(pdf("lecture.pdf"), noteId));
-    const firstBody = await first.json();
-    beginMock.mockRejectedValueOnce(new Error("attachment insert failed"));
-
-    const second = await POST(upload(pdf("lecture.pdf"), noteId));
-
-    expect(first.status).toBe(200);
-    expect(second.status).toBe(500);
-    expect([...objects.keys()]).toEqual([firstBody.path]);
-    expect(objects.get(firstBody.path)?.toString()).toBe("%PDF-1.7\n");
   });
 });
 

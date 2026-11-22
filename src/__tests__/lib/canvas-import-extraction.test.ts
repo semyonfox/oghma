@@ -245,6 +245,37 @@ describe("processDirectExtraction", () => {
     vi.clearAllMocks();
   });
 
+  it.each([
+    { attempt: 0, expectedStatus: "pending" },
+    { attempt: 2, expectedStatus: "failed" },
+  ])("records $expectedStatus on a storage read error at attempt $attempt", async ({ attempt, expectedStatus }) => {
+    const error = new Error("storage temporarily unavailable");
+    const getObjectAndMeta = vi.fn().mockRejectedValue(error);
+    vi.mocked(getStorageProvider).mockReturnValue({ getObjectAndMeta } as never);
+    vi.mocked(sql)
+      .mockResolvedValueOnce([{ status: "pending" }] as never)
+      .mockResolvedValueOnce([{ id: "ingestion-job-123" }] as never)
+      .mockResolvedValueOnce([] as never);
+
+    const result = processDirectExtraction({
+      noteId: "note-123",
+      userId: "user-123",
+      s3Key: "notes/note-123/lecture.pdf",
+      mimeType: "application/pdf",
+    }, attempt);
+
+    if (expectedStatus === "pending") {
+      await expect(result).rejects.toBe(error);
+    } else {
+      await expect(result).resolves.toBeUndefined();
+    }
+    const update = vi.mocked(sql).mock.calls.find(
+      (call) => call.includes(expectedStatus) && queryText(call).includes("UPDATE app.ingestion_jobs"),
+    );
+    expect(update).toBeDefined();
+    expect(processRagPipeline).not.toHaveBeenCalled();
+  });
+
   it("passes the original binary object buffer to PDF extraction", async () => {
     const pdfBuffer = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d, 0xff, 0x00]);
     const getObjectAndMeta = vi.fn().mockResolvedValue({ buffer: pdfBuffer });
