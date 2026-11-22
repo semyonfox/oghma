@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api-errors";
+import { mapCreateSchema, mapUpdateSchema } from "@/lib/study-map/types";
 
 const state = vi.hoisted(() => ({
   sql: vi.fn(),
@@ -36,6 +37,18 @@ beforeEach(() => {
 });
 
 afterEach(() => vi.useRealTimers());
+
+it("keeps stored Canvas course IDs within the signed bigint range", () => {
+  const fields = { name: "Algorithms", academicYear: "2026/27" };
+  expect(mapCreateSchema.parse({
+    ...fields,
+    canvasCourseId: "0009223372036854775807",
+  }).canvasCourseId).toBe("9223372036854775807");
+
+  const invalid = { ...fields, canvasCourseId: "9223372036854775808" };
+  expect(mapCreateSchema.safeParse(invalid).success).toBe(false);
+  expect(mapUpdateSchema.safeParse({ ...invalid, version: 1, autoClassify: true }).success).toBe(false);
+});
 
 describe("automatic course map setup", () => {
   it("keeps going past a course that cannot be mapped", async () => {

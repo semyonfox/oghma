@@ -1,17 +1,24 @@
 import sql from "@/database/pgsql";
 import { extractInternalNoteIds } from "@/lib/notes/internal-links";
-import type postgres from "postgres";
 
 export async function replaceNoteLinks(
   userId: string,
   sourceNoteId: string,
-  content: string,
 ) {
-  const targetIds = extractInternalNoteIds(content).filter(
-    (targetId) => targetId !== sourceNoteId.toLowerCase(),
-  );
+  await sql.begin(async (transaction) => {
+    // serialize rebuilds without blocking the foreign key checks for incoming links
+    const [source] = await transaction<{ content: string | null }[]>`
+      SELECT content FROM app.notes
+      WHERE user_id = ${userId}::uuid
+        AND note_id = ${sourceNoteId}::uuid
+        AND deleted_at IS NULL
+      FOR NO KEY UPDATE
+    `;
+    if (!source) return;
 
-  await sql.begin(async (transaction: postgres.TransactionSql) => {
+    const targetIds = extractInternalNoteIds(source.content ?? "").filter(
+      (targetId) => targetId !== sourceNoteId.toLowerCase(),
+    );
     await transaction`
       DELETE FROM app.note_links
       WHERE user_id = ${userId}::uuid

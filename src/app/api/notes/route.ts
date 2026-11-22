@@ -145,7 +145,7 @@ export const POST = withErrorHandler(async (request) => {
   }
   if (body.content) {
     try {
-      await replaceNoteLinks(user.user_id, note.noteId, body.content);
+      await replaceNoteLinks(user.user_id, note.noteId);
     } catch (linkErr) {
       logger.error("note link index creation failed", {
         noteId: note.noteId,

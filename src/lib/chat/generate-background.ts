@@ -236,8 +236,6 @@ export async function processChatGeneration(
       thinkingMode,
       retrievalEnabled: useRag,
       clientDateTime: payload.clientDateTime,
-      requestOrigin: payload.requestOrigin,
-      referer: payload.referer ?? null,
     });
     canvasMcpClient = llm.canvasMcpClient;
 

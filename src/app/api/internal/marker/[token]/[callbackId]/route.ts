@@ -8,6 +8,8 @@ import {
   enqueueMarkerFailureJob,
 } from "@/lib/queue";
 import { summarizeRunPodJobStatus } from "@/lib/marker/runpod";
+import { isPlainObject } from "@/lib/marker/output";
+import { BodyTooLargeError, readBoundedBody } from "@/lib/http/bounded-body";
 
 interface MarkerJobRow {
   provider: string | null;
@@ -18,6 +20,7 @@ interface MarkerJobRow {
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const MAX_WEBHOOK_BYTES = 1024 * 1024;
 
 function tokenMatches(received: string): boolean {
   const expected = process.env.RUNPOD_MARKER_WEBHOOK_TOKEN ?? "";
@@ -47,11 +50,19 @@ export async function POST(
     return NextResponse.json({ error: "unknown callback" }, { status: 404 });
   }
 
-  const body: unknown = await request.json().catch(() => null);
-  if (!body || typeof body !== "object" || Array.isArray(body)) {
+  let webhook: unknown;
+  try {
+    const body = await readBoundedBody(request, MAX_WEBHOOK_BYTES);
+    webhook = JSON.parse(new TextDecoder().decode(body));
+  } catch (error) {
+    if (error instanceof BodyTooLargeError) {
+      return NextResponse.json({ error: "webhook too large" }, { status: 413 });
+    }
     return NextResponse.json({ error: "invalid webhook" }, { status: 400 });
   }
-  const webhook = body as Record<string, unknown>;
+  if (!isPlainObject(webhook)) {
+    return NextResponse.json({ error: "invalid webhook" }, { status: 400 });
+  }
   const summary = summarizeRunPodJobStatus(webhook);
   if (!summary.status || (webhook.id !== undefined && !summary.id)) {
     return NextResponse.json({ error: "invalid webhook" }, { status: 400 });

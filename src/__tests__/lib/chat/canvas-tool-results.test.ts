@@ -1,13 +1,14 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ execute: vi.fn() }));
 vi.mock("@ai-sdk/mcp", () => ({
-  createMCPClient: async () => ({
+  createMCPClient: vi.fn(async () => ({
     tools: async () => ({ canvas_get_page: { description: "page", inputSchema: {}, execute: mocks.execute } }),
-  }),
+  })),
 }));
 vi.mock("@/lib/auth/internal-mcp-token", () => ({ createInternalMcpToken: () => "token" }));
 
+import { createMCPClient } from "@ai-sdk/mcp";
 import {
   CANVAS_TOOL_RESULT_MAX_CHARS,
   capCanvasToolResult,
@@ -15,6 +16,33 @@ import {
 } from "@/lib/chat/canvas-mcp-client";
 
 const text = (value: string) => ({ type: "text", text: value });
+
+afterEach(() => {
+  vi.clearAllMocks();
+  vi.unstubAllEnvs();
+});
+
+describe("Canvas MCP origin", () => {
+  it.each([
+    ["https://app.example.test/path", "https://auth.example.test", "https://app.example.test"],
+    [undefined, "https://auth.example.test/path", "https://auth.example.test"],
+    [undefined, undefined, null],
+  ])("uses the configured HTTP origin", async (appUrl, authUrl, origin) => {
+    vi.stubEnv("APP_BASE_URL", appUrl ?? undefined);
+    vi.stubEnv("NEXTAUTH_URL", authUrl ?? undefined);
+
+    const result = await createCanvasMcpTools({ userId: "user-1" });
+
+    if (origin) {
+      expect(createMCPClient).toHaveBeenCalledWith({
+        transport: expect.objectContaining({ url: `${origin}/api/mcp/canvas` }),
+      });
+    } else {
+      expect(result).toEqual({ client: null, tools: {} });
+      expect(createMCPClient).not.toHaveBeenCalled();
+    }
+  });
+});
 
 describe("Canvas tool result cap", () => {
   it("leaves a result inside the budget untouched", () => {
@@ -37,8 +65,9 @@ describe("Canvas tool result cap", () => {
   });
 
   it("is applied to every Canvas tool chat receives", async () => {
+    vi.stubEnv("APP_BASE_URL", "https://example.test");
     mocks.execute.mockResolvedValue({ content: [text("b".repeat(CANVAS_TOOL_RESULT_MAX_CHARS * 3))] });
-    const { tools } = await createCanvasMcpTools({ userId: "user-1", appOrigin: "https://example.test" });
+    const { tools } = await createCanvasMcpTools({ userId: "user-1" });
     const execute = tools.canvas_get_page?.execute;
     if (!execute) throw new Error("missing tool");
     const result: unknown = await Reflect.apply(execute, undefined, [{}, { toolCallId: "call", messages: [] }]);

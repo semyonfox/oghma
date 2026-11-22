@@ -11,7 +11,6 @@ import { moveNoteInTree } from "@/lib/notes/storage/pg-tree";
 import { insertNoteWithTree } from "@/lib/notes/storage/create-note";
 import { getStorageProvider } from "@/lib/storage/init";
 import { enqueueNoteReindexJob } from "@/lib/queue";
-import { resolveAppOrigin } from "@/lib/chat/canvas-mcp-client";
 import { getOptionalCanvasTooling } from "@/lib/chat/canvas-tooling";
 import { searchChatChunks } from "@/lib/chat/chunk-search";
 import { APP_GUIDE_TOPIC_IDS, getAppGuide } from "@/lib/chat/app-guide";
@@ -86,8 +85,6 @@ export interface BuildLlmCallParams {
   /** when false, the note-retrieval tools + SEARCH instruction are omitted (RAG off) */
   retrievalEnabled?: boolean;
   clientDateTime?: string;
-  requestOrigin: string;
-  referer: string | null;
 }
 
 export interface LlmCallResult {
@@ -635,17 +632,12 @@ export async function buildLlmCall(
     params.sessionContext,
   );
 
-  const appOrigin = resolveAppOrigin({
-    requestOrigin: params.requestOrigin,
-    referer: params.referer,
-  });
   const {
     client: canvasMcpClient,
     tools: canvasTools,
     instruction: canvasInstruction,
   } = await getOptionalCanvasTooling({
     userId: params.userId,
-    appOrigin,
   });
 
   const retrievalEnabled = params.retrievalEnabled ?? true;

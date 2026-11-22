@@ -25,29 +25,32 @@ export function settingsObjectKey(userId: string): string {
 }
 
 /**
- * Get user settings from S3 (cached in Redis for 5 minutes)
+ * Read settings through Redis unless the caller is about to modify storage
  */
 export async function getSettingsFromS3(
   userId: string,
+  { fresh = false }: { fresh?: boolean } = {},
 ): Promise<StoredSettings> {
-  try {
-    const key = cacheKeys.settings(userId);
+  const key = cacheKeys.settings(userId);
+  if (!fresh) {
     const cached = await cacheGet<StoredSettings>(key);
     if (cached) return cached;
+  }
 
-    const storage = getStorageProvider();
-    const settingsPath = settingsObjectKey(userId);
-    const settingsJson = await storage.getObject(settingsPath);
-    if (!settingsJson) {
-      return {};
-    }
-    const settings = parseStoredSettings(settingsJson);
-    await cacheSet(key, settings, 300);
-    return settings;
+  const settingsJson = await getStorageProvider().getObject(settingsObjectKey(userId));
+  if (settingsJson === undefined) return {};
+
+  let settings: StoredSettings;
+  try {
+    settings = parseStoredSettings(settingsJson);
   } catch (error) {
-    logger.error("settings read failed", { error });
+    // allow a write to repair malformed JSON after a successful storage read
+    if (!fresh || !(error instanceof SyntaxError)) throw error;
+    logger.warn("invalid stored settings JSON", { error });
     return {};
   }
+  if (!fresh) await cacheSet(key, settings, 300);
+  return settings;
 }
 
 /**

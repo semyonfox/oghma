@@ -325,6 +325,16 @@ export async function updateStudyMap(
 export async function deleteStudyMap(userId: string, mapId: string) {
   await sql.begin(async (tx) => {
     const map = await lockStudyMap(tx, userId, mapId);
+    const [exam] = await tx<{ name: string }[]>`
+      SELECT name FROM app.study_exams
+      WHERE user_id = ${userId}::uuid AND study_map_id = ${mapId}::uuid
+      ORDER BY exam_at, id LIMIT 1
+    `;
+    if (exam)
+      throw new ApiError(
+        409,
+        `This study map is used by "${exam.name}". Change the exam's scope before deleting the map.`,
+      );
     if (map.canvas_course_id)
       await tx`
         INSERT INTO app.study_map_dismissed_courses (user_id, canvas_course_id)

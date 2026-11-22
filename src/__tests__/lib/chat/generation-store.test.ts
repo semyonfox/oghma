@@ -59,7 +59,6 @@ describe("resumable chat generation store", () => {
       },
       useRag: true,
       thinkingMode: "auto",
-      requestOrigin: "https://oghmanotes.ie",
       respectPrivacySignal: false,
     });
 

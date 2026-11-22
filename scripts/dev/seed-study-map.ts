@@ -561,7 +561,7 @@ async function main(): Promise<void> {
     );
     for (const note of [...osNotes, ...dbNotes, ...ownNotes]) {
       if (note.content.includes("/notes/"))
-        await links.replaceNoteLinks(userId, note.id, note.content);
+        await links.replaceNoteLinks(userId, note.id);
     }
 
     seedStage = "create synthetic assignments";
