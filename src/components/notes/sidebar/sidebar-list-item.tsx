@@ -51,6 +51,8 @@ const SidebarListItem: FC<{
       onToggle();
       return;
     }
+    // a modified click opens a new tab and must leave this tab's pane alone
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     setPaneA(buildFileSpec(item));
     setActivePane("A");
   };
