@@ -32,17 +32,10 @@ lock_sha=$(git -C "$REPO" show "${COMMIT}:${lock_path}" | sha256sum | cut -d' ' 
 temporary_tar=$(mktemp)
 trap 'rm -f "$temporary_tar"' EXIT
 git -C "$REPO" archive --format=tar --prefix=marker-plus-plus/ -o "$temporary_tar" "$COMMIT"
-# git archive already stamps the commit time, so match it here and drop local
-# owners and timestamps to keep the archive byte-identical across checkouts
-commit_time=$(git -C "$REPO" show -s --format=%ct "$COMMIT")
-tar -C "$INTEGRATION_ROOT" --append --file "$temporary_tar" \
-  --owner=0 --group=0 --numeric-owner --mode='u+rw,go+r,go-w' --mtime="@$commit_time" \
-  --transform='s,^oghma_marker/services.py$,marker-plus-plus/marker/services/openai_compatible_vision.py,' \
-  oghma_marker/services.py
 gzip -n -c "$temporary_tar" > "$DESTINATION"
 archive_sha=$(sha256sum "$DESTINATION" | cut -d' ' -f1)
 integration_sha=$(sha256sum "$INTEGRATION_ROOT/oghma_marker/services.py" | cut -d' ' -f1)
-sha256sum "$DESTINATION" > "${DESTINATION}.sha256"
+(cd "$(dirname "$DESTINATION")" && sha256sum "$(basename "$DESTINATION")") > "${DESTINATION}.sha256"
 python3 - "$MANIFEST" "$COMMIT" "$tree" "$lock_path" "$lock_sha" "$archive_sha" "$integration_sha" <<'PY'
 import json
 import pathlib

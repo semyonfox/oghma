@@ -17,18 +17,13 @@ export function selectChecks(paths) {
       continue;
     }
     if (
-      /^oghma_marker\/.*\.py$/.test(path) ||
+      /^oghma_marker\/(.*\.py|pyproject\.toml)$/.test(path) ||
+      /^infra\/marker-worker\//.test(path) ||
       [
-        "Dockerfile",
         "handler.py",
-        "prefetch_models.py",
-        "server.py",
         "test_handler.py",
         "run.sh",
         "requirements.txt",
-        "constraints-marker-full.txt",
-        "constraints-markerpp.txt",
-        "constraints-vllm.txt",
         "requirements-test.txt",
       ].some((file) => path === `infra/runpod-marker/${file}`) ||
       path === "scripts/tests/test_openai_compatible_vision.py" ||

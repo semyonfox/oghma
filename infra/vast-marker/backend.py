@@ -8,99 +8,62 @@ source and full result remain in Oghma-owned object storage.
 from __future__ import annotations
 
 import asyncio
-import base64
-import io
 import json
 import logging
 import math
 import multiprocessing
 import os
-import re
 import subprocess
 import tempfile
 import threading
 import time
-import urllib.request
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
 from contextlib import asynccontextmanager
+from hmac import compare_digest
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
-from urllib.error import HTTPError
-from uuid import UUID
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
-from marker.config.parser import ConfigParser
-from marker.converters.pdf import PdfConverter
 from marker.models import create_model_dict
-from marker.output import text_from_rendered
-from marker.settings import settings
 
-
-IMAGE_SELECTION_POLICIES = {"semantic", "course", "all"}
-
-
-def image_selection_policy() -> str:
-    # course keeps small uncaptioned lecture visuals (oghma#478). it needs a
-    # Marker++ build that has the policy, so it stays opt-in per environment
-    policy = os.getenv("MARKER_IMAGE_SELECTION_POLICY", "semantic").strip().lower()
-    return policy if policy in IMAGE_SELECTION_POLICIES else "semantic"
-
-
-def positive_int(name: str, fallback: int) -> int:
-    try:
-        value = int(os.getenv(name, ""))
-    except ValueError:
-        return fallback
-    return value if value > 0 else fallback
-
-
-def bool_value(value: Any, fallback: bool = False) -> bool:
-    if value is None:
-        return fallback
-    if isinstance(value, bool):
-        return value
-    return str(value).strip().lower() in {"1", "true", "yes", "on"}
-
-
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
-API_PROCESSES = positive_int("MARKER_API_PROCESSES", 4)
-ADMISSION_CONCURRENCY = positive_int("MARKER_ADMISSION_CONCURRENCY", 3)
-PDFTEXT_WORKERS = positive_int("MARKER_PDFTEXT_WORKERS", 1)
-MAX_SOURCE_BYTES = positive_int(
-    "MARKER_MAX_SOURCE_BYTES",
-    250 * 1024 * 1024,
+from oghma_marker.conversion import conversion_mode, convert_file
+from oghma_marker.job import (
+    allowed_object_hosts,
+    bool_option,
+    build_result_envelope,
+    download,
+    positive_int_env,
+    route_to_cpu,
+    safe_error,
+    upload,
+    upload_suffix,
+    validate_object_url,
+    validate_request_identity,
 )
-MAX_RESULT_BYTES = positive_int(
+
+
+CPU_ONLY = bool_option(os.getenv("MARKER_CPU_ONLY"))
+SERVICE = "oghma-cpu-marker" if CPU_ONLY else "oghma-vast-marker"
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+API_PROCESSES = positive_int_env("MARKER_API_PROCESSES", 4)
+ADMISSION_CONCURRENCY = positive_int_env("MARKER_ADMISSION_CONCURRENCY", 3)
+MAX_RESULT_BYTES = positive_int_env(
     "MARKER_MAX_RESULT_BYTES",
     128 * 1024 * 1024,
-)
-TRANSFER_TIMEOUT_SECONDS = positive_int(
-    "MARKER_TRANSFER_TIMEOUT_SECONDS",
-    600,
 )
 TELEMETRY_INTERVAL_SECONDS = max(
     0.0,
     float(os.getenv("MARKER_TELEMETRY_INTERVAL_SECONDS", "1")),
 )
 BENCHMARK_PDF = Path("/app/benchmark.pdf")
-# the application only accepts a markdown v1 envelope, so any other format
-# would be paid for and then rejected as an invalid result
-ALLOWED_OUTPUT_FORMATS = {"markdown"}
-ALLOWED_OBJECT_HOSTS = {
-    host.strip().lower()
-    for host in os.getenv("MARKER_ALLOWED_OBJECT_HOSTS", "").split(",")
-    if host.strip()
-}
-
 logging.basicConfig(
     level=LOG_LEVEL,
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
-logger = logging.getLogger("oghma-vast-marker")
+logger = logging.getLogger(SERVICE)
 admission = asyncio.Semaphore(ADMISSION_CONCURRENCY)
 # Hosted vision remains fail-closed at one request regardless of an accidental
 # higher environment value. Revalidate routing and provider limits before
@@ -147,213 +110,10 @@ def reset_pool() -> None:
         pool.shutdown(wait=False, cancel_futures=True)
 
 
-def build_converter(models: Any, options: dict[str, Any]) -> PdfConverter:
-    parser = ConfigParser(options)
-    config = parser.generate_config_dict()
-    config["pdftext_workers"] = PDFTEXT_WORKERS
-    kwargs = {
-        "config": config,
-        "processor_list": parser.get_processors(),
-        "renderer": parser.get_renderer(),
-        "llm_service": parser.get_llm_service(),
-    }
-    try:
-        return PdfConverter(artifact_dict=models, **kwargs)
-    except TypeError:
-        return PdfConverter(model_dict=models, **kwargs)
-
-
-def encode_images(images: dict[str, Any]) -> dict[str, str]:
-    encoded: dict[str, str] = {}
-    image_format = settings.OUTPUT_IMAGE_FORMAT
-    for name, image in images.items():
-        output_image = image
-        if image_format.upper() in {"JPEG", "JPG"} and image.mode != "RGB":
-            output_image = image.convert("RGB")
-        buffer = io.BytesIO()
-        output_image.save(buffer, format=image_format)
-        encoded[name] = base64.b64encode(buffer.getvalue()).decode(
-            settings.OUTPUT_ENCODING
-        )
-    return encoded
-
-
-def convert_file(path: str, raw_options: dict[str, Any]) -> dict[str, Any]:
+def convert_job(path: str, options: dict[str, Any]) -> dict[str, Any]:
     if _MODELS is None:
         raise RuntimeError("Marker process models are unavailable")
-
-    output_format = str(raw_options.get("outputFormat", "markdown")).lower()
-    if output_format not in ALLOWED_OUTPUT_FORMATS:
-        raise ValueError(f"unsupported output format: {output_format}")
-    mode = str(raw_options.get("mode", "balanced"))
-    if mode not in {"balanced", "fast"}:
-        raise ValueError("mode must be balanced or fast")
-    use_llm = bool_value(raw_options.get("useLlm"), False)
-    options: dict[str, Any] = {
-        "filepath": path,
-        "page_range": raw_options.get("pageRange"),
-        "force_ocr": bool_value(raw_options.get("forceOcr"), False),
-        "paginate_output": bool_value(raw_options.get("paginateOutput"), False),
-        "output_format": output_format,
-        "mode": mode,
-        "use_llm": use_llm,
-        "describe_extracted_images": use_llm,
-        "image_selection_policy": image_selection_policy(),
-        "discard_unselected_images": True,
-        "image_description_policy": "semantic" if use_llm else "off",
-        "image_description_output": "alt",
-        "llm_failure_mode": "raise",
-        "llm_process_table_of_contents": False,
-        "ocr_fallback_policy": str(
-            raw_options.get("ocrFallbackPolicy", "auto")
-        ),
-        "table_ocr_policy": str(raw_options.get("tableOcrPolicy", "auto")),
-        "profile_marker": bool_value(os.getenv("MARKER_PROFILE"), True),
-    }
-    if use_llm:
-        vision_target = os.getenv("MARKER_VISION_TARGET", "").strip()
-        if not vision_target:
-            raise ValueError("hosted vision was requested but is not configured")
-        options.update(
-            {
-                "llm_service": (
-                    "marker.services.openai_compatible_vision."
-                    "OpenAICompatibleVisionService"
-                ),
-                "llm_target": vision_target,
-                "llm_thinking": False,
-                "timeout": 120,
-                "max_retries": 2,
-                "max_concurrency": 1,
-            }
-        )
-
-    converter = build_converter(_MODELS, options)
-    rendered = converter(path)
-    text, _, images = text_from_rendered(rendered)
-    return {
-        "format": output_format,
-        "output": text,
-        "page_range": raw_options.get("pageRange"),
-        "images": encode_images(images),
-        "metadata": jsonable_encoder(getattr(rendered, "metadata", None)),
-        "profile": jsonable_encoder(
-            getattr(converter, "profile_summary", None)
-        ),
-        "success": True,
-    }
-
-
-def safe_error(error: BaseException) -> str:
-    message = re.sub(r"https?://\S+", "[redacted-url]", str(error))
-    return message[:1_000] or type(error).__name__
-
-
-def validate_object_url(url: Any, field: str) -> str:
-    if not isinstance(url, str) or not url:
-        raise ValueError(f"{field} is required")
-    parsed = urlsplit(url)
-    if (
-        parsed.scheme != "https"
-        or not parsed.hostname
-        or parsed.username is not None
-        or parsed.password is not None
-    ):
-        raise ValueError(f"{field} must use HTTPS")
-    if not ALLOWED_OBJECT_HOSTS:
-        raise ValueError("MARKER_ALLOWED_OBJECT_HOSTS is not configured")
-    if parsed.hostname.lower() not in ALLOWED_OBJECT_HOSTS:
-        raise ValueError(f"{field} host is not approved")
-    return url
-
-
-class ObjectRedirectHandler(urllib.request.HTTPRedirectHandler):
-    def redirect_request(
-        self,
-        request: urllib.request.Request,
-        file_pointer: Any,
-        code: int,
-        message: str,
-        headers: Any,
-        new_url: str,
-    ) -> urllib.request.Request | None:
-        validate_object_url(new_url, "redirectUrl")
-        return super().redirect_request(
-            request,
-            file_pointer,
-            code,
-            message,
-            headers,
-            new_url,
-        )
-
-
-OBJECT_OPENER = urllib.request.build_opener(ObjectRedirectHandler())
-
-
-def download(url: str, path: str) -> int:
-    request = urllib.request.Request(url, method="GET")
-    total = 0
-    with OBJECT_OPENER.open(
-        request,
-        timeout=TRANSFER_TIMEOUT_SECONDS,
-    ) as response:
-        with open(path, "wb") as handle:
-            while chunk := response.read(1024 * 1024):
-                total += len(chunk)
-                if total > MAX_SOURCE_BYTES:
-                    raise ValueError(
-                        f"source exceeds MARKER_MAX_SOURCE_BYTES={MAX_SOURCE_BYTES}"
-                    )
-                handle.write(chunk)
-    if total == 0:
-        raise ValueError("source object is empty")
-    return total
-
-
-def upload(url: str, body: bytes) -> bool:
-    request = urllib.request.Request(
-        url,
-        data=body,
-        method="PUT",
-        # The application presigns this header. A duplicate/late worker must
-        # never overwrite the result envelope bound to a callback ID.
-        headers={
-            "Content-Type": "application/json",
-            "If-None-Match": "*",
-        },
-    )
-    try:
-        with OBJECT_OPENER.open(
-            request,
-            timeout=TRANSFER_TIMEOUT_SECONDS,
-        ) as response:
-            response.read(1024)
-        return True
-    except HTTPError as error:
-        # A successful sibling worker already committed the immutable result.
-        # It is safe to acknowledge this request; the application will verify
-        # the object against its expected request_id/result_key before use.
-        if error.code == 412:
-            return False
-        raise
-
-
-def validate_request_identity(payload: dict[str, Any]) -> tuple[str, str]:
-    request_id = payload.get("requestId")
-    result_key = payload.get("resultKey")
-    if not isinstance(request_id, str):
-        raise ValueError("requestId is required")
-    try:
-        canonical_request_id = str(UUID(request_id))
-    except (TypeError, ValueError) as error:
-        raise ValueError("requestId must be a canonical UUID") from error
-    if request_id != canonical_request_id:
-        raise ValueError("requestId must be a canonical UUID")
-    expected_result_key = f"marker-results/{canonical_request_id}.json"
-    if result_key != expected_result_key:
-        raise ValueError("resultKey does not match requestId")
-    return canonical_request_id, expected_result_key
+    return convert_file(_MODELS, path, options, cpu_only=CPU_ONLY)
 
 
 def host_sample(started: float) -> dict[str, Any]:
@@ -446,7 +206,7 @@ def telemetry_summary(samples: list[dict[str, Any]]) -> dict[str, Any]:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    if not ALLOWED_OBJECT_HOSTS:
+    if not allowed_object_hosts():
         raise RuntimeError("MARKER_ALLOWED_OBJECT_HOSTS is required")
     logger.info(
         "warming Marker backend processes=%s admission=%s",
@@ -455,7 +215,7 @@ async def lifespan(_app: FastAPI):
     )
     loop = asyncio.get_running_loop()
     process_ids: set[int] = set()
-    deadline = time.monotonic() + positive_int(
+    deadline = time.monotonic() + positive_int_env(
         "MARKER_PROCESS_WARM_TIMEOUT_SECONDS",
         900,
     )
@@ -483,14 +243,14 @@ async def lifespan(_app: FastAPI):
             _POOL.shutdown(wait=True, cancel_futures=True)
 
 
-app = FastAPI(title="Oghma Vast Marker", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title=SERVICE, version="1.0.0", lifespan=lifespan)
 
 
 @app.get("/health")
 async def health() -> dict[str, Any]:
     return {
         "status": "healthy",
-        "service": "oghma-vast-marker",
+        "service": SERVICE,
         "apiProcesses": API_PROCESSES,
         "admissionConcurrency": ADMISSION_CONCURRENCY,
         "hostedVisionConcurrency": 1,
@@ -501,7 +261,7 @@ async def convert_in_pool(path: str, options: dict[str, Any]) -> dict[str, Any]:
     try:
         return await asyncio.get_running_loop().run_in_executor(
             get_pool(),
-            convert_file,
+            convert_job,
             path,
             options,
         )
@@ -513,7 +273,7 @@ async def convert_in_pool(path: str, options: dict[str, Any]) -> dict[str, Any]:
 
 
 async def run_conversion(path: str, options: dict[str, Any]) -> dict[str, Any]:
-    use_llm = bool_value(options.get("useLlm"), False)
+    use_llm = bool_option(options.get("useLlm"), False)
     async with admission:
         if use_llm:
             async with vision_admission:
@@ -522,8 +282,17 @@ async def run_conversion(path: str, options: dict[str, Any]) -> dict[str, Any]:
 
 
 @app.post("/marker/job")
-async def marker_job(payload: dict[str, Any]) -> JSONResponse:
-    benchmark = bool_value(payload.get("benchmark"), False)
+async def marker_job(
+    payload: dict[str, Any], authorization: str = Header(default="")
+) -> JSONResponse:
+    if CPU_ONLY:
+        token = os.getenv("MARKER_CPU_WORKER_TOKEN", "").strip()
+        if not token or not compare_digest(
+            authorization.encode("utf-8"), f"Bearer {token}".encode("utf-8")
+        ):
+            raise HTTPException(status_code=401, detail="invalid CPU worker token")
+
+    benchmark = bool_option(payload.get("benchmark"), False)
     if benchmark:
         request_id = "vast-readiness-benchmark"
         result_key = None
@@ -535,6 +304,10 @@ async def marker_job(payload: dict[str, Any]) -> JSONResponse:
     options = payload.get("options")
     if not isinstance(options, dict):
         options = {}
+    try:
+        conversion_mode(options, cpu_only=CPU_ONLY)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
     source_url: str | None = None
     result_url: str | None = None
@@ -550,9 +323,7 @@ async def marker_job(payload: dict[str, Any]) -> JSONResponse:
             result_url = validate_object_url(payload.get("resultUrl"), "resultUrl")
         except ValueError as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
-        suffix = Path(str(payload.get("filename") or "document.pdf")).suffix.lower()
-        if not suffix or len(suffix) > 16:
-            suffix = ".pdf"
+        suffix = upload_suffix(str(payload.get("filename") or "document.pdf"))
         descriptor, path = tempfile.mkstemp(prefix="marker-job-", suffix=suffix)
         os.close(descriptor)
         temporary = True
@@ -580,14 +351,17 @@ async def marker_job(payload: dict[str, Any]) -> JSONResponse:
         )
         sampler.start()
 
+    cpu_result_may_exist = False
     try:
-        result = await run_conversion(path, options)
-        # The application accepts only this bound v1 envelope. Keep the
-        # identifiers in the object that was uploaded, not only the transient
-        # HTTP response, so it can reject a mismatched or overwritten result.
-        result["schema_version"] = 1
-        result["request_id"] = request_id
-        result["result_key"] = result_key
+        if not CPU_ONLY and not benchmark:
+            cpu_result, cpu_result_may_exist = await asyncio.to_thread(
+                route_to_cpu, path, payload, options
+            )
+            if cpu_result is not None:
+                return JSONResponse(content=cpu_result)
+        converted = await run_conversion(path, options)
+        result = build_result_envelope(converted, request_id, result_key)
+        result["profile"] = converted["profile"]
         stop.set()
         if sampler:
             sampler.join(timeout=TELEMETRY_INTERVAL_SECONDS + 5)
@@ -636,6 +410,9 @@ async def marker_job(payload: dict[str, Any]) -> JSONResponse:
             request_id,
             message,
         )
+        if cpu_result_may_exist:
+            # the Vast client observes storage after an ambiguous upstream failure
+            raise HTTPException(status_code=502, detail="CPU result may still arrive") from None
         return JSONResponse(
             status_code=500,
             content={"success": False, "error": message},

@@ -115,17 +115,12 @@ docker push <registry>/oghma-marker:2026-08-04-cu129
 ```
 
 Record the pushed digest in `infra/runpod-marker/serverless-plan.json` before
-endpoint creation. The build script packages a verified Marker++ commit; the
-Dockerfile pins its base image, checks package versions, fetches all required
-public model assets at build time, verifies the cache offline, and warms the
-Marker child process pool before accepting a job. Marker++/Surya keeps its
-locked OpenCV 4.11 and Transformers 5.14 dependencies in the root interpreter;
-the explicit `/opt/vllm-venv` command overlays vLLM's OpenCV 4.13 and
-Transformers 5.7 dependencies while sharing the one CUDA 12.9 Torch layer.
-Therefore a cold worker still pays RunPod scheduling, image distribution, GPU
-startup, and local model initialization, but it does not clone source, install
-packages, or download models. It retains the small C build toolchain Triton
-needs during first vLLM initialization; no runtime installer is used.
+endpoint creation. The build script packages a verified Marker++ commit for
+the [shared worker Dockerfile](../../infra/marker-worker/README.md). It bakes
+the font and model assets into the image and checks the caches offline. The
+entrypoint starts vLLM from its own CUDA environment, then warms the Marker++
+process pool before accepting jobs. The GPU targets retain the compiler and
+headers that Triton needs on first start.
 
 ## Metrics and observability
 

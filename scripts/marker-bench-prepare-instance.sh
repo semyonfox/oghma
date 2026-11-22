@@ -7,6 +7,7 @@ if [[ $# -ne 3 ]]; then
   exit 2
 fi
 
+ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 CLEAN_ARCHIVE=$(realpath "$1")
 DIAGNOSTIC_ARCHIVE=$(realpath "$2")
 WORKSPACE=$(realpath -m "$3")
@@ -43,6 +44,7 @@ prepare_environment() {
   local environment="$WORKSPACE/venvs/$name"
   python3 -m venv --system-site-packages "$environment"
   "$environment/bin/python" -m pip install --disable-pip-version-check --no-deps --force-reinstall "$archive"
+  "$environment/bin/python" -m pip install --disable-pip-version-check --no-deps "$ROOT/oghma_marker"
   TORCH_DEVICE=cuda "$environment/bin/python" - <<'PY'
 import torch
 from marker.models import create_model_dict
