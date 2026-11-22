@@ -7,7 +7,13 @@ export class BodyTooLargeError extends Error {
 
 // count actual bytes, including chunked bodies and dishonest content-length headers
 export async function readBoundedBody(
-  input: Pick<Request, "headers" | "body">,
+  input: {
+    headers: Pick<Headers, "get">;
+    body: {
+      cancel(): Promise<void>;
+      getReader(): Pick<ReadableStreamDefaultReader<Uint8Array>, "read" | "cancel" | "releaseLock">;
+    } | null;
+  },
   limit: number,
 ): Promise<Uint8Array<ArrayBuffer>> {
   if (!Number.isSafeInteger(limit) || limit <= 0)

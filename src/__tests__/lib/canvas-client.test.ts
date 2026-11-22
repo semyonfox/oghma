@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CanvasClient } from "@/lib/canvas/client";
+import * as boundedBody from "@/lib/http/bounded-body";
 
 vi.mock("@/lib/canvas/safe-fetch", () => ({
   safeCanvasFetch: (url: string, headers: Record<string, string>) =>
@@ -9,6 +10,7 @@ vi.mock("@/lib/canvas/safe-fetch", () => ({
 const STRING_IDS_ACCEPT = "application/json+canvas-string-ids";
 
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
   delete process.env.CANVAS_MAX_FILE_BYTES;
 });
@@ -290,6 +292,26 @@ describe("CanvasClient string-ID requests", () => {
 
     expect(result.data).toHaveLength(100);
     expect(result.error).toBe("Canvas API pagination exceeded 100 pages");
+  });
+
+  it("reports a page size failure without retrying or discarding earlier pages", async () => {
+    const readBody = boundedBody.readBoundedBody;
+    vi.spyOn(boundedBody, "readBoundedBody")
+      .mockImplementationOnce(readBody)
+      .mockImplementationOnce((input) => readBody(input, 8));
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('[{"id":"1"}]', {
+        headers: { Link: '<https://example.instructure.com/api/v1/courses?page=2>; rel="next"' },
+      }))
+      .mockResolvedValue(new Response('[{"id":"2"}]'));
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect(await new CanvasClient("example.instructure.com", "token").getCourses()).toEqual({
+      data: [{ id: "1" }],
+      forbidden: false,
+      error: "Canvas API response exceeded its page size limit",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("enumerates self enrollments with the complete non-deleted state contract", async () => {

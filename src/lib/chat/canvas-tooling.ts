@@ -10,7 +10,6 @@ import { canvasContentEnabled } from "@/lib/canvas/content-policy";
 
 export async function getOptionalCanvasTooling(args: {
   userId: string;
-  appOrigin: string | null;
 }): Promise<{
   client: MCPClient | null;
   tools: ToolSet;

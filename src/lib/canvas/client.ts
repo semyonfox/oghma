@@ -14,6 +14,7 @@
 import { canvasFeedbackSubmissionSchema, type CanvasFeedbackSubmission } from "./assignment-feedback";
 import { safeCanvasFetch } from "./safe-fetch";
 import { stripHtmlToText } from "./content-formatting";
+import { BodyTooLargeError, readBoundedBody } from "@/lib/http/bounded-body";
 
 // transient errors worth retrying (network blips, server hiccups)
 const RETRYABLE_CODES = new Set([
@@ -29,6 +30,9 @@ const RETRYABLE_CODES = new Set([
 ]);
 const MAX_RETRIES = 3;
 const MAX_PAGINATION_PAGES = 100;
+const MAX_JSON_PAGE_BYTES = 16 * 1024 * 1024;
+const MAX_PAGINATED_JSON_BYTES = 64 * 1024 * 1024;
+const PAGINATION_SIZE_ERROR = "Canvas API pagination exceeded its response size limit";
 const RETRY_BASE_MS = 1000;
 const CANVAS_JSON_ACCEPT = "application/json+canvas-string-ids";
 const RETRYABLE_HTTP_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
@@ -305,6 +309,7 @@ function validatedNextPageUrl(linkHeader: string | null, baseUrl: string): {
 interface CanvasJsonPage {
   ok: true;
   body: unknown;
+  byteLength: number;
   link: string | null;
 }
 
@@ -344,7 +349,10 @@ export class CanvasClient {
    * Fetch one Canvas API URL as JSON, retrying transient failures. Get and
    * paginated reads share this so status handling cannot drift between them.
    */
-  async #fetchJson(url: string): Promise<CanvasJsonPage | CanvasFailure> {
+  async #fetchJson(
+    url: string,
+    maxBytes = MAX_JSON_PAGE_BYTES,
+  ): Promise<CanvasJsonPage | CanvasFailure> {
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
         const response = await safeCanvasFetch(url, {
@@ -390,9 +398,15 @@ export class CanvasClient {
           return failure(`Canvas API error: ${response.status}`);
         }
 
-        const body: unknown = await response.json();
-        return { ok: true, body, link: response.headers.get("Link") };
+        const bytes = await readBoundedBody(response, maxBytes);
+        const body: unknown = JSON.parse(new TextDecoder().decode(bytes));
+        return { ok: true, body, byteLength: bytes.byteLength, link: response.headers.get("Link") };
       } catch (err) {
+        if (err instanceof BodyTooLargeError) {
+          return failure(maxBytes < MAX_JSON_PAGE_BYTES
+            ? PAGINATION_SIZE_ERROR
+            : "Canvas API response exceeded its page size limit");
+        }
         if (attempt < MAX_RETRIES && isRetryable(err)) {
           await sleep(RETRY_BASE_MS * 2 ** attempt);
           continue;
@@ -428,6 +442,7 @@ export class CanvasClient {
   ): Promise<CanvasPaginatedResult<T>> {
     const results: T[] = [];
     const visitedPages = new Set<string>();
+    let bytesRemaining = MAX_PAGINATED_JSON_BYTES;
 
     // Append per_page to the initial URL — Canvas default is 10 which is too slow
     let url: string | null = `${this.baseUrl}${path}${path.includes("?") ? "&" : "?"}per_page=100`;
@@ -441,8 +456,12 @@ export class CanvasClient {
       }
       visitedPages.add(url);
 
-      const page = await this.#fetchJson(url);
+      if (bytesRemaining === 0) {
+        return { data: results, ...failureFields(failure(PAGINATION_SIZE_ERROR)) };
+      }
+      const page = await this.#fetchJson(url, Math.min(MAX_JSON_PAGE_BYTES, bytesRemaining));
       if (!page.ok) return { data: results, ...failureFields(page) };
+      bytesRemaining -= page.byteLength;
       if (!Array.isArray(page.body) || !page.body.every(isExpected)) {
         return {
           data: results,
@@ -450,7 +469,7 @@ export class CanvasClient {
           error: "Canvas API returned a non-array paginated response",
         };
       }
-      results.push(...page.body);
+      for (const item of page.body) results.push(item);
 
       const nextPage = validatedNextPageUrl(page.link, this.baseUrl);
       if (nextPage.error) {

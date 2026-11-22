@@ -23,8 +23,6 @@ export interface ChatGenerationPayload {
   useRag: boolean;
   thinkingMode: "auto" | "off";
   clientDateTime?: string;
-  requestOrigin: string;
-  referer?: string;
   respectPrivacySignal: boolean;
 }
 
