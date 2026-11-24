@@ -113,20 +113,26 @@ describe("GET /api/vault/status", () => {
     expect(first).toContain("INTERVAL '30 minutes'");
   });
 
-  it("signs completed exports with the displayed filename, capped to the archive lifetime", async () => {
+  it.each([
+    [600, 600],
+    [100_000, 86_400],
+  ])("signs a completed export with %s seconds left for %s seconds", async (secondsLeft, expiresIn) => {
     routeQueries(
       jobRow({ status: "complete", expected_total: 2, processed_files: 2 }),
-      { s3_key: "exports/u1/j1/vault-export.zip", seconds_left: 600 },
+      { s3_key: "exports/u1/j1/vault-export.zip", seconds_left: secondsLeft },
     );
 
     const body = await status("vault-export");
 
-    expect(signVaultExportDownload).toHaveBeenCalledWith("exports/u1/j1/vault-export.zip", 600);
+    expect(signVaultExportDownload).toHaveBeenCalledWith("exports/u1/j1/vault-export.zip", expiresIn);
     expect(body.downloadUrl).toBe("https://signed.example/file.zip");
   });
 
-  it("offers no link once retention has removed the archive", async () => {
-    routeQueries(jobRow({ status: "complete", expected_total: 2, processed_files: 2 }));
+  it.each([
+    ["the archive is gone", undefined],
+    ["less than a second remains", { s3_key: "exports/u1/j1/vault-export.zip", seconds_left: 0 }],
+  ])("offers no download when %s", async (_reason, artifact) => {
+    routeQueries(jobRow({ status: "complete", expected_total: 2, processed_files: 2 }), artifact);
 
     const body = await status("vault-export");
 

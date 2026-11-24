@@ -136,7 +136,6 @@ describe("workspace lifecycle", () => {
 
     await expect(reconcileWorkspaceSession("user-1")).resolves.toBe(false);
 
-    expect(mocks.noteCacheClear).not.toHaveBeenCalled();
     expect(mocks.clearPdfCache).not.toHaveBeenCalled();
     expect(mocks.layoutReset).not.toHaveBeenCalled();
     expect(localStorage.getItem("canvas_active_job")).not.toBeNull();
@@ -154,7 +153,6 @@ describe("workspace lifecycle", () => {
 
     await expect(reconcileWorkspaceSession(null)).resolves.toBe(false);
 
-    expect(mocks.noteCacheClear).not.toHaveBeenCalled();
     expect(mocks.layoutReset).not.toHaveBeenCalled();
     expect(mocks.noteValues.has("note-1")).toBe(true);
   });
@@ -167,7 +165,7 @@ describe("workspace lifecycle", () => {
 
       await expect(reconcileWorkspaceSession(null)).resolves.toBe(true);
 
-      expect(mocks.noteCacheClear).toHaveBeenCalledOnce();
+      expect(mocks.noteValues.size).toBe(0);
       expect(mocks.uiValues.get("legacy-unowned-note:note-1")).toEqual({
         content: "legacy note",
       });
@@ -179,12 +177,15 @@ describe("workspace lifecycle", () => {
     localStorage.setItem("oghmaNotes-workspace-owner", JSON.stringify("user-1"));
     localStorage.setItem("canvas_active_job", JSON.stringify({ jobId: "job-1" }));
 
+    mocks.noteValues.set("note-1", { content: "previous owner" });
+    mocks.uiValues.set("tree", { rootId: "previous-root" });
+
     await expect(reconcileWorkspaceSession("user-2")).resolves.toBe(true);
 
-    expect(mocks.noteCacheClear).toHaveBeenCalledOnce();
+    expect(mocks.noteValues.size).toBe(0);
     // a shared browser must not keep the previous account's PDF bytes
     expect(mocks.clearPdfCache).toHaveBeenCalledOnce();
-    expect(mocks.removeUiItem).toHaveBeenCalledWith("tree");
+    expect(mocks.uiValues.has("tree")).toBe(false);
     expect(mocks.layoutReset).toHaveBeenCalledOnce();
     expect(localStorage.getItem("canvas_active_job")).toBeNull();
     expect(mocks.noteState).toMatchObject({

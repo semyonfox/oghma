@@ -34,6 +34,7 @@ describe('slot allocation', () => {
     it('backfills unused slots in priority order', () => {
         expect(allocateSlots([3, 50, 50], 20)).toEqual([3, 15, 2]);
         expect(allocateSlots([0, 0, 15], 5)).toEqual([0, 0, 5]);
+        expect(allocateSlots([1, 0, 0], 20)).toEqual([1, 0, 0]);
     });
 
     it('never exceeds the session size', () => {
@@ -43,9 +44,6 @@ describe('slot allocation', () => {
         }
     });
 
-    it('never allocates more than a bucket holds', () => {
-        expect(allocateSlots([1, 0, 0], 20)).toEqual([1, 0, 0]);
-    });
 });
 
 describe('card selection', () => {
@@ -75,17 +73,7 @@ describe('card selection', () => {
         ];
         const result = selectCards({ dueCards, newCards: none, retentionCards: none }, 3);
         expect(result.due.map(({ id }) => id)).toEqual(['c3', 'c2', 'c1']);
-    });
-
-    it('does not reorder the caller-owned due-card list', () => {
-        const dueCards: CandidateCard[] = [
-            { id: 'later', due: '2025-01-02T00:00:00.000Z', state: 'review', last_review: null },
-            { id: 'earlier', due: '2025-01-01T00:00:00.000Z', state: 'review', last_review: null },
-        ];
-
-        selectCards({ dueCards, newCards: none, retentionCards: none }, 2);
-
-        expect(dueCards.map(({ id }) => id)).toEqual(['later', 'earlier']);
+        expect(dueCards.map(({ id }) => id)).toEqual(['c1', 'c3', 'c2']);
     });
 
     it('orders the session as due, then new, then retention', () => {

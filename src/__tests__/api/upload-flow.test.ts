@@ -5,12 +5,15 @@ const {
   queries,
   sqlMock,
   beginMock,
+  objects,
   storage,
+  getStorageProvider,
   insertNoteWithTree,
   enqueueCanvasJob,
 } =
   vi.hoisted(() => {
     const queries: string[] = [];
+    const objects = new Map<string, Buffer>();
     const sqlMock = vi.fn(
       async (strings: TemplateStringsArray, ..._values: unknown[]): Promise<Record<string, unknown>[]> => {
         queries.push(strings.join("?").replace(/\s+/g, " ").trim());
@@ -24,7 +27,16 @@ const {
       queries,
       sqlMock,
       beginMock,
-      storage: { putObject: vi.fn(), deleteObject: vi.fn() },
+      objects,
+      getStorageProvider: vi.fn(),
+      storage: {
+        putObject: vi.fn(async (path: string, buffer: Buffer, _options?: { contentType?: string }) => {
+          objects.set(path, Buffer.from(buffer));
+        }),
+        deleteObject: vi.fn(async (path: string) => {
+          objects.delete(path);
+        }),
+      },
       insertNoteWithTree: vi.fn(),
       enqueueCanvasJob: vi.fn(),
     };
@@ -44,14 +56,15 @@ vi.mock("@/lib/logger", () => ({
 }));
 vi.mock("@/lib/rate-limiter", () => ({ checkRateLimit: vi.fn(async () => null) }));
 vi.mock("@/lib/queue", () => ({ enqueueCanvasJob }));
+const maxFileSizeBytes = vi.hoisted(() => 1024 * 1024);
 vi.mock("@/lib/config", () => ({
-  config: { upload: { maxFileSizeBytes: 1024 * 1024 } },
+  config: { upload: { maxFileSizeBytes } },
 }));
 vi.mock("@/lib/notes/storage/create-note", () => ({
   insertNoteWithTree,
   InvalidNoteParentError: class InvalidNoteParentError extends Error {},
 }));
-vi.mock("@/lib/storage/init", () => ({ getStorageProvider: () => storage }));
+vi.mock("@/lib/storage/init", () => ({ getStorageProvider }));
 
 import { POST } from "@/app/api/upload/route";
 
@@ -70,14 +83,16 @@ const pdf = (name: string) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  objects.clear();
+  getStorageProvider.mockReturnValue(storage);
   queries.length = 0;
   sqlMock.mockImplementation(async (strings: TemplateStringsArray) => {
     queries.push(strings.join("?").replace(/\s+/g, " ").trim());
     return [{ id: "row" }];
   });
   beginMock.mockImplementation(async (callback) => callback(sqlMock));
-  storage.putObject.mockResolvedValue(undefined);
-  storage.deleteObject.mockResolvedValue(undefined);
+  storage.putObject.mockReset();
+  storage.deleteObject.mockReset();
   enqueueCanvasJob.mockResolvedValue(undefined);
 });
 
@@ -141,7 +156,7 @@ describe("POST /api/upload", () => {
 
   it("writes the object before any rows so a failed insert leaves no empty note behind", async () => {
     const order: string[] = [];
-    storage.putObject.mockImplementation(async () => { order.push("put"); });
+    storage.putObject.mockImplementationOnce(async () => { order.push("put"); });
     insertNoteWithTree.mockImplementation(async () => { order.push("note"); });
     beginMock.mockImplementationOnce(async (callback) => {
       await callback(sqlMock);
@@ -209,4 +224,64 @@ describe("POST /api/upload", () => {
       { contentType: "text/markdown" },
     );
   });
+
+  it("keeps both objects when the same filename is uploaded twice to one note", async () => {
+    const first = await POST(upload(pdf("lecture.pdf"), noteId));
+    const secondFile = new File(["%PDF-1.7\nsecond"], "lecture.pdf", {
+      type: "application/pdf",
+    });
+    const second = await POST(upload(secondFile, noteId));
+    const firstBody = await first.json();
+    const secondBody = await second.json();
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(firstBody.path).toBe(`notes/${noteId}/${firstBody.attachmentId}/lecture.pdf`);
+    expect(secondBody.path).toBe(`notes/${noteId}/${secondBody.attachmentId}/lecture.pdf`);
+    expect(firstBody.path).not.toBe(secondBody.path);
+    expect(objects.get(firstBody.path)?.toString()).toBe("%PDF-1.7\n");
+    expect(objects.get(secondBody.path)?.toString()).toBe("%PDF-1.7\nsecond");
+  });
+
+  it("deletes only the failed attempt's object when metadata insert fails", async () => {
+    const first = await POST(upload(pdf("lecture.pdf"), noteId));
+    const firstBody = await first.json();
+    beginMock.mockRejectedValueOnce(new Error("attachment insert failed"));
+
+    const second = await POST(upload(pdf("lecture.pdf"), noteId));
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(500);
+    expect([...objects.keys()]).toEqual([firstBody.path]);
+    expect(objects.get(firstBody.path)?.toString()).toBe("%PDF-1.7\n");
+  });
+});
+
+describe("multipart bounds at the upload entry point", () => {
+  const oversizedBodyBytes = maxFileSizeBytes + 64 * 1024 + 1;
+
+  it.each([true, false])(
+    "rejects an oversized body before multipart materialization (honest header: %s)",
+    async (honest) => {
+      const materialize = vi.spyOn(Response.prototype, "formData");
+      try {
+        const response = await POST(
+          new NextRequest("https://example.test/api/upload", {
+            method: "POST",
+            headers: {
+              "Content-Type": "multipart/form-data; boundary=fixture",
+              "Content-Length": honest ? String(oversizedBodyBytes) : "1",
+            },
+            body: new Uint8Array(oversizedBodyBytes),
+          }),
+        );
+        expect(response.status).toBe(413);
+        expect(materialize).not.toHaveBeenCalled();
+        expect(sqlMock).not.toHaveBeenCalled();
+        expect(getStorageProvider).not.toHaveBeenCalled();
+      } finally {
+        materialize.mockRestore();
+      }
+    },
+  );
 });

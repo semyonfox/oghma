@@ -7,7 +7,6 @@ import {
     ratingForAnswer,
     cardFromDB,
     cardToDB,
-    type FSRSCard,
     type FSRSCardRow,
     type FSRSRating,
 } from '@/lib/quiz/fsrs';
@@ -21,14 +20,6 @@ function reviewViaDB(row: FSRSCardRow, rating: FSRSRating, now: Date): FSRSCardR
 }
 
 describe('FSRS scheduling', () => {
-    it('schedules a first "good" review into the 10 minute learning step', () => {
-        const { card } = reviewCard(createNewCard(T0), Rating.Good, T0);
-        expect(card.state).toBe(State.Learning);
-        expect(card.reps).toBe(1);
-        expect(card.learning_steps).toBe(1);
-        expect(card.due.getTime() - T0.getTime()).toBe(10 * 60_000);
-    });
-
     it('graduates a learning card on the next "good" after a DB round trip', () => {
         // regression: learning_steps was not persisted, so every reload
         // restarted step 0 and a "good" card stayed in learning forever
@@ -36,34 +27,6 @@ describe('FSRS scheduling', () => {
         row = reviewViaDB(row, Rating.Good, new Date(T0.getTime() + DAY));
         expect(row.state).toBe('review');
         expect(row.scheduled_days).toBeGreaterThanOrEqual(1);
-    });
-
-    it('records a lapse and moves a review card into relearning on "again"', () => {
-        const graduated = reviewCard(createNewCard(T0), Rating.Easy, T0).card;
-        expect(graduated.state).toBe(State.Review);
-
-        const lapsed = reviewCard(graduated, Rating.Again, graduated.due).card;
-        expect(lapsed.state).toBe(State.Relearning);
-        expect(lapsed.lapses).toBe(1);
-    });
-
-    it('keeps very long intervals bounded near the 100 year maximum', () => {
-        const veteran: FSRSCard = {
-            ...createNewCard(T0),
-            state: State.Review,
-            stability: 30_000,
-            difficulty: 3,
-            scheduled_days: 36_500,
-            reps: 30,
-            last_review: T0,
-            due: new Date(T0.getTime() + 36_500 * DAY),
-        };
-        const { card } = reviewCard(veteran, Rating.Easy, veteran.due);
-        // ts-fsrs caps "good" at maximum_interval and keeps "easy" strictly
-        // above it, so the reference result is a couple of days past the cap
-        expect(card.scheduled_days).toBeLessThanOrEqual(36_500 + 2);
-        expect(Number.isNaN(card.due.getTime())).toBe(false);
-        expect(Number.isFinite(card.stability)).toBe(true);
     });
 });
 

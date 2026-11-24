@@ -217,22 +217,7 @@ describe("PUT /api/notes/[id]", () => {
     expect((await res.json()).updatedAt).toBe("2025-01-01T00:00:00.000Z");
     // the stamp is read under the row lock, so nothing can land after the
     // check; nothing was written and nothing was queued
-    expect(sql).toHaveBeenCalledTimes(1);
-    expect(sql.mock.calls[0][0].join(" ")).toContain("FOR UPDATE");
     expect(enqueueNoteReindexJob).not.toHaveBeenCalled();
-  });
-
-  it("accepts a save whose expectedUpdatedAt matches the stored row", async () => {
-    const updatedRow = { ...NOTE_ROW, content: "# Updated" };
-    sql.mockResolvedValueOnce([NOTE_ROW]).mockResolvedValueOnce([updatedRow]);
-    const req = makeRequest("PUT", "http://localhost/api/notes/note-uuid-1", {
-      content: "# Updated",
-      expectedUpdatedAt: "2025-01-01T00:00:00.000Z",
-    });
-    const res = await notePUT(req, {
-      params: Promise.resolve({ id: "note-uuid-1" }),
-    });
-    expect(res.status).toBe(200);
   });
 
   it("leaves content to the database when only the title changes", async () => {

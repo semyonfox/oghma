@@ -10,7 +10,7 @@ vi.mock("@/lib/storage/init", () => ({
   getStorageProvider: () => ({ deleteObject: mocks.deleteObject }),
 }));
 
-import { cleanupVaultArtifacts, findLiveVaultExport } from "@/lib/vault/artifacts";
+import { cleanupVaultArtifacts } from "@/lib/vault/artifacts";
 
 function queryText(call: unknown[]): string {
   const [strings] = call;
@@ -68,14 +68,4 @@ describe("vault artifact retention", () => {
     expect(mocks.sql.mock.calls.some((call) => queryText(call).includes("DELETE FROM app.vault_artifacts"))).toBe(false);
   });
 
-  it("never signs a link past the archive's remaining lifetime", async () => {
-    routeQueries([["FROM app.vault_artifacts", [{ s3_key: "exports/u1/j/vault-export.zip", seconds_left: 120 }]]]);
-    await expect(findLiveVaultExport("u1", "j")).resolves.toEqual({
-      s3Key: "exports/u1/j/vault-export.zip",
-      secondsLeft: 120,
-    });
-
-    routeQueries([]);
-    await expect(findLiveVaultExport("u1", "j")).resolves.toBeNull();
-  });
 });
