@@ -56,9 +56,9 @@ interface CalendarState {
   deleteTimeBlock: (id: string) => Promise<boolean>;
 }
 
-let timeBlockFetchSequence = 0;
+let activeTimeBlockFetch: Map<string, boolean> | undefined;
 let reviewDateFetchSequence = 0;
-const pendingCompletion = new Set<string>();
+const pendingCompletion = new Map<string, boolean>();
 
 function anchorIso(dateKey: string): string {
   const date = parseLocalDateKey(dateKey);
@@ -119,22 +119,32 @@ const useCalendarStore = create<CalendarState>()(
       },
 
       fetchTimeBlocks: async (start, end) => {
-        const requestSequence = ++timeBlockFetchSequence;
+        const completionsDuringFetch = new Map<string, boolean>();
+        activeTimeBlockFetch = completionsDuringFetch;
         set({ loading: true, error: null });
         try {
           const res = await fetch(
             `/api/time-blocks?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`,
           );
           if (!res.ok) throw new Error("fetch failed");
-          const data = await res.json();
-          if (requestSequence !== timeBlockFetchSequence) return;
-          set({ timeBlocks: data, loading: false, error: null });
+          const data: TimeBlock[] = await res.json();
+          if (activeTimeBlockFetch !== completionsDuringFetch) return;
+          const timeBlocks = data.map((block) => {
+            const completed =
+              pendingCompletion.get(block.id) ?? completionsDuringFetch.get(block.id);
+            return completed === undefined ? block : { ...block, completed };
+          });
+          set({ timeBlocks, loading: false, error: null });
         } catch (error) {
-          if (requestSequence !== timeBlockFetchSequence) return;
+          if (activeTimeBlockFetch !== completionsDuringFetch) return;
           set({
             loading: false,
             error: error instanceof Error ? error.message : "fetch failed",
           });
+        } finally {
+          if (activeTimeBlockFetch === completionsDuringFetch) {
+            activeTimeBlockFetch = undefined;
+          }
         }
       },
 
@@ -195,7 +205,7 @@ const useCalendarStore = create<CalendarState>()(
         const block = get().timeBlocks.find((item) => item.id === id);
         if (!block) return false;
         const completed = !block.completed;
-        pendingCompletion.add(id);
+        pendingCompletion.set(id, completed);
         try {
           set((state) => ({
             timeBlocks: state.timeBlocks.map((item) =>
@@ -208,7 +218,11 @@ const useCalendarStore = create<CalendarState>()(
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ completed }),
           });
-          if (res.ok) return true;
+          if (res.ok) {
+            // a refresh already in flight may still return the old value
+            activeTimeBlockFetch?.set(id, completed);
+            return true;
+          }
         } catch {
           // revert below
         } finally {
