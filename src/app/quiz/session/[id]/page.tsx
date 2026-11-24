@@ -112,12 +112,18 @@ function QuestionView({
   fatigueWarning,
   onAnswered,
   isCurrentQuestion,
+  advancing,
+  startAdvance,
+  finishAdvance,
 }: {
   question: QuizSessionQuestion;
   sessionId: string;
   fatigueWarning: boolean;
   onAnswered: (data: QuizAnswerResponse) => void;
   isCurrentQuestion: () => boolean;
+  advancing: boolean;
+  startAdvance: () => boolean;
+  finishAdvance: () => void;
 }) {
   const { t } = useI18n();
   const [answered, setAnswered] = useState(false);
@@ -127,11 +133,8 @@ function QuestionView({
     rating?: 1 | 2 | 3 | 4;
   } | null>(null);
   const [isLeech, setIsLeech] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const [submitFailed, setSubmitFailed] = useState(false);
   const startTimeRef = useRef<number | null>(null);
-  // guards Enter and click landing together; state updates are too late for that
-  const submittingRef = useRef(false);
 
   useEffect(() => {
     startTimeRef.current = Date.now();
@@ -143,9 +146,7 @@ function QuestionView({
   };
 
   const handleContinue = async () => {
-    if (!lastAnswer || submittingRef.current || !isCurrentQuestion()) return;
-    submittingRef.current = true;
-    setSubmitting(true);
+    if (!lastAnswer || !startAdvance()) return;
     setSubmitFailed(false);
 
     const startTime = startTimeRef.current ?? Date.now();
@@ -181,10 +182,7 @@ function QuestionView({
         // the answer route is idempotent per card, so retrying is always safe
         setSubmitFailed(true);
       })
-      .finally(() => {
-        submittingRef.current = false;
-        setSubmitting(false);
-      });
+      .finally(finishAdvance);
   };
 
   // keyboard: Enter/Space to continue after answering
@@ -227,7 +225,7 @@ function QuestionView({
               )}
               <button
                 onClick={() => void handleContinue()}
-                disabled={submitting}
+                disabled={advancing}
                 className="min-h-11 rounded-radius-lg bg-action px-6 py-2.5 text-sm font-semibold text-on-action transition-colors hover:bg-action-hover disabled:opacity-50"
               >
                 {t("quiz.session.continue")}
@@ -295,8 +293,10 @@ function QuizSession({ sessionId }: { sessionId: string }) {
 
   const [lookupFailed, setLookupFailed] = useState(false);
   const [retryAttempt, setRetryAttempt] = useState(0);
+  const [advancing, setAdvancing] = useState(false);
   const lifetime = useRef<AbortController | null>(null);
-  const skipPending = useRef(false);
+  // click and keyboard handlers can run before the disabled state renders
+  const advancingRef = useRef(false);
 
   useLayoutEffect(() => {
     const controller = new AbortController();
@@ -313,6 +313,18 @@ function QuizSession({ sessionId }: { sessionId: string }) {
       active.currentIndex === currentIndex &&
       active.currentQuestion === currentQuestion &&
       !active.sessionCompleted;
+  };
+
+  const startAdvance = () => {
+    if (advancingRef.current || !isCurrentQuestion()) return false;
+    advancingRef.current = true;
+    setAdvancing(true);
+    return true;
+  };
+
+  const finishAdvance = () => {
+    advancingRef.current = false;
+    setAdvancing(false);
   };
 
   const finishSession = () => {
@@ -392,17 +404,14 @@ function QuizSession({ sessionId }: { sessionId: string }) {
 
   const handleSkip = async () => {
     const signal = lifetime.current?.signal;
-    if (!signal || skipPending.current || !isCurrentQuestion()) return;
-    skipPending.current = true;
+    if (!signal || !startAdvance()) return;
     setLookupFailed(false);
     await findNextQuestion(cardIds, currentIndex + 1, signal)
       .then(applyLookup)
       .catch(() => {
         if (isCurrentQuestion()) setLookupFailed(true);
       })
-      .finally(() => {
-        skipPending.current = false;
-      });
+      .finally(finishAdvance);
   };
 
   const leave = () => {
@@ -418,7 +427,8 @@ function QuizSession({ sessionId }: { sessionId: string }) {
       </p>
       <button
         type="button"
-        className="min-h-11 rounded-radius-lg border border-border px-3 text-sm"
+        disabled={advancing}
+        className="min-h-11 rounded-radius-lg border border-border px-3 text-sm disabled:opacity-50"
         onClick={() => {
           if (currentQuestion && isCurrentSession) void handleSkip();
           else {
@@ -461,6 +471,7 @@ function QuizSession({ sessionId }: { sessionId: string }) {
         total={cardIds.length}
         onBack={leave}
         onSkip={handleSkip}
+        skipDisabled={advancing}
       />
 
       {lookupError}
@@ -471,6 +482,9 @@ function QuizSession({ sessionId }: { sessionId: string }) {
         fatigueWarning={fatigueWarning}
         onAnswered={handleAnswered}
         isCurrentQuestion={isCurrentQuestion}
+        advancing={advancing}
+        startAdvance={startAdvance}
+        finishAdvance={finishAdvance}
       />
     </div>
   );

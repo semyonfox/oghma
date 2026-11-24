@@ -81,6 +81,44 @@ describe("calendar store", () => {
     expect(store.getState().loading).toBe(false);
   });
 
+  it.each(["before", "after"])(
+    "keeps the completion toggle when an older refresh resolves %s the save",
+    async (order) => {
+      const block = {
+        id: "block", assignment_id: null, title: "Revision",
+        starts_at: "2026-10-06T09:00:00Z", ends_at: "2026-10-06T10:00:00Z",
+        pomodoro_count: 2, completed: false,
+      };
+      const refresh = deferred<ReturnType<typeof response>>();
+      const save = deferred<ReturnType<typeof response>>();
+      const refreshedBlock = { ...block, title: "Updated revision" };
+      vi.stubGlobal("fetch", vi.fn()
+        .mockReturnValueOnce(refresh.promise)
+        .mockReturnValueOnce(save.promise)
+        .mockResolvedValueOnce(response([refreshedBlock])));
+      const store = await loadStore();
+      store.setState({ timeBlocks: [block] });
+
+      const request = store.getState().fetchTimeBlocks("start", "end");
+      const toggle = store.getState().toggleTimeBlockCompleted(block.id);
+
+      if (order === "after") {
+        save.resolve(response({}));
+        expect(await toggle).toBe(true);
+      }
+      refresh.resolve(response([refreshedBlock]));
+      await request;
+      expect(store.getState().timeBlocks).toEqual([{ ...refreshedBlock, completed: true }]);
+
+      if (order === "before") {
+        save.resolve(response({}));
+        expect(await toggle).toBe(true);
+      }
+      await store.getState().fetchTimeBlocks("start", "end");
+      expect(store.getState().timeBlocks).toEqual([refreshedBlock]);
+    },
+  );
+
   it("ignores a second completion tap while the first is pending", async () => {
     const pending = deferred<ReturnType<typeof response>>();
     const fetchMock = vi.fn().mockReturnValueOnce(pending.promise)
