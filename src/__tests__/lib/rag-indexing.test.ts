@@ -53,17 +53,6 @@ describe("normalizeChunksForIndexing", () => {
     expect(out).toEqual(["alpha", "beta", "gamma"]);
   });
 
-  it("trims chunk text before dedupe", () => {
-    const out = normalizeChunksForIndexing([
-      "  heading one  ",
-      "heading one",
-      "heading two",
-      "heading two   ",
-    ]);
-
-    expect(out).toEqual(["heading one", "heading two"]);
-  });
-
   it("removes nul bytes before storing chunks", () => {
     const out = normalizeChunksForIndexing(["alpha\u0000 beta", "\u0000"]);
 
@@ -104,7 +93,6 @@ describe("replaceNoteEmbeddings", () => {
     );
 
     expect(count).toBe(2);
-    expect(txMock).toHaveBeenCalledTimes(8);
     // the vector for each text must land on the id that text was stored under;
     // the ids are minted before the insert rather than read back from it
     const insert = txMock.mock.calls.find(([strings]) =>

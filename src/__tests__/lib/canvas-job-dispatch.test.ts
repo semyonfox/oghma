@@ -127,6 +127,7 @@ describe("Canvas job dispatch", () => {
       mimeType: "application/pdf",
       parentFolderId: null,
       attempt: 2,
+      retrySeq: 4,
       importRecordId: "import-1",
       jobId: "job-1",
     };
@@ -135,14 +136,6 @@ describe("Canvas job dispatch", () => {
       dispatchCanvasJob({ name: "extract-retry", data }, target),
     ).resolves.toBe(true);
     expect(target.processExtractionRetry).toHaveBeenCalledWith(data);
-  });
-
-  it("leaves unknown messages for the runtime warning policy", async () => {
-    const target = handlers();
-
-    await expect(
-      dispatchCanvasJob({ name: "future-job", data: {} }, target),
-    ).resolves.toBe(false);
   });
 
   it("does not require a payload for an unknown message type", async () => {

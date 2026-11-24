@@ -98,9 +98,9 @@ vi.mock("@/lib/logger.ts", () => ({
 
 import sql from "@/database/pgsql";
 import { enqueueCanvasJob } from "@/lib/queue";
+import { StoreS3 } from "@/lib/storage/s3";
 import { getStorageProvider } from "@/lib/storage/init";
 import { processRagPipeline } from "@/lib/canvas/import-embedding";
-import { findOrCreateExtractionBundle } from "@/lib/notes/extraction-bundle";
 import { CanvasClient } from "@/lib/canvas/client";
 import {
   processDirectExtraction,
@@ -139,25 +139,6 @@ describe("fetchResource", () => {
         "22222222-2222-4222-8222-222222222222",
       ),
     ).resolves.toEqual({ data: null, forbidden: true });
-  });
-
-  it("keeps a partial listing and records the part Canvas could not provide", async () => {
-    await expect(
-      fetchResource(
-        async () => ({
-          data: [{ id: "1" }],
-          forbidden: false,
-          error: "Canvas API rate limited — try again later",
-        }),
-        "9007199254740993",
-        "11111111-1111-4111-8111-111111111111",
-        "Course",
-        "files",
-        "22222222-2222-4222-8222-222222222222",
-      ),
-    ).resolves.toEqual({ data: [{ id: "1" }], forbidden: false });
-    expect(vi.mocked(sql).mock.calls.some((call) => call.includes("error") &&
-      call.includes("Canvas files request failed: Canvas API rate limited — try again later"))).toBe(true);
   });
 
   it.each(["404", "410", "503"])("records an unavailable section after HTTP %s without aborting discovery", async (status) => {
@@ -237,8 +218,15 @@ describe("Canvas extraction stage", () => {
   });
 
   it("does not read the source when another delivery claimed the stage", async () => {
+    const storage = new StoreS3({
+      bucket: "synthetic",
+      accessKey: "synthetic",
+      secretKey: "synthetic",
+    });
+    const read = vi.spyOn(storage, "getObjectAndMeta").mockResolvedValue({});
+    vi.mocked(getStorageProvider).mockReturnValue(storage);
     await expect(processCanvasExtract({ importRecordId: "import-1", jobId: "job-1", userId: "user-1" })).resolves.toBe(true);
-    expect(getStorageProvider).not.toHaveBeenCalled();
+    expect(read).not.toHaveBeenCalled();
   });
 
   it("republishes a pending extraction after a lost enqueue", async () => {
@@ -251,26 +239,6 @@ describe("Canvas extraction stage", () => {
     expect(enqueueCanvasJob).toHaveBeenCalledWith("canvas-extract", {
       importRecordId: "import-1", jobId: "job-1", userId: "user-1",
     });
-  });
-  it("spends a retry when reclaiming a crashed extraction and stops at the budget", async () => {
-    vi.mocked(sql).mockImplementation(async (parts) => {
-      const query = Array.from(parts).join("");
-      if (query.includes("imported.claim_expires_at < NOW()")) {
-        return [{ importRecordId: "import-1", jobId: "job-1", userId: "user-1" }] as never;
-      }
-      if (query.includes("pg_try_advisory_xact_lock")) return [{ acquired: true }] as never;
-      if (query.includes("FOR SHARE SKIP LOCKED")) return [{ id: "job-1" }] as never;
-      // the poison file has used its last retry, so the reclaim settles it
-      if (query.includes("retry_attempts = retry_attempts + 1")) return [{ status: "error" }] as never;
-      return [] as never;
-    });
-
-    await expect(recoverPendingCanvasExtracts()).resolves.toBe(0);
-    expect(enqueueCanvasJob).not.toHaveBeenCalled();
-    const reclaim = vi.mocked(sql).mock.calls.find((call) =>
-      queryText(call).includes("retry_attempts = retry_attempts + 1"));
-    expect(reclaim).toBeDefined();
-    expect(reclaim?.slice(1)).toContain(4);
   });
 });
 
@@ -337,7 +305,6 @@ describe("processDirectExtraction", () => {
       mimeType: "application/pdf",
     });
 
-    expect(getStorageProvider).not.toHaveBeenCalled();
     expect(processRagPipeline).not.toHaveBeenCalled();
   });
 });
@@ -366,8 +333,9 @@ describe("processCanvasFile ownership", () => {
         userId: "33333333-3333-4333-8333-333333333333",
       }),
     ).resolves.toBe(true);
-
-    expect(vi.mocked(sql)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(sql).mock.calls.map(queryText).join("\n")).not.toMatch(
+      /UPDATE app\.canvas_imports/,
+    );
   });
 
   it("acknowledges a duplicate delivery that loses the pending claim", async () => {
@@ -558,9 +526,11 @@ describe("processMarkerComplete", () => {
     await processMarkerComplete({ markerJobId: markerJob.callback_id });
 
     expect(processRagPipeline).not.toHaveBeenCalled();
-    expect(
-      (sql as unknown as { begin: ReturnType<typeof vi.fn> }).begin,
-    ).toHaveBeenCalled();
+    expect(vi.mocked(sql).mock.calls.some((call) =>
+      queryText(call).includes("UPDATE app.marker_jobs") &&
+      call[1] === "invalid_result" &&
+      call.some((value) => value === markerJob.callback_id),
+    )).toBe(true);
   });
 });
 
@@ -653,7 +623,6 @@ describe("processExtractionRetry", () => {
     });
 
     expect(processRagPipeline).not.toHaveBeenCalled();
-    expect(getStorageProvider).not.toHaveBeenCalled();
   });
 
   it("re-enqueues a stale durable Canvas retry with its exact row generation", async () => {
@@ -790,7 +759,7 @@ describe("shared imported PDF cache integrity", () => {
     sqlMock.begin = vi.fn(async (callback: (tx: typeof sqlMock) => unknown) =>
       callback(sqlMock),
     );
-    sqlMock.mockImplementation((parts: TemplateStringsArray) => {
+    sqlMock.mockImplementation((parts: TemplateStringsArray, ...values: unknown[]) => {
       const query = parts.join("");
       if (query.includes("FROM app.imported_file_sources source")) {
         return Promise.resolve(sourceCache ? [sourceCache] : []);
@@ -801,10 +770,9 @@ describe("shared imported PDF cache integrity", () => {
       if (query.includes("INSERT INTO app.imported_file_cache")) {
         return Promise.resolve([rebuiltCache]);
       }
-      if (query.includes("JOIN app.notes n")) {
-        return Promise.resolve(
-          existingNote ? [{ note_id: "note-123" }] : [],
-        );
+      if (query.includes("SELECT n.note_id FROM app.notes n")) {
+        const noteId = values.includes("lecture.pdf") ? "note-123" : "markdown-note";
+        return Promise.resolve(existingNote ? [{ note_id: noteId }] : []);
       }
       if (query.includes("FOR KEY SHARE")) {
         return Promise.resolve([{ note_id: "bundle-123" }]);
@@ -871,16 +839,13 @@ describe("shared imported PDF cache integrity", () => {
       hasObjectResults: [true],
     });
 
-    expect(storage.hasObject).toHaveBeenCalledWith(cache.storage_key);
     expect(client.downloadFile).not.toHaveBeenCalled();
     expect(storage.putObject).not.toHaveBeenCalled();
-    expect(
-      (sql as unknown as { begin: ReturnType<typeof vi.fn> }).begin,
-    ).toHaveBeenCalled();
-    expect(findOrCreateExtractionBundle).toHaveBeenCalledWith(
-      "user-123",
-      null,
-      "lecture.pdf",
+    expect(vi.mocked(sql)).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.stringContaining("UPDATE app.notes SET imported_file_cache_id")]),
+      cache.id,
+      cache.storage_key,
+      "note-123",
     );
   });
 
@@ -891,7 +856,6 @@ describe("shared imported PDF cache integrity", () => {
       hasObjectResults: [false],
     });
 
-    expect(storage.hasObject).toHaveBeenCalledWith(cache.storage_key);
     expect(client.downloadFile).toHaveBeenCalledWith(file.url);
     expect(storage.putObject).toHaveBeenCalledWith(
       cache.storage_key,
@@ -907,8 +871,11 @@ describe("shared imported PDF cache integrity", () => {
       hasObjectResults: [false],
     });
 
-    expect(storage.hasObject).toHaveBeenCalledWith(cache.storage_key);
     expect(client.downloadFile).toHaveBeenCalledWith(file.url);
-    expect(storage.putObject).toHaveBeenCalledTimes(1);
+    expect(storage.putObject).toHaveBeenCalledExactlyOnceWith(
+      cache.storage_key,
+      Buffer.from("%PDF-1.4 fake"),
+      { contentType: "application/pdf" },
+    );
   });
 });

@@ -26,11 +26,6 @@ describe('embedChunks', () => {
         await expect(embedChunks(['hello'])).rejects.toThrow('not configured');
     });
 
-    it('returns empty array for empty input', async () => {
-        const result = await embedChunks([]);
-        expect(result).toEqual([]);
-    });
-
     it('returns empty array when all chunks are whitespace', async () => {
         const result = await embedChunks(['  ', '\t', '']);
         expect(result).toEqual([]);

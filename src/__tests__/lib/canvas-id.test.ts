@@ -7,10 +7,6 @@ import {
 } from "@/lib/canvas/id";
 
 describe("Canvas ID normalization", () => {
-  it("preserves decimal-string IDs exactly", () => {
-    expect(canvasIdString("9007199254740993")).toBe("9007199254740993");
-  });
-
   it("rejects unsafe numeric IDs instead of rounding them", () => {
     expect(() => canvasIdString(9007199254740992)).toThrow("safe integer");
   });

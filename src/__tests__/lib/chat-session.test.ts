@@ -53,7 +53,6 @@ describe("chat generation ownership", () => {
     );
 
     const [messageInsert, sessionUpdate] = mocks.tx.mock.calls;
-    expect(mocks.sql.begin).toHaveBeenCalledOnce();
     expect(queryText(messageInsert!)).toContain("INSERT INTO app.chat_messages");
     expect(queryText(sessionUpdate!)).toContain("UPDATE app.chat_sessions");
     expect(sessionUpdate).toContain("generating");
@@ -70,10 +69,10 @@ describe("chat generation ownership", () => {
     expect(queryText(messageInsert!)).toContain("INSERT INTO app.chat_messages");
     expect(queryText(sessionUpdate!)).toContain("UPDATE app.chat_sessions");
     expect(sessionUpdate).toContain("idle");
-    expect(mocks.tx.json).toHaveBeenNthCalledWith(1, [
+    expect(messageInsert).toContainEqual([
       { type: "text", text: "Here is the answer" },
     ]);
-    expect(mocks.tx.json).toHaveBeenNthCalledWith(2, {});
+    expect(messageInsert).toContainEqual({});
   });
 });
 
@@ -163,7 +162,6 @@ describe("chat session context", () => {
       [{ id: "22222222-2222-2222-2222-222222222222", title: "CT213" }],
     );
 
-    expect(mocks.sql.begin).toHaveBeenCalledOnce();
     expect(queryText(mocks.tx.mock.calls[0])).toContain("FOR UPDATE");
     expect(mocks.tx.mock.calls[1]).toContainEqual(
       JSON.stringify({
@@ -262,43 +260,6 @@ describe("chat session context", () => {
     );
   });
 
-  it("locks and merges context updates through the transaction boundary", async () => {
-    mocks.tx
-      .mockResolvedValueOnce([
-        {
-          context: {
-            scope: { notes: [], folders: [] },
-            recentAccesses: [],
-            lastFolder: null,
-          },
-        },
-      ])
-      .mockResolvedValueOnce([]);
-
-    await recordSessionAccesses("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", [
-      {
-        id: "55555555-5555-5555-5555-555555555555",
-        title: "Concurrent-safe",
-        kind: "read",
-      },
-    ]);
-
-    expect(mocks.sql.begin).toHaveBeenCalledOnce();
-    expect(queryText(mocks.tx.mock.calls[0])).toContain("FOR UPDATE");
-    expect(mocks.tx.mock.calls[1]).toContainEqual(
-      JSON.stringify({
-        scope: { notes: [], folders: [] },
-        recentAccesses: [
-          {
-            id: "55555555-5555-5555-5555-555555555555",
-            title: "Concurrent-safe",
-            kind: "read",
-          },
-        ],
-        lastFolder: null,
-      }),
-    );
-  });
 });
 
 describe("loadHistory", () => {

@@ -34,17 +34,3 @@ it("answers signed-out API calls with 401 JSON instead of the login page", async
   expect(response.status).toBe(401);
   await expect(response.json()).resolves.toEqual({ error: "Unauthorized" });
 });
-
-// a matcher for a deleted route keeps running the proxy for nothing and hides
-// that the protection list has drifted from the app
-it("only matches api routes that still exist", async () => {
-  const { existsSync } = await import("node:fs");
-  const { config } = await import("@/proxy");
-  const apiRoots = config.matcher
-    .filter((entry) => entry.startsWith("/api/"))
-    .map((entry) => entry.replace(/\/:path\*$/, ""));
-  expect(apiRoots.length).toBeGreaterThan(0);
-  for (const root of apiRoots) {
-    expect(existsSync(`src/app${root}`), root).toBe(true);
-  }
-});

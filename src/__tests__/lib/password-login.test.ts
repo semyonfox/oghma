@@ -63,6 +63,9 @@ describe("authenticatePassword", () => {
 
   it("reports an unverified account only after the password matches", async () => {
     mocks.sql.mockResolvedValue([{ ...account, email_verified: false }]);
+    await expect(authenticatePassword(account.email, "wrong", CLIENT)).resolves.toEqual({
+      status: "invalid",
+    });
     await expect(authenticatePassword(account.email, PASSWORD, CLIENT)).resolves.toEqual({
       status: "unverified",
       email: account.email,
