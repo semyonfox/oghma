@@ -948,29 +948,20 @@ test("file cards preview uploaded PDFs and images, and the reader shows PDF page
   await addMaterials(page, mapId, [pdf.id, image.id]);
   await openMap(page, mapId);
 
-  const renderedPdf = flowCard(page, pdf.id).locator(
-    "canvas.react-pdf__Page__canvas",
-  );
-  await expect(renderedPdf).toBeVisible();
-  expect(
-    await renderedPdf.evaluate(
-      (canvas) =>
-        canvas instanceof HTMLCanvasElement &&
-        canvas.width > 0 &&
-        canvas.height > 0,
-    ),
-  ).toBe(true);
-  const renderedImage = flowCard(page, image.id).getByRole("img", {
-    name: `Preview of ${image.title}`,
-    exact: true,
-  });
-  await expect
-    .poll(() =>
-      renderedImage.evaluate((element) =>
-        element instanceof HTMLImageElement ? element.naturalWidth : 0,
-      ),
-    )
-    .toBeGreaterThan(0);
+  async function expectPageImage(container: Locator, name: string) {
+    const image = container.getByRole("img", { name, exact: true });
+    await expect(image).toBeVisible();
+    await expect
+      .poll(() =>
+        image.evaluate((element) =>
+          element instanceof HTMLImageElement ? element.naturalWidth : 0,
+        ),
+      )
+      .toBeGreaterThan(0);
+  }
+
+  await expectPageImage(flowCard(page, pdf.id), `Page 1 of ${pdf.title}`);
+  await expectPageImage(flowCard(page, image.id), `Preview of ${image.title}`);
   await screenshot(page, testInfo, "desktop-file-previews");
 
   await flowCard(page, pdf.id).dblclick({ position: { x: 120, y: 18 } });
@@ -978,7 +969,8 @@ test("file cards preview uploaded PDFs and images, and the reader shows PDF page
     name: `Reading ${pdf.title}`,
     exact: true,
   });
-  await expect(reader.locator("canvas.react-pdf__Page__canvas")).toHaveCount(2);
+  await expectPageImage(reader, `Page 1 of ${pdf.title}`);
+  await expectPageImage(reader, `Page 2 of ${pdf.title}`);
   expect(browserErrors).toEqual([]);
 });
 

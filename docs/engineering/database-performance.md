@@ -26,8 +26,7 @@
   do not combine it with `after`. Independent page caching was removed to avoid
   stale pagination after writes. The tree and single-note Redis caches are gone
   too (the single-note copy was removed in #633), so note and tree reads always
-  hit PostgreSQL. `src/lib/notes/tree-cache.ts` still deletes the old tree and
-  list keys after imports publish, but nothing reads them.
+  hit PostgreSQL.
 - Tree moves read only destination ancestors while retaining the per-user
   advisory lock and active-folder checks. `UNION` terminates traversal even if
   historical data already has a cycle.
