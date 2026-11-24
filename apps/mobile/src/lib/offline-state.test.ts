@@ -186,3 +186,30 @@ test("a transient storage read can be retried without clearing downloads", async
   fail = false;
   assert.deepEqual(await reopened.read(), [note]);
 });
+
+test("reading after a transient account setup failure restores that account's downloads", async () => {
+  const storage = memoryStorage();
+  const library = new OfflineLibrary(storage);
+  await library.setAccount(ownerId);
+  await library.save({ ownerId, note });
+
+  let fail = true;
+  const reopened = new OfflineLibrary({
+    ...storage,
+    read: async () => {
+      if (fail) throw new Error("Storage temporarily unavailable");
+      return storage.read();
+    },
+  });
+  await assert.rejects(
+    reopened.setAccount(ownerId),
+    /Storage temporarily unavailable/,
+  );
+  await assert.rejects(reopened.read(), /Storage temporarily unavailable/);
+
+  fail = false;
+  assert.deepEqual(await reopened.read(), [note]);
+  const updated = { ...note, content: "Updated after recovery" };
+  await reopened.save({ ownerId, note: updated });
+  assert.deepEqual(await new OfflineLibrary(storage).read(), [updated]);
+});

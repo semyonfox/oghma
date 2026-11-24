@@ -48,6 +48,7 @@ export class OfflineLibrary {
   private account: string | null = null;
   private generation = 0;
   private invalidated = false;
+  private failedAccountReadGeneration: number | null = null;
 
   constructor(storage: Storage) {
     this.storage = storage;
@@ -96,8 +97,15 @@ export class OfflineLibrary {
   }
 
   read(): Promise<OfflineNote[]> {
+    const generation = this.generation;
     return this.run(async () => {
       await this.load();
+      if (
+        generation === this.generation &&
+        generation === this.failedAccountReadGeneration
+      ) {
+        await this.confirmAccount(this.account, generation);
+      }
       return this.notes;
     });
   }
@@ -111,12 +119,24 @@ export class OfflineLibrary {
     const generation = changed ? ++this.generation : this.generation;
     if (changed) this.invalidated = true;
     return this.run(async () => {
-      await this.load();
-      if (!ownerId || this.library.ownerId !== ownerId) {
-        await this.commit({ version: 1, ownerId, notes: [] });
+      try {
+        await this.load();
+      } catch (error) {
+        this.failedAccountReadGeneration = generation;
+        throw error;
       }
-      if (generation === this.generation) this.invalidated = false;
+      await this.confirmAccount(ownerId, generation);
     });
+  }
+
+  private async confirmAccount(ownerId: string | null, generation: number) {
+    if (!ownerId || this.library.ownerId !== ownerId) {
+      await this.commit({ version: 1, ownerId, notes: [] });
+    }
+    if (generation === this.generation) {
+      this.failedAccountReadGeneration = null;
+      this.invalidated = false;
+    }
   }
 
   save(input: OfflineSnapshot): Promise<void> {
