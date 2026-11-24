@@ -52,8 +52,7 @@ title ordering; manual ordering is not persisted or offered.
 Tree child responses and single-note reads come straight from PostgreSQL.
 Nothing reads a Redis copy of notes, tree branches or note lists any more; the
 single-note cache was removed after it served stale content following
-extraction and import writes. `tree-cache.ts` still deletes the old keys after
-imports publish, which is harmless. The old five-minute tree cache could
+extraction and import writes. The old five-minute tree cache could
 be repopulated by a stale read after invalidation. This implementation
 makes no claim about measured production database load; measure representative
 uncached branch latency before adding caching back. A post-commit Redis counter

@@ -69,8 +69,7 @@ written by the in-flight indexer. See
 Note and tree reads come straight from PostgreSQL. Nothing reads a server-side
 Redis copy of notes, tree branches or note lists; the single-note cache served
 stale content after extraction and import writes and was removed in #633.
-[`tree-cache.ts`](../../src/lib/notes/tree-cache.ts) still deletes the old tree
-keys after imports publish. Note save and create routes accept a larger body
+Note save and create routes accept a larger body
 than the default JSON cap (see [`note-limits.ts`](../../src/lib/notes/note-limits.ts)).
 
 ## Background work and queues
