@@ -1,16 +1,49 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  assertUniqueMigrationVersions,
   findAppliedMigration,
   findChangedMigrations,
   isLegacyMigration,
+  isMigrationApplied,
   migrationChecksum,
   migrationVersion,
+  readMigrationFiles,
   rollbackBreakingChanges,
   rollbackGuardBaseline,
 } from "../../../scripts/migration-catalog";
 
 describe("migration catalog", () => {
+  it("rejects duplicate numeric versions before migrations can run", () => {
+    expect(() =>
+      assertUniqueMigrationVersions([
+        "053_assignment_type_icons.sql",
+        "053_marker_serverless_jobs.sql",
+      ]),
+    ).toThrow(/Duplicate migration version 053/);
+  });
+
+  it("loads the checked-in migrations with unique versions", () => {
+    const files = readMigrationFiles(new URL("../../../database/migrations/", import.meta.url));
+    expect(files).toContain("001_schema_migrations.sql");
+  });
+
+  it.each([
+    "049_assignment_type_icons.sql",
+    "049_marker_serverless_jobs.sql",
+    "049_note_links.sql",
+  ])("replays every repair after legacy %s", (legacyName) => {
+    const legacyApplied = [{ version: "049", name: legacyName }];
+
+    for (const repair of [
+      "053_assignment_type_icons.sql",
+      "054_marker_serverless_jobs.sql",
+      "055_note_links.sql",
+    ]) {
+      expect(isMigrationApplied(repair, legacyApplied)).toBe(false);
+    }
+  });
+
   it("treats only 001-017 as adopted legacy history", () => {
     expect(isLegacyMigration("001_schema_migrations.sql")).toBe(true);
     expect(isLegacyMigration("017_user_course_settings.sql")).toBe(true);

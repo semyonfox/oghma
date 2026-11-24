@@ -13,31 +13,18 @@ function fakeCanvas(overrides: Partial<CanvasClient>): CanvasClient {
 }
 
 describe("quiz tools", () => {
-    it("canvas_list_quizzes calls collectPaginated for a course", async () => {
+    it("canvas_list_quizzes passes search_term when provided", async () => {
         const collect = vi.fn().mockResolvedValue([{ id: 1, title: "Midterm Quiz" }]);
         const tool = findTool("canvas_list_quizzes");
         const result = await tool.handler(
-            { course_id: 10 },
-            { canvas: fakeCanvas({ collectPaginated: collect }) },
-        );
-        expect(collect).toHaveBeenCalledWith(
-            "/api/v1/courses/10/quizzes",
-            expect.objectContaining({ per_page: 100 }),
-        );
-        expect(result.content[0].text).toContain("Midterm Quiz");
-    });
-
-    it("canvas_list_quizzes passes search_term when provided", async () => {
-        const collect = vi.fn().mockResolvedValue([]);
-        const tool = findTool("canvas_list_quizzes");
-        await tool.handler(
             { course_id: 10, search_term: "final" },
             { canvas: fakeCanvas({ collectPaginated: collect }) },
         );
         expect(collect).toHaveBeenCalledWith(
             "/api/v1/courses/10/quizzes",
-            expect.objectContaining({ search_term: "final" }),
+            expect.objectContaining({ per_page: 100, search_term: "final" }),
         );
+        expect(result.content[0].text).toContain("Midterm Quiz");
     });
 
     it("canvas_get_quiz fetches a single quiz", async () => {

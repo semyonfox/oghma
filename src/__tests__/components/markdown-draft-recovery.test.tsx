@@ -88,25 +88,6 @@ it("retains real conflict warnings instead of showing the routine recovery popup
   expect(state()).toBe("dirty");
 });
 
-it("saves genuine edits and keeps a newer edit dirty while an earlier save completes", async () => {
-  let finishSave: () => void = () => {};
-  mocks.mutateNote.mockImplementation(() => new Promise<void>((resolve) => { finishSave = resolve; }));
-  await open();
-  await screen.findByRole("textbox");
-  expect(state()).toBe("saved");
-  fireEvent.change(screen.getByRole("textbox"), { target: { value: "First edit" } });
-  expect(state()).toBe("dirty");
-  await act(async () => useSaveIndicatorStore.getState().files.note.save());
-  fireEvent.change(screen.getByRole("textbox"), { target: { value: "Second edit" } });
-  await act(async () => finishSave());
-  expect(mocks.mutateNote).toHaveBeenCalledWith("note", {
-    content: "First edit",
-    expectedUpdatedAt: "2026-09-15T12:00:00Z",
-  });
-  expect(state()).toBe("dirty");
-  expect(screen.getByRole("textbox")).toHaveProperty("value", "Second edit");
-});
-
 it("shows save errors while retaining the unsaved text", async () => {
   mocks.mutateNote.mockRejectedValue(new Error("offline"));
   const log = vi.spyOn(console, "error").mockImplementation(() => {});

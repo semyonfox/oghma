@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { createContext, use } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+const TestPathname = createContext<string | null>("/");
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/notes/private-note-id",
+  usePathname: () => use(TestPathname),
 }));
 vi.mock("@/lib/notes/hooks/use-i18n", () => ({
   default: () => ({ t: (key: string) => key }),
@@ -17,25 +19,51 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("real UI telemetry call sites", () => {
-  it("serializes only a static screen category from a mounted tracker", async () => {
+  it("serializes only static screen categories during navigation", async () => {
     vi.stubEnv("NEXT_PUBLIC_TELEMETRY_ENABLED", "true");
     vi.stubEnv("NEXT_PUBLIC_TELEMETRY_ENDPOINT", "/api/marketing/events");
-    const request = vi
-      .fn()
-      .mockResolvedValue(new Response(null, { status: 204 }));
+    const request = vi.fn((_url: string, _options?: RequestInit) =>
+      Promise.resolve(new Response(null, { status: 204 })),
+    );
     vi.stubGlobal("fetch", request);
     const { default: Tracker } = await import("@/components/marketing-tracker");
-    render(<Tracker />);
-    const options: RequestInit = request.mock.calls[0][1];
-    expect(JSON.parse(String(options.body))).toEqual({
-      version: 1,
-      app: "oghmanotes",
-      kind: "count",
-      name: "screen_view",
-      surface: "web",
-      route: "editor",
+    const ui = (pathname: string | null) => (
+      <TestPathname value={pathname}>
+        <Tracker />
+        <form onSubmit={(event) => event.preventDefault()}>
+          <input aria-label="Private note" />
+          <button type="submit" formAction="/private-action">Private action</button>
+        </form>
+      </TestPathname>
+    );
+    const view = render(ui("/"));
+    await act(async () => {});
+    for (const pathname of [
+      "/notes/private-note-id",
+      "/settings",
+      "/terms",
+      "/private-fixture?email=person@example.test",
+      null,
+    ]) {
+      await act(async () => {
+        view.rerender(ui(pathname));
+      });
+    }
+    fireEvent.change(screen.getByRole("textbox", { name: "Private note" }), {
+      target: { value: "Private note text" },
     });
-    expect(String(options.body)).not.toContain("private-note-id");
+    fireEvent.click(screen.getByRole("button", { name: "Private action" }));
+    const bodies = request.mock.calls.map(([, options]) => String(options?.body));
+    expect(bodies.map((body) => JSON.parse(body))).toEqual(
+      ["home", "editor", "settings", "help", "app", "app"].map((route) => ({
+        version: 1,
+        app: "oghmanotes",
+        kind: "count",
+        name: "screen_view",
+        surface: "web",
+        route,
+      })),
+    );
   });
   it.each(["unconfigured", "disabled", "enabled"])(
     "keeps contact recovery independent of %s reporting and private input",

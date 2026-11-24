@@ -374,12 +374,14 @@ describe("chat session lifecycle", () => {
     ).toBe(true);
     await act(async () => resolve(snapshot(oldMessages)));
     expect(screen.getByText("Old answer")).toBeTruthy();
+    expect(screen.getByPlaceholderText("chat.ask_placeholder").hasAttribute("disabled")).toBe(false);
   });
 
   it("resumes a background reply and enables the composer immediately on completion", async () => {
     const network = setupNetwork({ resuming: true });
     render(<ChatInterface sessionId="session-1" />);
     await screen.findByRole("button", { name: "Stop generating" });
+    expect(screen.getByPlaceholderText("chat.ask_placeholder").hasAttribute("disabled")).toBe(true);
     await emitWorkLog(network);
     await network.finish();
     expect(screen.getByText("New answer")).toBeTruthy();

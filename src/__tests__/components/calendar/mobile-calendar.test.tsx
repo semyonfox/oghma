@@ -1,13 +1,8 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { render, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import MobileCalendar from "@/components/calendar/mobile-calendar";
-
-const mocks = vi.hoisted(() => ({
-  onOpenTasks: vi.fn(),
-  onToggleMonth: vi.fn(),
-}));
 
 vi.mock("@/lib/notes/hooks/use-i18n", () => ({
   default: () => ({
@@ -45,42 +40,20 @@ vi.mock("@/components/calendar/day-agenda", () => ({
 }));
 
 describe("MobileCalendar", () => {
-  it("keeps the agenda-first date strip visible and expands the month on request", () => {
-    render(
-      <MobileCalendar
-        onAddTask={vi.fn()}
-        onRetry={vi.fn()}
-        onOpenTasks={mocks.onOpenTasks}
-        monthOpen={false}
-        onToggleMonth={mocks.onToggleMonth}
-      />,
-    );
-
-    expect(screen.getByText("Day agenda")).not.toBeNull();
-    expect(screen.queryByRole("button", { name: "August 1, 2026" })).toBeNull();
-
-    fireEvent.click(screen.getByRole("button", { name: "Month" }));
-    expect(mocks.onToggleMonth).toHaveBeenCalledOnce();
-    fireEvent.click(screen.getByRole("button", { name: "Tasks" }));
-    expect(mocks.onOpenTasks).toHaveBeenCalledOnce();
-  });
-
-  it("renders the selectable month without overriding the selected-day background", () => {
+  it("marks the selected day in the expanded month", () => {
     render(
       <MobileCalendar
         onAddTask={vi.fn()}
         onRetry={vi.fn()}
         monthOpen
-        onToggleMonth={mocks.onToggleMonth}
       />,
     );
 
     const month = document.getElementById("mobile-calendar-month");
-    expect(month).not.toBeNull();
-    const selectedDate = within(month!).getByRole("button", {
+    if (!month) throw new Error("Expected an expanded month");
+    const selectedDate = within(month).getByRole("button", {
       name: "Saturday, August 15, 2026",
     });
-    expect(selectedDate.classList.contains("bg-text")).toBe(true);
-    expect(selectedDate.classList.contains("bg-surface")).toBe(false);
+    expect(selectedDate.getAttribute("aria-pressed")).toBe("true");
   });
 });

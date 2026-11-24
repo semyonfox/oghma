@@ -1,17 +1,12 @@
 // @vitest-environment jsdom
 
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  order: [] as string[],
   resetWorkspaceClientState: vi.fn(async (userId: string | null) => {
-    mocks.order.push("reset");
     mocks.treeState.ownerUserId = userId;
     mocks.treeState.generation += 1;
-  }),
-  publishWorkspaceInvalidation: vi.fn(() => {
-    mocks.order.push("publish");
   }),
   treeState: {
     ownerUserId: "user-1" as string | null,
@@ -19,7 +14,7 @@ const mocks = vi.hoisted(() => ({
   },
   push: vi.fn(),
   toast: {
-    success: vi.fn(() => mocks.order.push("toast")),
+    success: vi.fn(),
     error: vi.fn(),
   },
 }));
@@ -40,10 +35,6 @@ vi.mock("@/lib/notes/workspace-lifecycle", () => ({
   resetWorkspaceClientState: mocks.resetWorkspaceClientState,
 }));
 
-vi.mock("@/lib/notes/workspace-invalidation", () => ({
-  publishWorkspaceInvalidation: mocks.publishWorkspaceInvalidation,
-}));
-
 vi.mock("@/lib/notes/state/tree", () => ({
   default: { getState: () => mocks.treeState },
 }));
@@ -52,10 +43,21 @@ vi.mock("sonner", () => ({ toast: mocks.toast }));
 
 import DangerSection from "@/components/settings/danger-section";
 
+function invalidation(userId: string, scope: "vault" | "session"): unknown {
+  const stored = localStorage.getItem(`oghmaNotes-workspace-invalidation:${userId}:${scope}`);
+  return stored === null ? null : JSON.parse(stored);
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  localStorage.clear();
+});
+
 describe("DangerSection workspace lifecycle", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.order.length = 0;
+    vi.stubGlobal("BroadcastChannel", undefined);
+    localStorage.clear();
     mocks.treeState.ownerUserId = "user-1";
     mocks.treeState.generation = 1;
     vi.stubGlobal(
@@ -71,7 +73,14 @@ describe("DangerSection workspace lifecycle", () => {
     );
   });
 
-  it("starts local fencing before notifying tabs and showing success", async () => {
+  it("fences the local workspace before announcing a successful vault clear", async () => {
+    let finishCleanup!: () => void;
+    mocks.resetWorkspaceClientState.mockImplementationOnce((userId) => {
+      expect(invalidation("user-1", "vault")).toBeNull();
+      mocks.treeState.ownerUserId = userId;
+      mocks.treeState.generation += 1;
+      return new Promise<void>((resolve) => { finishCleanup = resolve; });
+    });
     render(<DangerSection />);
     fireEvent.click(screen.getByRole("button", { name: "Clear vault" }));
     fireEvent.change(screen.getByPlaceholderText("Type the phrase above..."), {
@@ -79,13 +88,12 @@ describe("DangerSection workspace lifecycle", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
 
+    await waitFor(() => expect(invalidation("user-1", "vault")).toMatchObject({ userId: "user-1", scope: "vault" }));
+    expect(mocks.treeState.generation).toBe(2);
+    expect(mocks.toast.success).not.toHaveBeenCalled();
+
+    finishCleanup();
     await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledOnce());
-    expect(mocks.resetWorkspaceClientState).toHaveBeenCalledWith("user-1");
-    expect(mocks.publishWorkspaceInvalidation).toHaveBeenCalledWith(
-      "user-1",
-      "vault",
-    );
-    expect(mocks.order).toEqual(["reset", "publish", "toast"]);
   });
 
   it("notifies tabs after a server-confirmed vault clear when local cleanup fails", async () => {
@@ -102,10 +110,7 @@ describe("DangerSection workspace lifecycle", () => {
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
 
     await waitFor(() => expect(mocks.toast.error).toHaveBeenCalledOnce());
-    expect(mocks.publishWorkspaceInvalidation).toHaveBeenCalledWith(
-      "user-1",
-      "vault",
-    );
+    expect(invalidation("user-1", "vault")).toMatchObject({ userId: "user-1", scope: "vault" });
   });
 
   it("notifies tabs after server-confirmed account deletion when local cleanup fails", async () => {
@@ -125,11 +130,8 @@ describe("DangerSection workspace lifecycle", () => {
     fireEvent.click(deleteButtons[deleteButtons.length - 1]);
 
     await waitFor(() => expect(mocks.toast.error).toHaveBeenCalledOnce());
-    expect(mocks.resetWorkspaceClientState).toHaveBeenCalledWith(null);
-    expect(mocks.publishWorkspaceInvalidation).toHaveBeenCalledWith(
-      "user-1",
-      "session",
-    );
+    expect(mocks.treeState.ownerUserId).toBeNull();
+    expect(invalidation("user-1", "session")).toMatchObject({ userId: "user-1", scope: "session" });
     expect(mocks.push).not.toHaveBeenCalled();
   });
 
@@ -146,8 +148,8 @@ describe("DangerSection workspace lifecycle", () => {
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
 
     await waitFor(() => expect(mocks.toast.error).toHaveBeenCalledOnce());
-    expect(mocks.resetWorkspaceClientState).not.toHaveBeenCalled();
-    expect(mocks.publishWorkspaceInvalidation).not.toHaveBeenCalled();
+    expect(mocks.treeState.generation).toBe(1);
+    expect(invalidation("user-1", "vault")).toBeNull();
   });
 
   it("notifies tabs before parsing a malformed success response", async () => {
@@ -163,11 +165,8 @@ describe("DangerSection workspace lifecycle", () => {
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
 
     await waitFor(() => expect(mocks.toast.error).toHaveBeenCalledOnce());
-    expect(mocks.resetWorkspaceClientState).toHaveBeenCalledWith("user-1");
-    expect(mocks.publishWorkspaceInvalidation).toHaveBeenCalledWith(
-      "user-1",
-      "vault",
-    );
+    expect(mocks.treeState.generation).toBe(2);
+    expect(invalidation("user-1", "vault")).toMatchObject({ userId: "user-1", scope: "vault" });
   });
 
   it("publishes a late vault clear for its original owner without resetting the new workspace", async () => {
@@ -200,12 +199,9 @@ describe("DangerSection workspace lifecycle", () => {
     );
 
     await waitFor(() =>
-      expect(mocks.publishWorkspaceInvalidation).toHaveBeenCalledWith(
-        "user-1",
-        "vault",
-      ),
+      expect(invalidation("user-1", "vault")).toMatchObject({ userId: "user-1", scope: "vault" }),
     );
-    expect(mocks.resetWorkspaceClientState).not.toHaveBeenCalled();
+    expect(mocks.treeState).toEqual({ ownerUserId: "user-2", generation: 2 });
     expect(mocks.toast.success).not.toHaveBeenCalled();
   });
 
@@ -235,12 +231,9 @@ describe("DangerSection workspace lifecycle", () => {
     resolveRequest(new Response(null, { status: 200 }));
 
     await waitFor(() =>
-      expect(mocks.publishWorkspaceInvalidation).toHaveBeenCalledWith(
-        "user-1",
-        "session",
-      ),
+      expect(invalidation("user-1", "session")).toMatchObject({ userId: "user-1", scope: "session" }),
     );
-    expect(mocks.resetWorkspaceClientState).not.toHaveBeenCalled();
+    expect(mocks.treeState).toEqual({ ownerUserId: "user-2", generation: 2 });
     expect(mocks.push).not.toHaveBeenCalled();
   });
 });

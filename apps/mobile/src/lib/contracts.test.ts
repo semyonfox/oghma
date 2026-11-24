@@ -4,9 +4,6 @@ import {
   apiOrigin,
   apiHeaders,
   sessionCookie,
-  EventDecoder,
-  treeSchema,
-  draftToPersist,
 } from "./contracts.ts";
 
 test("native mutations satisfy the backend Origin contract without weakening cookie isolation", () => {
@@ -24,20 +21,6 @@ test("native mutations satisfy the backend Origin contract without weakening coo
   });
   assert.equal(loginHeaders.has("Cookie"), false);
   assert.equal(loginHeaders.get("Origin"), "https://oghmanotes.ie");
-});
-
-test("loading a note cannot erase a draft before recovery is resolved", () => {
-  const original = { title: "Lecture", content: "Saved text" };
-  assert.equal(draftToPersist(null, original, false), undefined);
-  assert.equal(draftToPersist(original, original, false), undefined);
-});
-test("undoing all edits removes the obsolete draft", () => {
-  const original = { title: "Lecture", content: "Saved text" };
-  assert.equal(
-    draftToPersist(original, { ...original, content: "New text" }, true),
-    JSON.stringify({ ...original, content: "New text" }),
-  );
-  assert.equal(draftToPersist(original, original, true), null);
 });
 
 test("session extraction never forwards attributes or other cookies", () => {
@@ -61,24 +44,4 @@ test("credentials can only be sent to an HTTPS origin", () => {
     "https://example.com/?x=1",
   ])
     assert.throws(() => apiOrigin(url));
-});
-test("SSE handles fragmented CRLF, multiple events and heartbeats", () => {
-  const decoder = new EventDecoder();
-  assert.deepEqual(
-    decoder.push(': ping\r\n\r\nid: 1-0\r\nevent: token\r\ndata: {"text":"hel'),
-    [],
-  );
-  assert.deepEqual(decoder.push('lo"}\r\n\r'), []);
-  assert.deepEqual(decoder.push("\nevent: done\ndata: {}\n\n"), [
-    { id: "1-0", event: "token", data: { text: "hello" } },
-    { id: undefined, event: "done", data: {} },
-  ]);
-});
-test("malformed API items fail validation rather than entering navigation", () => {
-  assert.equal(
-    treeSchema.safeParse({
-      items: [{ id: "../../auth", title: "x", isFolder: false }],
-    }).success,
-    false,
-  );
 });

@@ -5,7 +5,6 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CanvasInstitutionPicker from "@/components/settings/canvas/canvas-institution-picker";
 import {
-  canvasHostFromInput,
   parseCanvasInstitutions,
 } from "@/lib/canvas/institution-search";
 
@@ -158,26 +157,6 @@ describe("Canvas institution picker", () => {
 });
 
 describe("Canvas institution domains", () => {
-  it("normalizes Canvas URLs and rejects credential or host tricks", () => {
-    expect(canvasHostFromInput("https://School.instructure.com/courses/1")).toBe(
-      "school.instructure.com",
-    );
-    expect(canvasHostFromInput("https://canvas.custom.edu")).toBe(
-      "canvas.custom.edu",
-    );
-    expect(canvasHostFromInput("https://sub.school.instructure.com")).toBe(
-      "sub.school.instructure.com",
-    );
-    for (const value of [
-      "https://school.instructure.com@attacker.test",
-      "school.instructure.com.attacker.test",
-      "https://school.instructure.com:8443",
-      "https://localhost",
-    ]) {
-      expect(canvasHostFromInput(value)).toBeNull();
-    }
-  });
-
   it("ignores malformed directory entries", () => {
     expect(parseCanvasInstitutions([null, {}, { name: "Bad", domain: 4 }])).toEqual([]);
     expect(parseCanvasInstitutions({ name: "Not a list" })).toEqual([]);

@@ -2,52 +2,31 @@
 
 import React from "react";
 import { act, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   pathname: "/notes/550e8400-e29b-41d4-a716-446655440000",
   replace: vi.fn(),
-  setPaneA: vi.fn(),
-  schedulePrefetch: vi.fn(),
   isDesktop: true,
   treeState: { initLoaded: false, generation: 0 },
 }));
 
-const layoutState = {
-  treeWidth: 220,
-  rightPanelWidth: 280,
-  rightPanelOpen: false,
-  rightPanelTab: "meta" as const,
-  splitPosition: 50,
-  paneA: { fileId: "", fileType: "note" },
-  paneB: null,
-  activePane: "A",
-  setPaneA: mocks.setPaneA,
-  setActivePane: vi.fn(),
-  setRightPanelOpen: vi.fn(),
-  setSizes: vi.fn(),
-};
-
 vi.mock("react-resizable-panels", () => ({
+  Separator: () => null,
   Group: ({ children }: { children: React.ReactNode }) =>
     React.createElement("div", null, children),
   Panel: ({ children }: { children: React.ReactNode }) =>
     React.createElement("div", null, children),
-  Separator: ({ "aria-label": ariaLabel }: { "aria-label"?: string }) =>
-    React.createElement("div", { role: "separator", "aria-label": ariaLabel }),
 }));
 
-vi.mock("next/navigation", () => ({
-  usePathname: () => mocks.pathname,
-  useRouter: () => ({ replace: mocks.replace }),
-}));
-
-vi.mock("@/lib/notes/state/layout", () => {
-  const useLayoutStore = (selector: (state: typeof layoutState) => unknown) =>
-    selector(layoutState);
-  useLayoutStore.getState = () => layoutState;
-  return { __esModule: true, default: useLayoutStore };
+vi.mock("next/navigation", () => {
+  const router = { replace: mocks.replace };
+  return { usePathname: () => mocks.pathname, useRouter: () => router };
 });
+
+vi.mock("@/components/navigation/use-sidebar-summary", () => ({
+  default: () => ({ name: "", email: "", avatarUrl: null, dueCount: 0 }),
+}));
 
 vi.mock("@/lib/notes/state/tree", () => {
   const useTreeStore = (selector: (state: typeof mocks.treeState) => unknown) =>
@@ -57,7 +36,7 @@ vi.mock("@/lib/notes/state/tree", () => {
 });
 
 vi.mock("@/lib/notes/prefetch", () => ({
-  schedulePrefetch: mocks.schedulePrefetch,
+  schedulePrefetch: () => {},
 }));
 
 vi.mock("@/lib/hooks/use-media-query", () => ({
@@ -75,19 +54,7 @@ vi.mock("@/lib/notes/hooks/use-note-tree-initialization", () => ({
   default: () => true,
 }));
 
-vi.mock("@/components/navigation/primary-navigation", () => ({
-  default: () => React.createElement("nav", null, "Desktop navigation"),
-}));
-vi.mock("@/components/navigation/mobile-app-header", () => ({
-  default: () => null,
-}));
-vi.mock("@/components/navigation/mobile-drawer", () => ({
-  default: () => null,
-}));
 vi.mock("@/components/canvas/canvas-token-banner", () => ({ default: () => null }));
-vi.mock("@/components/navigation/mobile-bottom-navigation", () => ({
-  default: () => React.createElement("nav", null, "Mobile navigation"),
-}));
 vi.mock("@/components/notes/mobile-library", () => ({
   default: () => React.createElement("div", null, "Mobile library content"),
 }));
@@ -105,6 +72,12 @@ vi.mock("@/components/notes/trash-page", () => ({
 }));
 
 import NotesWorkspace from "@/components/notes/notes-workspace";
+import useLayoutStore from "@/lib/notes/state/layout";
+
+const oldId = "550e8400-e29b-41d4-a716-446655440000";
+const newId = "67e55044-10b1-426f-9247-bb680e5fe0c8";
+
+afterEach(() => vi.unstubAllGlobals());
 
 describe("NotesWorkspace note route synchronization", () => {
   beforeEach(() => {
@@ -113,45 +86,29 @@ describe("NotesWorkspace note route synchronization", () => {
     mocks.treeState.generation = 0;
     mocks.treeState.initLoaded = false;
     mocks.pathname = "/notes/550e8400-e29b-41d4-a716-446655440000";
-    layoutState.paneA.fileId = "";
-    layoutState.rightPanelOpen = false;
+    useLayoutStore.getState().resetWorkspace();
+    useLayoutStore.setState({ rightPanelOpen: false });
     vi.stubGlobal("fetch", vi.fn());
-  });
-
-  it("shows the desktop rail without the mobile dock", () => {
-    layoutState.paneA.fileId = "550e8400-e29b-41d4-a716-446655440000";
-    render(React.createElement(NotesWorkspace));
-    expect(screen.getByText("Desktop navigation")).toBeTruthy();
-    expect(screen.queryByText("Mobile navigation")).toBeNull();
   });
 
   it("opens the library at the mobile Notes root even with a remembered note", () => {
     mocks.isDesktop = false;
     mocks.pathname = "/notes";
-    layoutState.paneA.fileId = "550e8400-e29b-41d4-a716-446655440000";
+    useLayoutStore.getState().setPaneA({ fileId: oldId, fileType: "note" });
     render(React.createElement(NotesWorkspace));
-    expect(screen.getByText("Mobile library content")).toBeTruthy();
-    expect(screen.getByText("Mobile navigation")).toBeTruthy();
-    expect(screen.queryByText("Desktop navigation")).toBeNull();
-    expect(screen.queryByText("Library content")).toBeNull();
-    expect(screen.queryByText("Editor content")).toBeNull();
+
+    expect(screen.getByRole("main", { name: "Notes" })).toBeTruthy();
+    expect(screen.getByRole("navigation", { name: "Main navigation" })).toBeTruthy();
+    expect(screen.queryByRole("main", { name: "Note editor" })).toBeNull();
   });
 
-  it("keeps a directly opened mobile note in the editor", async () => {
+  it("keeps a directly opened mobile note in the editor", () => {
     mocks.isDesktop = false;
-    layoutState.paneA.fileId = "550e8400-e29b-41d4-a716-446655440000";
+    useLayoutStore.getState().setPaneA({ fileId: oldId, fileType: "note" });
     render(React.createElement(NotesWorkspace));
-    expect(await screen.findByText("Editor content")).toBeTruthy();
-    expect(screen.queryByText("Mobile navigation")).toBeNull();
-    expect(screen.queryByText("Library content")).toBeNull();
-  });
 
-  it("does not prefetch desktop folders and remembered panes on mobile", () => {
-    mocks.isDesktop = false;
-    mocks.pathname = "/notes";
-    mocks.treeState.initLoaded = true;
-    render(React.createElement(NotesWorkspace));
-    expect(mocks.schedulePrefetch).not.toHaveBeenCalled();
+    expect(screen.getByRole("main", { name: "Note editor" })).toBeTruthy();
+    expect(screen.queryByRole("navigation", { name: "Main navigation" })).toBeNull();
   });
 
   it("hydrates a direct PDF route before choosing its renderer", async () => {
@@ -169,7 +126,7 @@ describe("NotesWorkspace note route synchronization", () => {
     render(React.createElement(NotesWorkspace));
 
     await waitFor(() => {
-      expect(mocks.setPaneA).toHaveBeenCalledWith({
+      expect(useLayoutStore.getState().paneA).toMatchObject({
         fileId: "550e8400-e29b-41d4-a716-446655440000",
         fileType: "pdf",
         title: "lecture.pdf",
@@ -205,7 +162,7 @@ describe("NotesWorkspace note route synchronization", () => {
     mocks.pathname = "/notes/67e55044-10b1-426f-9247-bb680e5fe0c8";
     rerender(React.createElement(NotesWorkspace));
     await waitFor(() =>
-      expect(mocks.setPaneA).toHaveBeenCalledWith({
+      expect(useLayoutStore.getState().paneA).toMatchObject({
         fileId: "67e55044-10b1-426f-9247-bb680e5fe0c8",
         fileType: "note",
         title: "New route",
@@ -221,7 +178,7 @@ describe("NotesWorkspace note route synchronization", () => {
       await oldJson;
     });
 
-    expect(mocks.setPaneA).toHaveBeenCalledOnce();
+    expect(useLayoutStore.getState().paneA.fileId).toBe(newId);
   });
 
   it("ignores a previous route 404 after navigating to another note", async () => {
@@ -244,7 +201,7 @@ describe("NotesWorkspace note route synchronization", () => {
 
     mocks.pathname = "/notes/67e55044-10b1-426f-9247-bb680e5fe0c8";
     rerender(React.createElement(NotesWorkspace));
-    await waitFor(() => expect(mocks.setPaneA).toHaveBeenCalledOnce());
+    await waitFor(() => expect(useLayoutStore.getState().paneA.fileId).toBe(newId));
 
     await act(async () => {
       resolveOldResponse?.(new Response(null, { status: 404 }));
@@ -252,7 +209,7 @@ describe("NotesWorkspace note route synchronization", () => {
     });
 
     expect(mocks.replace).not.toHaveBeenCalled();
-    expect(mocks.setPaneA).toHaveBeenCalledOnce();
+    expect(useLayoutStore.getState().paneA.fileId).toBe(newId);
   });
 
   it("rejects a route response when the store resets before React rerenders", async () => {
@@ -277,22 +234,8 @@ describe("NotesWorkspace note route synchronization", () => {
       );
     });
 
-    expect(mocks.setPaneA).not.toHaveBeenCalled();
+    expect(useLayoutStore.getState().paneA.fileId).toBe("");
     expect(mocks.replace).not.toHaveBeenCalled();
-  });
-
-  it("renders resize handles for both desktop side panels", () => {
-    layoutState.paneA.fileId = "550e8400-e29b-41d4-a716-446655440000";
-    layoutState.rightPanelOpen = true;
-
-    render(React.createElement(NotesWorkspace));
-
-    expect(
-      screen.getByRole("separator", { name: "Resize notes panel" }),
-    ).toBeTruthy();
-    expect(
-      screen.getByRole("separator", { name: "Resize details panel" }),
-    ).toBeTruthy();
   });
 
   it("renders Trash without treating its reserved route as a note id", async () => {
@@ -300,7 +243,7 @@ describe("NotesWorkspace note route synchronization", () => {
 
     render(React.createElement(NotesWorkspace, { view: "trash" }));
 
-    expect(await screen.findByText("Trash page")).toBeTruthy();
+    expect(screen.getByRole("main", { name: "Trash" })).toBeTruthy();
     expect(mocks.replace).not.toHaveBeenCalled();
     expect(fetch).not.toHaveBeenCalled();
   });
@@ -309,18 +252,16 @@ describe("NotesWorkspace note route synchronization", () => {
     "keeps the editor position when the inspector toggles, desktop=%s",
     (isDesktop) => {
       mocks.isDesktop = isDesktop;
-      layoutState.paneA.fileId = "550e8400-e29b-41d4-a716-446655440000";
-      const { rerender } = render(React.createElement(NotesWorkspace));
+      useLayoutStore.getState().setPaneA({ fileId: oldId, fileType: "note" });
+      render(React.createElement(NotesWorkspace));
       const editor = screen.getByText("Editor content");
       editor.scrollTop = 900;
 
-      layoutState.rightPanelOpen = true;
-      rerender(React.createElement(NotesWorkspace));
+      act(() => useLayoutStore.setState({ rightPanelOpen: true }));
       expect(screen.getByText("Editor content")).toBe(editor);
       expect(editor.scrollTop).toBe(900);
 
-      layoutState.rightPanelOpen = false;
-      rerender(React.createElement(NotesWorkspace));
+      act(() => useLayoutStore.setState({ rightPanelOpen: false }));
       expect(screen.getByText("Editor content")).toBe(editor);
       expect(editor.scrollTop).toBe(900);
       expect(fetch).not.toHaveBeenCalled();

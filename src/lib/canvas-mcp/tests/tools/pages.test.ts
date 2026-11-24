@@ -13,31 +13,18 @@ function fakeCanvas(overrides: Partial<CanvasClient>): CanvasClient {
 }
 
 describe("page tools", () => {
-    it("canvas_list_pages calls collectPaginated for a course", async () => {
+    it("canvas_list_pages passes optional sort and search_term", async () => {
         const collect = vi.fn().mockResolvedValue([{ url: "syllabus", title: "Syllabus" }]);
         const tool = findTool("canvas_list_pages");
         const result = await tool.handler(
-            { course_id: 10 },
-            { canvas: fakeCanvas({ collectPaginated: collect }) },
-        );
-        expect(collect).toHaveBeenCalledWith(
-            "/api/v1/courses/10/pages",
-            expect.objectContaining({ per_page: 100 }),
-        );
-        expect(result.content[0].text).toContain("Syllabus");
-    });
-
-    it("canvas_list_pages passes optional sort and search_term", async () => {
-        const collect = vi.fn().mockResolvedValue([{ url: "intro", title: "Intro" }]);
-        const tool = findTool("canvas_list_pages");
-        await tool.handler(
             { course_id: 10, sort: "title", search_term: "intro" },
             { canvas: fakeCanvas({ collectPaginated: collect }) },
         );
         expect(collect).toHaveBeenCalledWith(
             "/api/v1/courses/10/pages",
-            expect.objectContaining({ sort: "title", search_term: "intro" }),
+            expect.objectContaining({ per_page: 100, sort: "title", search_term: "intro" }),
         );
+        expect(result.content[0].text).toContain("Syllabus");
     });
 
     it("canvas_get_page fetches a single page by url slug", async () => {

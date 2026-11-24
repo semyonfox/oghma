@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import React from "react";
+import { useState } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -8,8 +8,6 @@ const mocks = vi.hoisted(() => ({
   loadChildren: vi.fn(),
   moveItem: vi.fn(),
   mutateNote: vi.fn(),
-  handleDuplicate: vi.fn(),
-  close: vi.fn(),
   tree: {
     items: {
       root: {
@@ -87,33 +85,22 @@ vi.mock("@/lib/notes/state/note", () => ({
     }),
   },
 }));
-vi.mock("@/components/navigation/mobile-sheet", () => ({
-  default: ({
-    open,
-    title,
-    children,
-  }: {
-    open: boolean;
-    title: string;
-    children: React.ReactNode;
-  }) =>
-    open ? (
-      <section role="dialog" aria-label={title}>
-        {children}
-      </section>
-    ) : null,
-}));
 vi.mock("@/components/notes/sidebar/use-sidebar-actions", () => ({
   useSidebarActions: () => ({
     handleDeleteRequest: vi.fn(),
     handleDeleteConfirm: vi.fn(),
     handleTogglePin: vi.fn(),
     handleOpenInAIChat: vi.fn(),
-    handleDuplicate: mocks.handleDuplicate,
+    handleDuplicate: vi.fn(),
   }),
 }));
 
 import MobileNoteActions from "@/components/notes/mobile-note-actions";
+
+function ClosableActions({ noteId }: { noteId: string }) {
+  const [open, setOpen] = useState(true);
+  return open ? <MobileNoteActions noteId={noteId} onClose={() => setOpen(false)} /> : null;
+}
 
 describe("MobileNoteActions", () => {
   beforeEach(() => {
@@ -123,7 +110,7 @@ describe("MobileNoteActions", () => {
   });
 
   it("renames an item using the entered name", async () => {
-    render(<MobileNoteActions noteId="note-a" onClose={mocks.close} />);
+    render(<ClosableActions noteId="note-a" />);
 
     fireEvent.click(screen.getByRole("button", { name: "Rename" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
@@ -136,39 +123,28 @@ describe("MobileNoteActions", () => {
         title: "Exam revision",
       }),
     );
-    expect(mocks.close).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
   it("keeps a failed rename open with the entered name and an error", async () => {
     mocks.mutateNote.mockRejectedValueOnce(new Error("Offline"));
-    render(<MobileNoteActions noteId="note-a" onClose={mocks.close} />);
+    render(<ClosableActions noteId="note-a" />);
     fireEvent.click(screen.getByRole("button", { name: "Rename" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Name" }), { target: { value: "Revision" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(await screen.findByRole("alert")).toBeTruthy();
-    expect((screen.getByRole("textbox", { name: "Name" }) as HTMLInputElement).value).toBe("Revision");
-    expect(mocks.close).not.toHaveBeenCalled();
-  });
-
-  it("duplicates through the shared sidebar action and closes the sheet", async () => {
-    mocks.handleDuplicate.mockResolvedValueOnce(undefined);
-    render(<MobileNoteActions noteId="note-a" onClose={mocks.close} />);
-    fireEvent.click(screen.getByRole("button", { name: "Duplicate" }));
-    await waitFor(() => expect(mocks.handleDuplicate).toHaveBeenCalledWith("note-a"));
-    await waitFor(() => expect(mocks.close).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveProperty("value", "Revision");
+    expect(screen.getByRole("dialog")).toBeTruthy();
   });
 
   it("excludes a folder and its descendants from move destinations, then moves to an allowed folder", async () => {
-    render(<MobileNoteActions noteId="folder-a" onClose={mocks.close} />);
+    render(<ClosableActions noteId="folder-a" />);
 
     fireEvent.click(screen.getByRole("button", { name: "Move to folder" }));
     expect(screen.queryByRole("button", { name: "Folder A" })).toBeNull();
     expect(screen.getByRole("button", { name: "Folder B" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Folder B" }));
 
-    await waitFor(() =>
-      expect(mocks.loadChildren).toHaveBeenCalledWith("folder-b"),
-    );
     fireEvent.click(screen.getByRole("button", { name: "Move here" }));
     await waitFor(() =>
       expect(mocks.moveItem).toHaveBeenCalledWith({

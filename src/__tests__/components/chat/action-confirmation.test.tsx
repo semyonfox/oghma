@@ -4,7 +4,6 @@ import {
   fireEvent,
   render,
   screen,
-  waitFor,
   cleanup,
 } from "@testing-library/react";
 const tree = vi.hoisted(() => ({ refreshTree: vi.fn(async () => undefined), ownerUserId: "user-1", initLoaded: true }));
@@ -70,7 +69,6 @@ describe("reviewing canonical tool proposals", () => {
     const view = render(<ActionConfirmation actionId={id} />);
     await screen.findByRole("button", { name: "Approve action" });
     view.rerender(<ActionConfirmation actionId={other} />);
-    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
     expect(screen.queryByRole("button", { name: "Approve action" })).toBeNull();
     expect(screen.queryByText("renameNote")).toBeNull();
   });

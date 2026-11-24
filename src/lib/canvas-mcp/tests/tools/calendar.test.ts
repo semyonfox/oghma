@@ -13,24 +13,11 @@ function fakeCanvas(overrides: Partial<CanvasClient>): CanvasClient {
 }
 
 describe("calendar tools", () => {
-    it("canvas_list_calendar_events calls collectPaginated", async () => {
-        const collect = vi.fn().mockResolvedValue([{ id: 1, title: "Lecture", type: "event" }]);
+    it("canvas_list_calendar_events passes context_codes, dates, and type", async () => {
+        const items = [{ id: 1, title: "Lecture" }];
+        const collect = vi.fn().mockResolvedValue(items);
         const tool = findTool("canvas_list_calendar_events");
         const result = await tool.handler(
-            {},
-            { canvas: fakeCanvas({ collectPaginated: collect }) },
-        );
-        expect(collect).toHaveBeenCalledWith(
-            "/api/v1/calendar_events",
-            expect.objectContaining({ per_page: 100 }),
-        );
-        expect(result.content[0].text).toContain("Lecture");
-    });
-
-    it("canvas_list_calendar_events passes context_codes, dates, and type", async () => {
-        const collect = vi.fn().mockResolvedValue([]);
-        const tool = findTool("canvas_list_calendar_events");
-        await tool.handler(
             {
                 context_codes: ["course_123", "course_456"],
                 start_date: "2024-09-01",
@@ -42,67 +29,37 @@ describe("calendar tools", () => {
         expect(collect).toHaveBeenCalledWith(
             "/api/v1/calendar_events",
             expect.objectContaining({
+                per_page: 100,
                 context_codes: ["course_123", "course_456"],
                 start_date: "2024-09-01",
                 end_date: "2024-12-31",
                 type: "assignment",
             }),
         );
+        expect(JSON.parse(result.content[0].text)).toEqual(items);
     });
 
-    it("canvas_list_upcoming_events calls get for upcoming events", async () => {
-        const get = vi.fn().mockResolvedValue([{ id: 2, title: "Quiz due", type: "assignment" }]);
+    it("canvas_list_upcoming_events applies the limit after filtering", async () => {
+        const events = [
+            { id: 1, title: "Quiz", type: "assignment" },
+            { id: 2, title: "Office hours", type: "event" },
+            { id: 3, title: "Guest lecture", type: "event" },
+        ];
+        const get = vi.fn().mockResolvedValue(events);
         const tool = findTool("canvas_list_upcoming_events");
         const result = await tool.handler(
-            {},
+            { type: "event", limit: 1 },
             { canvas: fakeCanvas({ get }) },
         );
         expect(get).toHaveBeenCalledWith("/api/v1/users/self/upcoming_events");
-        expect(result.content[0].text).toContain("Quiz due");
-    });
-
-    it("canvas_list_upcoming_events filters by type client-side", async () => {
-        const get = vi.fn().mockResolvedValue([
-            { id: 1, title: "Quiz", type: "assignment" },
-            { id: 2, title: "Office hours", type: "event" },
-        ]);
-        const tool = findTool("canvas_list_upcoming_events");
-        const result = await tool.handler({ type: "event" }, { canvas: fakeCanvas({ get }) });
-        const parsed = JSON.parse(result.content[0].text) as Array<{ type: string }>;
-        expect(parsed).toHaveLength(1);
-        expect(parsed[0].type).toBe("event");
-    });
-
-    it("canvas_list_upcoming_events applies limit after filtering", async () => {
-        const get = vi.fn().mockResolvedValue([
-            { id: 1, type: "assignment" },
-            { id: 2, type: "assignment" },
-            { id: 3, type: "assignment" },
-        ]);
-        const tool = findTool("canvas_list_upcoming_events");
-        const result = await tool.handler({ limit: 2 }, { canvas: fakeCanvas({ get }) });
-        const parsed = JSON.parse(result.content[0].text) as unknown[];
-        expect(parsed).toHaveLength(2);
-    });
-
-    it("canvas_list_planner_items calls collectPaginated", async () => {
-        const collect = vi.fn().mockResolvedValue([{ plannable_id: 10, plannable_type: "assignment" }]);
-        const tool = findTool("canvas_list_planner_items");
-        const result = await tool.handler(
-            {},
-            { canvas: fakeCanvas({ collectPaginated: collect }) },
-        );
-        expect(collect).toHaveBeenCalledWith(
-            "/api/v1/planner/items",
-            expect.objectContaining({ per_page: 100 }),
-        );
-        expect(result.content[0].text).toContain("plannable_id");
+        expect(JSON.parse(result.content[0].text)).toEqual([events[1]]);
     });
 
     it("canvas_list_planner_items passes start_date, end_date, and context_codes", async () => {
-        const collect = vi.fn().mockResolvedValue([]);
+        const items = [{ plannable_id: 4 }];
+        const collect = vi.fn().mockResolvedValue(items);
         const tool = findTool("canvas_list_planner_items");
-        await tool.handler(
+        const result = await tool.handler(
             {
                 start_date: "2024-09-01",
                 end_date: "2024-10-01",
@@ -113,11 +70,13 @@ describe("calendar tools", () => {
         expect(collect).toHaveBeenCalledWith(
             "/api/v1/planner/items",
             expect.objectContaining({
+                per_page: 100,
                 start_date: "2024-09-01",
                 end_date: "2024-10-01",
                 context_codes: ["course_99"],
             }),
         );
+        expect(JSON.parse(result.content[0].text)).toEqual(items);
     });
 
     it("canvas_list_todo_items calls get for todo list", async () => {
