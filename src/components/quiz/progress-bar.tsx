@@ -7,6 +7,7 @@ interface ProgressBarProps {
   total: number;
   onBack: () => void;
   onSkip?: () => void;
+  skipDisabled?: boolean;
 }
 
 export default function ProgressBar({
@@ -14,6 +15,7 @@ export default function ProgressBar({
   total,
   onBack,
   onSkip,
+  skipDisabled,
 }: ProgressBarProps) {
   const { t } = useI18n();
   const pct = total > 0 ? (current / total) * 100 : 0;
@@ -37,7 +39,8 @@ export default function ProgressBar({
       {onSkip && (
         <button
           onClick={onSkip}
-          className="min-h-11 rounded-radius-md px-2 text-sm text-text-secondary transition-colors hover:bg-subtle hover:text-text"
+          disabled={skipDisabled}
+          className="min-h-11 rounded-radius-md px-2 text-sm text-text-secondary transition-colors hover:bg-subtle hover:text-text disabled:opacity-50"
         >
           {t("quiz.progress.skip")}
         </button>
