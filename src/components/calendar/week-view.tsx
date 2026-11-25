@@ -354,7 +354,7 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
                             event.currentTarget,
                           );
                         }}
-                        className="touch-target-24 relative shrink-0"
+                        className="touch-target-44 relative shrink-0"
                         aria-label={
                           block.completed
                             ? t("Mark incomplete")
