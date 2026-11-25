@@ -1,6 +1,6 @@
 "use client";
 
-import { FC, useState, useRef, useEffect } from "react";
+import { FC, useState, useRef, useEffect, useMemo, useId } from "react";
 import { useRouter } from "next/navigation";
 import { FileSpec } from "@/lib/notes/state/layout";
 import useLayoutStore from "@/lib/notes/state/layout";
@@ -172,6 +172,10 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane }) => {
   const [extraction, setExtraction] = useState<PdfExtractionState | null>(null);
   const previousExtractionStatus = useRef<PdfExtractionState["status"] | null>(null);
   const [numPages, setNumPages] = useState<number | null>(null);
+  const [pageList, setPageList] = useState<HTMLDivElement | null>(null);
+  const pageCountId = useId();
+  const jumpPosition = useRef<number | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const [scale, setScale] = useState(1);
   const [fitMode, setFitMode] = useState(true);
   const [containerWidth, setContainerWidth] = useState<number | null>(null);
@@ -191,7 +195,7 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane }) => {
     loading,
     error: urlError,
   } = usePdfCache(file.sourcePath, file.fileId);
-  const pdfSource = (pdfData ? { data: pdfData } : null);
+  const pdfSource = useMemo(() => pdfData ? { data: pdfData } : null, [pdfData]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -252,16 +256,45 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane }) => {
     }
   };
 
-  // keep containerWidth in sync with pane resizes
   useEffect(() => {
     if (!scrollRoot) return;
+    const slots = pageList?.querySelectorAll<HTMLElement>("[data-pdf-page-number]");
+    const updatePage = () => {
+      if (!slots?.length || scrollRoot.scrollTop === jumpPosition.current) return;
+      jumpPosition.current = null;
+      if (scrollRoot.scrollTop <= 1) {
+        setCurrentPage(1);
+        return;
+      }
+      if (scrollRoot.scrollTop + scrollRoot.clientHeight >= scrollRoot.scrollHeight - 1) {
+        setCurrentPage(slots.length);
+        return;
+      }
+      const middle = scrollRoot.getBoundingClientRect().top + scrollRoot.clientHeight / 2;
+      let first = 0;
+      let last = slots.length - 1;
+      while (first < last) {
+        const mid = Math.floor((first + last) / 2);
+        if (slots[mid].getBoundingClientRect().bottom < middle) first = mid + 1;
+        else last = mid;
+      }
+      setCurrentPage(first + 1);
+    };
+    updatePage();
+    scrollRoot.addEventListener("scroll", updatePage, { passive: true });
     const observer = new ResizeObserver((entries) => {
-      const w = entries[0]?.contentRect.width;
-      if (w) setContainerWidth(w);
+      const width = entries.find(entry => entry.target === scrollRoot)?.contentRect.width;
+      if (width) setContainerWidth(width);
+      jumpPosition.current = null;
+      updatePage();
     });
     observer.observe(scrollRoot);
-    return () => observer.disconnect();
-  }, [scrollRoot]);
+    if (pageList) observer.observe(pageList);
+    return () => {
+      observer.disconnect();
+      scrollRoot.removeEventListener("scroll", updatePage);
+    };
+  }, [scrollRoot, pageList, numPages]);
 
   const referenceWidth = referenceSize?.width ?? A4_WIDTH_POINTS;
   const fitScale = containerWidth ? containerWidth / referenceWidth : 1;
@@ -319,9 +352,29 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane }) => {
       {/* Controls */}
       <div className="flex flex-shrink-0 items-center justify-between border-b border-border-subtle bg-background px-2 py-1 md:px-4 md:py-2">
         <div className="text-xs text-text-tertiary">
-          {numPages
-            ? t("pdf_viewer.page_count", { count: numPages })
-            : t("Loading...")}
+          {numPages ? (
+            <label className="inline-flex items-center gap-1">
+              <select
+                aria-label={t("pdf_viewer.jump_to_page")}
+                aria-describedby={pageCountId}
+                className="min-h-10 rounded bg-surface px-2 text-text md:min-h-7"
+                value={currentPage}
+                onChange={(event) => {
+                  const page = Number(event.target.value);
+                  const slot = pageList?.querySelector<HTMLElement>(`[data-pdf-page-number="${page}"]`);
+                  if (scrollRoot && slot) {
+                    slot.scrollIntoView({ behavior: "instant", block: slot.offsetHeight >= scrollRoot.clientHeight ? "start" : "center" });
+                    jumpPosition.current = scrollRoot.scrollTop;
+                    setCurrentPage(page);
+                  }
+                }}
+              >
+                {Array.from({ length: numPages }, (_, i) => <option key={i} value={i + 1}>{i + 1}</option>)}
+              </select>
+              <span aria-hidden="true">/ {numPages}</span>
+              <span id={pageCountId} className="sr-only">{t("pdf_viewer.page_count", { count: numPages })}</span>
+            </label>
+          ) : t("Loading...")}
         </div>
 
         <div className="flex items-center gap-1">
@@ -457,7 +510,7 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane }) => {
               <div className="text-error-700 dark:text-error-400 mt-16">{t("pdf_viewer.error")}</div>
             }
           >
-            <div className="flex flex-col items-center gap-4">
+            <div ref={setPageList} className="flex flex-col items-center gap-4">
               {numPages &&
                 Array.from({ length: numPages }, (_, i) => i + 1).map(
                   (pageNum) => (

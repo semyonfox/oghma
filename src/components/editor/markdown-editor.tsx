@@ -610,11 +610,11 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
               className="mx-auto h-full w-full px-6 py-8 sm:px-10"
               style={{ maxWidth: editorMaxWidth }}
             >
-              <div className="h-5 w-2/5 animate-pulse rounded-radius-sm bg-subtle" />
+              <div className="h-5 w-2/5 skeleton rounded-radius-sm" />
               <div className="mt-7 space-y-3" aria-hidden="true">
-                <div className="h-3 w-full animate-pulse rounded-radius-sm bg-subtle" />
-                <div className="h-3 w-11/12 animate-pulse rounded-radius-sm bg-subtle" />
-                <div className="h-3 w-4/5 animate-pulse rounded-radius-sm bg-subtle" />
+                <div className="h-3 w-full skeleton rounded-radius-sm" />
+                <div className="h-3 w-11/12 skeleton rounded-radius-sm" />
+                <div className="h-3 w-4/5 skeleton rounded-radius-sm" />
               </div>
               <span className="sr-only">{t("Loading...")}</span>
             </div>

@@ -21,6 +21,8 @@ import {
   type WorkspaceInvalidation,
 } from "@/lib/notes/workspace-invalidation";
 import useI18n from "@/lib/notes/hooks/use-i18n";
+import { ROOT_ID } from "@/lib/notes/types/tree";
+import { serverEventsConnected, subscribeServerEvents } from "@/lib/server-events/client";
 
 interface WorkspaceSessionValue {
   userId: string | null;
@@ -33,6 +35,15 @@ const WorkspaceSessionContext = createContext<WorkspaceSessionValue>({
   ready: false,
   refreshIdentity: async () => false,
 });
+
+/** a tab coming back within this long of its last refresh keeps what it has */
+const CATCH_UP_INTERVAL_MS = 30_000;
+/** with live tree events the return check is only a safety net for missed ones */
+const CATCH_UP_WITH_EVENTS_MS = 5 * 60_000;
+/** past this many changed folders one full refresh is cheaper than branch reads */
+const MAX_BRANCH_REFRESHES = 6;
+/** a bulk import sends a burst, so changes are gathered briefly before reading */
+const TREE_EVENT_BATCH_MS = 300;
 
 function isWorkspacePath(pathname: string): boolean {
   return (
@@ -130,7 +141,12 @@ export default function WorkspaceLifecycleProvider({
 
   useEffect(() => {
     if (!managedPath) return;
-    const catchUp = async () => {
+    // returning to a tab fires visibilitychange and focus together, and
+    // alt-tabbing fires focus every time, so share one run and skip repeats
+    // soon after a refresh. other tabs in this browser still invalidate at once
+    let running: Promise<void> | null = null;
+    let refreshedAt = Number.NEGATIVE_INFINITY;
+    const run = async () => {
       const identityVerified = await verifyIdentity();
       if (!identityVerified) return;
       const treeState = useNoteTreeStore.getState();
@@ -138,9 +154,20 @@ export default function WorkspaceLifecycleProvider({
         return;
       }
       await treeState.refreshTree()
+        .then(() => {
+          refreshedAt = Date.now();
+        })
         .catch((error: unknown) => {
           console.warn("Failed to refresh notes after returning to the app:", error);
         });
+    };
+    const catchUp = async () => {
+      const interval = serverEventsConnected() ? CATCH_UP_WITH_EVENTS_MS : CATCH_UP_INTERVAL_MS;
+      if (running || Date.now() - refreshedAt < interval) return;
+      running = run().finally(() => {
+        running = null;
+      });
+      await running;
     };
     const handleFocus = () => void catchUp();
     const handleVisibility = () => {
@@ -153,6 +180,40 @@ export default function WorkspaceLifecycleProvider({
       document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, [managedPath]);
+
+  // tree changes from other devices, workers and imports arrive as server
+  // events naming the folder that changed, so only that branch is re-read
+  useEffect(() => {
+    if (!userId) return;
+    let parents = new Set<string>();
+    let everything = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const flush = () => {
+      timer = undefined;
+      const changed = [...parents];
+      const full = everything || changed.length > MAX_BRANCH_REFRESHES;
+      parents = new Set();
+      everything = false;
+      const treeState = useNoteTreeStore.getState();
+      if (treeState.ownerUserId !== userId || !treeState.treeAPI || !treeState.initLoaded) return;
+      void (full ? treeState.refreshTree() : treeState.refreshBranches(changed))
+        .catch((error: unknown) => {
+          console.warn("Failed to apply a live tree change:", error);
+        });
+    };
+
+    const unsubscribe = subscribeServerEvents((event) => {
+      if (event.type === "resync") everything = true;
+      else if (event.type === "tree") parents.add(event.parentId ?? ROOT_ID);
+      else return;
+      if (timer === undefined) timer = setTimeout(flush, TREE_EVENT_BATCH_MS);
+    });
+    return () => {
+      clearTimeout(timer);
+      unsubscribe();
+    };
+  }, [userId]);
 
   useEffect(() => {
     if (!userId) return;

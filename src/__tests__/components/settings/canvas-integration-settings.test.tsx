@@ -103,6 +103,33 @@ describe("CanvasIntegrationSettings connection check", () => {
     ).toBeNull();
   });
 
+  it("guides an empty connection attempt to the missing school and then token", async () => {
+    mockConnectionResponse({
+      connected: false,
+      connectionState: "not-configured",
+    });
+    render(<CanvasIntegrationSettings />);
+
+    const connect = await screen.findByRole("button", { name: "Connect Canvas" });
+    const token = screen.getByLabelText("API Token");
+    const school = screen.getByLabelText("Find your school on Canvas");
+    expect(connect.hasAttribute("disabled")).toBe(false);
+
+    fireEvent.click(connect);
+    expect(document.activeElement).toBe(school);
+    expect(screen.getByText("Choose your school or confirm your Canvas URL.").id)
+      .toBe(school.getAttribute("aria-describedby"));
+    expect(screen.getByText("Enter your Canvas API token.")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Use your Canvas URL instead" }));
+    fireEvent.change(screen.getByLabelText("Canvas URL"), {
+      target: { value: "https://example.instructure.com" },
+    });
+    fireEvent.click(connect);
+    expect(document.activeElement).toBe(token);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
   it("shows reconnection guidance and restores the known Canvas host", async () => {
     mockConnectionResponse({
       connected: false,

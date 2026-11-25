@@ -31,9 +31,10 @@ export function NewMenu({
       </PopoverButton>
       <PopoverPanel
         anchor="bottom end"
+        transition
         role="menu"
         aria-label={t("New")}
-        className="z-[60] w-48 rounded-radius-lg border border-border bg-surface-overlay p-1 text-text shadow-float [--anchor-gap:6px] [--anchor-padding:8px] focus:outline-none"
+        className="z-[60] w-48 rounded-radius-lg border border-border bg-surface-overlay p-1 text-text shadow-float origin-top-right transition-[scale,opacity] duration-150 ease-out data-closed:scale-95 data-closed:opacity-0 data-leave:duration-120 rtl:origin-top-left motion-reduce:transition-none motion-reduce:data-closed:scale-100 [--anchor-gap:6px] [--anchor-padding:8px] focus:outline-none"
       >
         {({ close }) => (
           <>

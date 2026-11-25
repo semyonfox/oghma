@@ -460,6 +460,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
+              enterKeyHint="send"
               placeholder={t("chat.ask_about_note")}
               aria-label={t("chat.ask_about_note")}
               disabled={composerDisabled}
@@ -500,11 +501,16 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
             (messages.length === 0 || sessionId !== controlledSessionId) ? (
               restoreError ? null : (
                 <div
-                  className="flex justify-center py-8"
+                  className="min-h-full flex-1 space-y-5 py-3"
                   role="status"
                   aria-label={t("Loading...")}
                 >
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-text-tertiary/30 border-t-text-tertiary" />
+                  <div aria-hidden="true" className="skeleton ml-auto h-10 w-2/5 rounded-radius-xl" />
+                  <div aria-hidden="true" className="space-y-2.5">
+                    <div className="skeleton h-3 w-4/5 rounded-radius-sm" />
+                    <div className="skeleton h-3 w-3/4 rounded-radius-sm" />
+                    <div className="skeleton h-3 w-1/2 rounded-radius-sm" />
+                  </div>
                 </div>
               )
             ) : messages.length === 0 ? (
@@ -639,6 +645,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                   e.target.style.height = `${Math.min(e.target.scrollHeight, 96)}px`;
                 }}
                 onKeyDown={handleKeyDown}
+                enterKeyHint="send"
                 placeholder={t("chat.ask_placeholder")}
                 aria-label={t("chat.ask_placeholder")}
                 disabled={composerDisabled}
@@ -654,7 +661,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                   title={t("Stop generating")}
                 >
                   <StopCircleIcon
-                    className={`h-4 w-4 ${backgroundLoading ? "animate-pulse" : ""}`}
+                    className="h-4 w-4"
                   />
                 </button>
               ) : (

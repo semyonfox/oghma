@@ -48,8 +48,30 @@ describe("sign-in feedback", () => {
       "Loading...",
     );
   });
+  it("shows missing fields inline and focuses the first one without submitting", () => {
+    mocks.providers.mockReturnValue(new Promise(() => {}));
+    render(<LoginPage />);
+
+    const submit = screen.getByRole("button", { name: "Sign in" });
+    const email = screen.getByLabelText("Email address");
+    const password = screen.getByLabelText("Password");
+    expect(submit.closest("form")?.noValidate).toBe(true);
+
+    fireEvent.click(submit);
+    expect(document.activeElement).toBe(email);
+    expect(screen.getByText("Enter your email address").id).toBe(email.getAttribute("aria-describedby"));
+    expect(screen.getByText("Enter your password").id).toBe(password.getAttribute("aria-describedby"));
+
+    fireEvent.change(email, { target: { value: "student@example.test" } });
+    fireEvent.click(submit);
+    expect(document.activeElement).toBe(password);
+    expect(mocks.login).not.toHaveBeenCalled();
+  });
+
   it("announces failed credentials and focuses feedback after it mounts", async () => {
-    mocks.login.mockRejectedValue(new Error("Invalid sign-in details"));
+    mocks.login.mockRejectedValue(
+      Object.assign(new Error("Invalid email or password"), { status: 401 }),
+    );
     render(<LoginPage />);
     fireEvent.change(screen.getByLabelText("Email address"), {
       target: { value: "student@example.test" },
@@ -62,7 +84,11 @@ describe("sign-in feedback", () => {
     );
     const alert = await screen.findByRole("alert");
     await waitFor(() => expect(document.activeElement).toBe(alert));
-    expect(alert.textContent).toContain("Invalid sign-in details");
+    expect(alert.textContent).toContain("That email and password don’t match an account.");
+    expect(screen.getByRole("link", { name: "Reset your password" }).getAttribute("href"))
+      .toBe("/forgot-password");
+    expect(screen.getByLabelText("Email address").getAttribute("value"))
+      .toBe("student@example.test");
     expect(
       screen.getByRole("button", { name: "Sign in" }).hasAttribute("disabled"),
     ).toBe(false);

@@ -226,7 +226,8 @@ function CourseVisibilityManager({
           type="text"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder={t("Search courses")}
+          aria-label={t("Search courses")}
+          placeholder={t("search_courses.placeholder")}
           className="w-full rounded-radius-md border border-border bg-input px-9 py-2 text-base text-text placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/50 sm:text-sm"
         />
       </div>

@@ -72,9 +72,9 @@ function VerifyEmailContent() {
           .object({ error: z.string().max(500) })
           .safeParse(await response.json().catch(() => null));
         throw new Error(
-          error.success
+          error.success && error.data.error !== "Invalid or expired verification token"
             ? error.data.error
-            : t("Verification failed. The link may have expired."),
+            : t("Couldn’t verify your email. Open the latest verification link or request a new one."),
         );
       }
       setPassword("");

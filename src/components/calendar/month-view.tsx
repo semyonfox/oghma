@@ -64,7 +64,9 @@ export default function MonthView({ onSelectDate }: MonthViewProps) {
   ) => {
     const origin = completed ? undefined : getCelebrationOrigin(control);
     if (!(await toggleTimeBlockCompleted(id))) {
-      toast.error(t("Something went wrong"));
+      toast.error(completed
+        ? t("Couldn’t mark the study block incomplete. Try again.")
+        : t("Couldn’t mark the study block complete. Try again."));
       return;
     }
     if (!completed) void triggerCelebration("assignment", origin);
@@ -72,7 +74,7 @@ export default function MonthView({ onSelectDate }: MonthViewProps) {
 
   const handleDeleteBlock = async (id: string) => {
     if (!(await deleteTimeBlock(id))) {
-      toast.error(t("Something went wrong"));
+      toast.error(t("Couldn’t delete the study block. Try again."));
     }
   };
 
@@ -86,7 +88,9 @@ export default function MonthView({ onSelectDate }: MonthViewProps) {
       status: completed ? "upcoming" : "done",
     });
     if (!updated) {
-      toast.error(t("Something went wrong"));
+      toast.error(completed
+        ? t("Couldn’t mark the task as upcoming. Try again.")
+        : t("Couldn’t mark the task done. Try again."));
       return;
     }
     if (!completed) void triggerCelebration("assignment", origin);
@@ -252,7 +256,7 @@ export default function MonthView({ onSelectDate }: MonthViewProps) {
                           e.stopPropagation();
                           void handleDeleteBlock(tb.id);
                         }}
-                        className="pointer-events-auto absolute right-0.5 top-0.5 rounded p-0.5 opacity-100 transition hover:bg-subtle md:opacity-0 md:group-hover/tb:opacity-100"
+                        className="touch-target-24 pointer-events-auto absolute right-0.5 top-0.5 rounded p-0.5 opacity-100 transition hover:bg-subtle md:opacity-0 md:group-hover/tb:opacity-100 focus-visible:opacity-100"
                         aria-label={t("Delete study block")}
                         title={t("Delete study block")}
                       >

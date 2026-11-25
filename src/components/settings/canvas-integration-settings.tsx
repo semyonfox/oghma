@@ -248,7 +248,7 @@ export default function CanvasIntegrationSettings() {
 
   const handleConnect = async () => {
     const rawToken = tokenInputRef.current?.value?.trim() ?? "";
-    if (!domain || !rawToken) return;
+    if (isConnecting || !domain || !rawToken) return;
 
     setIsConnecting(true);
     setConnectionError(null);
@@ -456,7 +456,7 @@ export default function CanvasIntegrationSettings() {
 
   if (isCheckingConnection) {
     return (
-      <div role="status" className="text-sm text-text-tertiary animate-pulse">
+      <div role="status" className="text-sm text-text-tertiary">
         {t("Checking Canvas connection...")}
       </div>
     );

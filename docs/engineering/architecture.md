@@ -2,7 +2,7 @@
 
 > **Status:** Active reference
 >
-> **Last reviewed:** 2026-10-16 (after the domain audit fixes landed on `dev`)
+> **Last reviewed:** 2026-11-25 (live updates and stream presence)
 >
 > **Source of truth:** Current application code, [`database/migrations/`](../../database/migrations/), and [`infra/HOMELAB.md`](../../infra/HOMELAB.md)
 
@@ -105,6 +105,39 @@ not a live dependency; see the [Vast Marker runbook](../operations/vast-marker.m
 See [Import pipeline](import-pipeline.md) for the import processing contract
 and tuning boundaries.
 
+## Live updates
+
+Signed-in tabs hold one server-sent event stream,
+[`/api/events`](../../src/app/api/events/route.ts), instead of polling for
+worker progress and tree changes. PostgreSQL triggers from migration
+[`093_server_events.sql`](../../database/migrations/093_server_events.sql)
+call `pg_notify` when a tree row, a tree-visible note column, a study material,
+a study job or an import job changes, whether a route or the worker wrote it.
+Each app process holds one `LISTEN` connection in
+[`src/lib/server-events/hub.ts`](../../src/lib/server-events/hub.ts) and passes
+a user's events to that user's open streams.
+
+Events only name what changed: a tree folder, a study map, or the import jobs.
+The tab refetches through the normal routes. Note autosaves do not notify, apart
+from the first edit after five quiet minutes, which keeps a tree sorted by recent
+edits in order. When the stream drops or the `LISTEN` connection reconnects,
+tabs receive a `resync` and refetch what they show. Streams end after 30 minutes
+so the session is checked again on reconnect.
+
+While the stream is connected nothing polls. Views fetch when an event names
+them, and the study map progress dial re-labels itself locally as time passes.
+The one exception is the Canvas import loop, which keeps a 60 second check while
+an import runs, because finishing an import also waits on this tab's own tree
+and note reads and a failed read is only retried by the next check. When the
+stream is down, or refused, views go back to their old poll intervals through
+[`src/lib/server-events/poller.ts`](../../src/lib/server-events/poller.ts),
+which also holds any fetch in a hidden tab until it is visible again. A refused
+stream is retried after a minute, backing off to 15 minutes.
+
+The stream opens on every signed-in page, not only where something listens,
+because it is also the tab's chat presence (see below). Pages without a session
+cookie never open it.
+
 ## Search and chat
 
 Indexing stores chunk text and ownership in PostgreSQL, computes embeddings through the configured provider, and upserts vectors to Qdrant. Semantic search and chat embed the query, retrieve Qdrant results filtered by `user_id`, and hydrate the chunk text from PostgreSQL scoped to the same user's live notes, so ownership is checked twice. There is no reranking step; the unused rerank modules were deleted in #633, though `RERANK_*` settings remain in the env templates. Query embeddings get one 10 s attempt per endpoint so a hung provider can't stall search; indexing keeps its longer `EMBEDDING_TIMEOUT_MS` budget.
@@ -136,14 +169,17 @@ app liveness remains available when Redis is degraded, while
 and the BullMQ provider are available. Worker readiness separately validates
 the `chat-generation` queue. See the [chat runbook](../operations/chat.md).
 
-Generations are cancellable. Every open browser tab heartbeats a per-user,
-per-tab presence hash in Redis through [`src/lib/chat/presence.ts`](../../src/lib/chat/presence.ts)
-and removes its own field with a `pagehide` beacon. A worker watchdog aborts
+Generations are cancellable. Every open browser tab holds an `/api/events`
+stream, and while it is open the server keeps that tab's field in a per-user
+presence hash in Redis fresh on the stream's 25 second ping, through
+[`src/lib/chat/presence.ts`](../../src/lib/chat/presence.ts). Closing the
+stream removes the field, and a stream whose close was never seen goes stale
+after 90 seconds. The browser sends nothing for presence. A worker watchdog aborts
 the LLM stream when the user explicitly stops (Redis cancel flag set by
 `/api/chat/generations/[id]/cancel`) or when presence has been absent for a
-full grace window — a real disconnect. In-app navigation and other open tabs
-keep presence alive, so only closing the last tab (or a crash, via staleness)
-cancels; users that never had browser presence, such as API clients, are only
+full grace window, which is a real disconnect. In-app navigation and other open tabs
+keep presence alive, so only closing the last tab, or a crash via staleness,
+cancels. Users that never had browser presence, such as API clients, are only
 ever cancelled explicitly. On abort the worker persists any partial answer as
 an interrupted assistant message, marks the generation `cancelled`, and does
 not retry. The inline SSE path aborts the same way when its client connection

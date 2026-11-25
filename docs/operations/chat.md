@@ -23,6 +23,11 @@ last Redis event ID when delivery breaks. PostgreSQL owns sessions, messages,
 request payloads, and terminal state. Redis owns queue transport, short-lived
 event replay, cancellation flags, and browser presence.
 
+Browser presence comes from each tab's open `/api/events` stream, which the app
+refreshes in Redis every 25 seconds. If generations are cancelled while the user
+still has the app open, check that those streams stay open through nginx and
+Cloudflare. A stream closing early looks the same as a closed tab.
+
 The client reconciles each completed generation with the saved session while
 keeping message bubbles and work-log expansion mounted. Reconnects retain the
 last event cursor. If replay has no completion event but PostgreSQL has settled

@@ -43,6 +43,7 @@ export default function DayAgenda({
     loading: blocksLoading,
     error: blocksError,
     reviewDates,
+    reviewDatesError,
     toggleTimeBlockCompleted,
     deleteTimeBlock,
   } = useCalendarStore();
@@ -74,7 +75,7 @@ export default function DayAgenda({
     (assignmentsLoading || blocksLoading) &&
     dayAssignments.length === 0 &&
     dayBlocks.length === 0;
-  const error = assignmentsError || blocksError;
+  const error = assignmentsError || blocksError || reviewDatesError;
   const timeFormatter = new Intl.DateTimeFormat(activeLocale, {
     hour: "numeric",
     minute: "2-digit",
@@ -90,7 +91,9 @@ export default function DayAgenda({
       status: completed ? "upcoming" : "done",
     });
     if (!updated) {
-      toast.error(t("Something went wrong"));
+      toast.error(completed
+        ? t("Couldn’t mark the task as upcoming. Try again.")
+        : t("Couldn’t mark the task done. Try again."));
       return;
     }
     if (!completed) void triggerCelebration("assignment", origin);
@@ -103,7 +106,9 @@ export default function DayAgenda({
   ) => {
     const origin = completed ? undefined : getCelebrationOrigin(control);
     if (!(await toggleTimeBlockCompleted(id))) {
-      toast.error(t("Something went wrong"));
+      toast.error(completed
+        ? t("Couldn’t mark the study block incomplete. Try again.")
+        : t("Couldn’t mark the study block complete. Try again."));
       return;
     }
     if (!completed) void triggerCelebration("assignment", origin);
@@ -111,7 +116,7 @@ export default function DayAgenda({
 
   const removeBlock = async (id: string) => {
     if (!(await deleteTimeBlock(id))) {
-      toast.error(t("Something went wrong"));
+      toast.error(t("Couldn’t delete the study block. Try again."));
     }
   };
 
@@ -126,7 +131,7 @@ export default function DayAgenda({
           <div className="min-w-0">
             <h2
               id="day-agenda-heading"
-              className="truncate text-base font-semibold text-text-secondary"
+              className="wrap-anywhere text-base font-semibold text-text-secondary"
             >
               {heading}
             </h2>
@@ -148,12 +153,20 @@ export default function DayAgenda({
       )}
 
       {initialLoading ? (
-        <p role="status" className="px-4 py-10 text-center text-sm text-text-tertiary">
-          {t("Loading...")}
-        </p>
+        <div role="status" aria-label={t("Loading...")} className="space-y-2 px-4 pb-6">
+          {[0, 1].map((row) => (
+            <div key={row} aria-hidden="true" className="flex items-start gap-2 rounded-radius-lg border border-border bg-surface p-3">
+              <span className="skeleton size-11 rounded-radius-md" />
+              <div className="flex flex-1 flex-col gap-2 pt-1">
+                <span className="skeleton h-4 w-3/5 rounded-radius-sm" />
+                <span className="skeleton h-3 w-2/5 rounded-radius-sm" />
+              </div>
+            </div>
+          ))}
+        </div>
       ) : error && dayAssignments.length === 0 && dayBlocks.length === 0 ? (
         <div role="alert" className="flex flex-col items-center gap-3 px-4 py-10 text-center">
-          <p className="text-sm text-error-700 dark:text-error-300">{t("Something went wrong")}</p>
+          <p className="text-sm text-error-700 dark:text-error-300">{t("Couldn’t load all calendar events. Try again in a moment.")}</p>
           <button
             type="button"
             onClick={onRetry}
@@ -180,7 +193,7 @@ export default function DayAgenda({
               role="alert"
               className="flex items-center justify-between gap-2 rounded-radius-md border border-error-500/20 bg-error-500/10 px-3 py-2"
             >
-              <span className="text-xs text-error-700 dark:text-error-300">{t("Something went wrong")}</span>
+              <span className="text-xs text-error-700 dark:text-error-300">{t("Couldn’t load all calendar events. Try again in a moment.")}</span>
               <button
                 type="button"
                 onClick={onRetry}

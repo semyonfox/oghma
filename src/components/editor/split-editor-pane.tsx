@@ -54,8 +54,14 @@ const SplitEditorPane: FC<{ primaryLoading?: boolean }> = ({ primaryLoading = fa
               />
             </div>
             {primaryLoading && (
-              <div role="status" className="absolute inset-0 flex items-center justify-center text-sm text-text-tertiary">
-                {t("Loading...")}
+              <div role="status" className="absolute inset-0 px-6 py-8 sm:px-10">
+                <span className="sr-only">{t("Loading...")}</span>
+                <div aria-hidden="true" className="mx-auto max-w-prose space-y-3">
+                  <div className="skeleton mb-7 h-5 w-2/5 rounded-radius-sm" />
+                  <div className="skeleton h-3 w-full rounded-radius-sm" />
+                  <div className="skeleton h-3 w-11/12 rounded-radius-sm" />
+                  <div className="skeleton h-3 w-4/5 rounded-radius-sm" />
+                </div>
               </div>
             )}
           </div>

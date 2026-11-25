@@ -3,17 +3,7 @@
 import { type ReactNode, useEffect } from 'react'
 import { useSettingsStore } from '@/lib/notes/state/ui/settings'
 
-function applyTheme(theme: string | null | undefined) {
-  const root = document.documentElement
-  let isDark
-  if (theme === 'system' || !theme) {
-    isDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-  } else {
-    isDark = theme === 'dark'
-  }
-  root.classList.toggle('light', !isDark)
-  root.classList.toggle('dark', isDark)
-}
+import { applyColourTheme } from '@/lib/notes/theme'
 
 export default function ThemeProvider({ children }: { children: ReactNode }) {
   const theme = useSettingsStore((s) => s.settings?.theme)
@@ -21,7 +11,7 @@ export default function ThemeProvider({ children }: { children: ReactNode }) {
   // apply theme when the setting changes or on mount
   useEffect(() => {
     const resolved = theme || localStorage.getItem('ogma-theme') || 'system'
-    applyTheme(resolved)
+    applyColourTheme(resolved)
     if (theme) {
       localStorage.setItem('ogma-theme', theme)
       document.cookie = `ogma-theme=${theme}; path=/; max-age=31536000; samesite=lax`
@@ -33,7 +23,7 @@ export default function ThemeProvider({ children }: { children: ReactNode }) {
     const resolved = theme || localStorage.getItem('ogma-theme') || 'system'
     if (resolved !== 'system') return
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
-    const handler = () => applyTheme('system')
+    const handler = () => applyColourTheme('system')
     mq.addEventListener('change', handler)
     return () => mq.removeEventListener('change', handler)
   }, [theme])

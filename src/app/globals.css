@@ -1286,9 +1286,94 @@ html.light .glass-card-active {
   color: var(--md-syntax-invalid);
 }
 
+/* keep gesture handling on controls so the editor and canvas can still pan */
+:where(button, a[href], summary, [role="button"], [role="menuitem"], [role="option"], [data-pressable]) {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: scale 150ms ease-out;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :where(button, a[href], summary, [role="button"], [role="menuitem"], [role="option"], [data-pressable]):active:not(:disabled, [aria-disabled="true"], :has(:is(button, a[href], input, textarea, select, [role="button"]):active)) {
+    scale: 0.97;
+  }
+}
+
+/* inline anchors cannot scale */
+:where(a[href]):active:not([aria-disabled="true"]) {
+  opacity: 0.8;
+}
+
+.theme-switching,
+.theme-switching *,
+.theme-switching *::before,
+.theme-switching *::after {
+  transition: none !important;
+}
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-subtle);
+}
+
+.skeleton::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, var(--color-border-strong), transparent);
+  animation: skeleton-sweep 1.6s ease-in-out 2 both;
+}
+
+@keyframes skeleton-sweep {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+
+.delayed-spin {
+  opacity: 0;
+  animation: delayed-spin 900ms linear 1s infinite;
+}
+
+@keyframes delayed-spin {
+  from { opacity: 1; transform: rotate(0deg); }
+  to { opacity: 1; transform: rotate(360deg); }
+}
+
+@supports selector(details::details-content) {
+  details {
+    interpolate-size: allow-keywords;
+  }
+
+  details::details-content {
+    opacity: 0;
+    transition: opacity 120ms ease-out, content-visibility 120ms allow-discrete;
+  }
+
+  details[open]::details-content {
+    opacity: 1;
+    transition-duration: 150ms;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(button, a[href], summary, [role="button"], [role="menuitem"], [role="option"], [data-pressable]):active:not(:disabled, [aria-disabled="true"]) {
+    scale: none;
+    opacity: 0.8;
+  }
+
+  .skeleton::after,
+  .delayed-spin {
+    animation: none !important;
+  }
+}
+
 /* browsers report env() insets; the android shell draws under the gesture bar and injects its height */
 :root {
   --safe-bottom: max(env(safe-area-inset-bottom), var(--oghma-inset-bottom, 0px));
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
 }
 
 /* room the mobile dock takes at the bottom, including the inset below it */
@@ -1326,6 +1411,16 @@ html.light .glass-card-active {
   display: block;
   flex-shrink: 0;
   height: var(--mobile-dock-space, 0px);
+}
+
+.touch-target-24::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, 24px);
+  height: max(100%, 24px);
+  transform: translate(-50%, -50%);
 }
 
 /* accessible touch target — expands hit area to 44px minimum without changing visual size */

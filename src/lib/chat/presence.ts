@@ -1,20 +1,22 @@
 // Per-user, per-tab presence for chat generation cancellation.
 //
-// Every open app tab heartbeats its own field inside one Redis hash per user.
-// A tab-close beacon removes its field immediately; a crashed tab simply goes
-// stale. The chat worker treats "no fresh field" as the user being gone —
-// in-app navigation never touches this signal, so it can never cancel work.
+// Every open app tab holds an /api/events stream, and the server refreshes that
+// tab's field inside one Redis hash per user while the stream is open. Closing
+// the stream removes the field at once, and a stream the server never saw end
+// simply goes stale. The chat worker treats "no fresh field" as the user being
+// gone. In-app navigation keeps the stream, so it can never cancel work.
 import { redis } from "@/lib/redis";
 
 /**
  * A tab field older than this no longer counts as presence. Must comfortably
- * exceed the ~60s timer throttling browsers apply to hidden tabs.
+ * exceed the stream's 25s ping, which is what refreshes the field.
  */
 export const PRESENCE_STALE_MS = 90_000;
 
 /**
  * Continuous absence required before a disconnect aborts a generation.
- * A refresh re-announces the same tab within ~2-5s, well inside this window.
+ * A reload or a stream reconnect re-announces the same tab within ~2-5s,
+ * well inside this window.
  */
 export const DISCONNECT_GRACE_MS = 15_000;
 
@@ -22,9 +24,9 @@ export const DISCONNECT_GRACE_MS = 15_000;
 const PRESENCE_TTL_SECONDS = 15 * 60;
 
 /**
- * Dead tab fields (closes whose beacon was lost) accumulate inside a hash
+ * Dead tab fields (streams whose close was never seen) accumulate inside a hash
  * that a long-lived tab keeps refreshing. Pruning kicks in only past this
- * field count so the common heartbeat stays at two Redis ops.
+ * field count so the common refresh stays at two Redis ops.
  */
 const PRESENCE_PRUNE_THRESHOLD = 8;
 
@@ -70,7 +72,7 @@ export async function removeChatPresence(
   await redis.hdel(presenceKey(userId), tabId);
 }
 
-/** True when any tab heartbeated within PRESENCE_STALE_MS. */
+/** True when any tab was present within PRESENCE_STALE_MS. */
 export async function hasFreshChatPresence(
   userId: string,
   staleMs = PRESENCE_STALE_MS,

@@ -95,7 +95,9 @@ function ResetPasswordForm({
           typeof data.error === "string"
             ? data.error
             : "";
-        setError(serverError ? t(serverError) : t("Failed to reset password"));
+        setError(serverError === "Invalid or expired reset token"
+          ? t("This password link may have expired. Open the latest link or request a new one.")
+          : serverError ? t(serverError) : t("Failed to reset password"));
       }
     };
     await run()
@@ -112,8 +114,8 @@ function ResetPasswordForm({
         <div className={authColumnClass}>
           <Alert
             variant="error"
-            title={t("Invalid Reset Link")}
-            description={t("The password reset link is invalid or missing.")}
+            title={t("Couldn’t open the password link")}
+            description={t("Open the latest password link or request a new one.")}
           />
           <p className="mt-6 text-center text-sm/6 text-text-secondary">
             <Link

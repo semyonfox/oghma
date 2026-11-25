@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import useI18n from "@/lib/notes/hooks/use-i18n";
+import { serverEventsConnected, subscribeServerEvents } from "@/lib/server-events/client";
+import { createPoller } from "@/lib/server-events/poller";
 
 const statusSchema = z.object({
   pollIntervalMs: z.number().optional(),
@@ -45,13 +47,12 @@ export default function ProcessingFilesCard() {
   const [rows, setRows] = useState<Row[]>([]);
 
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let cancelled = false;
-    const load = async () => {
-      const parsed = await fetch("/api/canvas/status", { cache: "no-store" })
+    const request = new AbortController();
+    const poller = createPoller(async () => {
+      const parsed = await fetch("/api/canvas/status", { cache: "no-store", signal: request.signal })
         .then(async (response) => (response.ok ? statusSchema.safeParse(await response.json()) : null))
         .catch(() => null);
-      if (cancelled || !parsed?.success) return;
+      if (request.signal.aborted || !parsed?.success) return null;
       const active = Boolean(parsed.data.activeJob);
       const next = active
         ? (parsed.data.recentLogs ?? [])
@@ -65,12 +66,17 @@ export default function ProcessingFilesCard() {
             }))
         : [];
       setRows(next);
-      if (active) timer = setTimeout(load, Math.max(2000, parsed.data.pollIntervalMs ?? 4000));
-    };
-    void load();
+      if (!active) return null;
+      // with events on, each file's progress nudges a load, so it only polls without them
+      return serverEventsConnected() ? null : Math.max(2000, parsed.data.pollIntervalMs ?? 4000);
+    }, 1_500);
+    const unsubscribe = subscribeServerEvents((event) => {
+      if (event.type === "jobs" || event.type === "resync") poller.nudge();
+    });
     return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
+      request.abort();
+      poller.stop();
+      unsubscribe();
     };
   }, []);
 

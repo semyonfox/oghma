@@ -140,7 +140,7 @@ export function WorkLog({
           className="flex min-h-11 items-center gap-2 rounded-radius-sm text-left hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 lg:min-h-8"
         >
           {showProgress ? (
-            <span className="h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-text-tertiary/25 border-t-text-tertiary motion-reduce:animate-none" />
+            <span aria-hidden="true" className="h-3 w-3 shrink-0 delayed-spin rounded-full border-2 border-text-tertiary/25 border-t-text-tertiary" />
           ) : (
             <DocumentTextIcon className="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
           )}
@@ -155,7 +155,7 @@ export function WorkLog({
           className="flex min-h-11 items-center gap-2 lg:min-h-8"
           role="status"
         >
-          {showProgress && <span className="h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-text-tertiary/25 border-t-text-tertiary motion-reduce:animate-none" />}
+          {showProgress && <span aria-hidden="true" className="h-3 w-3 shrink-0 delayed-spin rounded-full border-2 border-text-tertiary/25 border-t-text-tertiary" />}
           <span>{label}</span>
         </div>
       )}

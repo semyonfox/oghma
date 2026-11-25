@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ChangeEvent } from "react";
+import { useEffect, useState, type ChangeEvent, type RefObject } from "react";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import {
   canvasHostFromInput,
@@ -14,11 +14,15 @@ type SearchStatus = "idle" | "loading" | "ready" | "error";
 type CanvasInstitutionPickerProps = {
   domain: string;
   setDomain: (value: string) => void;
+  fieldRef?: RefObject<HTMLInputElement | null>;
+  showError?: boolean;
 };
 
 export default function CanvasInstitutionPicker({
   domain,
   setDomain,
+  fieldRef,
+  showError,
 }: CanvasInstitutionPickerProps) {
   const { t } = useI18n();
   const [query, setQuery] = useState("");
@@ -28,6 +32,8 @@ export default function CanvasInstitutionPicker({
   const [manualOpen, setManualOpen] = useState(Boolean(domain));
   const [manualValue, setManualValue] = useState(domain);
   const typedCanvasHost = canvasHostFromInput(query);
+  const manualError = manualOpen && !domain && (showError || Boolean(manualValue.trim()));
+  const searchError = !manualOpen && showError;
   const searchFinished = status === "ready" || status === "error";
   const showTypedHost = Boolean(
     searchFinished &&
@@ -113,7 +119,10 @@ export default function CanvasInstitutionPicker({
           </span>
         </p>
         <input
+          ref={manualOpen ? undefined : fieldRef}
           id="canvas-school-search"
+          aria-invalid={searchError}
+          aria-describedby={searchError ? "canvas-school-error" : undefined}
           type="search"
           autoComplete="off"
           value={query}
@@ -121,6 +130,11 @@ export default function CanvasInstitutionPicker({
           placeholder={t("Start typing your school name")}
           className={`mt-2 ${inputClass}`}
         />
+        {searchError && (
+          <p id="canvas-school-error" role="alert" className={`mt-1 text-xs ${errorTextClass}`}>
+            {t("Choose your school or confirm your Canvas URL.")}
+          </p>
+        )}
         {query.trim().length > 0 && query.trim().length < 3 && (
           <p className="mt-1 text-xs text-text-tertiary">
             {t("Type at least 3 characters to search")}
@@ -144,7 +158,7 @@ export default function CanvasInstitutionPicker({
           {status === "ready" && results.length === 0 && (
             <p>{t("No schools found. Try your Canvas URL instead.")}</p>
           )}
-          {searchFinished &&
+          {!searchError && searchFinished &&
             results.length === 0 &&
             looksLikeAddress &&
             !typedCanvasHost && (
@@ -234,7 +248,10 @@ export default function CanvasInstitutionPicker({
             <span className="text-text-secondary">example.instructure.com</span>
           </p>
           <input
+            ref={fieldRef}
             id="canvas-domain"
+            aria-invalid={manualError}
+            aria-describedby={manualError ? "canvas-domain-error" : undefined}
             type="text"
             inputMode="url"
             autoCapitalize="none"
@@ -245,8 +262,8 @@ export default function CanvasInstitutionPicker({
             onChange={handleManualChange}
             className={`mt-2 ${inputClass}`}
           />
-          {manualValue.trim() && !domain && (
-            <p role="alert" className={`mt-1 text-xs ${errorTextClass}`}>
+          {manualError && (
+            <p id="canvas-domain-error" role="alert" className={`mt-1 text-xs ${errorTextClass}`}>
               {t("Paste your Canvas URL or enter its address, for example")}{" "}
               <span>example.instructure.com</span>
             </p>

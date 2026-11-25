@@ -59,7 +59,7 @@ const FileRenderer: FC<FileRendererProps> = ({ pane, file }) => {
     case "pdf":
       return (
         <Suspense fallback={<LoadingFallback />}>
-          <PDFViewer file={file} pane={pane} />
+          <PDFViewer key={file.fileId} file={file} pane={pane} />
         </Suspense>
       );
 

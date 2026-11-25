@@ -167,6 +167,27 @@ describe("WorkspaceLifecycleProvider", () => {
     await waitFor(() => expect(mocks.refreshTree).toHaveBeenCalledOnce());
   });
 
+  it("refreshes once when a tab returns and not again on a quick alt-tab", async () => {
+    const fetchMock = vi.fn(async () => authResponse("user-1"));
+    vi.stubGlobal("fetch", fetchMock);
+    render(
+      <WorkspaceLifecycleProvider>
+        <div>private workspace</div>
+      </WorkspaceLifecycleProvider>,
+    );
+    await screen.findByText("private workspace");
+
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      window.dispatchEvent(new Event("focus"));
+    });
+    await waitFor(() => expect(mocks.refreshTree).toHaveBeenCalledOnce());
+    await act(async () => window.dispatchEvent(new Event("focus")));
+
+    expect(mocks.refreshTree).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("applies a matching vault invalidation without consuming it on an auth outage", async () => {
     const fetchMock = vi
       .fn()

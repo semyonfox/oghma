@@ -28,13 +28,13 @@ export default function MobileSheet({
     <Dialog open={open} onClose={onClose} className="relative z-[70]">
       <DialogBackdrop
         transition
-        className="fixed inset-0 bg-black/40 transition-opacity duration-150 data-[closed]:opacity-0 motion-reduce:transition-none"
+        className="fixed inset-0 bg-black/40 transition-opacity duration-150 ease-out data-leave:duration-120 data-[closed]:opacity-0 motion-reduce:transition-none"
       />
       <div className="fixed inset-0 flex items-end justify-center sm:items-center sm:p-4">
         <DialogPanel
           transition
           {...swipe}
-          className="flex max-h-[85dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-radius-2xl border border-border bg-surface-overlay pb-[var(--safe-bottom)] text-text shadow-float transition duration-150 data-[closed]:translate-y-4 data-[closed]:opacity-0 motion-reduce:transition-none sm:rounded-radius-2xl"
+          className="flex max-h-[85dvh] w-full max-w-lg flex-col overflow-hidden overscroll-contain rounded-t-radius-2xl border border-border bg-surface-overlay pb-[var(--safe-bottom)] text-text shadow-float transition-[transform,translate,opacity] duration-150 ease-out data-leave:duration-120 data-[closed]:translate-y-4 data-[closed]:opacity-0 motion-reduce:transition-none sm:rounded-radius-2xl"
         >
           <div
             aria-hidden="true"

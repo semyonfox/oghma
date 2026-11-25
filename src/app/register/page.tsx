@@ -52,9 +52,9 @@ export default function RegisterPage() {
   const credentialErrors = validateAuthCredentials(email, pwd, true).errors;
   const emailError = showFieldErrors ? credentialErrors.email : undefined;
   const passwordError = showFieldErrors
-    ? pwd
+    ? pwd.trim()
       ? passwordRequirements.find((requirement) => !requirement.met)?.error
-      : "Password is required"
+      : "Enter your password"
     : undefined;
   const confirmError = showFieldErrors
     ? !confirmPwd
@@ -150,7 +150,10 @@ export default function RegisterPage() {
     await run()
       .catch((err: unknown) => {
         reportTelemetry({ kind: "error", name: "request_failed", route: "onboarding" });
-        setErrMsg(getErrorMessage(err));
+        const message = getErrorMessage(err);
+        setErrMsg(message === "Invalid, expired, or incomplete agent registration claim"
+          ? t("Start registration again from the app that gave you the code.")
+          : t(message));
         setPwd("");
         setConfirmPwd("");
         setShowFieldErrors(false);
@@ -271,6 +274,7 @@ export default function RegisterPage() {
                       id="agent-user-code"
                       name="agent-user-code"
                       inputMode="numeric"
+                      autoComplete="one-time-code"
                       pattern="[0-9]{6}"
                       required
                       value={agentUserCode}

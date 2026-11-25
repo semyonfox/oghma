@@ -8,10 +8,18 @@ import useSyncStatusStore from "@/lib/notes/state/sync-status";
 import useNoteTreeStore from "@/lib/notes/state/tree";
 import useNoteStore from "@/lib/notes/state/note";
 import useLayoutStore from "@/lib/notes/state/layout";
+import { serverEventsConnected, subscribeServerEvents } from "@/lib/server-events/client";
+import { createPoller } from "@/lib/server-events/poller";
 
 const LS_ACTIVE_JOB = "canvas_active_job";
 const TREE_SYNC_DELAY = 750;
 const MAX_TREE_SYNC_RETRIES = 3;
+// every imported file is a job event, so checks are spaced out
+const EVENT_CHECK_GAP_MS = 1_500;
+// exports and vault imports share the jobs table, and an idle tab only needs
+// to notice that an import began
+const IDLE_EVENT_CHECK_GAP_MS = 10_000;
+const EVENTS_FALLBACK_MS = 60_000;
 
 type StoredJob = { jobId?: string };
 export type CanvasImportProgress = {
@@ -805,37 +813,41 @@ export function useCanvasImportStatus(
   // responses racing each other and triggering rapid/out-of-order tree work.
   // A hidden tab stops polling, since imports run for minutes and every open
   // tab otherwise costs the status route a query set every few seconds. It
-  // catches up with one immediate check when it becomes visible again.
+  // catches up with one check when it becomes visible again. With server
+  // events on, each job change nudges a check. The slow timer stays while an
+  // import runs because finishing one also waits on this tab's own tree and
+  // note reads, and a failed read is retried by the next check, not by an event.
   useEffect(() => {
     if (!enabled || !isImporting) return;
-
-    let cancelled = false;
-    let inFlight = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const schedule = () => {
-      if (cancelled || timer || document.hidden) return;
-      timer = setTimeout(() => void poll(), pollIntervalRef.current);
-    };
-    const poll = async () => {
-      timer = null;
-      inFlight = true;
-      await checkFromEffect().finally(() => {
-        inFlight = false;
-      });
-      schedule();
-    };
-    const onVisibilityChange = () => {
-      if (cancelled || document.hidden || inFlight || timer) return;
-      void poll();
-    };
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    schedule();
+    const nextDelay = () => (serverEventsConnected() ? EVENTS_FALLBACK_MS : pollIntervalRef.current);
+    const poller = createPoller(async () => {
+      await checkFromEffect();
+      return nextDelay();
+    }, EVENT_CHECK_GAP_MS, nextDelay());
+    const unsubscribe = subscribeServerEvents((event) => {
+      if (event.type === "jobs" || event.type === "resync") poller.nudge();
+    });
 
     return () => {
-      cancelled = true;
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-      if (timer) clearTimeout(timer);
+      poller.stop();
+      unsubscribe();
       abortRef.current?.abort();
+    };
+  }, [enabled, isImporting]);
+
+  // an import started from another tab, device or the worker's auto sync
+  useEffect(() => {
+    if (!enabled || isImporting) return;
+    const poller = createPoller(async () => {
+      await checkFromEffect();
+      return null;
+    }, IDLE_EVENT_CHECK_GAP_MS, null);
+    const unsubscribe = subscribeServerEvents((event) => {
+      if (event.type === "jobs") poller.nudge();
+    });
+    return () => {
+      poller.stop();
+      unsubscribe();
     };
   }, [enabled, isImporting]);
 
