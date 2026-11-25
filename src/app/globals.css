@@ -1328,6 +1328,16 @@ html.light .glass-card-active {
   height: var(--mobile-dock-space, 0px);
 }
 
+.touch-target-24::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, 24px);
+  height: max(100%, 24px);
+  transform: translate(-50%, -50%);
+}
+
 /* accessible touch target — expands hit area to 44px minimum without changing visual size */
 .touch-target-44 {
   position: relative;

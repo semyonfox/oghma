@@ -22,6 +22,7 @@ import MobileDrawer from "@/components/navigation/mobile-drawer";
 import MobileBottomNavigation from "@/components/navigation/mobile-bottom-navigation";
 import MonthView from "@/components/calendar/month-view";
 import WeekView from "@/components/calendar/week-view";
+import { Alert } from "@/components/alert";
 import AssignmentTracker from "@/components/assignments/assignment-tracker";
 import MobileCalendar from "@/components/calendar/mobile-calendar";
 import DayAgendaDialog from "@/components/calendar/day-agenda-dialog";
@@ -54,11 +55,14 @@ export default function CalendarPage() {
     setSelectedDate,
     fetchTimeBlocks,
     fetchReviewDates,
+    error: blocksError,
+    reviewDatesError,
   } = useCalendarStore();
   const fetchAssignments = useAssignmentStore(
     (state) => state.fetchAssignments,
   );
   const assignments = useAssignmentStore((state) => state.assignments);
+  const assignmentsError = useAssignmentStore((state) => state.error);
   const treeWidth = useLayoutStore((state) => state.treeWidth);
   const rightPanelWidth = useLayoutStore((state) => state.rightPanelWidth);
   const splitPosition = useLayoutStore((state) => state.splitPosition);
@@ -261,6 +265,30 @@ export default function CalendarPage() {
                   </div>
                 </div>
               </header>
+
+              {isDesktop === true && (blocksError || reviewDatesError || assignmentsError) && (
+                <Alert
+                  role="alert"
+                  variant="error"
+                  className="mx-4 mt-3 mb-2 shrink-0"
+                  description={
+                    <div className="flex flex-wrap items-center justify-between gap-x-3">
+                      <p>{t("Couldn’t load all calendar events. Try again in a moment.")}</p>
+                      <button
+                        type="button"
+                        className="min-h-6 font-medium underline underline-offset-2"
+                        onClick={() => {
+                          if (assignmentsError) void fetchAssignments();
+                          if (blocksError) refreshTimeBlocks();
+                          if (reviewDatesError) void fetchReviewDates(startDateKey, endDateKey);
+                        }}
+                      >
+                        {t("Try again")}
+                      </button>
+                    </div>
+                  }
+                />
+              )}
 
               <div className="min-h-0 flex-1 overflow-hidden">
                 {isDesktop === false ? (

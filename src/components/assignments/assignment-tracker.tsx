@@ -343,7 +343,7 @@ export default function AssignmentTracker({
         toast.error(t("Your Canvas token is invalid or expired. Please reconnect."));
       } else if (result?.code === "not_connected") {
         toast.error(t("Connect your Canvas LMS account to import your courses and lecture materials."));
-      } else toast.error(t("Something went wrong"));
+      } else toast.error(t("Couldn’t sync tasks from Canvas. Try again."));
     };
     await run()
       .finally(() => {
@@ -359,7 +359,9 @@ export default function AssignmentTracker({
     const run = async () => {
       const updated = await updateAssignment(assignment.id, { status });
       if (!updated) {
-        toast.error(t("Something went wrong"));
+        toast.error(status === "done"
+          ? t("Couldn’t mark the task done. Try again.")
+          : t("Couldn’t mark the task as upcoming. Try again."));
         return;
       }
       if (status === "done") {
@@ -370,7 +372,7 @@ export default function AssignmentTracker({
             onClick: () => {
               void updateAssignment(assignment.id, { status: assignment.status }).then(
                 (restored) => {
-                  if (!restored) toast.error(t("Something went wrong"));
+                  if (!restored) toast.error(t("Couldn’t undo marking the task done. Try again."));
                 },
               );
             },
@@ -422,7 +424,7 @@ export default function AssignmentTracker({
     if (error && assignments.length === 0) {
       return (
         <div role="alert" className="flex flex-col items-center gap-3 px-3 py-8 text-center">
-          <p className="text-xs text-error-700 dark:text-error-700 dark:text-error-300">{t("Something went wrong")}</p>
+          <p className="text-xs text-error-700 dark:text-error-700 dark:text-error-300">{t("Couldn’t load your tasks. Try again in a moment.")}</p>
           <button
             type="button"
             onClick={() => void retry()}
@@ -715,7 +717,7 @@ export default function AssignmentTracker({
           role="alert"
           className="mx-3 mb-2 flex items-center justify-between gap-2 rounded-radius-md border border-error-500/20 bg-error-500/10 px-2.5 py-2"
         >
-          <span className="text-xs text-error-700 dark:text-error-700 dark:text-error-300">{t("Something went wrong")}</span>
+          <span className="text-xs text-error-700 dark:text-error-700 dark:text-error-300">{t("Couldn’t load your tasks. Try again in a moment.")}</span>
           <button
             type="button"
             onClick={() => void retry()}

@@ -38,6 +38,7 @@ import { tagsViewPrimaryFile, type TagsViewFile } from "@/lib/notes/tags-view";
 import { useCanvasImportNotification } from "@/components/canvas/canvas-import-notifications";
 import { summarySchema } from "@/components/study-map/study-client";
 import { toast } from "sonner";
+import { Alert } from "@/components/alert";
 import { z } from "zod";
 import { TreeViewMenu } from "./tree-view-menu";
 import { NewMenu } from "./new-menu";
@@ -64,6 +65,7 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
 
   const {
     loading,
+    error,
     loadingChildren,
     movingIds,
     selectedIds,
@@ -378,7 +380,27 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
           </div>
         )}
 
-        {view.group === "tags" ? (
+        {error && (
+          <Alert
+            role="alert"
+            variant="error"
+            className="mx-2 my-2"
+            description={error === "Error loading notes"
+              ? t("Couldn’t load your notes. Check your connection and try again.")
+              : t(error)}
+          >
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => void refreshTree().catch(() => {})}
+              className="mt-1 min-h-6 font-medium underline underline-offset-2 disabled:opacity-60"
+            >
+              {t("Try again")}
+            </button>
+          </Alert>
+        )}
+
+        {error && !initLoaded ? null : view.group === "tags" ? (
           <TagsView activeRootId={activeRootId} onOpenFile={openTagsViewFile} />
         ) : (
         <div className="flex-1 pb-4">
