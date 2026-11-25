@@ -52,11 +52,7 @@ export function getPasswordRequirements(password: string) {
   }));
 }
 
-function passwordErrors(password: unknown): string[] {
-  if (typeof password !== "string" || password.length === 0) {
-    return ["Password is required"];
-  }
-
+function passwordErrors(password: string): string[] {
   return getPasswordRequirements(password)
     .filter((requirement) => !requirement.met)
     .map((requirement) => requirement.error);
@@ -74,20 +70,14 @@ export function validateAuthCredentials(
     email === "" ||
     (typeof email === "string" && email.trim().length === 0)
   ) {
-    errors.email = "Email is required";
-  }
-  if (email && !isValidEmail(email)) {
-    errors.email = "Invalid email format";
+    errors.email = "Enter your email address";
+  } else if (!isValidEmail(email)) {
+    errors.email = "Enter an email address like name@example.com";
   }
 
-  if (
-    password == null ||
-    password === "" ||
-    (typeof password === "string" && password.trim().length === 0)
-  ) {
-    errors.password = "Password is required";
-  }
-  if (checkPasswordStrength && password) {
+  if (typeof password !== "string" || password.trim().length === 0) {
+    errors.password = "Enter your password";
+  } else if (checkPasswordStrength) {
     const policyErrors = passwordErrors(password);
     if (policyErrors.length > 0) {
       errors.password = policyErrors.join("; ");

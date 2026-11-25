@@ -248,7 +248,7 @@ export default function CanvasIntegrationSettings() {
 
   const handleConnect = async () => {
     const rawToken = tokenInputRef.current?.value?.trim() ?? "";
-    if (!domain || !rawToken) return;
+    if (isConnecting || !domain || !rawToken) return;
 
     setIsConnecting(true);
     setConnectionError(null);

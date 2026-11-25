@@ -10,6 +10,7 @@ import BrandLogo from "@/components/brand-logo";
 import {
   authCheckboxClass,
   authColumnClass,
+  authErrorTextClass,
   authInputClass,
   authLabelClass,
   authLinkClass,
@@ -20,6 +21,7 @@ import {
 } from "@/components/auth/auth-styles";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import AuthShowcase from "@/components/auth/auth-showcase";
+import { validateAuthCredentials } from "@/lib/auth/credentials";
 import { authReturnPath } from "@/lib/auth/return-path";
 import {
   buildOAuthSignInOptions,
@@ -33,9 +35,14 @@ import {
   useNativeAppBridge,
 } from "@/lib/native-app";
 
+type SignInError =
+  | { kind: "credentials" }
+  | { kind: "message"; message: string };
+
 export default function LoginPage() {
   const { t } = useI18n();
   const userRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
   const providerStatusRef = useRef<HTMLParagraphElement>(null);
   const errRef = useRef<HTMLDivElement>(null);
   const redirectFallbackRef = useRef<number | null>(null);
@@ -44,16 +51,21 @@ export default function LoginPage() {
 
   const [email, setEmail] = useState("");
   const [pwd, setPwd] = useState("");
-  const [errMsg, setErrMsg] = useState("");
+  const [signInError, setSignInError] = useState<SignInError | null>(null);
+  const [showFieldErrors, setShowFieldErrors] = useState(false);
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [oauthProviders, setOauthProviders] = useState<Awaited<ReturnType<typeof getProviders>>>(null);
   const [providersLoaded, setProvidersLoaded] = useState(false);
   const [providersAttempt, setProvidersAttempt] = useState(0);
 
+  const { errors } = validateAuthCredentials(email, pwd);
+  const emailError = showFieldErrors ? errors.email : undefined;
+  const passwordError = showFieldErrors ? errors.password : undefined;
+
   useEffect(() => {
-    if (errMsg) errRef.current?.focus();
-  }, [errMsg]);
+    if (signInError) errRef.current?.focus();
+  }, [signInError]);
 
   // auth redirect is handled by middleware — no client-side check needed
 
@@ -85,20 +97,26 @@ export default function LoginPage() {
     };
   }, [providersAttempt]);
 
-  // Clear error message on input change (via input handlers below, not effect)
   const handleEmailChange = (e: ChangeEvent<HTMLInputElement>) => {
     setEmail(e.target.value);
-    setErrMsg("");
+    setSignInError(null);
   };
 
   const handlePasswordChange = (e: ChangeEvent<HTMLInputElement>) => {
     setPwd(e.target.value);
-    setErrMsg("");
+    setSignInError(null);
   };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setErrMsg("");
+    if (loading) return;
+    setSignInError(null);
+    if (errors.email || errors.password) {
+      setShowFieldErrors(true);
+      (errors.email ? userRef : passwordRef).current?.focus();
+      return;
+    }
+    setShowFieldErrors(false);
     setLoading(true);
     try {
       const destination = authReturnPath(new URLSearchParams(window.location.search).get("next"));
@@ -113,16 +131,23 @@ export default function LoginPage() {
       }, 1000);
       router.replace(destination);
     } catch (err: unknown) {
-      const authError = typeof err === "object" && err !== null ? err as { status?: number; data?: { requiresVerification?: boolean; email?: string } } : {};
-      // check if the error is a verification-required response
-      if (authError.status === 403 && authError.data?.requiresVerification) {
-        router.replace(
-          `/verify-email?email=${encodeURIComponent(authError.data.email || email)}`,
-        );
+      const status = typeof err === "object" && err !== null && "status" in err
+        ? err.status : undefined;
+      const data = typeof err === "object" && err !== null && "data" in err
+        ? err.data : undefined;
+      if (
+        status === 403 && typeof data === "object" && data !== null &&
+        "requiresVerification" in data && data.requiresVerification === true
+      ) {
+        const verificationEmail = "email" in data && typeof data.email === "string" && data.email
+          ? data.email : email;
+        router.replace(`/verify-email?email=${encodeURIComponent(verificationEmail)}`);
         return;
       }
-      setErrMsg(getErrorMessage(err));
-      if (authError.status === 400 || authError.status === 401) setPwd("");
+      setSignInError(status === 401
+        ? { kind: "credentials" }
+        : { kind: "message", message: getErrorMessage(err) });
+      if (status === 400 || status === 401) setPwd("");
       setLoading(false);
     }
   };
@@ -130,7 +155,10 @@ export default function LoginPage() {
   // OAuth login handler - delegates to Auth.js
   const handleSocialLogin = (provider: NativeOAuthProvider) => {
     if (isProviderDisabled(provider)) {
-      setErrMsg(t("This sign-in provider is not configured right now"));
+      setSignInError({
+        kind: "message",
+        message: t("This sign-in provider is not configured right now"),
+      });
       return;
     }
 
@@ -168,13 +196,20 @@ export default function LoginPage() {
 
         <div className={`${nativeAppBridge ? "mt-6" : "mt-8"} ${authColumnClass}`}>
           <div>
-            <form aria-busy={loading} onSubmit={handleSubmit} method="POST" className="space-y-5">
-              {errMsg && (
+            <form noValidate aria-busy={loading} onSubmit={handleSubmit} method="POST" className="space-y-5">
+              {signInError && (
                 <div ref={errRef} role="alert" tabIndex={-1}>
                   <Alert
                     variant="error"
                     title={t("Sign in failed")}
-                    description={errMsg}
+                    description={signInError.kind === "credentials" ? (
+                      <p>
+                        {t("That email and password don’t match an account. Check them and try again.")}{" "}
+                        <Link href="/forgot-password" className={authLinkClass}>
+                          {t("Reset your password")}
+                        </Link>
+                      </p>
+                    ) : signInError.message}
                   />
                 </div>
               )}
@@ -196,9 +231,16 @@ export default function LoginPage() {
                     autoComplete="email"
                     value={email}
                     onChange={handleEmailChange}
+                    aria-invalid={Boolean(emailError)}
+                    aria-describedby={emailError ? "email-error" : undefined}
                     className={authInputClass}
                   />
                 </div>
+                {emailError && (
+                  <p id="email-error" role="alert" className={`mt-1 text-xs ${authErrorTextClass}`}>
+                    {t(emailError)}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -210,6 +252,7 @@ export default function LoginPage() {
                 </label>
                 <div className="mt-1.5">
                   <input
+                    ref={passwordRef}
                     id="password"
                     name="password"
                     type="password"
@@ -217,9 +260,16 @@ export default function LoginPage() {
                     autoComplete="current-password"
                     value={pwd}
                     onChange={handlePasswordChange}
+                    aria-invalid={Boolean(passwordError)}
+                    aria-describedby={passwordError ? "password-error" : undefined}
                     className={authInputClass}
                   />
                 </div>
+                {passwordError && (
+                  <p id="password-error" role="alert" className={`mt-1 text-xs ${authErrorTextClass}`}>
+                    {t(passwordError)}
+                  </p>
+                )}
               </div>
 
               <div className="flex items-center justify-between">

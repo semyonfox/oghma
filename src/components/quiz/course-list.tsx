@@ -185,6 +185,7 @@ export default function CourseList({
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
+            aria-label={t("Search topics")}
             placeholder={t("quiz.courses.search_placeholder")}
             className="min-w-0 flex-1 rounded-radius-md border border-border bg-input px-3 py-1.5 text-sm text-text placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/50 sm:w-56 sm:flex-none"
           />

@@ -622,7 +622,7 @@ export default function DataExportSection() {
             <h3 className="text-sm/6 font-medium text-text">
               {t("Calendar Subscription")}
             </h3>
-            <p className="text-xs text-text-tertiary mb-3">
+            <p className="mb-3 max-w-[70ch] text-xs leading-normal text-text-tertiary">
               {t("Subscribe to your assignments and study blocks in Google Calendar, Apple Calendar, Outlook, or any app that supports iCal feeds.")}
             </p>
 

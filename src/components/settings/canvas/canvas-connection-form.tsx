@@ -6,7 +6,7 @@ import {
 } from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { canvasHostFromInput } from "@/lib/canvas/institution-search";
-import type { RefObject } from "react";
+import { useRef, useState, type RefObject } from "react";
 import CanvasInstitutionPicker from "./canvas-institution-picker";
 import {
   errorTextClass,
@@ -36,6 +36,23 @@ export default function CanvasConnectionForm({
 }: CanvasConnectionFormProps) {
   const { t } = useI18n();
   const canvasHost = canvasHostFromInput(domain);
+  const domainInputRef = useRef<HTMLInputElement>(null);
+  const [showDomainError, setShowDomainError] = useState(false);
+  const [tokenMissing, setTokenMissing] = useState(false);
+
+  const handleConnect = () => {
+    if (isConnecting) return;
+
+    const missingToken = !tokenInputRef.current?.value.trim();
+    setShowDomainError(!canvasHost);
+    setTokenMissing(missingToken);
+    if (!canvasHost || missingToken) {
+      (canvasHost ? tokenInputRef : domainInputRef).current?.focus();
+      return;
+    }
+
+    onConnect();
+  };
 
   return (
     <>
@@ -52,7 +69,15 @@ export default function CanvasConnectionForm({
         </div>
       )}
 
-      <CanvasInstitutionPicker domain={domain} setDomain={setDomain} />
+      <CanvasInstitutionPicker
+        domain={domain}
+        setDomain={(value) => {
+          setDomain(value);
+          if (value) setShowDomainError(false);
+        }}
+        fieldRef={domainInputRef}
+        showError={showDomainError && !canvasHost}
+      />
 
       <div className="rounded-radius-lg border border-border bg-surface-elevated p-4">
         <h3 className="text-sm font-semibold text-text-secondary mb-2">
@@ -115,7 +140,11 @@ export default function CanvasConnectionForm({
           <input
             ref={tokenInputRef}
             id="canvas-token"
-            aria-describedby="canvas-token-help"
+            aria-invalid={tokenMissing}
+            aria-describedby={tokenMissing ? "canvas-token-help canvas-token-error" : "canvas-token-help"}
+            onChange={(event) => {
+              if (event.currentTarget.value.trim()) setTokenMissing(false);
+            }}
             type="password"
             autoComplete="off"
             autoCapitalize="none"
@@ -123,6 +152,11 @@ export default function CanvasConnectionForm({
             placeholder={t("Paste your Canvas API token here")}
             className={inputClass}
           />
+          {tokenMissing && (
+            <p id="canvas-token-error" role="alert" className={`mt-1 text-xs ${errorTextClass}`}>
+              {t("Enter your Canvas API token.")}
+            </p>
+          )}
         </div>
       </div>
 
@@ -141,11 +175,11 @@ export default function CanvasConnectionForm({
 
       <button
         type="button"
-        disabled={!canvasHost || isConnecting}
-        onClick={onConnect}
+        aria-disabled={isConnecting}
+        onClick={handleConnect}
         className={`${saveBtnClass} justify-self-start`}
       >
-        {isConnecting ? t("Connecting...") : t("Connect Canvas")}
+        {isConnecting ? t("Connecting…") : t("Connect Canvas")}
       </button>
     </>
   );
