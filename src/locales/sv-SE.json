@@ -643,6 +643,7 @@
   "Pause": "Paus",
   "pdf_viewer.error": "Error loading PDF",
   "pdf_viewer.loading": "Laddar PDF...",
+  "pdf_viewer.jump_to_page": "Gå till sida",
   "pdf_viewer.page_count": "{count} sidor",
   "pdf_viewer.preparing": "Preparing PDF",
   "Pending": "Väntande",

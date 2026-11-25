@@ -643,6 +643,7 @@
   "Pause": "暂停",
   "pdf_viewer.error": "Error loading PDF",
   "pdf_viewer.loading": "正在加载 PDF...",
+  "pdf_viewer.jump_to_page": "跳转到页面",
   "pdf_viewer.page_count": "{count} 页",
   "pdf_viewer.preparing": "Preparing PDF",
   "Pending": "待定",

@@ -643,6 +643,7 @@
   "Pause": "يوقف",
   "pdf_viewer.error": "Error loading PDF",
   "pdf_viewer.loading": "جارٍ تحميل ملف PDF...",
+  "pdf_viewer.jump_to_page": "انتقل إلى الصفحة",
   "pdf_viewer.page_count": "{count} صفحات",
   "pdf_viewer.preparing": "Preparing PDF",
   "Pending": "قيد الانتظار",

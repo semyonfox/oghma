@@ -643,6 +643,7 @@
   "Pause": "विराम",
   "pdf_viewer.error": "Error loading PDF",
   "pdf_viewer.loading": "पीडीएफ लोड हो रहा है...",
+  "pdf_viewer.jump_to_page": "पृष्ठ पर जाएँ",
   "pdf_viewer.page_count": "{count} पृष्ठ",
   "pdf_viewer.preparing": "Preparing PDF",
   "Pending": "लंबित",

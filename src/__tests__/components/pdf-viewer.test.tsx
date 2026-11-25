@@ -225,6 +225,21 @@ describe("PDFViewer page rendering", () => {
     expect(screen.queryByTestId("rendered-pdf-page-1")).toBeNull();
   });
 
+  it("keeps a selected page when the viewport is already at its scroll limit", async () => {
+    const { container } = render(
+      <PDFViewer pane="A" file={{ fileId: "slides", fileType: "pdf", sourcePath: "slides.pdf" }} />,
+    );
+    const selector = await screen.findByRole<HTMLSelectElement>("combobox", { name: "pdf_viewer.jump_to_page" });
+    const page = container.querySelector<HTMLElement>('[data-pdf-page-number="2"]')!;
+    page.scrollIntoView = vi.fn();
+    fireEvent.change(selector, { target: { value: "2" } });
+    const root = observers.get(page)?.options?.root;
+    expect(root).toBeInstanceOf(HTMLElement);
+    if (root instanceof HTMLElement) fireEvent.scroll(root);
+    expect(page.scrollIntoView).toHaveBeenCalledOnce();
+    expect(selector.value).toBe("2");
+  });
+
   it("keeps zoomed lazy slots aligned as pages load and fits after resizing the pane", async () => {
     const { container } = render(
       <PDFViewer pane="A" file={{ fileId: "note-1", fileType: "pdf", sourcePath: "notes/lecture.pdf" }} />,
