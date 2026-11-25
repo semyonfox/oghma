@@ -4,7 +4,7 @@
 > the restore-placement rule and the single-note cache removal reached `dev`
 > on 2026-10-16 (#633)
 >
-> Last reviewed: 2026-10-16
+> Last reviewed: 2026-11-25
 >
 > Source of truth for: Browser tree ordering, reconciliation, session reset,
 > and import publication ownership
@@ -85,8 +85,14 @@ and a storage-event fallback. Messages contain IDs and invalidation metadata,
 not note titles or content. A receiving tab reads its own current server state.
 A tab acknowledges an invalidation only after its handler succeeds; failed
 deliveries can retry on focus. Focus and visibility restoration also revalidate,
-covering missed messages.
-This is same-browser coordination, not a server push protocol across devices.
+covering missed messages. That check is skipped within 30 seconds of the last
+one, or 5 minutes while live updates are connected.
+
+Changes from other devices, workers and imports arrive as server events naming
+the folder that changed (see [Live updates](architecture.md#live-updates)). The
+provider gathers them for 300 ms and re-reads only those folders the tab has
+loaded, in one reconciliation. More than six folders, or a `resync`, runs a
+normal full refresh instead.
 
 ## Restore placement
 
@@ -101,7 +107,10 @@ never appear in the sidebar.
 The existing Canvas provider is the sole polling and publication owner across
 notes and settings. Settings consumes its state and retains start, sync, replacement confirmation,
 Trash recovery, failed-file retry, and job-specific Stop actions. Server responses
-control the polling interval. Public and unauthenticated pages do not poll.
+control the polling interval while live updates are down. With them, each job
+event triggers a check, and a 60 second check remains only while an import
+runs, to retry this tab's own failed tree or note reads. Public and
+unauthenticated pages do not poll.
 
 Publication paths remain pending until the tree store applies the requested
 reads. Failed requests retain their paths for retry. Job, mount, session, and
@@ -136,6 +145,7 @@ as before. Rows also drop `.md` and show other extensions muted.
 | Session identity and tab updates | `src/components/providers/workspace-lifecycle-provider.tsx` |
 | Reset and browser cache ownership | `src/lib/notes/workspace-lifecycle.ts` |
 | Cross-tab messages | `src/lib/notes/workspace-invalidation.ts` |
+| Server tree events | `src/lib/server-events/`, `database/migrations/093_server_events.sql` |
 | Canvas status and acknowledgement | `src/lib/hooks/use-canvas-import-status.ts` |
 
 ## Verification and limits

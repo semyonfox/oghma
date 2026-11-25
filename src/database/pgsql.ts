@@ -21,6 +21,7 @@ interface DatabaseSql {
     begin: PostgresClient["begin"];
     json: PostgresClient["json"];
     end: PostgresClient["end"];
+    listen: PostgresClient["listen"];
 }
 
 // lazy connection - only created on first use, not at module load

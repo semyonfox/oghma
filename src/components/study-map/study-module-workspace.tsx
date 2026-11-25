@@ -8,6 +8,8 @@ import {
 } from "react";
 
 import { z } from "zod";
+import { serverEventsConnected, subscribeServerEvents } from "@/lib/server-events/client";
+import { createPoller } from "@/lib/server-events/poller";
 import { ModuleMenu } from "./study-module-menu";
 import StudyCanvas, { type FlowScope } from "./study-canvas";
 import { ChromeFrame, Toast } from "./study-chrome";
@@ -194,20 +196,24 @@ export function ModuleWorkspace({
     ) ?? false;
   useEffect(() => {
     if (!hasActiveJobs) return;
-    let polling = false;
-    const timer = window.setInterval(() => {
-      if (polling || operationRef.current) return;
-      polling = true;
-      void refreshSnapshot()
-        .catch((error: unknown) => {
+    // with events on, each job change nudges a refresh, so it only polls without them
+    const nextDelay = () => (serverEventsConnected() ? null : 3000);
+    const poller = createPoller(async () => {
+      if (!operationRef.current) {
+        await refreshSnapshot().catch((error: unknown) => {
           if (mounted.current) setError(messageFor(error));
-        })
-        .finally(() => {
-          polling = false;
         });
-    }, 3000);
-    return () => window.clearInterval(timer);
-  }, [hasActiveJobs]);
+      }
+      return nextDelay();
+    }, 1000, nextDelay());
+    const unsubscribe = subscribeServerEvents((event) => {
+      if (event.type === "resync" || (event.type === "study" && event.mapId === mapId)) poller.nudge();
+    });
+    return () => {
+      poller.stop();
+      unsubscribe();
+    };
+  }, [hasActiveJobs, mapId]);
 
   async function operate(
     name: string,

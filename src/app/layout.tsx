@@ -5,13 +5,15 @@ import NativeAppBridge from "@/components/providers/native-app-bridge";
 import WorkspaceLifecycleProvider from "@/components/providers/workspace-lifecycle-provider";
 import CanvasImportNotifications from "@/components/canvas/canvas-import-notifications";
 import PomodoroTimerController from "@/components/pomodoro/pomodoro-timer-controller";
-import ChatPresenceController from "@/components/chat/chat-presence-controller";
+import ServerEventsController from "@/components/providers/server-events-controller";
+import { hasSessionCookie } from "@/lib/auth/session-cookie";
 import MarketingTracker from "@/components/marketing-tracker";
 import GlobalSearchRoot from "@/components/search/global-search-root";
 import { getRequestLocale } from "@/lib/i18n/server";
 import { loadLocaleData } from "@/lib/i18n/locale-data";
 import { isRtlLocale } from "@/locales";
 import { Toaster } from "sonner";
+import { cookies } from "next/headers";
 import type { ReactNode } from "react";
 import type { Viewport } from "next";
 import "katex/dist/katex.min.css";
@@ -124,6 +126,7 @@ const THEME_INIT_SCRIPT = `(function(){try{var m=document.cookie.match(/(?:^|; )
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const locale = await getRequestLocale();
+  const signedIn = hasSessionCookie((await cookies()).getAll());
   const initialLocaleData = await loadLocaleData(locale);
 
   return (
@@ -178,7 +181,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           <ThemeProvider>
             <NativeAppBridge />
             <PomodoroTimerController />
-            <ChatPresenceController />
+            <ServerEventsController signedIn={signedIn} />
             <GlobalSearchRoot />
             <MarketingTracker />
             <WorkspaceLifecycleProvider>

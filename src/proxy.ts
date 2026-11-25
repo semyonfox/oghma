@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authReturnPath } from "@/lib/auth/return-path";
+import { hasSessionCookie } from "@/lib/auth/session-cookie";
 
 const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || "http://localhost:3000")
   .split(",")
@@ -14,9 +15,6 @@ const CORS_HEADERS = {
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Access-Control-Allow-Credentials": "true",
 };
-
-// custom JWT, Auth.js v5 session, and the numbered chunks Auth.js uses for large tokens
-const SESSION_COOKIE = /^(?:session|(?:__Secure-)?authjs\.session-token(?:\.\d+)?)$/;
 
 const MARKDOWN_REWRITES = new Map([
     ["/ai", "/ai.md"],
@@ -62,9 +60,7 @@ export async function proxy(request: NextRequest) {
 
     // presence only: the edge proxy can't reach the DB, so revocation is enforced by
     // validateSession in every API route. login must stay reachable with a revoked cookie
-    const isAuthenticated = request.cookies
-        .getAll()
-        .some((cookie) => SESSION_COOKIE.test(cookie.name) && cookie.value);
+    const isAuthenticated = hasSessionCookie(request.cookies.getAll());
 
     // redirect unauthenticated users to login for protected routes
     // (skip auth pages to avoid redirect loops)

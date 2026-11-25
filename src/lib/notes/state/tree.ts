@@ -36,6 +36,8 @@ export interface NoteTreeState {
   initTree: () => Promise<void>;
   loadChildren: (parentId: string | null) => Promise<void>;
   refreshChildren: (parentId: string | null) => Promise<void>;
+  /** re-read the given folders that this tab has loaded, in one atomic update */
+  refreshBranches: (parentIds: string[]) => Promise<void>;
   refreshTreePaths: (paths: string[][]) => Promise<void>;
   addItem: (item: NoteModel) => void;
   removeItem: (id: string) => Promise<void>;
@@ -269,6 +271,12 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => {
       const key = parentId ?? ROOT_ID;
       if (!get().tree.items[key]) throw new Error("Tree parent is no longer loaded");
       await reconcile(operation, [[key]]);
+    }),
+
+    refreshBranches: (parentIds) => enqueue(`branches:${[...parentIds].sort().join(",")}`, async (operation) => {
+      // a folder this tab never opened appears with fresh contents when it is opened
+      const loaded = parentIds.filter((id) => get().tree.items[id]?.childrenLoaded);
+      if (loaded.length > 0) await reconcile(operation, [loaded]);
     }),
 
     refreshTreePaths: (paths) => {
