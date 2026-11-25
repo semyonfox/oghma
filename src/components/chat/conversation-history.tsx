@@ -159,6 +159,15 @@ export function ConversationHistory({
       </div>
 
       <nav className="flex min-h-0 flex-1 flex-col overflow-hidden pb-3 pt-1">
+        {loadState === "loading" && conversations.length === 0 && (
+          <div role="status" aria-label={t("Loading...")} className="px-1.5">
+            {[70, 85, 61].map((width) => (
+              <div key={width} aria-hidden="true" className="flex min-h-11 items-center px-2 lg:min-h-7">
+                <span className="skeleton h-3 rounded-radius-sm" style={{ width: `${width}%` }} />
+              </div>
+            ))}
+          </div>
+        )}
         {[
           { label: "Pinned", items: pinnedConversations },
           { label: "Recent", items: recentConversations },
@@ -204,7 +213,7 @@ export function ConversationHistory({
               {sectionOpen && (
                 <div
                   id={isPinned ? "pinned-conversations" : undefined}
-                  className="obsidian-scrollbar min-h-0 flex-1 space-y-0 overflow-y-auto px-1.5"
+                  className="obsidian-scrollbar min-h-0 flex-1 space-y-0 overflow-y-auto overscroll-contain px-1.5"
                 >
                   {section.items.map((conv) => (
                     <div

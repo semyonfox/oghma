@@ -40,6 +40,7 @@ import {
   type OutlineOrder,
 } from "@/lib/notes/mobile-outline";
 import { topicColour } from "@/lib/study-map/topic-colours";
+import NotesTreeSkeleton from "./notes-tree-skeleton";
 import { useTreeViewSettings } from "./sidebar/use-tree-view-settings";
 import {
   useSidebarActions,
@@ -653,7 +654,7 @@ export default function MobileLibrary() {
             </button>
           </div>
         ) : !initLoaded ? (
-          <p role="status" className="p-5 text-sm text-text-tertiary">{t("Loading...")}</p>
+          <NotesTreeSkeleton />
         ) : rootChildren.length === 0 ? (
           <div className="mx-auto max-w-xs px-5 py-14 text-center">
             <FolderIcon className="mx-auto mb-4 h-9 w-9 text-text-tertiary" aria-hidden="true" />

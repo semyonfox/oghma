@@ -131,7 +131,7 @@ export default function DayAgenda({
           <div className="min-w-0">
             <h2
               id="day-agenda-heading"
-              className="truncate text-base font-semibold text-text-secondary"
+              className="wrap-anywhere text-base font-semibold text-text-secondary"
             >
               {heading}
             </h2>
@@ -153,9 +153,17 @@ export default function DayAgenda({
       )}
 
       {initialLoading ? (
-        <p role="status" className="px-4 py-10 text-center text-sm text-text-tertiary">
-          {t("Loading...")}
-        </p>
+        <div role="status" aria-label={t("Loading...")} className="space-y-2 px-4 pb-6">
+          {[0, 1].map((row) => (
+            <div key={row} aria-hidden="true" className="flex items-start gap-2 rounded-radius-lg border border-border bg-surface p-3">
+              <span className="skeleton size-11 rounded-radius-md" />
+              <div className="flex flex-1 flex-col gap-2 pt-1">
+                <span className="skeleton h-4 w-3/5 rounded-radius-sm" />
+                <span className="skeleton h-3 w-2/5 rounded-radius-sm" />
+              </div>
+            </div>
+          ))}
+        </div>
       ) : error && dayAssignments.length === 0 && dayBlocks.length === 0 ? (
         <div role="alert" className="flex flex-col items-center gap-3 px-4 py-10 text-center">
           <p className="text-sm text-error-700 dark:text-error-300">{t("Couldn’t load all calendar events. Try again in a moment.")}</p>

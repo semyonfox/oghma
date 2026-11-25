@@ -98,7 +98,7 @@ function CourseButton({
       )}
       <span className="flex shrink-0 items-center gap-2 text-xs sm:w-44">
         {isLoading ? (
-          <span className="h-4 w-4 animate-spin rounded-full border-2 border-text-tertiary border-t-transparent" />
+          <span className="h-4 w-4 delayed-spin rounded-full border-2 border-text-tertiary border-t-transparent" />
         ) : hasCards ? (
           <>
             {nothingDue ? (

@@ -110,7 +110,7 @@ export default function MobileBottomNavigation({
         ref={dockRef}
         data-mobile-dock
         data-native-dock={nativeDock ? "" : undefined}
-        className={`${keyboardOpen ? "hidden" : "block"} pointer-events-none fixed inset-x-0 bottom-[var(--focus-bar-space,0px)] z-30 h-[var(--mobile-dock-space)] ${nativeDock ? "" : "lg:hidden"} ${className}`}
+        className={`${keyboardOpen ? "hidden" : "block"} pointer-events-none fixed right-[var(--safe-right)] left-[var(--safe-left)] bottom-[var(--focus-bar-space,0px)] z-30 h-[var(--mobile-dock-space)] ${nativeDock ? "" : "lg:hidden"} ${className}`}
       >
         <nav
           aria-label={t("Main navigation")}
@@ -118,7 +118,7 @@ export default function MobileBottomNavigation({
           onFocusCapture={(event) => {
             if (event.target.matches(":focus-visible")) setExpanded(true);
           }}
-          className={`pointer-events-auto absolute bottom-[calc(12px+var(--safe-bottom))] left-1/2 flex -translate-x-1/2 items-stretch overflow-hidden rounded-full ring-1 p-1 shadow-float transition-[width,height] duration-[280ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${nativeDock ? "bg-surface-overlay/70 ring-border backdrop-blur-[8.75px]" : "bg-surface-overlay/90 ring-border"} ${expanded ? "min-h-16 w-[min(420px,calc(100%_-_28px))]" : "h-[52px] w-[clamp(228px,calc(100%_-_80px),350px)]"}`}
+          className={`pointer-events-auto absolute bottom-[calc(12px+var(--safe-bottom))] left-1/2 flex -translate-x-1/2 items-stretch overflow-hidden rounded-full ring-1 p-1 shadow-float ${nativeDock ? "bg-surface-overlay/70 ring-border backdrop-blur-[8.75px]" : "bg-surface-overlay/90 ring-border"} ${expanded ? "min-h-16 w-[min(420px,calc(100%_-_28px))]" : "h-[52px] w-[clamp(228px,calc(100%_-_80px),350px)]"}`}
         >
           {destinations.map(({ href, label, icon: Icon }) => {
             const active = !moreActive && pathname?.startsWith(href);
@@ -130,7 +130,7 @@ export default function MobileBottomNavigation({
                 aria-label={t(label)}
                 aria-current={active ? "page" : undefined}
                 onClick={() => setExpanded(true)}
-                className={`relative flex min-h-[44px] min-w-[44px] flex-1 flex-col items-center justify-center gap-1 rounded-full text-xs font-semibold transition-[background-color,color] duration-[280ms] motion-reduce:transition-none active:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ${active ? selectedStyle : restingStyle}`}
+                className={`relative flex min-h-[44px] min-w-[44px] flex-1 flex-col items-center justify-center gap-1 rounded-full text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ${active ? selectedStyle : restingStyle}`}
               >
                 <Icon
                   className="h-[26px] w-[26px] shrink-0"
@@ -154,7 +154,7 @@ export default function MobileBottomNavigation({
             aria-label={t("More")}
             aria-haspopup="dialog"
             aria-expanded={moreOpen}
-            className={`relative flex min-h-[44px] min-w-[44px] flex-1 flex-col items-center justify-center gap-1 rounded-full text-xs font-semibold transition-[background-color,color] duration-[280ms] motion-reduce:transition-none active:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ${moreActive || moreOpen ? selectedStyle : restingStyle}`}
+            className={`relative flex min-h-[44px] min-w-[44px] flex-1 flex-col items-center justify-center gap-1 rounded-full text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ${moreActive || moreOpen ? selectedStyle : restingStyle}`}
           >
             <EllipsisHorizontalIcon
               className="h-[26px] w-[26px] shrink-0"

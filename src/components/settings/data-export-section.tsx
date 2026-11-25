@@ -442,8 +442,8 @@ export default function DataExportSection() {
                 </div>
                 <div className="w-full bg-subtle rounded-full h-2">
                   <div
-                    className="bg-accent h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${uploadProgress}%` }}
+                    className="bg-accent h-2 rounded-full w-full origin-left transition-[scale] duration-150 ease-out rtl:origin-right"
+                    style={{ scale: `${uploadProgress / 100} 1` }}
                   />
                 </div>
               </div>
@@ -465,9 +465,9 @@ export default function DataExportSection() {
                 </div>
                 <div className="w-full bg-subtle rounded-full h-2">
                   <div
-                    className="bg-accent h-2 rounded-full transition-all duration-300"
+                    className="bg-accent h-2 rounded-full w-full origin-left transition-[scale] duration-150 ease-out rtl:origin-right"
                     style={{
-                      width: `${importProgress?.percent ?? 0}%`,
+                      scale: `${(importProgress?.percent ?? 0) / 100} 1`,
                     }}
                   />
                 </div>
@@ -553,9 +553,9 @@ export default function DataExportSection() {
                 </div>
                 <div className="w-full bg-subtle rounded-full h-2">
                   <div
-                    className="bg-accent h-2 rounded-full transition-all duration-300"
+                    className="bg-accent h-2 rounded-full w-full origin-left transition-[scale] duration-150 ease-out rtl:origin-right"
                     style={{
-                      width: `${exportProgress?.percent ?? 0}%`,
+                      scale: `${(exportProgress?.percent ?? 0) / 100} 1`,
                     }}
                   />
                 </div>

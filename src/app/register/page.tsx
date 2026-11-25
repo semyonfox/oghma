@@ -274,6 +274,7 @@ export default function RegisterPage() {
                       id="agent-user-code"
                       name="agent-user-code"
                       inputMode="numeric"
+                      autoComplete="one-time-code"
                       pattern="[0-9]{6}"
                       required
                       value={agentUserCode}

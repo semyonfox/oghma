@@ -107,8 +107,8 @@ export default function CalendarPage() {
 
   const onRangeChange = useEffectEvent(refreshCalendar);
   useEffect(() => {
-    onRangeChange();
-  }, [startDateKey, endDateKey]);
+    if (isDesktop !== null) onRangeChange();
+  }, [isDesktop, startDateKey, endDateKey]);
 
   // chat tools create blocks outside this page
   const onTimeBlockChange = useEffectEvent(refreshTimeBlocks);
@@ -291,7 +291,11 @@ export default function CalendarPage() {
               )}
 
               <div className="min-h-0 flex-1 overflow-hidden">
-                {isDesktop === false ? (
+                {isDesktop === null ? (
+                  <div role="status" aria-label={t("Loading...")} className="px-4 py-3">
+                    <div aria-hidden="true" className="skeleton h-8 w-40 rounded-radius-md" />
+                  </div>
+                ) : isDesktop === false ? (
                   <MobileCalendar
                     onAddTask={() => openNewTask(selectedDate)}
                     onOpenTasks={() => setTasksOpen(true)}

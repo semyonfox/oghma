@@ -39,6 +39,7 @@ import { useCanvasImportNotification } from "@/components/canvas/canvas-import-n
 import { summarySchema } from "@/components/study-map/study-client";
 import { toast } from "sonner";
 import { Alert } from "@/components/alert";
+import NotesTreeSkeleton from "../notes-tree-skeleton";
 import { z } from "zod";
 import { TreeViewMenu } from "./tree-view-menu";
 import { NewMenu } from "./new-menu";
@@ -400,7 +401,7 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
           </Alert>
         )}
 
-        {error && !initLoaded ? null : view.group === "tags" ? (
+        {!initLoaded ? (error ? null : <NotesTreeSkeleton />) : view.group === "tags" ? (
           <TagsView activeRootId={activeRootId} onOpenFile={openTagsViewFile} />
         ) : (
         <div className="flex-1 pb-4">

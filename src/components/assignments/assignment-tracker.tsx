@@ -415,9 +415,17 @@ export default function AssignmentTracker({
 
     if (!hasLoaded && loading) {
       return (
-        <p role="status" className="py-8 text-center text-xs text-text-tertiary">
-          {t("Loading...")}
-        </p>
+        <div role="status" aria-label={t("Loading...")} className="space-y-2 px-3 py-2">
+          {[0, 1, 2].map((row) => (
+            <div key={row} aria-hidden="true" className="glass-card flex items-start gap-2 rounded-radius-lg px-2 py-1.5">
+              <span className="skeleton size-8 shrink-0 rounded-radius-md max-lg:size-11" />
+              <div className="flex min-h-8 flex-1 flex-col justify-center gap-1.5">
+                <span className="skeleton h-3 w-4/5 rounded-radius-sm" />
+                <span className="skeleton h-2 w-1/2 rounded-radius-sm" />
+              </div>
+            </div>
+          ))}
+        </div>
       );
     }
 
@@ -463,6 +471,7 @@ export default function AssignmentTracker({
       return (
         <article
           key={assignment.id}
+          data-pressable
           draggable
           onDragStart={(event) => {
             event.dataTransfer.setData(ASSIGNMENT_DRAG_TYPE, assignment.id);
@@ -581,9 +590,9 @@ export default function AssignmentTracker({
             <div className={`${compact ? "mt-1.5" : "mt-2"} flex items-center gap-2 ${detailsIndent}`}>
               <div className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-subtle" aria-hidden="true">
                 <div
-                  className="h-full rounded-full bg-accent transition-all duration-300"
+                  className="h-full rounded-full bg-accent w-full origin-left transition-[scale] duration-150 ease-out rtl:origin-right"
                   style={{
-                    width: `${progress}%`,
+                    scale: `${progress / 100} 1`,
                   }}
                 />
               </div>
@@ -763,7 +772,7 @@ export default function AssignmentTracker({
           {tabs.map((tab) => (
             <TabPanel
               key={tab}
-              className="obsidian-scrollbar h-full space-y-1.5 overflow-y-auto px-3 focus:outline-none"
+              className="obsidian-scrollbar h-full space-y-1.5 overflow-y-auto overscroll-contain px-3 focus:outline-none"
             >
               {renderAssignments(tab)}
             </TabPanel>
