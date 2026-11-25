@@ -9,9 +9,9 @@ describe("auth credential validation", () => {
   });
 
   it.each([
-    [undefined, "password", { email: "Email is required" }],
-    ["student@example.com", "   ", { password: "Password is required" }],
-    ["student@localhost", "password", { email: "Invalid email format" }],
+    [undefined, "password", { email: "Enter your email address" }],
+    ["student@example.com", "   ", { password: "Enter your password" }],
+    ["student@localhost", "password", { email: "Enter an email address like name@example.com" }],
   ])(
     "rejects invalid login input",
     (email, password, expectedErrors) => {

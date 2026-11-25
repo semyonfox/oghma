@@ -1,5 +1,4 @@
 import { Suspense, type ReactNode } from "react";
-import { SparklesIcon } from "@heroicons/react/24/outline";
 import ChatShell from "./chat-shell";
 
 export default function ChatLayout({ children }: { children: ReactNode }) {
@@ -7,8 +6,13 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
     <>
       <Suspense
         fallback={
-          <div className="flex h-dvh w-screen items-center justify-center bg-app-page">
-            <SparklesIcon className="h-8 w-8 animate-pulse text-accent" />
+          <div aria-hidden="true" className="flex h-dvh w-screen bg-app-page">
+            <div className="hidden w-64 shrink-0 border-r border-border px-3 py-4 lg:block">
+              <div className="skeleton h-9 w-full rounded-radius-md" />
+            </div>
+            <div className="flex flex-1 items-end px-4 pb-24 lg:pb-3">
+              <div className="skeleton mx-auto h-12 w-full max-w-3xl rounded-radius-xl" />
+            </div>
           </div>
         }
       >

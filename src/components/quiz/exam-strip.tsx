@@ -119,7 +119,7 @@ export default function ExamStrip({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="font-serif text-lg text-text">{t("exam.title")}</h2>
-          <p className="text-xs text-text-tertiary">{t("exam.read_only")}</p>
+          <p className="max-w-[70ch] text-xs leading-normal text-text-tertiary">{t("exam.read_only")}</p>
         </div>
         {!formOpen && (
           <button

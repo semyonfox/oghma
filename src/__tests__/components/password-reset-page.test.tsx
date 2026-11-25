@@ -38,7 +38,7 @@ it("names the unmet password rule before calling the server", async () => {
 
 // regression: the route used to answer with an errors object the page tried to
 // .join(), which threw and replaced every server message with a generic one
-it("shows the server's error message", async () => {
+it("explains how to recover from an expired or unusable reset link", async () => {
   vi.stubGlobal(
     "fetch",
     vi
@@ -51,5 +51,5 @@ it("shows the server's error message", async () => {
 
   submit("StrongPass1");
 
-  await screen.findByText("Invalid or expired reset token");
+  await screen.findByText("This password link may have expired. Open the latest link or request a new one.");
 });

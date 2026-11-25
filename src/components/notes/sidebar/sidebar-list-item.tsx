@@ -13,7 +13,7 @@ import useLayoutStore from "@/lib/notes/state/layout";
 import { buildFileSpec } from "@/lib/notes/utils/file-spec";
 
 const TextSkeleton = () => (
-  <span className="inline-block w-20 h-4 bg-surface-elevated rounded-radius-sm animate-pulse" />
+  <span className="inline-block w-20 h-4 rounded-radius-sm skeleton" />
 );
 
 const SidebarListItem: FC<{

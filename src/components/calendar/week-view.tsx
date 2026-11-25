@@ -99,7 +99,9 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
   ) => {
     const origin = completed ? undefined : getCelebrationOrigin(control);
     if (!(await toggleTimeBlockCompleted(id))) {
-      toast.error(t("Something went wrong"));
+      toast.error(completed
+        ? t("Couldn’t mark the study block incomplete. Try again.")
+        : t("Couldn’t mark the study block complete. Try again."));
       return;
     }
     if (!completed) void triggerCelebration("assignment", origin);
@@ -107,7 +109,7 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
 
   const handleDeleteBlock = async (id: string) => {
     if (!(await deleteTimeBlock(id))) {
-      toast.error(t("Something went wrong"));
+      toast.error(t("Couldn’t delete the study block. Try again."));
     }
   };
 
@@ -121,7 +123,9 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
       status: completed ? "upcoming" : "done",
     });
     if (!updated) {
-      toast.error(t("Something went wrong"));
+      toast.error(completed
+        ? t("Couldn’t mark the task as upcoming. Try again.")
+        : t("Couldn’t mark the task done. Try again."));
       return;
     }
     if (!completed) void triggerCelebration("assignment", origin);
@@ -313,7 +317,7 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
                 .map((block) => (
                   <div
                     key={block.id}
-                    className={`group/block absolute left-0.5 right-0.5 overflow-hidden rounded-radius-md border px-1.5 py-1 text-xs leading-tight ${block.completed ? "border-success-500/30 bg-success-500/10" : "border-border bg-surface"}`}
+                    className={`group/block absolute left-0.5 right-0.5 rounded-radius-md border px-1.5 py-1 text-xs leading-tight ${block.completed ? "border-success-500/30 bg-success-500/10" : "border-border bg-surface"}`}
                     style={{
                       top: block.top,
                       height: block.height,
@@ -327,7 +331,7 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
                         event.stopPropagation();
                         void handleDeleteBlock(block.id);
                       }}
-                      className="absolute right-0.5 top-0.5 rounded p-0.5 text-text-tertiary opacity-100 transition hover:bg-subtle hover:text-text-secondary md:opacity-0 md:group-hover/block:opacity-100"
+                      className="touch-target-24 absolute right-0.5 top-0.5 rounded p-0.5 text-text-tertiary opacity-100 transition hover:bg-subtle hover:text-text-secondary md:opacity-0 md:group-hover/block:opacity-100 focus-visible:opacity-100"
                       aria-label={t("Delete study block")}
                       title={t("Delete study block")}
                     >
@@ -406,7 +410,7 @@ export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
                             event.currentTarget,
                           );
                         }}
-                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-radius-sm transition-colors hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                        className="touch-target-24 relative flex h-5 w-5 shrink-0 items-center justify-center rounded-radius-sm transition-colors hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                         aria-label={
                           marker.assignment.status === "done"
                             ? t("Mark as upcoming")

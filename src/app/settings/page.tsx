@@ -47,6 +47,7 @@ import { postNativeUpdates, postNativeOfflineAccount, useNativeAppBridge } from 
 import { useWorkspaceSession } from "@/components/providers/workspace-lifecycle-provider";
 import { resetWorkspaceClientState } from "@/lib/notes/workspace-lifecycle";
 import { publishWorkspaceInvalidation } from "@/lib/notes/workspace-invalidation";
+import { applyColourTheme } from "@/lib/notes/theme";
 import useNoteTreeStore from "@/lib/notes/state/tree";
 import PrimaryNavigation from "@/components/navigation/primary-navigation";
 import MobileBottomNavigation from "@/components/navigation/mobile-bottom-navigation";
@@ -107,16 +108,6 @@ type SavedProfile = Pick<
   "firstName" | "lastName" | "email" | "timezone" | "locale"
 >;
 type SavedEditorSettings = Pick<FormState, "theme" | "editorWidth">;
-
-function applyThemePreview(theme: FormState["theme"]) {
-  const root = document.documentElement;
-  const isDark =
-    theme === "system"
-      ? window.matchMedia("(prefers-color-scheme: dark)").matches
-      : theme === "dark";
-  root.classList.toggle("light", !isDark);
-  root.classList.toggle("dark", isDark);
-}
 
 function isCurrentWorkspace(ownerUserId: string | null, generation: number) {
   const tree = useNoteTreeStore.getState();
@@ -339,13 +330,14 @@ export default function SettingsPage() {
     };
   }, []);
 
-  useEffect(() => {
-    applyThemePreview(formState.theme);
+  const restoreSavedTheme = useEffectEvent(() => {
+    applyColourTheme(savedEditorSettings?.theme ?? "system");
+  });
+  useEffect(() => () => restoreSavedTheme(), []);
 
-    return () => {
-      applyThemePreview(savedEditorSettings?.theme || "system");
-    };
-  }, [formState.theme, savedEditorSettings?.theme]);
+  useEffect(() => {
+    applyColourTheme(formState.theme);
+  }, [formState.theme]);
 
   const scrollToSection = (id: string) => {
     const el = document.getElementById(id);

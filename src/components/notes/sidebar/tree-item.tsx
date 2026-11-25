@@ -207,6 +207,7 @@ function TreeItem({
           ${isDraggingOver ? "bg-accent-soft text-accent-soft-text ring-1 ring-inset ring-accent/40" : ""}
         `}
         style={{ paddingLeft: `${pl + 4}px` }}
+        data-pressable={isRenaming ? undefined : ""}
         draggable={true}
         onContextMenu={onContextMenu}
         onClick={(e) => {
@@ -236,7 +237,7 @@ function TreeItem({
         >
           {isLoading ? (
             <ArrowPathIcon
-              className="h-3 w-3 animate-spin text-text-tertiary"
+              className="h-3 w-3 delayed-spin text-text-tertiary"
               aria-hidden="true"
             />
           ) : isFolder ? (

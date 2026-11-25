@@ -110,7 +110,7 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => {
   function report(generation: number, message: string) {
     if (generation !== get().generation) return;
     set({ error: message });
-    get().toast?.(message, "error");
+    if (message !== "Error loading notes") get().toast?.(message, "error");
   }
 
   // A snapshot batch is assembled off-screen and committed once. If note CRUD

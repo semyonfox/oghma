@@ -114,7 +114,7 @@ export default function CanvasProgressPanel({
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
         <div className="flex items-center gap-2">
           {isImporting && (
-            <span aria-hidden="true" className="inline-block size-3.5 shrink-0 rounded-full border-2 border-accent/30 border-t-accent motion-safe:animate-spin" />
+            <span aria-hidden="true" className="inline-block size-3.5 shrink-0 rounded-full border-2 border-accent/30 border-t-accent delayed-spin" />
           )}
           <span className="text-sm font-medium text-text-secondary">
             {isImporting
@@ -206,8 +206,8 @@ export default function CanvasProgressPanel({
       {!isDiscovering && (
         <div className="h-1.5 w-full bg-subtle overflow-hidden">
           <div
-            className={`h-full transition-all duration-500 ${isImporting ? "bg-accent" : terminalBarColor}`}
-            style={{ width: `${progress.percent ?? 0}%` }}
+            className={`h-full w-full origin-left transition-[scale] duration-150 ease-out rtl:origin-right ${isImporting ? "bg-accent" : terminalBarColor}`}
+            style={{ scale: `${(progress.percent ?? 0) / 100} 1` }}
           />
         </div>
       )}

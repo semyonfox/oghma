@@ -12,7 +12,7 @@ import { serverEventsConnected, subscribeServerEvents } from "@/lib/server-event
 import { createPoller } from "@/lib/server-events/poller";
 import { ModuleMenu } from "./study-module-menu";
 import StudyCanvas, { type FlowScope } from "./study-canvas";
-import { ChromeFrame, Toast } from "./study-chrome";
+import { ChromeFrame, StudyMapSkeleton, Toast } from "./study-chrome";
 import StudyDrawer from "./study-drawer";
 import StudyInspector from "./study-inspector";
 import StudyExams from "./study-exams";
@@ -345,9 +345,7 @@ export function ModuleWorkspace({
             </button>
           </div>
         ) : (
-          <p role="status" className="text-sm text-text-secondary">
-            Loading module map...
-          </p>
+          <StudyMapSkeleton />
         )}
       </ChromeFrame>
     );
@@ -422,7 +420,7 @@ export function ModuleWorkspace({
       className={`pointer-events-auto flex max-w-[min(22rem,calc(100vw-1.5rem))] items-center gap-2 rounded-full border border-border-subtle bg-surface-overlay/95 py-1 pl-3 text-xs text-text-secondary shadow-float backdrop-blur ${setupStatus.action ? "pr-1" : "pr-3"}`}
     >
       <span
-        className={`h-2 w-2 shrink-0 rounded-full ${setupStatus.action ? "bg-warning-500" : "animate-pulse bg-accent"}`}
+        className={`h-2 w-2 shrink-0 rounded-full ${setupStatus.action ? "bg-warning-500" : "bg-accent"}`}
         aria-hidden="true"
       />
       <button

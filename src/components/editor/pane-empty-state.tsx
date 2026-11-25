@@ -99,6 +99,7 @@ const FirstNoteOnboarding: FC = () => {
 const PaneEmptyState: FC<{ pane: "A" | "B" }> = ({ pane }) => {
   const { t } = useI18n();
   const initLoaded = useNoteTreeStore((s) => s.initLoaded);
+  const treeUnavailable = useNoteTreeStore((s) => !s.initLoaded && s.error !== null);
   const workspaceIsEmpty = useNoteTreeStore(
     (s) => (s.tree.items.root?.children?.length ?? 0) === 0,
   );
@@ -117,9 +118,11 @@ const PaneEmptyState: FC<{ pane: "A" | "B" }> = ({ pane }) => {
         <p className="text-base font-medium text-text-secondary">
           {t("file_view_pane.select_file")}
         </p>
-        <p className="text-sm text-text-tertiary mt-2 max-w-xs leading-relaxed">
-          {t("file_view_pane.select_file_hint")}
-        </p>
+        {!treeUnavailable && (
+          <p className="text-sm text-text-tertiary mt-2 max-w-xs leading-relaxed">
+            {t("file_view_pane.select_file_hint")}
+          </p>
+        )}
       </div>
     </div>
   );

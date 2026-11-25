@@ -40,6 +40,7 @@ import {
   type OutlineOrder,
 } from "@/lib/notes/mobile-outline";
 import { topicColour } from "@/lib/study-map/topic-colours";
+import NotesTreeSkeleton from "./notes-tree-skeleton";
 import { useTreeViewSettings } from "./sidebar/use-tree-view-settings";
 import {
   useSidebarActions,
@@ -87,6 +88,7 @@ export default function MobileLibrary() {
   const tree = useNoteTreeStore((s) => s.tree);
   const initLoaded = useNoteTreeStore((s) => s.initLoaded);
   const treeError = useNoteTreeStore((s) => s.error);
+  const treeLoading = useNoteTreeStore((s) => s.loading);
   const loadChildren = useNoteTreeStore((s) => s.loadChildren);
   const { view, updateView } = useTreeViewSettings();
   const [expanded, setExpanded] = useState<Set<string>>(() => {
@@ -637,19 +639,22 @@ export default function MobileLibrary() {
         ) : treeError ? (
           <div className="p-5">
             <p role="alert" className="text-error-700 dark:text-error-300">
-              {t("Failed to load folder contents")}
+              {treeError === "Error loading notes"
+                ? t("Couldn’t load your notes. Check your connection and try again.")
+                : t(treeError)}
             </p>
             <button
               type="button"
               className={mobileActionClass}
-              onClick={() => void useNoteTreeStore.getState().refreshTree()}
+              disabled={treeLoading}
+              onClick={() => void useNoteTreeStore.getState().refreshTree().catch(() => {})}
             >
               <ArrowPathIcon className="h-5 w-5" aria-hidden="true" />
               {t("Try again")}
             </button>
           </div>
         ) : !initLoaded ? (
-          <p role="status" className="p-5 text-sm text-text-tertiary">{t("Loading...")}</p>
+          <NotesTreeSkeleton />
         ) : rootChildren.length === 0 ? (
           <div className="mx-auto max-w-xs px-5 py-14 text-center">
             <FolderIcon className="mx-auto mb-4 h-9 w-9 text-text-tertiary" aria-hidden="true" />

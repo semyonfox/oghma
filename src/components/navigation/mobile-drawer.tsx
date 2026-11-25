@@ -50,7 +50,7 @@ export default function MobileDrawer({
     >
       <DialogBackdrop
         transition
-        className="fixed inset-0 bg-black/45 backdrop-blur-[1px] transition duration-200 data-closed:opacity-0 motion-reduce:transition-none"
+        className="fixed inset-0 bg-black/45 backdrop-blur-[1px] transition-opacity duration-200 ease-out data-leave:duration-160 data-closed:opacity-0 motion-reduce:transition-none"
       />
       <div className="fixed inset-0 overflow-hidden">
         <div
@@ -63,7 +63,7 @@ export default function MobileDrawer({
             {...swipe}
             transition
             className={clsx(
-              "flex h-[88dvh] w-full flex-col rounded-t-radius-2xl bg-sidebar pb-[var(--safe-bottom)] shadow-float ring-1 ring-border transition duration-200 ease-out data-closed:translate-y-full data-closed:opacity-0 motion-reduce:transition-none",
+              "flex h-[88dvh] w-full flex-col overscroll-contain rounded-t-radius-2xl bg-sidebar pb-[var(--safe-bottom)] shadow-float ring-1 ring-border transition-[transform,translate,opacity] duration-200 ease-out data-leave:duration-160 data-closed:translate-y-full data-closed:opacity-0 motion-reduce:transition-none",
               "sm:h-dvh sm:w-[calc(100vw-1rem)] sm:max-w-sm sm:rounded-t-none sm:pt-[env(safe-area-inset-top)] sm:data-closed:translate-y-0",
               side === "left"
                 ? "sm:rounded-r-2xl sm:data-closed:-translate-x-full"
@@ -88,7 +88,7 @@ export default function MobileDrawer({
                 <XMarkIcon className="h-5 w-5" aria-hidden="true" />
               </button>
             </div>
-            <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
+            <div className="min-h-0 flex-1 overflow-hidden overscroll-contain">{children}</div>
           </DialogPanel>
         </div>
       </div>

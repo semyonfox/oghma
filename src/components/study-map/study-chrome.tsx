@@ -20,6 +20,7 @@ import {
   Square3Stack3DIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
+import useI18n from "@/lib/notes/hooks/use-i18n";
 import type { StudyMapSummary } from "@/lib/study-map/types";
 
 export const islandClass =
@@ -220,6 +221,19 @@ export function NoticeStack({ children }: { children: ReactNode }) {
   return (
     <div className="pointer-events-none absolute inset-x-3 bottom-16 z-40 flex flex-col items-center gap-2 lg:bottom-3 lg:right-auto lg:items-start">
       {children}
+    </div>
+  );
+}
+
+export function StudyMapSkeleton() {
+  const { t } = useI18n();
+  return (
+    <div role="status" aria-label={t("Loading...")} className="w-full max-w-md rounded-radius-xl border border-border-subtle bg-surface-overlay p-6">
+      <div aria-hidden="true" className="space-y-3">
+        <div className="skeleton h-5 w-1/2 rounded-radius-sm" />
+        <div className="skeleton h-3 w-full rounded-radius-sm" />
+        <div className="skeleton h-3 w-4/5 rounded-radius-sm" />
+      </div>
     </div>
   );
 }

@@ -329,7 +329,8 @@ describe("note tree loading state", () => {
 
     expect(useNoteTreeStore.getState().loading).toBe(false);
     expect(useNoteTreeStore.getState().initLoaded).toBe(false);
-    expect(toast).toHaveBeenCalledWith("Error loading notes", "error");
+    expect(useNoteTreeStore.getState().error).toBe("Error loading notes");
+    expect(toast).not.toHaveBeenCalled();
 
     await useNoteTreeStore.getState().refreshTree();
 
@@ -354,7 +355,8 @@ describe("note tree loading state", () => {
 
     expect(useNoteTreeStore.getState().initLoaded).toBe(false);
     expect(mocks.setItem).not.toHaveBeenCalled();
-    expect(toast).toHaveBeenCalledWith("Error loading notes", "error");
+    expect(useNoteTreeStore.getState().error).toBe("Error loading notes");
+    expect(toast).not.toHaveBeenCalled();
     consoleError.mockRestore();
   });
 

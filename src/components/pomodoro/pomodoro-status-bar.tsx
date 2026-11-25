@@ -145,15 +145,15 @@ export default function PomodoroStatusBar({
     <div
       aria-live="polite"
       data-focus-bar
-      className={`fixed bottom-0 left-0 right-0 z-40 bg-background/95 pb-[var(--safe-bottom)] backdrop-blur-sm transition-transform duration-300 ${
+      className={`fixed bottom-0 left-0 right-0 z-40 bg-background/95 pb-[var(--safe-bottom)] backdrop-blur-sm transition-transform duration-200 ease-out ${
         visible ? "translate-y-0" : "translate-y-full"
       }`}
     >
       {/* progress track */}
       <div className="h-0.5 w-full bg-subtle">
         <div
-          className={`h-full ${isComplete ? "bg-success-500" : barColor} transition-all duration-700 ease-out`}
-          style={{ width: `${isComplete ? 100 : progress}%` }}
+          className={`h-full w-full origin-left ${isComplete ? "bg-success-500" : barColor} transition-[scale] duration-150 ease-out rtl:origin-right`}
+          style={{ scale: `${isComplete ? 1 : progress / 100} 1` }}
         />
       </div>
 
@@ -165,7 +165,7 @@ export default function PomodoroStatusBar({
             <CheckCircleIcon className="w-3.5 h-3.5 text-success-700 dark:text-success-400 shrink-0" />
           ) : (
             <span
-              className={`shrink-0 w-1.5 h-1.5 rounded-full ${dotColor} ${isFocus ? "animate-pulse" : ""}`}
+              className={`shrink-0 w-1.5 h-1.5 rounded-full ${dotColor}`}
             />
           )}
           {statusText}
