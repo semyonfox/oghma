@@ -643,6 +643,7 @@
   "Pause": "Pause",
   "pdf_viewer.error": "Error loading PDF",
   "pdf_viewer.loading": "Chargement du PDF...",
+  "pdf_viewer.jump_to_page": "Aller à la page",
   "pdf_viewer.page_count": "{count} pages",
   "pdf_viewer.preparing": "Preparing PDF",
   "Pending": "En attente",

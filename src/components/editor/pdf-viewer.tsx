@@ -1,6 +1,6 @@
 "use client";
 
-import { FC, useState, useRef, useEffect, useMemo } from "react";
+import { FC, useState, useRef, useEffect, useMemo, useId } from "react";
 import { useRouter } from "next/navigation";
 import { FileSpec } from "@/lib/notes/state/layout";
 import useLayoutStore from "@/lib/notes/state/layout";
@@ -173,6 +173,8 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane }) => {
   const previousExtractionStatus = useRef<PdfExtractionState["status"] | null>(null);
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageList, setPageList] = useState<HTMLDivElement | null>(null);
+  const pageCountId = useId();
+  const jumpPosition = useRef<number | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [scale, setScale] = useState(1);
   const [fitMode, setFitMode] = useState(true);
@@ -254,22 +256,12 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane }) => {
     }
   };
 
-  // keep containerWidth in sync with pane resizes
   useEffect(() => {
     if (!scrollRoot) return;
-    const observer = new ResizeObserver((entries) => {
-      const w = entries[0]?.contentRect.width;
-      if (w) setContainerWidth(w);
-    });
-    observer.observe(scrollRoot);
-    return () => observer.disconnect();
-  }, [scrollRoot]);
-
-  useEffect(() => {
-    if (!scrollRoot || !pageList || !numPages) return;
-    const slots = pageList.querySelectorAll<HTMLElement>("[data-pdf-page-number]");
-    if (!slots.length) return;
+    const slots = pageList?.querySelectorAll<HTMLElement>("[data-pdf-page-number]");
     const updatePage = () => {
+      if (!slots?.length || scrollRoot.scrollTop === jumpPosition.current) return;
+      jumpPosition.current = null;
       if (scrollRoot.scrollTop <= 1) {
         setCurrentPage(1);
         return;
@@ -290,8 +282,14 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane }) => {
     };
     updatePage();
     scrollRoot.addEventListener("scroll", updatePage, { passive: true });
-    const observer = new ResizeObserver(updatePage);
-    observer.observe(pageList);
+    const observer = new ResizeObserver((entries) => {
+      const width = entries.find(entry => entry.target === scrollRoot)?.contentRect.width;
+      if (width) setContainerWidth(width);
+      jumpPosition.current = null;
+      updatePage();
+    });
+    observer.observe(scrollRoot);
+    if (pageList) observer.observe(pageList);
     return () => {
       observer.disconnect();
       scrollRoot.removeEventListener("scroll", updatePage);
@@ -357,20 +355,24 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane }) => {
           {numPages ? (
             <label className="inline-flex items-center gap-1">
               <select
-                aria-label={t("Jump to page")}
-                className="min-h-10 rounded bg-surface px-2 text-text"
+                aria-label={t("pdf_viewer.jump_to_page")}
+                aria-describedby={pageCountId}
+                className="min-h-10 rounded bg-surface px-2 text-text md:min-h-7"
                 value={currentPage}
                 onChange={(event) => {
                   const page = Number(event.target.value);
                   const slot = pageList?.querySelector<HTMLElement>(`[data-pdf-page-number="${page}"]`);
                   if (scrollRoot && slot) {
-                    slot.scrollIntoView({ block: slot.offsetHeight >= scrollRoot.clientHeight ? "start" : "center" });
+                    slot.scrollIntoView({ behavior: "instant", block: slot.offsetHeight >= scrollRoot.clientHeight ? "start" : "center" });
+                    jumpPosition.current = scrollRoot.scrollTop;
+                    setCurrentPage(page);
                   }
                 }}
               >
                 {Array.from({ length: numPages }, (_, i) => <option key={i} value={i + 1}>{i + 1}</option>)}
               </select>
-              / {numPages}
+              <span aria-hidden="true">/ {numPages}</span>
+              <span id={pageCountId} className="sr-only">{t("pdf_viewer.page_count", { count: numPages })}</span>
             </label>
           ) : t("Loading...")}
         </div>

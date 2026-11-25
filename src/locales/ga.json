@@ -643,6 +643,7 @@
   "Pause": "Sos",
   "pdf_viewer.error": "Error loading PDF",
   "pdf_viewer.loading": "PDF á lódáil...",
+  "pdf_viewer.jump_to_page": "Téigh go leathanach",
   "pdf_viewer.page_count": "{count} leathanaigh",
   "pdf_viewer.preparing": "Preparing PDF",
   "Pending": "Ar feitheamh",
