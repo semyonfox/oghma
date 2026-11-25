@@ -39,10 +39,17 @@ import {
   type EtaMemory,
 } from "@/lib/study-map/eta";
 import type { DocumentKind } from "@/lib/study-map/types";
+import { serverEventsConnected, subscribeServerEvents } from "@/lib/server-events/client";
+import { createPoller } from "@/lib/server-events/poller";
 import { moveFileToTopic, TOPICS_CHANGED_EVENT } from "./tag-editor";
 import { TopicDots } from "./topic-marks";
 
 const POLL_MS = 3000;
+// waiting for text means OCR or Marker, and a queued job waits behind other
+// imports, both take minutes, so a slow poll still catches them promptly
+const SLOW_POLL_MS = 30_000;
+// "queued" depends on time passing, not on new data, so it is redone locally
+const RELABEL_MS = 30_000;
 const TOPICS_PER_COURSE = 5;
 const rowClass =
   "group/row flex min-h-12 w-full items-center gap-1.5 rounded-radius-sm px-1.5 text-left text-text-secondary hover:bg-subtle hover:text-text md:min-h-7";
@@ -107,31 +114,46 @@ function ProgressDial({ mapIds, onClassified }: { mapIds: string[]; onClassified
 
   useEffect(() => {
     if (!key) return;
+    const maps = new Set(key.split(","));
     const request = new AbortController();
     memory.current = initialEtaMemory;
     classified.current = null;
-    let timer: number | undefined;
-    const poll = async () => {
+    const poll = async (): Promise<number | null> => {
       const params = new URLSearchParams(key.split(",").map((id) => ["map", id]));
       const response = await fetch(`/api/study-maps/progress?${params}`, { signal: request.signal, cache: "no-store" });
-      if (!response.ok) return;
+      if (!response.ok) return null;
       const body = classificationProgressSchema.parse(await response.json());
-      if (request.signal.aborted) return;
+      if (request.signal.aborted) return null;
       const next = estimateClassification(body, memory.current, Date.now());
       memory.current = next.memory;
       setProgress(body);
       setLabel(next.label);
       if (classified.current !== null && classified.current !== body.classified) onClassifiedRef.current();
       classified.current = body.classified;
-      // poll only while a job can still finish, the way the study workspace does
-      if (shouldPollProgress(body)) timer = window.setTimeout(() => void poll().catch(() => {}), POLL_MS);
+      // poll only while a job can still finish, the way the study workspace does.
+      // with events on, each sorted file or job change nudges a poll instead
+      if (!shouldPollProgress(body) || serverEventsConnected()) return null;
+      const moving = body.activeJobs > 0 && next.label.kind !== "queued" && next.label.kind !== "reading";
+      return moving ? POLL_MS : SLOW_POLL_MS;
     };
-    void poll().catch(() => {});
+    const poller = createPoller(poll, POLL_MS);
+    const unsubscribe = subscribeServerEvents((event) => {
+      if (event.type === "resync" || (event.type === "study" && maps.has(event.mapId))) poller.nudge();
+    });
     return () => {
       request.abort();
-      window.clearTimeout(timer);
+      poller.stop();
+      unsubscribe();
     };
   }, [key]);
+
+  useEffect(() => {
+    if (!progress || !showsProgress(progress)) return;
+    const timer = window.setInterval(() => {
+      setLabel(estimateClassification(progress, memory.current, Date.now()).label);
+    }, RELABEL_MS);
+    return () => window.clearInterval(timer);
+  }, [progress]);
 
   if (!progress) return null;
   const failed =

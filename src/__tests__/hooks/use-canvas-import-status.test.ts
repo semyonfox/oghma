@@ -636,15 +636,15 @@ describe("useCanvasImportStatus", () => {
       document.dispatchEvent(new Event("visibilitychange"));
       await vi.advanceTimersByTimeAsync(60_000);
     });
-    // the poll already scheduled before the tab hid still runs once
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    // the poll that came due while hidden waits for the tab
+    expect(fetchMock).toHaveBeenCalledTimes(2);
 
     hidden = false;
     await act(async () => {
       document.dispatchEvent(new Event("visibilitychange"));
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     unmount();
     visibility.mockRestore();
   });

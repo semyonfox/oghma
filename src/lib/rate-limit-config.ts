@@ -29,7 +29,6 @@ export const RATE_LIMITS = {
   // hints and explanations during a quiz, one short LLM reply each
   'quiz-assist':    { limit: 60,  windowSeconds: 3600,  keyType: 'userId' },
   // presence heartbeats fire every ~10s per open tab plus visibility events
-  'chat-presence':  { limit: 1200, windowSeconds: 3600, keyType: 'userId' },
   'chat-cancel':    { limit: 120, windowSeconds: 3600,  keyType: 'userId' },
   'canvas-connect': { limit: 10,  windowSeconds: 3600,  keyType: 'userId' },
   // a raw export walks every course; a sync re-reads every assignment
