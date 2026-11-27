@@ -13,6 +13,7 @@ import {
   CANVAS_TOOL_RESULT_MAX_CHARS,
   capCanvasToolResult,
   createCanvasMcpTools,
+  redactCanvasCredentialUrls,
 } from "@/lib/chat/canvas-mcp-client";
 
 const text = (value: string) => ({ type: "text", text: value });
@@ -41,6 +42,20 @@ describe("Canvas MCP origin", () => {
       expect(result).toEqual({ client: null, tools: {} });
       expect(createMCPClient).not.toHaveBeenCalled();
     }
+  });
+});
+
+describe("Canvas credential redaction", () => {
+  it("strips pre-authenticated download verifiers before the model sees them", () => {
+    const signed = "https://canvas.example/files/42/download?download_frd=1&verifier=secret-token&x=1";
+    expect(redactCanvasCredentialUrls(signed)).toBe(
+      "https://canvas.example/files/42/download?download_frd=1&verifier=[redacted]&x=1",
+    );
+    const capped = capCanvasToolResult({
+      content: [text(JSON.stringify({ url: signed, html_url: "https://canvas.example/courses/1/files/42" }))],
+    });
+    expect(JSON.stringify(capped)).not.toContain("secret-token");
+    expect(JSON.stringify(capped)).toContain("https://canvas.example/courses/1/files/42");
   });
 });
 

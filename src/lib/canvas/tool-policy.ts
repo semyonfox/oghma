@@ -12,7 +12,6 @@ const READ_ONLY_CANVAS_TOOLS = new Set([
   "canvas_get_discussion_topic",
   "canvas_get_discussion_view",
   "canvas_get_file",
-  "canvas_get_file_download_url",
   "canvas_get_front_page",
   "canvas_get_grading_standards",
   "canvas_get_module",
