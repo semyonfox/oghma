@@ -195,6 +195,9 @@ describe('search filter', () => {
         const ownership = vi.mocked(sql).mock.calls.find((call) =>
             Array.from(call[0] as TemplateStringsArray).join('').includes('c.id = ANY'),
         );
+        const ownershipSql = Array.from(ownership?.[0] as TemplateStringsArray).join('');
+        expect(ownershipSql).toContain('c.user_id');
+        expect(ownershipSql).toContain('deleted_at IS NULL');
         expect(ownership?.slice(1)).toEqual(['user-1', ['foreign', 'mine']]);
     });
 });

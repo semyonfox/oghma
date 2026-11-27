@@ -260,6 +260,13 @@ describe("searchChatChunks", () => {
         mode: "semantic",
       }),
     ).resolves.toEqual([]);
+
+    const [query, ...values] = vi.mocked(sql).mock.calls[0];
+    const text = Array.from(query as TemplateStringsArray).join("");
+    expect(text).toContain("c.user_id");
+    expect(text).toContain("n.user_id");
+    expect(text).toContain("deleted_at IS NULL");
+    expect(values.filter((value) => value === "user-1")).toHaveLength(2);
   });
 
   it("keeps exact matches when the embedding provider fails", async () => {
@@ -306,14 +313,20 @@ describe("searchChatChunks", () => {
   it("returns at most twelve matches, in retrieval order", async () => {
     vi.mocked(sql)
       .mockResolvedValueOnce(
-        Array.from({ length: 15 }, (_, index) => ({
+        Array.from({ length: 10 }, (_, index) => ({
           note_id: `note-${index}`,
           title: `Note ${index}`,
           chunk_id: `chunk-${index}`,
           chunk_text: `match ${index}`,
         })),
       )
-      .mockResolvedValueOnce([]);
+      .mockResolvedValueOnce(
+        Array.from({ length: 4 }, (_, index) => ({
+          note_id: `fallback-${index}`,
+          title: `Fallback ${index}`,
+          snippet: `note match ${index}`,
+        })),
+      );
 
     const results = await searchChatChunks({
       userId: "user-1",
@@ -321,9 +334,14 @@ describe("searchChatChunks", () => {
       mode: "exact",
     });
 
-    expect(results.map((result) => result.chunkId)).toEqual(
-      Array.from({ length: 12 }, (_, index) => `chunk-${index}`),
+    expect(results).toHaveLength(12);
+    expect(results.slice(0, 10).map((result) => result.chunkId)).toEqual(
+      Array.from({ length: 10 }, (_, index) => `chunk-${index}`),
     );
+    expect(results.slice(10).map((result) => result.chunkId)).toEqual([
+      "note:fallback-0",
+      "note:fallback-1",
+    ]);
   });
 
   it("keeps one hit when semantic and exact search find the same chunk", async () => {

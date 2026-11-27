@@ -192,8 +192,12 @@ describe("GET /api/search Canvas course contract", () => {
 
     await GET(new NextRequest("http://localhost/api/search?q=100%25_graphs"));
 
-    const bound = mocks.sql.mock.calls.flatMap((call) => call.slice(1));
-    expect(bound).toContain("123e4567-e89b-42d3-a456-426614174000");
-    expect(bound).toContain("%100\\%\\_graphs%");
+    const keyword = mocks.sql.mock.calls.find((call) =>
+      Array.from(call[0] as TemplateStringsArray).join("").includes("ILIKE"),
+    );
+    const text = Array.from(keyword?.[0] as TemplateStringsArray).join("");
+    expect(text).toContain("user_id =");
+    expect(keyword?.slice(1)).toContain("123e4567-e89b-42d3-a456-426614174000");
+    expect(keyword?.slice(1)).toContain("%100\\%\\_graphs%");
   });
 });
