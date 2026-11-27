@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { loadConfig } from "../src/config.js";
+import { assertListenAllowed, loadConfig } from "../src/config.js";
 
 describe("loadConfig", () => {
   it("parses valid env", () => {
@@ -21,7 +21,22 @@ describe("loadConfig", () => {
       CANVAS_DOMAIN: "example.instructure.com",
     });
     expect(cfg.port).toBe(3001);
+    expect(cfg.host).toBe("127.0.0.1");
+    expect(cfg.authToken).toBeUndefined();
     expect(cfg.logLevel).toBe("info");
+  });
+
+  it("refuses a public bind that would publish the env Canvas token", () => {
+    const cfg = loadConfig({
+      CANVAS_API_TOKEN: "tok",
+      CANVAS_DOMAIN: "example.instructure.com",
+      CANVAS_MCP_HOST: "0.0.0.0",
+    });
+    expect(() => assertListenAllowed(cfg)).toThrow(/CANVAS_MCP_AUTH_TOKEN/);
+    expect(() => assertListenAllowed({
+      ...cfg,
+      authToken: "mcp-secret",
+    })).not.toThrow();
   });
 
   it("returns undefined token and domain when not provided", () => {

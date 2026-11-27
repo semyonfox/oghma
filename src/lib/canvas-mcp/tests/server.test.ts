@@ -8,6 +8,8 @@ import type { FetchLike } from "../src/canvas/client.ts";
 const baseConfig: Config = {
     canvasApiToken: "env-token",
     canvasDomain: "school.instructure.com",
+    host: "127.0.0.1",
+    authToken: undefined,
     port: 0,
     logLevel: "info",
 };
@@ -62,6 +64,14 @@ describe("standalone MCP server", () => {
         const [canvasUrl, init] = canvasFetch.mock.calls[0]!;
         expect(canvasUrl).toBe("https://school.instructure.com/api/v1/users/self/profile");
         expect(new Headers(init?.headers).get("authorization")).toBe("Bearer caller-token");
+    });
+
+    it("rejects a request that is missing the MCP auth token", async () => {
+        const url = await start({ ...baseConfig, authToken: "mcp-secret" }, vi.fn<FetchLike>());
+        const res = await rpc(url, 1, "tools/list", {});
+        expect(res.status).toBe(401);
+        const authed = await rpc(url, 2, "tools/list", {}, { authorization: "Bearer mcp-secret" });
+        expect(authed.status).toBe(200);
     });
 
     it("rejects GET instead of opening a stream it cannot serve", async () => {
