@@ -145,4 +145,4 @@ The root Compose file is a homelab/Jenkins convenience configuration, not a fres
 
 ## Documentation
 
-Start with [docs/README.md](./docs/README.md) for the canonical documentation map. The most relevant technical references are the [architecture](./docs/engineering/architecture.md), the per-area [domain map](./docs/engineering/domains.md), the [import pipeline](./docs/engineering/import-pipeline.md) and [deployment/operations](./infra/HOMELAB.md) documents.
+Start with [docs/README.md](./docs/README.md) for the canonical documentation map. New contributors should read the [contributor architecture](./docs/ARCHITECTURE.md) first. The running-system contract is the [architecture](./docs/engineering/architecture.md), with the per-area [domain map](./docs/engineering/domains.md), the [import pipeline](./docs/engineering/import-pipeline.md) and [deployment/operations](./infra/HOMELAB.md).

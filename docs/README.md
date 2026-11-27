@@ -17,6 +17,7 @@ Status means:
 | I need to… | Use |
 |---|---|
 | Understand the product | [Project README](../README.md) |
+| Learn the code as a new contributor | [Contributor architecture](ARCHITECTURE.md) |
 | Run the app locally | [Local setup](../SETUP.md) |
 | Find current work | [Current-work pointers](../TODO.md) |
 | Find the code, routes and data for a feature | [Domains](engineering/domains.md) |
@@ -33,6 +34,7 @@ Status means:
 | Document | Status | Owns |
 |---|---|---|
 | [Architecture](engineering/architecture.md) | Current | App, data, queue, worker and deployment boundaries; route conventions |
+| [Contributor architecture](ARCHITECTURE.md) | Current | New-contributor walkthrough. Running boundaries stay in Architecture |
 | [Domains](engineering/domains.md) | Current | Per-domain entry points, flows, data, external services and folders |
 | [Import pipeline](engineering/import-pipeline.md) | Current | Canvas, upload and vault processing stages and tuning model |
 | [Canvas reliability handover](engineering/canvas-import-queue-reliability-handover.md) | Current, rollout gates open | Execution ownership, shared PDF reuse, replacement and Stop contracts, claim-recovery release gates |
