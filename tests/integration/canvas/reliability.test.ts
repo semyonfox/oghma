@@ -56,9 +56,6 @@ vi.mock("@/lib/canvas/client", () => ({
     async confirmFileDownload() {
       return { forbidden: false, error: null };
     }
-    async confirmFileDownload() {
-      return { forbidden: false, error: null };
-    }
     async downloadFile(url: string) {
       const id = url.split("/").pop() ?? "";
       return { buffer: mocks.fileBytes.get(id) ?? mocks.bytes };
