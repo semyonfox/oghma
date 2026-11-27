@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildCourseOutline,
   moduleCode,
+  nextDescriptorUrl,
   parseDescriptor,
 } from "@/lib/study-map/descriptor";
 
@@ -14,6 +15,16 @@ const page = (
 <footer>About University of Galway</footer></body></html>`;
 
 describe("public module descriptors", () => {
+  it("stays on the university site when a module page redirects", () => {
+    const current = "https://www.universityofgalway.ie/course-information/module/CT230";
+    expect(nextDescriptorUrl(current, "/course-information/module/CT230/")).toBe(
+      "https://www.universityofgalway.ie/course-information/module/CT230/",
+    );
+    expect(nextDescriptorUrl(current, "https://169.254.169.254/latest/meta-data/")).toBeNull();
+    expect(nextDescriptorUrl(current, "https://evil.example/module")).toBeNull();
+    expect(nextDescriptorUrl(current, "https://user:pass@www.universityofgalway.ie/course-information/module/CT230")).toBeNull();
+  });
+
   it("reads the module code from an imported Canvas course folder", () => {
     expect(moduleCode("CT230-Database-Systems-I")).toBe("CT230");
     expect(moduleCode("ct2109 data structures")).toBe("CT2109");

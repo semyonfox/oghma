@@ -4,8 +4,30 @@ import sql from "@/database/pgsql";
 // assessment split. It is free, official, and usually better topic input than course slides
 const DESCRIPTOR_URL =
   "https://www.universityofgalway.ie/course-information/module/";
+const DESCRIPTOR_ORIGIN = "https://www.universityofgalway.ie";
 const REFRESH_DAYS = 30;
 const CODE = /^([A-Z]{2,4}[0-9]{3,4}[A-Z]?)(?![A-Za-z0-9])/;
+const MODULE_CODE = /^[A-Z]{2,4}[0-9]{3,4}[A-Z]?$/;
+const MAX_DESCRIPTOR_REDIRECTS = 2;
+const MAX_DESCRIPTOR_CHARS = 1_000_000;
+
+export function nextDescriptorUrl(current: string, location: string): string | null {
+  let next: URL;
+  try {
+    next = new URL(location, current);
+  } catch {
+    return null;
+  }
+  if (
+    next.origin !== DESCRIPTOR_ORIGIN ||
+    next.username ||
+    next.password ||
+    next.port
+  ) {
+    return null;
+  }
+  return next.href;
+}
 
 /** "CT230-Database-Systems-I" → "CT230", as Canvas imports name course folders */
 export function moduleCode(title: string): string | null {
@@ -95,12 +117,10 @@ export async function fetchModuleDescriptor(
   if (cached?.fresh) return cached.body;
   let body: string | null;
   try {
-    const response = await fetch(`${DESCRIPTOR_URL}${code}`, {
-      signal: AbortSignal.timeout(10_000),
-      redirect: "follow",
-    });
-    // the site serves real module pages with a 404 status, so the body decides
-    body = parseDescriptor(await response.text(), code);
+    const html = await readDescriptorHtml(code);
+    // the site serves real module pages with a 404 status, so the body decides.
+    // a refused redirect throws and keeps the previous copy instead of caching null
+    body = parseDescriptor(html, code);
   } catch {
     // keep a stale copy rather than losing it to a network blip
     return cached?.body ?? null;
@@ -110,6 +130,36 @@ export async function fetchModuleDescriptor(
     ON CONFLICT (code) DO UPDATE SET body = EXCLUDED.body, fetched_at = EXCLUDED.fetched_at
   `;
   return body;
+}
+
+async function readDescriptorHtml(code: string): Promise<string> {
+  if (!MODULE_CODE.test(code)) {
+    throw new Error("Module code is not a Galway course code");
+  }
+  let current = `${DESCRIPTOR_URL}${code}`;
+  for (let hop = 0; hop <= MAX_DESCRIPTOR_REDIRECTS; hop++) {
+    const response = await fetch(current, {
+      signal: AbortSignal.timeout(10_000),
+      redirect: "manual",
+    });
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get("location");
+      await response.body?.cancel().catch(() => undefined);
+      if (!location || hop === MAX_DESCRIPTOR_REDIRECTS) {
+        throw new Error("Module page redirected too many times");
+      }
+      const next = nextDescriptorUrl(current, location);
+      if (!next) throw new Error("Module page redirected off the university host");
+      current = next;
+      continue;
+    }
+    const html = await response.text();
+    if (html.length > MAX_DESCRIPTOR_CHARS) {
+      throw new Error("Module page exceeded the size limit");
+    }
+    return html;
+  }
+  throw new Error("Module page redirected too many times");
 }
 
 // Galway's empty-course home page; it describes Canvas, not the module

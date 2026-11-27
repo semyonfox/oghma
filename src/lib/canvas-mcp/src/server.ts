@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import {
@@ -113,6 +114,13 @@ function normaliseDomain(raw: string | undefined): string | undefined {
     return trimmed.length > 0 ? trimmed : undefined;
 }
 
+function authHeaderMatches(header: string | undefined, expected: string): boolean {
+    if (!header || !header.toLowerCase().startsWith("bearer ")) return false;
+    const left = Buffer.from(header.slice(7).trim());
+    const right = Buffer.from(expected);
+    return left.length === right.length && left.length > 0 && timingSafeEqual(left, right);
+}
+
 function headerValue(req: IncomingMessage, name: string): string | undefined {
     const raw = req.headers[name];
     return Array.isArray(raw) ? raw[0] : raw;
@@ -133,6 +141,10 @@ export function createRequestHandler(cfg: Config, fetch?: FetchLike) {
         if (req.method !== "POST") {
             res.setHeader("allow", "POST");
             writeJson(res, 405, { error: "Method not allowed" });
+            return;
+        }
+        if (cfg.authToken && !authHeaderMatches(headerValue(req, "authorization"), cfg.authToken)) {
+            writeJson(res, 401, { error: "Missing MCP auth token" });
             return;
         }
 

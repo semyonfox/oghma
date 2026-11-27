@@ -11,6 +11,7 @@ vi.mock("@/lib/auth/internal-mcp-token", () => ({ createInternalMcpToken: () => 
 import { createMCPClient } from "@ai-sdk/mcp";
 import {
   CANVAS_TOOL_RESULT_MAX_CHARS,
+  CANVAS_UNTRUSTED_PREFIX,
   capCanvasToolResult,
   createCanvasMcpTools,
   redactCanvasCredentialUrls,
@@ -74,9 +75,11 @@ describe("Canvas credential redaction", () => {
 });
 
 describe("Canvas tool result cap", () => {
-  it("leaves a result inside the budget untouched", () => {
+  it("marks a short page as untrusted Canvas data without truncating it", () => {
     const result = { content: [text("short page")] };
-    expect(capCanvasToolResult(result)).toBe(result);
+    expect(capCanvasToolResult(result)).toEqual({
+      content: [text(`${CANVAS_UNTRUSTED_PREFIX}short page`)],
+    });
   });
 
   it("shares one budget across text parts and says how much was cut", () => {
@@ -89,7 +92,9 @@ describe("Canvas tool result cap", () => {
       typeof part === "object" && part !== null && "text" in part && typeof part.text === "string" ? [part.text] : [],
     );
     expect(texts.slice(0, 2).join("").length).toBe(CANVAS_TOOL_RESULT_MAX_CHARS);
-    expect(texts.at(-1)).toContain("truncated: 200 more characters");
+    expect(texts.at(-1)).toContain(
+      `truncated: ${200 + CANVAS_UNTRUSTED_PREFIX.length} more characters`,
+    );
     expect(capped.content).toContainEqual({ type: "image", data: "x" });
   });
 

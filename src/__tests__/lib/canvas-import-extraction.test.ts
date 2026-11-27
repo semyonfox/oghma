@@ -259,7 +259,7 @@ describe("processDirectExtraction", () => {
     vi.mocked(getStorageProvider).mockReturnValue(storage);
     sqlMock
       .mockResolvedValueOnce([{ status: "pending" }])
-      .mockResolvedValueOnce([{ id: "ingestion-job-123" }]);
+      .mockResolvedValueOnce([{ id: "ingestion-job-123", s3_key: "notes/note-123/lecture.pdf" }]);
 
     const result = processDirectExtraction({
       noteId: "note-123",
@@ -285,7 +285,7 @@ describe("processDirectExtraction", () => {
 
     vi.mocked(sql)
       .mockResolvedValueOnce([{ status: "pending" }] as never)
-      .mockResolvedValueOnce([{ id: "ingestion-job-123" }] as never)
+      .mockResolvedValueOnce([{ id: "ingestion-job-123", s3_key: "notes/note-123/lecture.pdf", mime_type: "application/pdf" }] as never)
       .mockResolvedValueOnce([{ parent_id: null }] as never)
       .mockResolvedValueOnce([] as never);
     vi.mocked(getStorageProvider).mockReturnValue({ getObjectAndMeta } as never);
@@ -337,6 +337,26 @@ describe("processDirectExtraction", () => {
       mimeType: "application/pdf",
     });
 
+    expect(processRagPipeline).not.toHaveBeenCalled();
+  });
+
+  it("does not read an object key that is not stored on the ingestion job", async () => {
+    vi.mocked(sql)
+      .mockResolvedValueOnce([{ status: "pending" }] as never)
+      .mockResolvedValueOnce([] as never);
+
+    await processDirectExtraction({
+      noteId: "note-123",
+      userId: "user-123",
+      s3Key: "notes/victim/secret.pdf",
+      mimeType: "application/pdf",
+    });
+
+    const claim = vi.mocked(sql).mock.calls.map(queryText).find((query) =>
+      query.includes("UPDATE app.ingestion_jobs") && query.includes("s3_key ="),
+    );
+    expect(claim).toBeTruthy();
+    expect(getStorageProvider).not.toHaveBeenCalled();
     expect(processRagPipeline).not.toHaveBeenCalled();
   });
 });
@@ -579,6 +599,7 @@ describe("processExtractionRetry", () => {
           status: "pending_retry",
           job_id: "job-123",
           imported_file_cache_id: null,
+          source_s3_key: "canvas/user/file.txt",
         },
       ] as never)
       .mockResolvedValueOnce([
@@ -654,6 +675,36 @@ describe("processExtractionRetry", () => {
       jobId: "job-123",
     });
 
+    expect(processRagPipeline).not.toHaveBeenCalled();
+  });
+
+  it("does not claim a Canvas retry whose message names a different object", async () => {
+    vi.mocked(sql).mockResolvedValueOnce([
+      {
+        id: "import-123",
+        status: "pending_retry",
+        job_id: "job-123",
+        imported_file_cache_id: null,
+        source_s3_key: "canvas/user/file.txt",
+      },
+    ] as never);
+
+    await processExtractionRetry({
+      noteId: "note-123",
+      userId: "user-123",
+      s3Key: "notes/victim/secret.pdf",
+      filename: "file.txt",
+      mimeType: "text/plain",
+      parentFolderId: null,
+      attempt: 1,
+      importRecordId: "import-123",
+      jobId: "job-123",
+    });
+
+    expect(vi.mocked(sql).mock.calls.map(queryText).join("\n")).not.toMatch(
+      /UPDATE app\.canvas_imports/,
+    );
+    expect(getStorageProvider).not.toHaveBeenCalled();
     expect(processRagPipeline).not.toHaveBeenCalled();
   });
 
