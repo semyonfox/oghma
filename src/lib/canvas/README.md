@@ -1,11 +1,11 @@
 # Import and shared worker map
 
-> Current code map, verified 2026-09-13.
+> Current code map, verified 2026-09-13. The worker task list was rechecked on 2026-11-27.
 
 This directory contains Canvas integration and import processing.
 [`worker-entry.ts`](worker-entry.ts) also starts the shared Node worker for
-Canvas work, chat generations, vault import and export, marketing cleanup,
-and retention tasks.
+Canvas work, chat generations, note reindex, vault import and export, study
+jobs, marketing cleanup, and retention tasks.
 
 ## Entry points and ownership
 
