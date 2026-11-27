@@ -80,7 +80,7 @@ async function deleteChunkSet(chunkIds: string[], userId: string): Promise<void>
   await afterDatabaseCommit(() => deleteVectorsOrJournal(chunkIds, userId));
   await sql.begin(async (tx: postgres.TransactionSql) => {
     await dropUnreviewedGeneratedQuestions(tx, userId, chunkIds);
-    await tx`DELETE FROM app.chunks WHERE id = ANY(${chunkIds}::uuid[])`;
+    await tx`DELETE FROM app.chunks WHERE user_id = ${userId}::uuid AND id = ANY(${chunkIds}::uuid[])`;
   });
 }
 

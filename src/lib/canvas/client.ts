@@ -693,6 +693,61 @@ export class CanvasClient {
   }
 
   /**
+   * Check that this token may read the file, then drop the body.
+   * A source-cache hit would otherwise skip downloadFile, including the 403
+   * that means the lecturer has not allowed this account to fetch the bytes.
+   * The token is only sent when the URL is on the Canvas origin.
+   */
+  async confirmFileDownload(url: string): Promise<{ forbidden: boolean; error: string | null }> {
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const headers: Record<string, string> = new URL(url).origin === new URL(this.baseUrl).origin
+          ? { Authorization: `Bearer ${this.token}` }
+          : {};
+        const response = await safeCanvasFetch(url, headers, true);
+
+        if (isRateLimitedResponse(response)) {
+          await discardResponse(response);
+          if (attempt < MAX_RETRIES) {
+            await sleep(retryDelayMs(response, attempt));
+            continue;
+          }
+          return { forbidden: false, error: "Download rate limited" };
+        }
+
+        if (response.status === 403) {
+          await discardResponse(response);
+          return { forbidden: true, error: "File download restricted" };
+        }
+
+        if (RETRYABLE_HTTP_STATUSES.has(response.status) && attempt < MAX_RETRIES) {
+          await discardResponse(response);
+          await sleep(retryDelayMs(response, attempt));
+          continue;
+        }
+
+        if (!response.ok) {
+          await discardResponse(response);
+          return { forbidden: false, error: `Download failed: ${response.status}` };
+        }
+
+        await discardResponse(response);
+        return { forbidden: false, error: null };
+      } catch (err) {
+        if (attempt < MAX_RETRIES && isRetryable(err)) {
+          await sleep(RETRY_BASE_MS * 2 ** attempt);
+          continue;
+        }
+        return {
+          forbidden: false,
+          error: err instanceof Error ? err.message : "Download error",
+        };
+      }
+    }
+    return { forbidden: false, error: "Download exhausted retries" };
+  }
+
+  /**
    * Downloads a file's binary content from Canvas.
    * The URL comes from the file metadata returned by getFile().
    * Returns a Node.js Buffer ready to pass to S3. The token is only sent when

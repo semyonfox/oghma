@@ -717,6 +717,7 @@ describe("ordinary Canvas document publication", () => {
     };
     const client = {
       baseUrl: "https://canvas.example/api/v1",
+      confirmFileDownload: vi.fn().mockResolvedValue({ forbidden: false, error: null }),
       downloadFile: vi.fn().mockResolvedValue({
         buffer: Buffer.from("docx bytes"),
         forbidden: false,
@@ -834,6 +835,7 @@ describe("shared imported PDF cache integrity", () => {
     }
     const client = {
       baseUrl: "https://canvas.example/api/v1",
+      confirmFileDownload: vi.fn().mockResolvedValue({ forbidden: false, error: null }),
       downloadFile: vi.fn().mockResolvedValue({
         buffer: Buffer.from("%PDF-1.4 fake"),
         forbidden: false,
@@ -871,6 +873,7 @@ describe("shared imported PDF cache integrity", () => {
       hasObjectResults: [true],
     });
 
+    expect(client.confirmFileDownload).toHaveBeenCalledWith(file.url);
     expect(client.downloadFile).not.toHaveBeenCalled();
     expect(storage.putObject).not.toHaveBeenCalled();
     expect(vi.mocked(sql)).toHaveBeenCalledWith(
@@ -879,6 +882,36 @@ describe("shared imported PDF cache integrity", () => {
       cache.storage_key,
       "note-123",
     );
+  });
+
+  it("does not replay a shared extraction when this token cannot download the file", async () => {
+    configureSql({ sourceCache: cache, shaCache: cache, existingNote: true });
+    const storage = {
+      hasObject: vi.fn().mockResolvedValue(true),
+      putObject: vi.fn().mockResolvedValue(undefined),
+    };
+    const client = {
+      baseUrl: "https://canvas.example/api/v1",
+      confirmFileDownload: vi.fn().mockResolvedValue({ forbidden: true, error: "File download restricted" }),
+      downloadFile: vi.fn(),
+    };
+    vi.mocked(getStorageProvider).mockReturnValue(storage as never);
+
+    await downloadAndStoreFile(file, {
+      userId: "user-123",
+      courseId: "1",
+      moduleId: null,
+      parentFolderId: null,
+      client,
+      storage,
+      s3Prefix: "canvas/user-123",
+      alreadyClaimed: true,
+    });
+
+    expect(client.downloadFile).not.toHaveBeenCalled();
+    expect(storage.putObject).not.toHaveBeenCalled();
+    const statusUpdate = vi.mocked(sql).mock.calls.find((call) => call.includes("forbidden" as never));
+    expect(statusUpdate).toBeTruthy();
   });
 
   it("restores a missing binary while retaining a ready extraction", async () => {

@@ -13,6 +13,7 @@ import {
   CANVAS_TOOL_RESULT_MAX_CHARS,
   capCanvasToolResult,
   createCanvasMcpTools,
+  redactCanvasCredentialUrls,
 } from "@/lib/chat/canvas-mcp-client";
 
 const text = (value: string) => ({ type: "text", text: value });
@@ -41,6 +42,34 @@ describe("Canvas MCP origin", () => {
       expect(result).toEqual({ client: null, tools: {} });
       expect(createMCPClient).not.toHaveBeenCalled();
     }
+  });
+});
+
+describe("Canvas credential redaction", () => {
+  it("strips pre-authenticated download verifiers before the model sees them", () => {
+    const signed = "https://canvas.example/files/42/download?download_frd=1&verifier=secret-token&x=1";
+    expect(redactCanvasCredentialUrls(signed)).toBe(
+      "https://canvas.example/files/42/download?download_frd=1&verifier=[redacted]&x=1",
+    );
+    const capped = capCanvasToolResult({
+      content: [text(JSON.stringify({ url: signed, html_url: "https://canvas.example/courses/1/files/42" }))],
+    });
+    expect(JSON.stringify(capped)).not.toContain("secret-token");
+    expect(JSON.stringify(capped)).toContain("https://canvas.example/courses/1/files/42");
+  });
+
+  it("strips verifiers hidden by HTML escapes and percent-encoding", () => {
+    expect(redactCanvasCredentialUrls("download?wrap=1&amp;verifier=SECRET")).toBe(
+      "download?wrap=1&amp;verifier=[redacted]",
+    );
+    expect(redactCanvasCredentialUrls("&#38;access_token=SECRET")).toBe("&#38;access_token=[redacted]");
+    expect(redactCanvasCredentialUrls("&#x26;token=SECRET")).toBe("&#x26;token=[redacted]");
+    expect(redactCanvasCredentialUrls("\\u0026sf_verifier=SECRET")).toBe("\\u0026sf_verifier=[redacted]");
+    const encoded = "fallback_url=https%3A%2F%2Fcanvas.example%2Ffiles%2F1%3Fverifier%3DSECRET%26x%3D1";
+    expect(redactCanvasCredentialUrls(encoded)).toBe(
+      "fallback_url=https%3A%2F%2Fcanvas.example%2Ffiles%2F1%3Fverifier%3D[redacted]%26x%3D1",
+    );
+    expect(redactCanvasCredentialUrls(encoded)).not.toContain("SECRET");
   });
 });
 

@@ -27,13 +27,43 @@ export { canvasToolInstruction };
 // chat should pay to read back on every later step. same ceiling as readNote
 export const CANVAS_TOOL_RESULT_MAX_CHARS = 20_000;
 
+// Canvas file objects carry a pre-authenticated download URL. The verifier is
+// a bearer credential, so it must not reach the model. Page and discussion
+// bodies escape the query separator, and some links percent-encode the URL.
+export function redactCanvasCredentialUrls(value: string): string {
+  const credential = "verifier|sf_verifier|access_token|token";
+  const plain = String.raw`[^&#"'\\\s]`;
+  return value
+    .replace(new RegExp(String.raw`((?:&amp;|&#38;|&#x26;)(?:${credential})=)${plain}+`, "gi"), "$1[redacted]")
+    .replace(new RegExp(String.raw`([?&](?:${credential})=)${plain}+`, "gi"), "$1[redacted]")
+    .replace(new RegExp(String.raw`(\\u0026(?:${credential})=)${plain}+`, "gi"), "$1[redacted]")
+    .replace(
+      new RegExp(String.raw`((?:%3F|%26)(?:${credential})%3D)(?:(?!%26)${plain})+`, "gi"),
+      "$1[redacted]",
+    );
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 // trims the text parts of an MCP tool result to one shared budget and says so,
 // so the model knows to ask for less instead of guessing at what was cut
+function redactToolResultText(result: unknown): unknown {
+  if (!isRecord(result) || !Array.isArray(result.content)) return result;
+  let changed = false;
+  const content = result.content.map((part: unknown) => {
+    if (!isRecord(part) || part.type !== "text" || typeof part.text !== "string") return part;
+    const text = redactCanvasCredentialUrls(part.text);
+    if (text === part.text) return part;
+    changed = true;
+    return { ...part, text };
+  });
+  return changed ? { ...result, content } : result;
+}
+
 export function capCanvasToolResult(result: unknown): unknown {
+  result = redactToolResultText(result);
   if (!isRecord(result) || !Array.isArray(result.content)) return result;
   let budget = CANVAS_TOOL_RESULT_MAX_CHARS;
   let cut = 0;
