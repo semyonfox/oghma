@@ -60,11 +60,14 @@ export async function processDirectExtraction(
     return;
   }
 
-  const claimed = await sql<{ id: string }[]>`
+  // the queue message is not the authority for which object to read. a rewritten
+  // payload can name another student's key; only the row written at upload counts
+  const claimed = await sql<{ id: string; s3_key: string; mime_type: string | null }[]>`
     UPDATE app.ingestion_jobs
     SET status = 'processing', updated_at = NOW()
     WHERE note_id = ${noteId}::uuid
       AND user_id = ${userId}::uuid
+      AND s3_key = ${s3Key}
       AND status = 'pending'
       AND EXISTS (
         SELECT 1
@@ -73,16 +76,19 @@ export async function processDirectExtraction(
           AND n.user_id = ${userId}::uuid
           AND n.deleted_at IS NULL
       )
-    RETURNING id
+    RETURNING id, s3_key, mime_type
   `;
-  if (claimed.length === 0) {
+  const job = claimed[0];
+  if (!job) {
     logger.info("direct extraction skipped: note inactive");
     return;
   }
+  const storedKey = job.s3_key;
+  const storedMime = job.mime_type || mimeType;
 
   let buffer: Buffer | undefined;
   try {
-    ({ buffer } = await getStorageProvider().getObjectAndMeta(s3Key));
+    ({ buffer } = await getStorageProvider().getObjectAndMeta(storedKey));
   } catch (error) {
     const willRetry = attempt + 1 < maxAttempts;
     await sql`
@@ -124,9 +130,9 @@ export async function processDirectExtraction(
       sourceParentId,
       buffer,
       {
-        filename: filename ?? s3Key.split("/").pop() ?? "document",
-        mimeType,
-        s3Key,
+        filename: filename ?? storedKey.split("/").pop() ?? "document",
+        mimeType: storedMime,
+        s3Key: storedKey,
       },
     );
     if (!result) {
@@ -169,6 +175,26 @@ export async function processDirectExtraction(
 
 // ── Extraction retry handler ────────────────────────────────────────────────
 
+async function storedExtractionKey(
+  noteId: string,
+  userId: string,
+  known: string | null | undefined,
+): Promise<string | null> {
+  if (known) return known;
+  const [owned] = await sql<{ s3_key: string | null }[]>`
+    SELECT COALESCE(
+      (SELECT j.s3_key FROM app.ingestion_jobs j
+        WHERE j.note_id = ${noteId}::uuid AND j.user_id = ${userId}::uuid
+          AND j.s3_key IS NOT NULL
+        ORDER BY j.created_at DESC LIMIT 1),
+      (SELECT n.s3_key FROM app.notes n
+        WHERE n.note_id = ${noteId}::uuid AND n.user_id = ${userId}::uuid
+          AND n.deleted_at IS NULL)
+    ) AS s3_key
+  `;
+  return owned?.s3_key ?? null;
+}
+
 export async function processExtractionRetry(msg: ExtractionRetryMessage) {
   const {
     noteId,
@@ -195,6 +221,7 @@ export async function processExtractionRetry(msg: ExtractionRetryMessage) {
     LIMIT 1
   `;
   let importRow: ExtractionImportRow | null = null;
+  let resolvedKey: string | null = null;
   if (existingImport) {
     if (
       !importRecordId ||
@@ -203,6 +230,15 @@ export async function processExtractionRetry(msg: ExtractionRetryMessage) {
       String(existingImport.job_id) !== String(jobId)
     ) {
       logger.info("extraction retry ignored: unbound or stale");
+      return;
+    }
+    resolvedKey = await storedExtractionKey(
+      noteId,
+      userId,
+      existingImport.source_s3_key,
+    );
+    if (!resolvedKey || (s3Key && s3Key !== resolvedKey)) {
+      logger.info("extraction retry ignored: object key does not match the stored file");
       return;
     }
     const [claimed] = await sql<ExtractionImportRow[]>`
@@ -238,13 +274,18 @@ export async function processExtractionRetry(msg: ExtractionRetryMessage) {
     return;
   }
 
+  if (!importRow) {
+    resolvedKey = await storedExtractionKey(noteId, userId, null);
+  }
+  const sourceKey = importRow?.source_s3_key || resolvedKey;
+  if (!sourceKey || (s3Key && s3Key !== sourceKey)) {
+    logger.info("extraction retry ignored: object key does not match the stored file");
+    return;
+  }
+
   const run = async () => {
   try {
   const storage = getStorageProvider();
-  const sourceKey = importRow?.source_s3_key ?? s3Key;
-  if (!sourceKey) {
-    throw new Error("Stored extraction source is missing");
-  }
   const objectData = await storage.getObjectAndMeta(sourceKey);
   const buffer = objectData?.buffer;
 
