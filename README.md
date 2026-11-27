@@ -30,7 +30,7 @@ The application owns user-facing requests and durable relational state. The work
 
 ## Prerequisites
 
-- Node.js `^22.22.2`, `^24.15.0`, or `>=26.0.0` (the ranges in `package.json`)
+- Node.js `^24.15.0` or `>=26.0.0`, the `engines` field in `package.json`
 - npm
 - Docker Engine with Docker Compose for mock and integration services
 - For browser tests, Playwright Chromium and its OS dependencies
@@ -145,4 +145,4 @@ The root Compose file is a homelab/Jenkins convenience configuration, not a fres
 
 ## Documentation
 
-Start with [docs/README.md](./docs/README.md) for the canonical documentation map. The most relevant technical references are the [architecture](./docs/engineering/architecture.md), the per-area [domain map](./docs/engineering/domains.md), the [import pipeline](./docs/engineering/import-pipeline.md) and [deployment/operations](./infra/HOMELAB.md) documents.
+Start with [docs/README.md](./docs/README.md) for the canonical documentation map. New contributors should read the [contributor architecture](./docs/ARCHITECTURE.md) first. The running-system contract is the [architecture](./docs/engineering/architecture.md), with the per-area [domain map](./docs/engineering/domains.md), the [import pipeline](./docs/engineering/import-pipeline.md) and [deployment/operations](./infra/HOMELAB.md).

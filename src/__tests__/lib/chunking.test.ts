@@ -43,6 +43,21 @@ describe('chunkText', () => {
         expect(result.join('\n')).toContain('word199');
     });
 
+    it('splits on question marks and exclamation marks without dropping text', () => {
+        const sentences = ['What is a graph?', 'A tree is a graph!', 'Done.'];
+        expect(chunkText(sentences.join(' '), 20)).toEqual(sentences);
+    });
+
+    it('keeps every character when a boundary-free passage is cut', () => {
+        const text = 'x'.repeat(250);
+        const chunks = chunkText(text, 100);
+
+        expect(chunks.join('')).toBe(text);
+        for (const chunk of chunks) {
+            expect(chunk.length).toBeLessThanOrEqual(200);
+        }
+    });
+
     it('never emits a chunk longer than twice the chunk size', () => {
         // run-on text with few boundaries, the shape of OCR output and code
         const text = [

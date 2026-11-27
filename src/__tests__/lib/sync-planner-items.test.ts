@@ -38,6 +38,13 @@ describe("syncCanvasPlannerItems", () => {
     expect(text).not.toMatch(/deleted_at = NULL/);
   });
 
+  it("does not call Canvas or write rows when the account is missing", async () => {
+    const client = makeClient({ data: [], forbidden: false });
+    await expect(syncCanvasPlannerItems({ canvasDomain: "canvas.example", client })).rejects.toThrow(/userId/);
+    expect(client.getPlannerItems).not.toHaveBeenCalled();
+    expect(sql).not.toHaveBeenCalled();
+  });
+
   it("does not tombstone rows when Canvas returns a partial failure", async () => {
     const client = makeClient({ data: [], forbidden: false, error: "Canvas API rate limited — try again later" });
     const result = await syncCanvasPlannerItems({ userId: USER_ID, canvasDomain: "canvas.example", client, startDate: "2026-01-01T00:00:00.000Z", endDate: "2026-03-01T00:00:00.000Z" });

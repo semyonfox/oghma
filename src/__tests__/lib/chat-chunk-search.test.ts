@@ -240,4 +240,154 @@ describe("searchChatChunks", () => {
       },
     ]);
   });
+
+  it("returns no semantic hits the owner does not have", async () => {
+    vi.mocked(searchChunkVectors).mockResolvedValue([
+      {
+        chunkId: "foreign-chunk",
+        documentId: "foreign-note",
+        userId: "other-user",
+        score: 0.99,
+        distance: 0.01,
+      },
+    ]);
+    vi.mocked(sql).mockResolvedValue([]);
+
+    await expect(
+      searchChatChunks({
+        userId: "user-1",
+        query: "secret",
+        mode: "semantic",
+      }),
+    ).resolves.toEqual([]);
+
+    const [query, ...values] = vi.mocked(sql).mock.calls[0];
+    const text = Array.from(query as TemplateStringsArray).join("");
+    expect(text).toContain("c.user_id");
+    expect(text).toContain("n.user_id");
+    expect(text).toContain("deleted_at IS NULL");
+    expect(values.filter((value) => value === "user-1")).toHaveLength(2);
+  });
+
+  it("keeps exact matches when the embedding provider fails", async () => {
+    vi.mocked(embedText).mockRejectedValue(new Error("provider down"));
+    vi.mocked(sql)
+      .mockResolvedValueOnce([
+        {
+          note_id: "11111111-1111-1111-1111-111111111111",
+          title: null,
+          chunk_id: "22222222-2222-2222-2222-222222222222",
+          chunk_text: "Graphs   and\ttrees",
+        },
+      ])
+      .mockResolvedValueOnce([]);
+
+    await expect(
+      searchChatChunks({
+        userId: "33333333-3333-3333-3333-333333333333",
+        query: "graphs",
+        mode: "both",
+      }),
+    ).resolves.toEqual([
+      {
+        noteId: "11111111-1111-1111-1111-111111111111",
+        title: "Untitled",
+        chunkId: "22222222-2222-2222-2222-222222222222",
+        text: "Graphs and trees",
+        source: "exact",
+      },
+    ]);
+  });
+
+  it("treats percent and underscore in the query as literal text", async () => {
+    await searchChatChunks({
+      userId: "22222222-2222-2222-2222-222222222222",
+      query: "100%_done",
+      mode: "exact",
+    });
+
+    const bound = vi.mocked(sql).mock.calls.flatMap((call) => call.slice(1));
+    expect(bound).toContain("%100\\%\\_done%");
+  });
+
+  it("returns at most twelve matches, in retrieval order", async () => {
+    vi.mocked(sql)
+      .mockResolvedValueOnce(
+        Array.from({ length: 10 }, (_, index) => ({
+          note_id: `note-${index}`,
+          title: `Note ${index}`,
+          chunk_id: `chunk-${index}`,
+          chunk_text: `match ${index}`,
+        })),
+      )
+      .mockResolvedValueOnce(
+        Array.from({ length: 4 }, (_, index) => ({
+          note_id: `fallback-${index}`,
+          title: `Fallback ${index}`,
+          snippet: `note match ${index}`,
+        })),
+      );
+
+    const results = await searchChatChunks({
+      userId: "user-1",
+      query: "match",
+      mode: "exact",
+    });
+
+    expect(results).toHaveLength(12);
+    expect(results.slice(0, 10).map((result) => result.chunkId)).toEqual(
+      Array.from({ length: 10 }, (_, index) => `chunk-${index}`),
+    );
+    expect(results.slice(10).map((result) => result.chunkId)).toEqual([
+      "note:fallback-0",
+      "note:fallback-1",
+    ]);
+  });
+
+  it("keeps one hit when semantic and exact search find the same chunk", async () => {
+    vi.mocked(searchChunkVectors).mockResolvedValue([
+      {
+        chunkId: "chunk-1",
+        documentId: "note-1",
+        userId: "user-1",
+        score: 0.9,
+        distance: 0.1,
+      },
+    ]);
+    vi.mocked(sql)
+      .mockResolvedValueOnce([
+        {
+          chunk_id: "chunk-1",
+          note_id: "note-1",
+          title: "Graphs",
+          chunk_text: "Alpha",
+          canvas_course_id: null,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          note_id: "note-1",
+          title: "Graphs",
+          chunk_id: "chunk-1",
+          chunk_text: "Alpha again",
+        },
+      ])
+      .mockResolvedValueOnce([]);
+
+    await expect(
+      searchChatChunks({
+        userId: "user-1",
+        query: "alpha",
+        mode: "both",
+      }),
+    ).resolves.toEqual([
+      {
+        noteId: "note-1",
+        title: "Graphs",
+        chunkId: "chunk-1",
+        text: "Alpha",
+        source: "semantic",
+      },
+    ]);
+  });
 });

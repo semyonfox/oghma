@@ -2,7 +2,6 @@ import sql from "@/database/pgsql";
 import logger from "@/lib/logger";
 import { chunkText } from "@/lib/rag/chunking";
 import { replaceNoteEmbeddings } from "@/lib/rag/indexing";
-import { processExtractedText } from "@/lib/canvas/text-processing";
 import { enqueueNoteReindexJob } from "@/lib/queue";
 
 interface NoteReindexRow {
@@ -53,7 +52,9 @@ async function runReindex(
   `) as NoteReindexRow[];
   if (!note) return "missing";
 
-  const cleanedText = processExtractedText(note.content);
+  // the search copy is the note body. a cleaner that drops tokens hides real
+  // edits: digits, one-letter words, link targets, and generic types.
+  const cleanedText = note.content;
   const unchanged = cleanedText === (note.extracted_text ?? "");
 
   if (!unchanged) await replaceNoteEmbeddings(noteId, userId, chunkText(note.content));
