@@ -28,12 +28,19 @@ export { canvasToolInstruction };
 export const CANVAS_TOOL_RESULT_MAX_CHARS = 20_000;
 
 // Canvas file objects carry a pre-authenticated download URL. The verifier is
-// a bearer credential, so it must not reach the model or the stored tool result.
+// a bearer credential, so it must not reach the model. Page and discussion
+// bodies escape the query separator, and some links percent-encode the URL.
 export function redactCanvasCredentialUrls(value: string): string {
-  return value.replace(
-    /([?&](?:verifier|sf_verifier|access_token|token)=)[^&#"'\\\s]+/gi,
-    "$1[redacted]",
-  );
+  const credential = "verifier|sf_verifier|access_token|token";
+  const plain = String.raw`[^&#"'\\\s]`;
+  return value
+    .replace(new RegExp(String.raw`((?:&amp;|&#38;|&#x26;)(?:${credential})=)${plain}+`, "gi"), "$1[redacted]")
+    .replace(new RegExp(String.raw`([?&](?:${credential})=)${plain}+`, "gi"), "$1[redacted]")
+    .replace(new RegExp(String.raw`(\\u0026(?:${credential})=)${plain}+`, "gi"), "$1[redacted]")
+    .replace(
+      new RegExp(String.raw`((?:%3F|%26)(?:${credential})%3D)(?:(?!%26)${plain})+`, "gi"),
+      "$1[redacted]",
+    );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

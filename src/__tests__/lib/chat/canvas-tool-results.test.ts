@@ -57,6 +57,20 @@ describe("Canvas credential redaction", () => {
     expect(JSON.stringify(capped)).not.toContain("secret-token");
     expect(JSON.stringify(capped)).toContain("https://canvas.example/courses/1/files/42");
   });
+
+  it("strips verifiers hidden by HTML escapes and percent-encoding", () => {
+    expect(redactCanvasCredentialUrls("download?wrap=1&amp;verifier=SECRET")).toBe(
+      "download?wrap=1&amp;verifier=[redacted]",
+    );
+    expect(redactCanvasCredentialUrls("&#38;access_token=SECRET")).toBe("&#38;access_token=[redacted]");
+    expect(redactCanvasCredentialUrls("&#x26;token=SECRET")).toBe("&#x26;token=[redacted]");
+    expect(redactCanvasCredentialUrls("\\u0026sf_verifier=SECRET")).toBe("\\u0026sf_verifier=[redacted]");
+    const encoded = "fallback_url=https%3A%2F%2Fcanvas.example%2Ffiles%2F1%3Fverifier%3DSECRET%26x%3D1";
+    expect(redactCanvasCredentialUrls(encoded)).toBe(
+      "fallback_url=https%3A%2F%2Fcanvas.example%2Ffiles%2F1%3Fverifier%3D[redacted]%26x%3D1",
+    );
+    expect(redactCanvasCredentialUrls(encoded)).not.toContain("SECRET");
+  });
 });
 
 describe("Canvas tool result cap", () => {
