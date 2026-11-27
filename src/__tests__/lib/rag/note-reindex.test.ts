@@ -15,7 +15,6 @@ vi.mock("@/lib/logger", () => ({
 
 import { replaceNoteEmbeddings } from "@/lib/rag/indexing";
 import { enqueueNoteReindexJob } from "@/lib/queue";
-import { processExtractedText } from "@/lib/canvas/text-processing";
 import { reindexNote } from "@/lib/rag/note-reindex";
 
 const CONTENT = "# Title\n\nSome body text worth indexing.";
@@ -38,7 +37,7 @@ describe("reindexNote", () => {
 
   it("skips the embedding call when the index already matches the content", async () => {
     sqlMock.mockResolvedValueOnce([
-      noteRow({ extracted_text: processExtractedText(CONTENT) }),
+      noteRow({ extracted_text: CONTENT }),
     ]).mockResolvedValueOnce([{ note_id: "note-1" }]);
 
     await expect(reindexNote("note-1", "user-1")).resolves.toBe("unchanged");
@@ -66,5 +65,60 @@ describe("reindexNote", () => {
 
     await expect(reindexNote("note-1", "user-1")).resolves.toBe("stale");
     expect(enqueueNoteReindexJob).toHaveBeenCalledWith("note-1", "user-1");
+  });
+
+  it("keeps numbers and one-letter words in the stored search text", async () => {
+    const content = "Layer 7 has a cost of 3.14.";
+    sqlMock
+      .mockResolvedValueOnce([{ content, extracted_text: null, updated_at: STAMP }])
+      .mockResolvedValueOnce([{ note_id: "note-1" }]);
+
+    await expect(reindexNote("note-1", "user-1")).resolves.toBe("indexed");
+
+    const stamped = sqlMock.mock.calls[1].slice(1);
+    expect(stamped).toContain(content);
+    expect(replaceNoteEmbeddings).toHaveBeenCalledWith(
+      "note-1",
+      "user-1",
+      expect.arrayContaining([expect.stringContaining(content)]),
+    );
+  });
+
+  it("re-embeds when a number changes from 7 to 8", async () => {
+    const after = "Layer 8 has a cost of 3.14.";
+    sqlMock
+      .mockResolvedValueOnce([{
+        content: after,
+        // the search text previously stored for "Layer 7 has a cost of 3.14."
+        extracted_text: "Layer has cost of",
+        updated_at: STAMP,
+      }])
+      .mockResolvedValueOnce([{ note_id: "note-1" }]);
+
+    await expect(reindexNote("note-1", "user-1")).resolves.toBe("indexed");
+    expect(replaceNoteEmbeddings).toHaveBeenCalledWith(
+      "note-1",
+      "user-1",
+      expect.arrayContaining([expect.stringContaining(after)]),
+    );
+    expect(sqlMock.mock.calls[1].slice(1)).toContain(after);
+  });
+
+  it.each([
+    ["a link target", "See [the spec](https://example.test/v1)", "See [the spec](https://example.test/v2)"],
+    ["a generic type", "Use a List<Integer> here", "Use a List<String> here"],
+    ["an ordered-list number", "7. Graphs", "8. Graphs"],
+  ])("re-embeds when %s changes and keeps it in the search text", async (_label, before, after) => {
+    sqlMock
+      .mockResolvedValueOnce([{ content: after, extracted_text: before, updated_at: STAMP }])
+      .mockResolvedValueOnce([{ note_id: "note-1" }]);
+
+    await expect(reindexNote("note-1", "user-1")).resolves.toBe("indexed");
+    expect(replaceNoteEmbeddings).toHaveBeenCalledWith(
+      "note-1",
+      "user-1",
+      expect.arrayContaining([expect.stringContaining(after)]),
+    );
+    expect(sqlMock.mock.calls[1].slice(1)).toContain(after);
   });
 });

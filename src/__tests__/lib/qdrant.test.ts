@@ -329,6 +329,68 @@ describe("qdrant collection lifecycle", () => {
   });
 });
 
+describe("vector hit filtering", () => {
+  it("drops hits on the distance cutoff and hits with no owner payload", async () => {
+    const userId = "11111111-1111-4111-8111-111111111111";
+    const kept = "33333333-3333-4333-8333-333333333333";
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      if (String(url).includes("/points/search")) {
+        return jsonResponse({
+          result: [
+            {
+              id: kept,
+              score: 0.8,
+              payload: {
+                chunk_id: kept,
+                document_id: "22222222-2222-4222-8222-222222222222",
+                user_id: userId,
+              },
+            },
+            {
+              id: "44444444-4444-4444-8444-444444444444",
+              score: 0.5,
+              payload: {
+                chunk_id: "44444444-4444-4444-8444-444444444444",
+                document_id: "55555555-5555-4555-8555-555555555555",
+                user_id: userId,
+              },
+            },
+            {
+              id: "66666666-6666-4666-8666-666666666666",
+              score: 0.99,
+              payload: {},
+            },
+          ],
+        });
+      }
+      if (String(url).endsWith("/test_chunks")) {
+        return jsonResponse({
+          result: { config: { params: { vectors: { size: 3 } } } },
+        });
+      }
+      return jsonResponse({ result: true });
+    }));
+
+    const { searchChunkVectors } = await loadQdrant();
+    const hits = await searchChunkVectors({
+      userId,
+      vector: [0.1, 0.2, 0.3],
+      maxDistance: 0.5,
+      limit: 10,
+    });
+
+    expect(hits).toEqual([
+      {
+        chunkId: kept,
+        documentId: "22222222-2222-4222-8222-222222222222",
+        userId,
+        score: 0.8,
+        distance: expect.closeTo(0.2, 6),
+      },
+    ]);
+  });
+});
+
 describe('vector request bounds', () => {
   it('does not broaden an explicitly empty document scope', async () => {
     const fetchMock = vi.fn();

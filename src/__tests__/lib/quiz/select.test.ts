@@ -6,6 +6,7 @@ vi.mock('@/lib/qdrant', () => ({ searchChunkVectors: vi.fn() }));
 
 import sql from '@/database/pgsql';
 import { embedText } from '@/lib/rag/embeddings';
+import { searchChunkVectors } from '@/lib/qdrant';
 import {
     allocateSlots,
     resolveChunkIds,
@@ -176,6 +177,28 @@ describe('search filter', () => {
         expect(Array.from(parts as TemplateStringsArray).join('')).toContain('c.text ILIKE');
         // LIKE wildcards in the query are matched literally
         expect(values).toContain('%100\\%\\_graphs%');
+    });
+
+    it('drops vector hits that are not the caller\'s live chunks', async () => {
+        vi.mocked(embedText).mockResolvedValue([0.1, 0.2]);
+        vi.mocked(searchChunkVectors).mockResolvedValue([
+            { chunkId: 'foreign', documentId: 'note-b', userId: 'user-2', score: 0.99, distance: 0.01 },
+            { chunkId: 'mine', documentId: 'note-a', userId: 'user-1', score: 0.8, distance: 0.2 },
+        ]);
+        vi.mocked(sql).mockReset();
+        vi.mocked(sql).mockResolvedValue([{ id: 'mine' }] as never);
+
+        await expect(
+            resolveChunkIds('user-1', { filterType: 'search', filterValue: 'graphs' }),
+        ).resolves.toEqual(['mine']);
+
+        const ownership = vi.mocked(sql).mock.calls.find((call) =>
+            Array.from(call[0] as TemplateStringsArray).join('').includes('c.id = ANY'),
+        );
+        const ownershipSql = Array.from(ownership?.[0] as TemplateStringsArray).join('');
+        expect(ownershipSql).toContain('c.user_id');
+        expect(ownershipSql).toContain('deleted_at IS NULL');
+        expect(ownership?.slice(1)).toEqual(['user-1', ['foreign', 'mine']]);
     });
 });
 
