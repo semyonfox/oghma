@@ -119,7 +119,7 @@ Flashcards generated from note chunks and scheduled with FSRS.
 - **Data:** `app.quiz_questions`, `app.quiz_cards`, `app.quiz_reviews`, `app.quiz_sessions`, `app.user_streaks`; reads chunks, notes and course settings. Qdrant for the search filter and related notes. No Redis or S3.
 - **External:** LLM, embedding provider (search filter only), `ts-fsrs`.
 - **Code:** `src/lib/quiz/`, `src/app/api/quiz/`, `src/app/quiz/`, `src/components/quiz/`, `src/lib/notes/state/quiz.ts`.
-- **Docs:** none beyond this page. Reindexing moves a generated question onto the new chunk when the old and new text match once each, and drops a never-reviewed generated question whose text changed. A reviewed question keeps its old `chunk_id`. See `carryGeneratedQuestions` in `src/lib/rag/indexing.ts`. The October 2026 audit recorded the older behaviour in [the audit record](../history/2026-10-06-domain-audit.md).
+- **Docs:** none beyond this page. Reindexing moves a generated question, reviewed or not, onto the new chunk when the old and new text match once each. It then drops a never-reviewed generated question still on an old chunk, which is text that changed or text that appears more than once. A reviewed question in those leftover cases keeps its old `chunk_id`. See `carryGeneratedQuestions` in `src/lib/rag/indexing.ts`. The October 2026 audit recorded the older behaviour in [the audit record](../history/2026-10-06-domain-audit.md).
 
 ## 9. Study maps
 
