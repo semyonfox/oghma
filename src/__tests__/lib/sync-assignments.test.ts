@@ -22,6 +22,23 @@ describe("syncAssignmentMetadata", () => {
     expect(client.getAssignments).not.toHaveBeenCalled();
   });
 
+  it("writes the assignment for the requested user", async () => {
+    const userId = "11111111-1111-4111-8111-111111111111";
+    const otherUserId = "22222222-2222-4222-8222-222222222222";
+    await syncAssignmentMetadata("42", userId, "Course", { getAssignments: vi.fn() }, [
+      { id: "7", name: "Essay", due_at: "2026-10-01T10:00:00Z" },
+    ]);
+
+    const inserts = vi.mocked(sql).mock.calls.filter((call) =>
+      (call[0] as string[]).join("?").includes("INSERT INTO app.assignments"),
+    );
+    expect(inserts.length).toBeGreaterThan(0);
+    for (const call of inserts) {
+      expect(call).toContain(userId);
+      expect(call).not.toContain(otherUserId);
+    }
+  });
+
   it("keeps the lecturer's brief only while content import is on", async () => {
     const assignment = { id: "7", name: "Essay", due_at: "2026-10-01T10:00:00Z", description: "<p>Write 2000 words</p>" };
     const client = { getAssignments: vi.fn() };

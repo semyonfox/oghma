@@ -143,4 +143,57 @@ describe("GET /api/search Canvas course contract", () => {
 
     expect(mocks.checkRateLimit).not.toHaveBeenCalled();
   });
+
+  it("returns nothing to an anonymous caller", async () => {
+    mocks.validateSession.mockResolvedValue(null);
+
+    const response = await GET(new NextRequest("http://localhost/api/search?q=graphs"));
+
+    expect(response.status).toBe(401);
+    expect(mocks.sql).not.toHaveBeenCalled();
+    expect(mocks.embedText).not.toHaveBeenCalled();
+    expect(mocks.searchChunkVectors).not.toHaveBeenCalled();
+  });
+
+  it("does not search a one-character query", async () => {
+    const response = await GET(new NextRequest("http://localhost/api/search?q=%20a%20"));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ results: [] });
+    expect(mocks.sql).not.toHaveBeenCalled();
+    expect(mocks.embedText).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unknown search mode", async () => {
+    const response = await GET(
+      new NextRequest("http://localhost/api/search?q=graphs&mode=hybrid"),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: "Invalid mode" });
+    expect(mocks.sql).not.toHaveBeenCalled();
+    expect(mocks.embedText).not.toHaveBeenCalled();
+  });
+
+  it("returns an empty semantic list when the embedding provider fails", async () => {
+    mocks.embedText.mockRejectedValue(new Error("provider down"));
+
+    const response = await GET(
+      new NextRequest("http://localhost/api/search?q=graphs&mode=semantic"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ results: [] });
+    expect(mocks.searchChunkVectors).not.toHaveBeenCalled();
+  });
+
+  it("binds keyword search to the signed-in user", async () => {
+    mocks.sql.mockResolvedValue([]);
+
+    await GET(new NextRequest("http://localhost/api/search?q=100%25_graphs"));
+
+    const bound = mocks.sql.mock.calls.flatMap((call) => call.slice(1));
+    expect(bound).toContain("123e4567-e89b-42d3-a456-426614174000");
+    expect(bound).toContain("%100\\%\\_graphs%");
+  });
 });
