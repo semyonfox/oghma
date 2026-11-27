@@ -1,5 +1,6 @@
 import { CanvasError } from "./errors.ts";
 import { parseNextLink } from "./pagination.ts";
+import { publicCanvasFetch } from "./public-fetch.ts";
 
 type CanvasResponse = {
     status: number;
@@ -39,7 +40,7 @@ export class CanvasClient {
     constructor(opts: CanvasClientOptions) {
         this.origin = new URL(`https://${opts.domain}`).origin;
         this.token = opts.token;
-        this.fetchImpl = opts.fetch ?? fetch;
+        this.fetchImpl = opts.fetch ?? publicCanvasFetch;
         this.timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
         this.maxPages = opts.maxPages ?? DEFAULT_MAX_PAGES;
     }
