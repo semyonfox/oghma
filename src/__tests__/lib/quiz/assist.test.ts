@@ -20,7 +20,12 @@ describe("quiz assist prompts", () => {
   });
 
   it("gives the answer to the explain prompts", () => {
-    expect(buildQuizAssistPrompt("simpler", mcq, null)).toContain("Correct answer: Mitochondrion");
+    const explained = buildQuizAssistPrompt("simpler", mcq, null);
+    expect(explained).toContain("Correct answer:");
+    expect(explained).toContain("Mitochondrion");
+    const answerAt = explained.indexOf("Mitochondrion");
+    expect(answerAt).toBeGreaterThan(explained.indexOf("BEGIN UNTRUSTED SOURCE"));
+    expect(answerAt).toBeLessThan(explained.lastIndexOf("END UNTRUSTED SOURCE"));
   });
 
   it("treats a hostile source excerpt as data", () => {

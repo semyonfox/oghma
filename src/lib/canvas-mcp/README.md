@@ -138,6 +138,8 @@ has been added.
 |---|---|---|---|
 | `CANVAS_API_TOKEN` | No | None | Fallback Canvas token when the request has no `X-Canvas-Token` |
 | `CANVAS_DOMAIN` | No | None | Fallback Canvas host, without a scheme |
+| `CANVAS_MCP_HOST` | No | `127.0.0.1` | Listen address. A container must use `0.0.0.0` or the published port is refused |
+| `CANVAS_MCP_AUTH_TOKEN` | When the host is not loopback | None | Bearer required on every `POST` if `CANVAS_MCP_HOST` is not loopback |
 | `PORT` | No | `3001` | HTTP listen port |
 | `LOG_LEVEL` | No | `info` | Parsed log level: `debug`, `info`, `warn`, or `error` |
 
@@ -167,8 +169,9 @@ without its own `X-Canvas-Token` gets `401`, so the server's token is never
 sent to a caller-chosen host.
 
 This is a credential-passthrough mechanism, **not multi-tenant
-authentication**. The server does not authenticate the caller, and a caller
-with their own token can still point it at any public host name. Use it only when a trusted upstream service has already authenticated
+authentication**. On loopback the server does not authenticate the caller, and a caller
+with their own token can still point it at any public host name. A non-loopback
+bind requires `Authorization: Bearer` matching `CANVAS_MCP_AUTH_TOKEN`. Use it only when a trusted upstream service has already authenticated
 the user, authorized the Canvas account, constrained the destination, and
 protected the headers in transit.
 
@@ -195,11 +198,15 @@ From this directory:
 docker build -t canvas-mcp .
 docker run --rm -p 127.0.0.1:3001:3001 \
   --env-file .env \
+  -e CANVAS_MCP_HOST=0.0.0.0 \
+  -e CANVAS_MCP_AUTH_TOKEN \
   canvas-mcp
 ```
 
 The image uses a two-stage build, a distroless Node 22 runtime, and a non-root
-user. Binding to loopback in the example is intentional.
+user. The published port stays on the host loopback. Inside the container the
+process has to listen on all interfaces, and that bind is refused unless
+`CANVAS_MCP_AUTH_TOKEN` is set. Send it as `Authorization: Bearer <token>`.
 
 ## Deployment
 

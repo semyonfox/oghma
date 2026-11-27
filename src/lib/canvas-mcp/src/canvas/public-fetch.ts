@@ -61,9 +61,11 @@ function headerRecord(headers: HeadersInit | undefined): Record<string, string> 
 export const publicCanvasFetch: FetchLike = (url, init) => {
     const body = typeof init?.body === "string" ? init.body : undefined;
     const signal = init?.signal;
+    const redirect = init?.redirect === "manual" || init?.redirect === "error" ? init.redirect : "manual";
     return undiciFetch(url, {
         method: init?.method ?? "GET",
         headers: headerRecord(init?.headers),
+        redirect,
         ...(signal !== undefined ? { signal } : {}),
         ...(body !== undefined ? { body } : {}),
         dispatcher: publicAddressAgent,

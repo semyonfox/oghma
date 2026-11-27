@@ -118,8 +118,9 @@ export async function fetchModuleDescriptor(
   let body: string | null;
   try {
     const html = await readDescriptorHtml(code);
-    // the site serves real module pages with a 404 status, so the body decides
-    body = html === null ? null : parseDescriptor(html, code);
+    // the site serves real module pages with a 404 status, so the body decides.
+    // a refused redirect throws and keeps the previous copy instead of caching null
+    body = parseDescriptor(html, code);
   } catch {
     // keep a stale copy rather than losing it to a network blip
     return cached?.body ?? null;
@@ -131,8 +132,10 @@ export async function fetchModuleDescriptor(
   return body;
 }
 
-async function readDescriptorHtml(code: string): Promise<string | null> {
-  if (!MODULE_CODE.test(code)) return null;
+async function readDescriptorHtml(code: string): Promise<string> {
+  if (!MODULE_CODE.test(code)) {
+    throw new Error("Module code is not a Galway course code");
+  }
   let current = `${DESCRIPTOR_URL}${code}`;
   for (let hop = 0; hop <= MAX_DESCRIPTOR_REDIRECTS; hop++) {
     const response = await fetch(current, {
@@ -142,16 +145,21 @@ async function readDescriptorHtml(code: string): Promise<string | null> {
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get("location");
       await response.body?.cancel().catch(() => undefined);
-      if (!location || hop === MAX_DESCRIPTOR_REDIRECTS) return null;
+      if (!location || hop === MAX_DESCRIPTOR_REDIRECTS) {
+        throw new Error("Module page redirected too many times");
+      }
       const next = nextDescriptorUrl(current, location);
-      if (!next) return null;
+      if (!next) throw new Error("Module page redirected off the university host");
       current = next;
       continue;
     }
     const html = await response.text();
-    return html.length > MAX_DESCRIPTOR_CHARS ? null : html;
+    if (html.length > MAX_DESCRIPTOR_CHARS) {
+      throw new Error("Module page exceeded the size limit");
+    }
+    return html;
   }
-  return null;
+  throw new Error("Module page redirected too many times");
 }
 
 // Galway's empty-course home page; it describes Canvas, not the module
