@@ -62,7 +62,7 @@ interface FileImportOptions {
   courseId: string;
   moduleId: CanvasId | null;
   parentFolderId: string | null;
-  client: Pick<CanvasClient, "baseUrl" | "downloadFile">;
+  client: Pick<CanvasClient, "baseUrl" | "downloadFile" | "confirmFileDownload">;
   storage: FileStorage;
   s3Prefix: string;
   jobId?: string | null;
@@ -364,7 +364,20 @@ async function _runFileImport(
       : null;
   if (canvasSource) {
     const sourceCache = await getImportedFileCacheByCanvasSource(canvasSource);
-    const reused = sourceCache
+    // Metadata can be visible when the download URL still 403s. Check that
+    // before replaying another account's extraction, and do it outside the
+    // content-addressed lock so the HTTP call does not hold a pool connection.
+    const access = sourceCache
+      ? await client.confirmFileDownload(file.url)
+      : null;
+    if (access?.forbidden) {
+      logger.info("canvas file skipped: download forbidden");
+      await setImportStatus(importRecordId, "forbidden", {
+        message: "File access denied by lecturer",
+      }, opts.jobId);
+      return;
+    }
+    const reused = sourceCache && access && !access.error
       ? await withCanvasPublication(() => withImportedFileLock(sourceCache.sha256, async () => {
           // A source lookup happens before the file bytes are available. It
           // must share the content-addressed lock with cache retention so an
@@ -448,7 +461,9 @@ async function _runFileImport(
   let canvasAssignmentId = null;
   if (!moduleId && parentFolderId) {
     const [parentFolder] = await sql`
-      SELECT canvas_assignment_id FROM app.notes WHERE note_id = ${parentFolderId}::uuid LIMIT 1
+      SELECT canvas_assignment_id FROM app.notes
+      WHERE note_id = ${parentFolderId}::uuid AND user_id = ${userId}::uuid
+      LIMIT 1
     `;
     canvasAssignmentId =
       parentFolder?.canvas_assignment_id == null
