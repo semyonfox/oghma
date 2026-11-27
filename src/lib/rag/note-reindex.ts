@@ -2,7 +2,7 @@ import sql from "@/database/pgsql";
 import logger from "@/lib/logger";
 import { chunkText } from "@/lib/rag/chunking";
 import { replaceNoteEmbeddings } from "@/lib/rag/indexing";
-import { processExtractedText } from "@/lib/canvas/text-processing";
+import { stripMarkdown } from "@/lib/rag/strip-markdown";
 import { enqueueNoteReindexJob } from "@/lib/queue";
 
 interface NoteReindexRow {
@@ -53,7 +53,9 @@ async function runReindex(
   `) as NoteReindexRow[];
   if (!note) return "missing";
 
-  const cleanedText = processExtractedText(note.content);
+  // strip markdown only. the PDF token cleaner drops digits and one-letter
+  // words, so exact search and the next edit would both miss a change like 7 → 8
+  const cleanedText = stripMarkdown(note.content);
   const unchanged = cleanedText === (note.extracted_text ?? "");
 
   if (!unchanged) await replaceNoteEmbeddings(noteId, userId, chunkText(note.content));
