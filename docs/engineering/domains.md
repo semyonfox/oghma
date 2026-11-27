@@ -4,6 +4,8 @@
 >
 > **Last reviewed:** 2026-10-16, built from the [domain audit](../history/2026-10-06-domain-audit.md) reports and checked against `dev` after the audit fixes landed (#632 to #635)
 >
+> **Corrections:** 2026-11-27 for the quiz reindex sentence and the note, quiz, study-map and Canvas entry points named in those sections. The rest of this page was not rechecked.
+>
 > **Source of truth for:** Which code, routes, workers and data belong to each product area. Behaviour contracts live in the linked deeper docs.
 
 OghmaNotes splits into the 18 areas below. Each section lists where requests come in, the main flow, the data it reads and writes, what it calls outside the process, and where its code lives. Use it to scope a change or a future per-domain audit; follow the links for the detailed contracts.
@@ -46,7 +48,7 @@ Sign-up, sign-in, sessions, password reset, account settings and deletion.
 
 The notes workspace: create, open, save, move, trash and restore.
 
-- **Entry points:** pages `/notes`, `/notes/[id]`, `/notes/trash`. Routes `/api/notes` (list, create), `/api/notes/[id]` (read, update, trash), its `assets`, `backlinks` and `offline` subroutes, `/api/tree`, `/api/tree/children`, `/api/tree/status`, `/api/trash`. Worker passes `purgeExpiredTrash`, `processPendingNoteDeletionCleanup` and `reconcileTrashedVectorVisibility`, and the `note-reindex` job.
+- **Entry points:** pages `/notes`, `/notes/[id]`, `/notes/trash`. Routes `/api/notes` (list, create), `/api/notes/[id]` (read, update, trash), its `assets`, `backlinks`, `offline`, `path`, `cards` and `sections` subroutes, `/api/tree`, `/api/tree/children`, `/api/tree/status`, `/api/tree/tags`, `/api/tree/course`, `/api/trash`. `path` is the breadcrumb, `cards` is manual quiz cards, `sections` lists headings, `tags` is the tags view, and `course` sets a folder finished or active. Worker passes `purgeExpiredTrash`, `processPendingNoteDeletionCleanup` and `reconcileTrashedVectorVisibility`, and the `note-reindex` job.
 - **Flow:** a save runs in one transaction (`SELECT … FOR UPDATE`, the `expectedUpdatedAt` 409 check, then `COALESCE` per field so only sent fields change) and queues a delayed, deduplicated `note-reindex` job that re-embeds in the worker. Create and move take the per-user advisory lock `hashtextextended(user_id, 0)`. Trash stamps a cohort, cancels related jobs and hides vectors; restore falls back to the root when the original folder isn't live; permanent delete removes rows and queues S3 and Qdrant cleanup in `app.note_deletion_cleanup_tasks`. Other tabs hear about changes through BroadcastChannel.
 - **Data:** `app.notes`, `app.tree_items`, `app.note_links`, `app.attachments`, `app.note_deletion_cleanup_tasks`, plus cascading writes to job, chunk, chat, quiz and annotation tables on delete. Note and tree reads use PostgreSQL. Browser IndexedDB `oghma-notes` and `oghma-ui`, localStorage layout and invalidation keys.
 - **External:** S3; the embedding provider and Qdrant through the reindex job and trash visibility updates.
@@ -112,18 +114,18 @@ AI chat over the user's notes, with durable background generation and approval-g
 
 Flashcards generated from note chunks and scheduled with FSRS.
 
-- **Entry points:** `/quiz`, `/quiz/session/[id]`. Routes `POST /api/quiz/sessions`, `GET|DELETE /api/quiz/sessions/[id]`, `POST /api/quiz/sessions/[id]/answer`, `/api/quiz/cards/[id]`, `/api/quiz/questions/[id]/related`, `/api/quiz/dashboard` (and `/courses`), `GET /api/quiz/streak`, `/api/quiz/review-dates`. Worker hook `seedQuestionsAfterImport` after Canvas and vault imports.
+- **Entry points:** `/quiz`, `/quiz/session/[id]`. Routes `POST /api/quiz/sessions`, `GET|DELETE /api/quiz/sessions/[id]`, `POST /api/quiz/sessions/[id]/answer`, `/api/quiz/cards/[id]`, `/api/quiz/questions/[id]/related`, `/api/quiz/questions/[id]/assist`, `/api/quiz/dashboard` (and `/courses`), `GET /api/quiz/streak`, `/api/quiz/review-dates`, `GET|POST /api/quiz/exams` and `/api/quiz/exams/[id]`. Worker hook `seedQuestionsAfterImport` after Canvas and vault imports.
 - **Flow:** a session resolves the filter to live chunks, buckets cards into due, new and retention, and fills the session 70/20/10 with backfill. Chunks with no card get questions generated in the background (LLM output validated with zod, persisted in one transaction). Answers are graded on the server with the same `gradeAnswer` the client uses, a repeated answer replays the stored result, and FSRS state includes `learning_steps` (migration 080). Streaks use the student's IANA time zone.
 - **Data:** `app.quiz_questions`, `app.quiz_cards`, `app.quiz_reviews`, `app.quiz_sessions`, `app.user_streaks`; reads chunks, notes and course settings. Qdrant for the search filter and related notes. No Redis or S3.
 - **External:** LLM, embedding provider (search filter only), `ts-fsrs`.
 - **Code:** `src/lib/quiz/`, `src/app/api/quiz/`, `src/app/quiz/`, `src/components/quiz/`, `src/lib/notes/state/quiz.ts`.
-- **Docs:** none beyond this page. Questions keep the old `chunk_id` when a note is re-indexed, so editing a note retires its cards; that is an open item in the [audit record](../history/2026-10-06-domain-audit.md).
+- **Docs:** none beyond this page. Reindexing moves a generated question onto the new chunk when the old and new text match once each, and drops a never-reviewed generated question whose text changed. A reviewed question keeps its old `chunk_id`. See `carryGeneratedQuestions` in `src/lib/rag/indexing.ts`. The October 2026 audit recorded the older behaviour in [the audit record](../history/2026-10-06-domain-audit.md).
 
 ## 9. Study maps
 
 Course maps that organise notes around reviewed topics, plus exam-paper analysis.
 
-- **Entry points:** `/study-map`. Routes `/api/study-maps`, `/api/study-maps/setup`, `/api/study-maps/search`, and under `/api/study-maps/[id]`: the map itself, `board`, `jobs`, `materials`, `papers` (and `papers/import`), `refresh`, `topics`. The note inspector calls `GET /api/study-maps?noteId=`. The worker drains study jobs every 5 s within a time budget and reconciles auto maps every 60 s.
+- **Entry points:** `/study-map`. Routes `/api/study-maps`, `/api/study-maps/setup`, `/api/study-maps/search`, `/api/study-maps/progress`, and under `/api/study-maps/[id]`: the map itself, `board`, `jobs`, `materials`, `papers` (and `papers/import`), `refresh`, `topics`. The note inspector calls `GET /api/study-maps?noteId=`. The worker drains study jobs every 5 s within a time budget and reconciles auto maps every 60 s.
 - **Flow:** opening the page creates a map per imported Canvas course, then auto-configures as many as fit in about 20 seconds: sync materials, write a course outline note, queue one topic proposal, then classify new or changed materials. Jobs live in PostgreSQL with `SKIP LOCKED` claims and a 5 minute lease; provider calls run outside transactions and results are rechecked before publishing. Job messages, failure mapping and result validation are in `job-policy.ts`.
 - **Data:** `app.study_maps`, `app.study_materials`, `app.study_papers`, `app.study_jobs`, `app.study_map_dismissed_courses`, `app.study_decision_cache`, `app.study_generation_cache`, `app.module_descriptors`; reads notes, assignments and Canvas import state; writes outline notes.
 - **External:** Jev Decisions API on OpenRouter, the generative LLM, University of Galway module pages, the Canvas API.
@@ -134,7 +136,7 @@ Course maps that organise notes around reviewed topics, plus exam-paper analysis
 
 Connecting Canvas, the assignment tracker, course settings and the raw Canvas export.
 
-- **Entry points:** Settings Canvas section; the assignment tracker in `src/components/assignments/`. Routes `/api/canvas/connect`, `/api/canvas/courses`, `/api/canvas/download`, `/api/canvas/sync`, `/api/assignments` and `/api/assignments/[id]` (plus `canvas`, `materials`), `/api/assignments/sync`, `/api/courses/settings`, `/api/planner/items`.
+- **Entry points:** Settings Canvas section; the assignment tracker in `src/components/assignments/`. Routes `/api/canvas/connect`, `/api/canvas/token-state`, `/api/canvas/courses`, `/api/canvas/download`, `/api/canvas/sync`, `/api/assignments` and `/api/assignments/[id]` (plus `canvas`, `materials`), `/api/assignments/sync`, `/api/courses/settings`, `/api/planner/items`.
 - **Flow:** connecting validates the token against Canvas and stores it encrypted per user. Every Canvas request goes through `safe-fetch.ts` (HTTPS, public IPv4 only, pinned DNS, manual redirects, 30 s headers, 60 s idle body, and an overall deadline of 2 min for API calls and 10 min for downloads) with retries on transient errors. Assignment sync upserts by Canvas id, keeps a user's done or in-progress status unless Canvas reports the work submitted, and deletes rows Canvas no longer lists after a complete read. The raw export streams a ZIP as it discovers content. Exports are limited to 3 an hour and assignment syncs to 20.
 - **Data:** `app.login.canvas_token` and `canvas_domain`, `app.assignments`, `app.user_course_settings`, `app.canvas_planner_items` (`sync-planner-items.ts` exists but nothing calls it, so the table stays empty). Reads `app.canvas_imports` and `app.canvas_import_jobs`.
 - **External:** the Canvas REST API with the user's token; the browser calls the Canvas account directory directly.

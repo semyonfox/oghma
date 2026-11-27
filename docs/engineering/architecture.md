@@ -54,7 +54,7 @@ Qdrant is the current vector store. Migration `030_qdrant_embeddings.sql` remove
 `app.notes` and `app.tree_items` are one relational ownership boundary. Creating
 a note creates its tree row in the same transaction, and a child can only be
 placed beneath an active folder owned by that user. A soft delete marks the
-active tree subtree as one cohort but retains its tree rows, attachments,
+active tree subtree as one bundle on `trash_root_id` but retains its tree rows, attachments,
 annotations, chunks, and vectors. Restore can therefore reverse that operation
 without recreating derived state; it restores only the matching cohort and
 falls back to the root when the original parent is no longer an active folder.
