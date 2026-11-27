@@ -53,6 +53,12 @@ vi.mock("@/lib/canvas/client", () => ({
         content_type: "application/pdf", url: `https://canvas.example.test/file/${id}`, size: bytes.length,
         updated_at: bytes.toString("hex") } };
     }
+    async confirmFileDownload() {
+      return { forbidden: false, error: null };
+    }
+    async confirmFileDownload() {
+      return { forbidden: false, error: null };
+    }
     async downloadFile(url: string) {
       const id = url.split("/").pop() ?? "";
       return { buffer: mocks.fileBytes.get(id) ?? mocks.bytes };
