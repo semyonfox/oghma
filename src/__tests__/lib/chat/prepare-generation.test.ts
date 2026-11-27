@@ -24,6 +24,7 @@ describe("prepareChatGeneration", () => {
 
     expect(prepared.systemPrompt).toMatch(/getChunks/);
     expect(prepared.systemPrompt).toMatch(/readNote/);
+    expect(prepared.systemPrompt).toMatch(/untrusted/i);
     expect(prepared.initialParts).toEqual([]);
     expect(prepared.uniqueSources).toEqual([]);
     expect(prepared.retrieval).toMatchObject({
